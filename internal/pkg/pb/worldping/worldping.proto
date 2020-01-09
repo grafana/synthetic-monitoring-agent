@@ -1,0 +1,55 @@
+// Copyright 2020 Grafana Labs
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+package worldping;
+
+option go_package = "worldping";
+
+import "gogoproto/gogo.proto";
+import "prompb/remote.proto";
+import "logproto/logproto.proto";
+
+service Pusher {
+	rpc Push(PushRequest) returns (PushResponse) {};
+}
+
+message Auth {
+	string username = 1 [(gogoproto.jsontag) = "username"];
+	string password = 2 [(gogoproto.jsontag) = "password"];
+}
+
+message Remote {
+	string name     = 1 [(gogoproto.jsontag) = "remote_name"];
+	string url      = 2 [(gogoproto.jsontag) = "url"];
+	string tenantID = 3 [(gogoproto.jsontag) = "tenant_id"];
+	Auth   auth     = 4 [(gogoproto.jsontag) = "auth"];
+}
+
+message MetricsRequest {
+	prometheus.WriteRequest metrics = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "request"];
+	Remote                  remote  = 2 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "remote"];
+}
+
+message EventsRequest {
+	logproto.PushRequest events = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "request"];
+	Remote               remote = 2 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "remote"];
+}
+
+message PushRequest {
+	MetricsRequest metrics = 1 [(gogoproto.jsontag) = "metrics"];
+	EventsRequest  events  = 2 [(gogoproto.jsontag) = "events"];
+}
+
+message PushResponse {
+}
