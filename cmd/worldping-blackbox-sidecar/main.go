@@ -68,14 +68,18 @@ func main() {
 	}
 
 	go runHttpServer(ctx, httpConfig{
-		listenAddr:   "localhost:4040",
+		listenAddr:   "localhost:4030",
 		logger:       logger,
 		readTimeout:  5 * time.Second,
 		writeTimeout: 10 * time.Second,
 		idleTimeout:  15 * time.Second,
 	}, cancel)
 
-	go publishTestData(ctx, config, logger)
+	publishCh := make(chan TimeSeries)
+
+	go publisher(ctx, publishCh, config, logger)
+
+	go scrape(ctx, publishCh, "probe-1", "http://localhost:4040/metrics", logger)
 
 	<-ctx.Done()
 }
