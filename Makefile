@@ -11,6 +11,8 @@ GO = GO111MODULE=on go
 GO_PKGS ?= ./...
 SH_FILES ?= $(shell find ./scripts -name *.sh)
 
+COMMANDS := $(shell $(GO) list ./cmd/...)
+
 .DEFAULT_GOAL := all
 
 .PHONY: all
@@ -28,19 +30,16 @@ deps: deps-go ## Install all dependencies.
 
 ##@ Building
 
+BUILD_GO_TARGETS := $(addprefix build-go-, $(COMMANDS))
+
+.PHONY: $(BUILD_GO_TARGETS)
+$(BUILD_GO_TARGETS): build-go-%:
+	$(S) echo 'Building $*'
+	$(GO) build $*
+
 .PHONY: build-go
-build-go: build-server build-cli ## Build all Go binaries.
+build-go: $(BUILD_GO_TARGETS) ## Build all Go binaries.
 	$(S) true
-
-.PHONY: build-server
-build-server: ## Build all Go binaries.
-	$(S) echo "build server"
-	$(GO) build ./cmd/worldping-blackbox-sidecar
-
-.PHONY: build-cli
-build-cli: ## Build CLI application.
-	$(S) true
-	$(GO) build ./cmd/worldping-proto
 
 .PHONY: build
 build: build-go ## Build everything.
