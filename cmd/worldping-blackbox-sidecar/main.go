@@ -118,6 +118,8 @@ func run(args []string, stdout io.Writer) error {
 		config.metrics.URL = u.String()
 	}
 
+	go checksUpdater(ctx, *grpcApiServerAddr, logger)
+
 	go publisher(ctx, publishCh, config, logger)
 
 
