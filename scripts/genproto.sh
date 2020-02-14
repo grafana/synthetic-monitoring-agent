@@ -52,6 +52,7 @@ for dir in ${DIRS}; do
 		sed -i.bak -E 's,(import |\t)_ "google/protobuf",,g' -- *.pb.go
 		sed -i.bak -E 's,(import |\t)_ "google/api",,g' -- *.pb.go
 		sed -i.bak -E 's,golang/protobuf,gogo/protobuf,g' -- *.pb.go
+		sed -i.bak -E 's,(import |\t)protobuf "google/protobuf",protobuf "github.com/gogo/protobuf/types", g' -- *.pb.go
 		sed -i.bak -E "s,(import |\\t)prompb \"prompb\",\\1prompb \"${PROMPB_IMPORT_PATH}\"," -- *.pb.go
 		sed -i.bak -E "s,(import |\\t)logproto \"logproto\",\\1logproto \"${LOGPROTO_IMPORT_PATH}\"," -- *.pb.go
 		rm -f -- *.bak

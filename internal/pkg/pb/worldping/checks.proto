@@ -16,6 +16,7 @@ package worldping;
 
 option go_package = "worldping";
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "gogoproto/gogo.proto";
 
@@ -25,26 +26,20 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 service Checks {
-	// Create adds a new check using the specified configuration.
-	rpc Create(Check) returns (CreateResponse) {};
-
-	// Update changes to specified check to match the new
-	// configuration.
-	rpc Update(Check) returns (UpdateResponse) {};
-
-	// Delete removes the specified check.
-	//
-	// Only the ID is used, the rest of the information is ignored.
-	rpc Delete(Check) returns (DeleteResponse) {};
+	// GetChanges returns a list of check operations, specifying
+	// whether to add, update or delete checks.
+	rpc GetChanges(google.protobuf.Empty) returns (stream CheckChange) {};
 }
 
-message CreateResponse {
+enum CheckOperation {
+	ADD    = 0;
+	UPDATE = 1;
+	DELETE = 2;
 }
 
-message UpdateResponse {
-}
-
-message DeleteResponse {
+message CheckChange {
+	CheckOperation operation = 1;
+	Check          check     = 2 [(gogoproto.nullable) = false];
 }
 
 // Check represents a check.
