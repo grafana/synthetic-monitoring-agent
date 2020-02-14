@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -16,26 +19,79 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-var exitCode int
+var exitError error
 
-func main() {
+const exitFail = 1
+
+func run(args []string, stdout io.Writer) error {
+	flags := flag.NewFlagSet(args[0], flag.ExitOnError)
+
+	var (
+		verbose           = flags.Bool("verbose", false, "verbose logging")
+		grpcApiServerAddr = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
+		grpcForwarderAddr = flags.String("forwarder-server-address", "localhost:4041", "GRPC forwarder server address")
+		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
+		probeName         = flags.String("probe-name", "probe-1", "name for this probe")
+	)
+
+	_ = grpcApiServerAddr
+	_ = grpcForwarderAddr
+
+	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	defer func() {
-		cancel()
-		if exitCode != 0 {
-			os.Exit(exitCode)
+	loggerWriter := ioutil.Discard
+	if *verbose {
+		loggerWriter = stdout
+	}
+
+	tag := fmt.Sprintf("%s: ", args[0])
+
+	logger := log.New(loggerWriter, tag, log.LstdFlags)
+
+	go signalHandler(ctx, cancel, logger)
+
+	logger.Printf("Starting worldping-blackbox-sidecar (%s, %s, %s)", version, commit, buildstamp)
+
+	if err := registerMetrics(); err != nil {
+		return err
+	}
+
+	httpConfig := httpConfig{
+		listenAddr:   *httpListenAddr,
+		logger:       logger,
+		readTimeout:  5 * time.Second,
+		writeTimeout: 10 * time.Second,
+		idleTimeout:  15 * time.Second,
+	}
+
+	httpServer := newHttpServer(ctx, httpConfig)
+
+	go func(cancel context.CancelFunc) {
+		var lc net.ListenConfig
+
+		l, err := lc.Listen(ctx, "tcp", httpServer.Addr)
+		if err != nil {
+			exitError = err
+			cancel()
+			return
 		}
-	}()
 
-	go signalHandler(ctx, cancel)
+		if err := runHttpServer(l, httpServer); err != nil {
+			exitError = err
+			cancel()
+			return
+		}
+	}(cancel)
 
-	logger := log.New(os.Stdout, "worldping-test: ", log.LstdFlags)
-
-	logger.Printf("Starting worldping-test (%s, %s, %s)", version, commit, buildstamp)
+	publishCh := make(chan TimeSeries)
 
 	config := config{
-		forwarderAddress: "localhost:4041",
+		forwarderAddress: *grpcForwarderAddr,
 	}
 
 	if err := envconfig.Process("worldping_test_metrics", &config.metrics); err != nil {
@@ -62,26 +118,25 @@ func main() {
 		config.metrics.URL = u.String()
 	}
 
-	if err := registerMetrics(); err != nil {
-		logger.Printf("cannot register prometheus metrics: %s", err)
-		return
-	}
-
-	go runHttpServer(ctx, httpConfig{
-		listenAddr:   "localhost:4030",
-		logger:       logger,
-		readTimeout:  5 * time.Second,
-		writeTimeout: 10 * time.Second,
-		idleTimeout:  15 * time.Second,
-	}, cancel)
-
-	publishCh := make(chan TimeSeries)
-
 	go publisher(ctx, publishCh, config, logger)
 
-	go scrape(ctx, publishCh, "probe-1", "http://localhost:4040/metrics", logger)
 
 	<-ctx.Done()
+
+	timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer timeoutCancel()
+
+	// we probably cannot do anything meaningful with this error
+	_ = httpServer.Shutdown(timeoutCtx)
+
+	return exitError
+}
+
+func main() {
+	if err := run(os.Args, os.Stdout); err != nil {
+		fmt.Fprintf(os.Stderr, "E: %s\n", err)
+		os.Exit(exitFail)
+	}
 }
 
 type config struct {
@@ -110,33 +165,34 @@ type httpConfig struct {
 	idleTimeout  time.Duration
 }
 
-func signalHandler(ctx context.Context, cancel context.CancelFunc) {
+func signalHandler(ctx context.Context, cancel context.CancelFunc, logger *log.Logger) {
 	sigCh := make(chan os.Signal, 1)
 
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGQUIT, syscall.SIGTERM)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
 	select {
 	case sig := <-sigCh:
-		exitCode = 1
-		log.Printf("Received signal %s. shutting down", sig)
+		exitError = fmt.Errorf("Got signal %s", sig)
+		logger.Printf("Received signal %s. Shutting down.", sig)
 
 	case <-ctx.Done():
-		log.Println("Shutting down")
+		logger.Printf("Shutting down...")
 	}
 
 	cancel()
 }
 
-func runHttpServer(ctx context.Context, cfg httpConfig, cancel context.CancelFunc) {
-	server := newHttpServer(ctx, cfg)
+func defaultHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
 
-	server.ErrorLog.Println("Starting HTTP server...")
+		w.WriteHeader(http.StatusOK)
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		server.ErrorLog.Printf("Could not listen on %s: %v\n", server.Addr, err)
-		exitCode = 2
-		cancel()
-	}
+		fmt.Fprintln(w, "hello, world!")
+	})
 }
 
 func newHttpServer(ctx context.Context, cfg httpConfig) *http.Server {
@@ -155,15 +211,13 @@ func newHttpServer(ctx context.Context, cfg httpConfig) *http.Server {
 	}
 }
 
-func defaultHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-			return
-		}
+func runHttpServer(l net.Listener, server *http.Server) error {
+	server.ErrorLog.Printf("Starting HTTP server on %s...", server.Addr)
 
-		w.WriteHeader(http.StatusOK)
+	err := server.Serve(l)
+	if err != nil && err != http.ErrServerClosed {
+		return fmt.Errorf("could not serve HTTP on %s: %w", server.Addr, err)
+	}
 
-		fmt.Fprintln(w, "hello, world!")
-	})
+	return nil
 }
