@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"time"
 
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/logproto"
@@ -30,12 +30,18 @@ type pusher struct {
 	eventsRemote  remoteInfo
 }
 
-func publisher(ctx context.Context, publishCh <-chan TimeSeries, cfg config, logger *log.Logger) {
-	logger.Printf("Publishing data to %s", cfg.forwarderAddress)
+type publisher struct {
+	publishCh <-chan TimeSeries
+	cfg       config
+	logger    logger
+}
 
-	conn, err := grpc.Dial(cfg.forwarderAddress, grpc.WithInsecure(), grpc.WithBlock())
+func (p publisher) run(ctx context.Context) error {
+	p.logger.Printf("Publishing data to %s", p.cfg.forwarderAddress)
+
+	conn, err := grpc.Dial(p.cfg.forwarderAddress, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		logger.Fatalf("did not connect: %v", err)
+		return fmt.Errorf("connecting to %s: %w", p.cfg.forwarderAddress, err)
 	}
 	defer conn.Close()
 
@@ -43,31 +49,33 @@ func publisher(ctx context.Context, publishCh <-chan TimeSeries, cfg config, log
 
 	pusher := pusher{
 		client:      c,
-		logger:      logger,
+		logger:      p.logger,
 		pushTimeout: 1 * time.Second,
 		metricsRemote: remoteInfo{
-			name:     cfg.metrics.Name,
-			url:      cfg.metrics.URL,
-			username: cfg.metrics.Username,
-			password: cfg.metrics.Password,
+			name:     p.cfg.metrics.Name,
+			url:      p.cfg.metrics.URL,
+			username: p.cfg.metrics.Username,
+			password: p.cfg.metrics.Password,
 		},
 		eventsRemote: remoteInfo{
-			name:     cfg.events.Name,
-			url:      cfg.events.URL,
-			username: cfg.events.Username,
-			password: cfg.events.Password,
+			name:     p.cfg.events.Name,
+			url:      p.cfg.events.URL,
+			username: p.cfg.events.Username,
+			password: p.cfg.events.Password,
 		},
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 
-		case ts := <-publishCh:
+		case ts := <-p.publishCh:
 			go pusher.push(ctx, ts)
 		}
 	}
+
+	return nil
 }
 
 func (p pusher) push(ctx context.Context, ts TimeSeries) {

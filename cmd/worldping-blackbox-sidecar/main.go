@@ -118,10 +118,26 @@ func run(args []string, stdout io.Writer) error {
 		config.metrics.URL = u.String()
 	}
 
-	go checksUpdater(ctx, *grpcApiServerAddr, logger)
+	checksUpdater := checksUpdater{
+		apiServerAddr: *grpcApiServerAddr,
+		logger:        logger,
+	}
 
-	go publisher(ctx, publishCh, config, logger)
+	go checksUpdater.run(ctx)
 
+	publisher := publisher{
+		publishCh: publishCh,
+		cfg:       config,
+		logger:    logger,
+	}
+
+	go publisher.run(ctx)
+
+	// XXX(mem): need to stick probename somewhere
+	_ = probeName
+
+	// go scrape(ctx, publishCh, *probeName, "http://localhost:9115/probe?target=localhost&module=icmp_v4", logger)
+	// go scrape(ctx, publishCh, *probeName, "http://localhost:9115/metrics", logger)
 
 	<-ctx.Done()
 
