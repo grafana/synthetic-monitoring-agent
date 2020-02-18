@@ -139,9 +139,6 @@ func run(args []string, stdout io.Writer) error {
 
 	go publisher.run(ctx)
 
-	// go scrape(ctx, publishCh, *probeName, "http://localhost:9115/probe?target=localhost&module=icmp_v4", logger)
-	// go scrape(ctx, publishCh, *probeName, "http://localhost:9115/metrics", logger)
-
 	<-ctx.Done()
 
 	timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 5*time.Second)
