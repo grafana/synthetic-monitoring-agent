@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 
 	protobuf "github.com/gogo/protobuf/types"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
@@ -13,8 +14,11 @@ import (
 )
 
 type checksUpdater struct {
-	apiServerAddr string
-	logger        logger
+	apiServerAddr       string
+	blackboxExporterURL *url.URL
+	logger              logger
+	publishCh           chan<- TimeSeries
+	probeName           string
 }
 
 func (c checksUpdater) run(ctx context.Context) {
@@ -57,6 +61,17 @@ func (c checksUpdater) loop(ctx context.Context) error {
 			case nil:
 				c.logger.Printf("Got change: %#v", change)
 
+				switch change.Operation {
+				case worldping.CheckOperation_ADD:
+					if err := c.handleCheckAdd(ctx, change.Check); err != nil {
+						c.logger.Printf("handling check add: %s", err)
+					}
+
+				case worldping.CheckOperation_UPDATE:
+
+				case worldping.CheckOperation_DELETE:
+				}
+
 			case io.EOF:
 				c.logger.Printf("No more messages?")
 				// XXX(mem): what happened here? The
@@ -77,6 +92,52 @@ func (c checksUpdater) loop(ctx context.Context) error {
 			}
 		}
 	}
+
+	return nil
+}
+
+func (c checksUpdater) handleCheckAdd(ctx context.Context, check worldping.Check) error {
+	var (
+		module string
+		target string
+	)
+
+	// Map the change to a blackbox exporter module
+	if check.Settings.PingSettings != nil {
+		module = "icmp_v4"
+		target = check.Settings.PingSettings.Hostname
+	} else if check.Settings.DnsSettings != nil {
+		module = "http_2xx_v4"
+		target = check.Settings.HttpSettings.Url
+	} else if check.Settings.HttpSettings != nil {
+		module = "dns_v4"
+		target = check.Settings.DnsSettings.Name
+	} else {
+		return fmt.Errorf("unsupported change")
+	}
+
+	if c.blackboxExporterURL == nil {
+		c.logger.Printf("no blackbox exporter URL configured, ignoring check change")
+		return nil
+	}
+
+	u := *c.blackboxExporterURL
+	q := u.Query()
+	q.Add("target", target)
+	q.Add("module", module)
+	u.RawQuery = q.Encode()
+
+	scraper := scraper{
+		publishCh: c.publishCh,
+		probeName: c.probeName,
+		target:    u.String(),
+		endpoint:  target,
+		logger:    c.logger,
+	}
+
+	// XXX(mem): this needs to change to check for existing queries
+	// and to handle enabling / disabling of checks
+	go scraper.run(ctx)
 
 	return nil
 }

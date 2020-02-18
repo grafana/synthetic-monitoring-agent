@@ -27,17 +27,20 @@ func run(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet(args[0], flag.ExitOnError)
 
 	var (
-		verbose           = flags.Bool("verbose", false, "verbose logging")
-		grpcApiServerAddr = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
-		grpcForwarderAddr = flags.String("forwarder-server-address", "localhost:4041", "GRPC forwarder server address")
-		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
-		probeName         = flags.String("probe-name", "probe-1", "name for this probe")
+		verbose             = flags.Bool("verbose", false, "verbose logging")
+		blackboxExporterStr = flags.String("blackbox-exporter-url", "http://localhost:9115/probe", "base URL for blackbox exporter")
+		grpcApiServerAddr   = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
+		grpcForwarderAddr   = flags.String("forwarder-server-address", "localhost:4041", "GRPC forwarder server address")
+		httpListenAddr      = flags.String("listen-address", ":4050", "listen address")
+		probeName           = flags.String("probe-name", "probe-1", "name for this probe")
 	)
 
-	_ = grpcApiServerAddr
-	_ = grpcForwarderAddr
-
 	if err := flags.Parse(args[1:]); err != nil {
+		return err
+	}
+
+	blackboxExporterURL, err := url.Parse(*blackboxExporterStr)
+	if err != nil {
 		return err
 	}
 
@@ -119,8 +122,11 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	checksUpdater := checksUpdater{
-		apiServerAddr: *grpcApiServerAddr,
-		logger:        logger,
+		apiServerAddr:       *grpcApiServerAddr,
+		blackboxExporterURL: blackboxExporterURL,
+		logger:              logger,
+		publishCh:           publishCh,
+		probeName:           *probeName,
 	}
 
 	go checksUpdater.run(ctx)
@@ -132,9 +138,6 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	go publisher.run(ctx)
-
-	// XXX(mem): need to stick probename somewhere
-	_ = probeName
 
 	// go scrape(ctx, publishCh, *probeName, "http://localhost:9115/probe?target=localhost&module=icmp_v4", logger)
 	// go scrape(ctx, publishCh, *probeName, "http://localhost:9115/metrics", logger)
