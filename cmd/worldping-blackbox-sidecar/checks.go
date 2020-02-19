@@ -92,8 +92,6 @@ func (c checksUpdater) loop(ctx context.Context) error {
 			}
 		}
 	}
-
-	return nil
 }
 
 func (c checksUpdater) handleCheckAdd(ctx context.Context, check worldping.Check) error {

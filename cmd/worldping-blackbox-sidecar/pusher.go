@@ -74,8 +74,6 @@ func (p publisher) run(ctx context.Context) error {
 			go pusher.push(ctx, ts)
 		}
 	}
-
-	return nil
 }
 
 func (p pusher) push(ctx context.Context, ts TimeSeries) {

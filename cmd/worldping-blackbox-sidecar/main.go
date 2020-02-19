@@ -137,7 +137,14 @@ func run(args []string, stdout io.Writer) error {
 		logger:    logger,
 	}
 
-	go publisher.run(ctx)
+	go func() {
+		if err := publisher.run(ctx); err != nil {
+			// we should never see this, if we are here
+			// something bad happened
+			logger.Printf("E: while running publisher: %s", err)
+			cancel()
+		}
+	}()
 
 	<-ctx.Done()
 
