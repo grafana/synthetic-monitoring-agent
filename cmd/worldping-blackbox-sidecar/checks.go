@@ -109,7 +109,7 @@ func (c checksUpdater) handleCheckAdd(ctx context.Context, check worldping.Check
 		target = check.Settings.HttpSettings.Url
 	} else if check.Settings.DnsSettings != nil {
 		module = "dns_v4"
-		target = check.Settings.DnsSettings.Name
+		target = check.Settings.DnsSettings.Server
 	} else {
 		return fmt.Errorf("unsupported change")
 	}
