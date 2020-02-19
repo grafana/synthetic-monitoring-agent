@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -27,19 +27,28 @@ type scraper struct {
 	logger    logger
 }
 
+var errProbeFailed = errors.New("probe failed")
+
 func (s scraper) run(ctx context.Context) {
 	s.logger.Printf("starting scraper at %s for %s", s.probeName, s.target)
 
-	s.logger.Printf("scraping first set")
-	if true {
-		ts, err := s.collectData(ctx, time.Now())
-		if err != nil {
-			s.logger.Printf("Error collecting data from %s: %s", s.target, err)
-		}
+	scrape := func(ctx context.Context, t time.Time) {
+		switch ts, err := s.collectData(ctx, t); {
+		case errors.Is(err, errProbeFailed):
 
-		if ts != nil {
-			s.publishCh <- ts
+		case err != nil:
+			s.logger.Printf("Error collecting data from %s: %s", s.target, err)
+
+		default:
+			if ts != nil {
+				s.publishCh <- ts
+			}
 		}
+	}
+
+	if true {
+		s.logger.Printf("scraping first set")
+		scrape(ctx, time.Now())
 	}
 
 	const T = 5 * 1000 // period, ms
@@ -52,15 +61,7 @@ func (s scraper) run(ctx context.Context) {
 		case <-ctx.Done():
 
 		case t := <-ticker.C:
-			ts, err := s.collectData(ctx, t)
-			if err != nil {
-				log.Printf("Error collecting data from %s: %s", s.target, err)
-				continue
-			}
-
-			if ts != nil {
-				s.publishCh <- ts
-			}
+			scrape(ctx, t)
 		}
 	}
 }
@@ -88,26 +89,42 @@ func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, erro
 
 	ts := make([]prompb.TimeSeries, 0)
 
-DECODE_LOOP:
 	for {
 		var metrics dto.MetricFamily
 
 		switch err := dec.Decode(&metrics); err {
-		case io.EOF:
-			break DECODE_LOOP
-
 		case nil:
 			// got metrics
+			mName := metrics.GetName()
+			mType := metrics.GetType()
+			isProbeSuccess := mName == "probe_success" && mType == dto.MetricType_GAUGE
+
 			for _, m := range metrics.GetMetric() {
-				ts = appendDtoToTimeseries(ts, t, s.probeName, s.endpoint, metrics.GetName(), metrics.GetType(), m)
+				if isProbeSuccess && m.GetGauge().GetValue() == 0 {
+					// TODO(mem): need to collect
+					// logs from blackbox-exporter.
+					//
+					// We could run the probe with
+					// debug=true and have custom
+					// code to extract the logs and
+					// the metrics.
+					s.logger.Printf("probe=%s endpoint=%s target=%s err=%s", s.probeName, s.endpoint, s.target, errProbeFailed)
+					ts = appendDtoToTimeseries(nil, t, s.probeName, s.endpoint, mName, mType, m)
+
+					return ts, nil
+				}
+
+				ts = appendDtoToTimeseries(ts, t, s.probeName, s.endpoint, mName, mType, m)
 			}
+
+		case io.EOF:
+			return ts, nil
 
 		default:
 			return nil, err
 		}
 	}
 
-	return ts, nil
 }
 
 func makeTimeseries(probeName string, name string, endpoint string, t time.Time, value float64, labels []*dto.LabelPair, extraLabels ...*prompb.Label) prompb.TimeSeries {

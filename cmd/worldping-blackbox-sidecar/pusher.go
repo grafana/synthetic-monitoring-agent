@@ -110,5 +110,7 @@ func (p pusher) push(ctx context.Context, ts TimeSeries) {
 
 	resp, err := p.client.Push(timeoutCtx, req)
 
-	p.logger.Printf("resp=%#v err=%s", resp, err)
+	if err != nil {
+		p.logger.Printf("resp=%#v err=%s", resp, err)
+	}
 }
