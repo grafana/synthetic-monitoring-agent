@@ -104,10 +104,10 @@ func (c checksUpdater) handleCheckAdd(ctx context.Context, check worldping.Check
 	if check.Settings.PingSettings != nil {
 		module = "icmp_v4"
 		target = check.Settings.PingSettings.Hostname
-	} else if check.Settings.DnsSettings != nil {
+	} else if check.Settings.HttpSettings != nil {
 		module = "http_2xx_v4"
 		target = check.Settings.HttpSettings.Url
-	} else if check.Settings.HttpSettings != nil {
+	} else if check.Settings.DnsSettings != nil {
 		module = "dns_v4"
 		target = check.Settings.DnsSettings.Name
 	} else {
