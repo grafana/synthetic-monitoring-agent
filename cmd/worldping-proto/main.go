@@ -11,14 +11,29 @@ import (
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
 )
 
+type checkType int
+
+const (
+	CHECK_PING checkType = iota
+	CHECK_HTTP
+	CHECK_DNS
+)
+
 func main() {
-	doWrite := flag.Bool("write", false, "write example document")
+	doWritePing := flag.Bool("write-ping", false, "write example ping document")
+	doWriteHttp := flag.Bool("write-http", false, "write example http document")
+	doWriteDns := flag.Bool("write-dns", false, "write example dns document")
 
 	flag.Parse()
 
-	if *doWrite {
-		write()
-	} else {
+	switch {
+	case *doWritePing:
+		write(CHECK_PING)
+	case *doWriteHttp:
+		write(CHECK_HTTP)
+	case *doWriteDns:
+		write(CHECK_DNS)
+	default:
 		read()
 	}
 }
@@ -45,18 +60,14 @@ func read() {
 	log.Println("Input is valid")
 }
 
-func write() {
-	check := worldping.Check{
-		Id:        123,
-		TennantId: 27172,
-		Frequency: 5000,
-		Offset:    2300,
-		Timeout:   2500,
-		Enabled:   true,
-		Tags:      []string{"production"},
-		Settings: worldping.CheckSettings{
+func write(checkType checkType) {
+	var settings worldping.CheckSettings
+
+	switch checkType {
+	case CHECK_PING:
+		settings = worldping.CheckSettings{
 			PingSettings: &worldping.PingSettings{
-				Hostname:  "www.grafana.com",
+				Hostname:  "grafana.com",
 				IpVersion: worldping.IpVersion_V4,
 				Validation: []worldping.PingCheckValidation{
 					{
@@ -67,7 +78,56 @@ func write() {
 					},
 				},
 			},
-		},
+		}
+
+	case CHECK_HTTP:
+		settings = worldping.CheckSettings{
+			HttpSettings: &worldping.HttpSettings{
+				Url:          "https://grafana.com/",
+				Method:       worldping.HttpMethod_GET,
+				IpVersion:    worldping.IpVersion_V4,
+				ValidateCert: true,
+				Validation: []worldping.HttpCheckValidations{
+					{
+						ResponseTimeValidation: &worldping.ResponseTimeValidation{
+							Threshold: 250,
+							Severity:  worldping.ValidationSeverity_Warning,
+						},
+					},
+				},
+			},
+		}
+
+	case CHECK_DNS:
+		settings = worldping.CheckSettings{
+			DnsSettings: &worldping.DnsSettings{
+				Name:       "grafana.com",
+				RecordType: worldping.DnsRecordType_A,
+				Server:     "8.8.4.4",
+				IpVersion:  worldping.IpVersion_V4,
+				Protocol:   worldping.DnsProtocol_TCP,
+				Port:       53,
+				Validation: []worldping.DNSCheckValidation{
+					{
+						ResponseTimeValidation: &worldping.ResponseTimeValidation{
+							Threshold: 250,
+							Severity:  worldping.ValidationSeverity_Warning,
+						},
+					},
+				},
+			},
+		}
+	}
+
+	check := worldping.Check{
+		Id:        123,
+		TennantId: 27172,
+		Frequency: 5000,
+		Offset:    2300,
+		Timeout:   2500,
+		Enabled:   true,
+		Tags:      []string{"production"},
+		Settings:  settings,
 	}
 
 	if err := check.Validate(); err != nil {
