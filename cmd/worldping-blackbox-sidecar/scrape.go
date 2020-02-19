@@ -32,7 +32,7 @@ func (s scraper) run(ctx context.Context) {
 
 	s.logger.Printf("scraping first set")
 	if true {
-		ts, err := collectData(ctx, time.Now(), s.probeName, s.target, s.endpoint)
+		ts, err := s.collectData(ctx, time.Now())
 		if err != nil {
 			s.logger.Printf("Error collecting data from %s: %s", s.target, err)
 		}
@@ -52,7 +52,7 @@ func (s scraper) run(ctx context.Context) {
 		case <-ctx.Done():
 
 		case t := <-ticker.C:
-			ts, err := collectData(ctx, t, s.probeName, s.target, s.endpoint)
+			ts, err := s.collectData(ctx, t)
 			if err != nil {
 				log.Printf("Error collecting data from %s: %s", s.target, err)
 				continue
@@ -65,15 +65,15 @@ func (s scraper) run(ctx context.Context) {
 	}
 }
 
-func collectData(ctx context.Context, t time.Time, probeName string, target string, endpoint string) (TimeSeries, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
+func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", s.target, nil)
 	if err != nil {
 		return nil, fmt.Errorf("creating new request: %w", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("requesting data from %s: %w", target, err)
+		return nil, fmt.Errorf("requesting data from %s: %w", s.target, err)
 	}
 
 	defer func() {
@@ -99,7 +99,7 @@ DECODE_LOOP:
 		case nil:
 			// got metrics
 			for _, m := range metrics.GetMetric() {
-				ts = appendDtoToTimeseries(ts, t, probeName, endpoint, metrics.GetName(), metrics.GetType(), m)
+				ts = appendDtoToTimeseries(ts, t, s.probeName, s.endpoint, metrics.GetName(), metrics.GetType(), m)
 			}
 
 		default:
