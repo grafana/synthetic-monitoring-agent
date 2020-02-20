@@ -14,11 +14,12 @@ import (
 )
 
 type checksUpdater struct {
-	apiServerAddr       string
-	blackboxExporterURL *url.URL
-	logger              logger
-	publishCh           chan<- TimeSeries
-	probeName           string
+	apiServerAddr            string
+	blackboxExporterProbeURL *url.URL
+	blackboxExporterLogsURL  *url.URL
+	logger                   logger
+	publishCh                chan<- TimeSeries
+	probeName                string
 }
 
 func (c checksUpdater) run(ctx context.Context) {
@@ -118,22 +119,23 @@ func (c checksUpdater) handleCheckAdd(ctx context.Context, check worldping.Check
 		return fmt.Errorf("unsupported change")
 	}
 
-	if c.blackboxExporterURL == nil {
-		c.logger.Printf("no blackbox exporter URL configured, ignoring check change")
+	if c.blackboxExporterProbeURL == nil {
+		c.logger.Printf("no blackbox exporter probe URL configured, ignoring check change")
 		return nil
 	}
 
-	u := *c.blackboxExporterURL
-	q := u.Query()
+	probeURL := *c.blackboxExporterProbeURL
+	q := probeURL.Query()
 	q.Add("target", target)
 	q.Add("module", module)
-	u.RawQuery = q.Encode()
+	probeURL.RawQuery = q.Encode()
 
 	scraper := scraper{
 		publishCh: c.publishCh,
 		probeName: c.probeName,
 		checkName: checkName,
-		target:    u.String(),
+		target:    probeURL.String(),
+		logsURL:   *c.blackboxExporterLogsURL,
 		endpoint:  target,
 		logger:    c.logger,
 	}

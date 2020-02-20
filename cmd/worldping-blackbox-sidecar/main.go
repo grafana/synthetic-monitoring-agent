@@ -28,7 +28,7 @@ func run(args []string, stdout io.Writer) error {
 
 	var (
 		verbose             = flags.Bool("verbose", false, "verbose logging")
-		blackboxExporterStr = flags.String("blackbox-exporter-url", "http://localhost:9115/probe", "base URL for blackbox exporter")
+		blackboxExporterStr = flags.String("blackbox-exporter-url", "http://localhost:9115/", "base URL for blackbox exporter")
 		grpcApiServerAddr   = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
 		grpcForwarderAddr   = flags.String("forwarder-server-address", "localhost:4041", "GRPC forwarder server address")
 		httpListenAddr      = flags.String("listen-address", ":4050", "listen address")
@@ -40,6 +40,16 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	blackboxExporterURL, err := url.Parse(*blackboxExporterStr)
+	if err != nil {
+		return err
+	}
+
+	blackboxExporterProbeURL, err := blackboxExporterURL.Parse("probe")
+	if err != nil {
+		return err
+	}
+
+	blackboxExporterLogsURL, err := blackboxExporterURL.Parse("logs")
 	if err != nil {
 		return err
 	}
@@ -122,11 +132,12 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	checksUpdater := checksUpdater{
-		apiServerAddr:       *grpcApiServerAddr,
-		blackboxExporterURL: blackboxExporterURL,
-		logger:              logger,
-		publishCh:           publishCh,
-		probeName:           *probeName,
+		apiServerAddr:            *grpcApiServerAddr,
+		blackboxExporterProbeURL: blackboxExporterProbeURL,
+		blackboxExporterLogsURL:  blackboxExporterLogsURL,
+		logger:                   logger,
+		publishCh:                publishCh,
+		probeName:                *probeName,
 	}
 
 	go checksUpdater.run(ctx)

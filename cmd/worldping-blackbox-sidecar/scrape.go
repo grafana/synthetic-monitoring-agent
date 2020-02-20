@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -24,6 +26,7 @@ type scraper struct {
 	probeName string
 	checkName string
 	target    string
+	logsURL   url.URL
 	endpoint  string
 	logger    logger
 }
@@ -75,12 +78,15 @@ func (s scraper) run(ctx context.Context) {
 	var sm checkStateMachine
 
 	scrape := func(ctx context.Context, t time.Time) {
-		ts, err := s.collectData(ctx, t)
+		ts, resultsId, err := s.collectData(ctx, t)
 
 		switch {
 		case errors.Is(err, errCheckFailed):
 			sm.fail(func() {
 				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s target=%s`, s.probeName, s.endpoint, s.target)
+				if resultsId != "" {
+					s.collectCheckLogs(ctx, resultsId)
+				}
 			})
 
 		case err != nil:
@@ -116,15 +122,101 @@ func (s scraper) run(ctx context.Context) {
 	}
 }
 
-func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", s.target, nil)
+func (s scraper) collectCheckLogs(ctx context.Context, id string) error {
+	u := s.logsURL
+	q := u.Query()
+	q.Set("id", id)
+	u.RawQuery = q.Encode()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("creating new request: %w", err)
+		return fmt.Errorf("creating new request to retrieve logs: %w", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("requesting data from %s: %w", s.target, err)
+		return fmt.Errorf("fetching check logs: %w", err)
+	}
+
+	defer func() {
+		// drain body
+		_, _ = io.Copy(ioutil.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	extractor := newBlackboxExporterLogsExtractor(resp.Body)
+
+	for extractor.Scan() {
+		s.logger.Printf("log from probe: %s", extractor.Text())
+	}
+
+	return nil
+}
+
+func newBlackboxExporterLogsExtractor(r io.Reader) *bbeLogsExtractor {
+	return &bbeLogsExtractor{s: bufio.NewScanner(r)}
+}
+
+type extractorState int
+
+const (
+	stateBeforeLogs extractorState = iota
+	stateInLogs
+	stateAfterLogs
+)
+
+type bbeLogsExtractor struct {
+	s     *bufio.Scanner
+	state extractorState
+}
+
+func (e *bbeLogsExtractor) Scan() bool {
+	for e.s.Scan() {
+		switch e.state {
+		case stateBeforeLogs:
+			if e.s.Text() == "Logs for the probe:" {
+				// start of logs
+				e.state = stateInLogs
+			}
+
+		case stateInLogs:
+			// first blank line ends the logs
+			if e.s.Text() == "" {
+				e.state = stateAfterLogs
+				return false
+			}
+
+			return true
+
+		case stateAfterLogs:
+			return false
+		}
+	}
+
+	return false
+}
+
+func (e *bbeLogsExtractor) Text() string {
+	if e.state != stateInLogs {
+		return ""
+	}
+
+	return e.s.Text()
+}
+
+func (e *bbeLogsExtractor) Err() error {
+	return e.s.Err()
+}
+
+func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", s.target, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("creating new request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("requesting data from %s: %w", s.target, err)
 	}
 
 	defer func() {
@@ -138,6 +230,8 @@ func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, erro
 	dec := expfmt.NewDecoder(resp.Body, format)
 
 	ts := make([]prompb.TimeSeries, 0)
+
+	resultsId := resp.Header.Get("Probe-Results-Id")
 
 	for {
 		var metrics dto.MetricFamily
@@ -161,20 +255,19 @@ func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, erro
 					ts = appendDtoToTimeseries(nil, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 
 					err := fmt.Errorf("probe=%s endpoint=%s target=%s err=%w", s.probeName, s.endpoint, s.target, errCheckFailed)
-					return ts, err
+					return ts, resultsId, err
 				}
 
 				ts = appendDtoToTimeseries(ts, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 			}
 
 		case io.EOF:
-			return ts, nil
+			return ts, resultsId, nil
 
 		default:
-			return nil, err
+			return nil, resultsId, err
 		}
 	}
-
 }
 
 func makeTimeseries(t time.Time, value float64, labels ...*prompb.Label) prompb.TimeSeries {
