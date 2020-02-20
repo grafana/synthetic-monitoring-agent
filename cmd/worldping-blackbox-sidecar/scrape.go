@@ -28,29 +28,78 @@ type scraper struct {
 	logger    logger
 }
 
-var errProbeFailed = errors.New("probe failed")
+var errCheckFailed = errors.New("probe failed")
+
+type checkStateMachine struct {
+	passes    int
+	failures  int
+	threshold int
+}
+
+func (sm *checkStateMachine) fail(cb func()) {
+	wasFailing := sm.isFailing()
+	sm.passes = 0
+	sm.failures++
+	isFailing := sm.isFailing()
+
+	if isFailing != wasFailing {
+		cb()
+	}
+}
+
+func (sm *checkStateMachine) pass(cb func()) {
+	wasPassing := sm.isPassing()
+	sm.passes++
+	sm.failures = 0
+	isPassing := sm.isPassing()
+
+	if isPassing != wasPassing {
+		cb()
+	}
+}
+
+func (sm checkStateMachine) isPassing() bool {
+	return sm.passes > sm.threshold
+}
+
+func (sm checkStateMachine) isFailing() bool {
+	return sm.failures > sm.threshold
+}
 
 func (s scraper) run(ctx context.Context) {
 	s.logger.Printf("starting scraper at %s for %s", s.probeName, s.target)
 
+	// TODO(mem): keep count of the number of successive errors and
+	// collect logs if threshold is reached.
+
+	var sm checkStateMachine
+
 	scrape := func(ctx context.Context, t time.Time) {
-		switch ts, err := s.collectData(ctx, t); {
-		case errors.Is(err, errProbeFailed):
+		ts, err := s.collectData(ctx, t)
+
+		switch {
+		case errors.Is(err, errCheckFailed):
+			sm.fail(func() {
+				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s target=%s`, s.probeName, s.endpoint, s.target)
+			})
 
 		case err != nil:
 			s.logger.Printf("Error collecting data from %s: %s", s.target, err)
+			return
 
 		default:
-			if ts != nil {
-				s.publishCh <- ts
-			}
+			sm.pass(func() {
+				s.logger.Printf(`msg="check entered PASS state" probe=%s endpoint=%s target=%s`, s.probeName, s.endpoint, s.target)
+			})
+		}
+
+		if ts != nil {
+			s.publishCh <- ts
 		}
 	}
 
-	if true {
-		s.logger.Printf("scraping first set")
-		scrape(ctx, time.Now())
-	}
+	s.logger.Printf("scraping first set")
+	scrape(ctx, time.Now())
 
 	const T = 5 * 1000 // period, ms
 
@@ -109,10 +158,10 @@ func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, erro
 					// debug=true and have custom
 					// code to extract the logs and
 					// the metrics.
-					s.logger.Printf("probe=%s endpoint=%s target=%s err=%s", s.probeName, s.endpoint, s.target, errProbeFailed)
 					ts = appendDtoToTimeseries(nil, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 
-					return ts, nil
+					err := fmt.Errorf("probe=%s endpoint=%s target=%s err=%w", s.probeName, s.endpoint, s.target, errCheckFailed)
+					return ts, err
 				}
 
 				ts = appendDtoToTimeseries(ts, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
