@@ -22,6 +22,7 @@ type TimeSeries []prompb.TimeSeries
 type scraper struct {
 	publishCh chan<- TimeSeries
 	probeName string
+	checkName string
 	target    string
 	endpoint  string
 	logger    logger
@@ -109,12 +110,12 @@ func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, erro
 					// code to extract the logs and
 					// the metrics.
 					s.logger.Printf("probe=%s endpoint=%s target=%s err=%s", s.probeName, s.endpoint, s.target, errProbeFailed)
-					ts = appendDtoToTimeseries(nil, t, s.probeName, s.endpoint, mName, mType, m)
+					ts = appendDtoToTimeseries(nil, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 
 					return ts, nil
 				}
 
-				ts = appendDtoToTimeseries(ts, t, s.probeName, s.endpoint, mName, mType, m)
+				ts = appendDtoToTimeseries(ts, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 			}
 
 		case io.EOF:
@@ -127,17 +128,11 @@ func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, erro
 
 }
 
-func makeTimeseries(probeName string, name string, endpoint string, t time.Time, value float64, labels []*dto.LabelPair, extraLabels ...*prompb.Label) prompb.TimeSeries {
+func makeTimeseries(t time.Time, value float64, labels ...*prompb.Label) prompb.TimeSeries {
 	var ts prompb.TimeSeries
 
-	ts.Labels = make([]*prompb.Label, 0, len(labels)+2+len(extraLabels))
-	ts.Labels = append(ts.Labels, &prompb.Label{Name: "__name__", Value: name})
-	ts.Labels = append(ts.Labels, &prompb.Label{Name: "probe", Value: probeName})
-	ts.Labels = append(ts.Labels, &prompb.Label{Name: "endpoint", Value: endpoint})
-	ts.Labels = append(ts.Labels, extraLabels...)
-	for _, l := range labels {
-		ts.Labels = append(ts.Labels, &prompb.Label{Name: *(l.Name), Value: *(l.Value)})
-	}
+	ts.Labels = make([]*prompb.Label, len(labels))
+	copy(ts.Labels, labels)
 
 	ts.Samples = []prompb.Sample{
 		{Timestamp: t.UnixNano() / 1e6, Value: value},
@@ -146,35 +141,64 @@ func makeTimeseries(probeName string, name string, endpoint string, t time.Time,
 	return ts
 }
 
-func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, probeName string, endpoint string, mName string, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
+func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, checkName, probeName, endpoint, mName string, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
+	baseLabels := []*prompb.Label{
+		&prompb.Label{Name: "__name__", Value: mName},
+		&prompb.Label{Name: "check", Value: checkName},
+		&prompb.Label{Name: "probe", Value: probeName},
+		&prompb.Label{Name: "endpoint", Value: endpoint},
+	}
+
+	var metricLabels []*prompb.Label
+
+	if ml := metric.GetLabel(); len(ml) > 0 {
+		metricLabels = make([]*prompb.Label, len(ml))
+		for i, l := range ml {
+			metricLabels[i] = &prompb.Label{Name: *(l.Name), Value: *(l.Value)}
+		}
+	}
+
+	labels := make([]*prompb.Label, 0, len(baseLabels)+len(metricLabels))
+	labels = append(labels, baseLabels...)
+	labels = append(labels, metricLabels...)
+
 	switch mType {
 	case dto.MetricType_COUNTER:
 		if v := metric.GetCounter(); v != nil && v.Value != nil {
-			ts = append(ts, makeTimeseries(probeName, mName, endpoint, t, *v.Value, metric.GetLabel()))
+			ts = append(ts, makeTimeseries(t, *v.Value, labels...))
 		}
 
 	case dto.MetricType_GAUGE:
 		if v := metric.GetGauge(); v != nil && v.Value != nil {
-			ts = append(ts, makeTimeseries(probeName, mName, endpoint, t, *v.Value, metric.GetLabel()))
+			ts = append(ts, makeTimeseries(t, *v.Value, labels...))
 		}
 
 	case dto.MetricType_UNTYPED:
 		if v := metric.GetUntyped(); v != nil && v.Value != nil {
-			ts = append(ts, makeTimeseries(probeName, mName, endpoint, t, *v.Value, metric.GetLabel()))
+			ts = append(ts, makeTimeseries(t, *v.Value, labels...))
 		}
 
 	case dto.MetricType_SUMMARY:
 		if s := metric.GetSummary(); s != nil {
 			if q := s.GetQuantile(); q != nil {
-				ts = append(ts, makeTimeseries(probeName, mName+"_sum", endpoint, t, s.GetSampleSum(), metric.GetLabel()))
-				ts = append(ts, makeTimeseries(probeName, mName+"_count", endpoint, t, float64(s.GetSampleCount()), metric.GetLabel()))
+				sLabels := make([]*prompb.Label, len(labels))
+				copy(sLabels, labels)
+
+				sLabels[0] = &prompb.Label{Name: "__name__", Value: mName + "_sum"}
+				ts = append(ts, makeTimeseries(t, s.GetSampleSum(), sLabels...))
+
+				sLabels[0] = &prompb.Label{Name: "__name__", Value: mName + "_count"}
+				ts = append(ts, makeTimeseries(t, float64(s.GetSampleCount()), sLabels...))
+
+				sLabels = make([]*prompb.Label, len(labels)+1)
+				copy(sLabels, labels)
 
 				for _, v := range q {
-					ql := &prompb.Label{
+					sLabels[len(sLabels)-1] = &prompb.Label{
 						Name:  "quantile",
 						Value: strconv.FormatFloat(v.GetQuantile(), 'G', -1, 64),
 					}
-					ts = append(ts, makeTimeseries(probeName, mName, endpoint, t, v.GetValue(), metric.GetLabel(), ql))
+					ts = append(ts, makeTimeseries(t, v.GetValue(), sLabels...))
 				}
 			}
 		}
@@ -182,14 +206,24 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, probeName string
 	case dto.MetricType_HISTOGRAM:
 		if h := metric.GetHistogram(); h != nil {
 			if b := h.GetBucket(); b != nil {
-				ts = append(ts, makeTimeseries(probeName, mName+"_sum", endpoint, t, h.GetSampleSum(), metric.GetLabel()))
-				ts = append(ts, makeTimeseries(probeName, mName+"_count", endpoint, t, float64(h.GetSampleCount()), metric.GetLabel()))
+				hLabels := make([]*prompb.Label, len(labels))
+				copy(hLabels, labels)
+
+				hLabels[0] = &prompb.Label{Name: "__name__", Value: mName + "_sum"}
+				ts = append(ts, makeTimeseries(t, h.GetSampleSum(), hLabels...))
+
+				hLabels[0] = &prompb.Label{Name: "__name__", Value: mName + "_count"}
+				ts = append(ts, makeTimeseries(t, float64(h.GetSampleCount()), hLabels...))
+
+				hLabels = make([]*prompb.Label, len(labels)+1)
+				copy(hLabels, labels)
+
 				for _, v := range b {
-					bl := &prompb.Label{
+					hLabels[len(hLabels)-1] = &prompb.Label{
 						Name:  "le",
 						Value: strconv.FormatFloat(v.GetUpperBound(), 'G', -1, 64),
 					}
-					ts = append(ts, makeTimeseries(probeName, mName, endpoint, t, float64(v.GetCumulativeCount()), metric.GetLabel(), bl))
+					ts = append(ts, makeTimeseries(t, float64(v.GetCumulativeCount()), hLabels...))
 				}
 			}
 		}

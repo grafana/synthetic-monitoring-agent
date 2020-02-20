@@ -96,18 +96,22 @@ func (c checksUpdater) loop(ctx context.Context) error {
 
 func (c checksUpdater) handleCheckAdd(ctx context.Context, check worldping.Check) error {
 	var (
-		module string
-		target string
+		module    string
+		target    string
+		checkName string
 	)
 
 	// Map the change to a blackbox exporter module
 	if check.Settings.PingSettings != nil {
+		checkName = "ping"
 		module = "icmp_v4"
 		target = check.Settings.PingSettings.Hostname
 	} else if check.Settings.HttpSettings != nil {
+		checkName = "http"
 		module = "http_2xx_v4"
 		target = check.Settings.HttpSettings.Url
 	} else if check.Settings.DnsSettings != nil {
+		checkName = "dns"
 		module = "dns_v4"
 		target = check.Settings.DnsSettings.Server
 	} else {
@@ -128,6 +132,7 @@ func (c checksUpdater) handleCheckAdd(ctx context.Context, check worldping.Check
 	scraper := scraper{
 		publishCh: c.publishCh,
 		probeName: c.probeName,
+		checkName: checkName,
 		target:    u.String(),
 		endpoint:  target,
 		logger:    c.logger,
