@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -78,15 +79,14 @@ func (s scraper) run(ctx context.Context) {
 	var sm checkStateMachine
 
 	scrape := func(ctx context.Context, t time.Time) {
-		ts, resultsId, err := s.collectData(ctx, t)
+		ts, logs, err := s.collectData(ctx, t)
 
 		switch {
 		case errors.Is(err, errCheckFailed):
 			sm.fail(func() {
 				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s target=%s`, s.probeName, s.endpoint, s.target)
-				if resultsId != "" {
-					s.collectCheckLogs(ctx, resultsId)
-				}
+				// XXX(mem): post logs to Loki
+				s.logger.Printf("logs: %s", logs)
 			})
 
 		case err != nil:
@@ -122,20 +122,22 @@ func (s scraper) run(ctx context.Context) {
 	}
 }
 
-func (s scraper) collectCheckLogs(ctx context.Context, id string) error {
-	u := s.logsURL
+func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, []byte, error) {
+	u, _ := url.Parse(s.target)
 	q := u.Query()
-	q.Set("id", id)
+	// this is needed in order to obtain the logs alongside the metrics
+	q.Add("debug", "true")
 	u.RawQuery = q.Encode()
+	target := u.String()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
 	if err != nil {
-		return fmt.Errorf("creating new request to retrieve logs: %w", err)
+		return nil, nil, fmt.Errorf("creating new request: %w", err)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("fetching check logs: %w", err)
+		return nil, nil, fmt.Errorf("requesting data from %s: %w", target, err)
 	}
 
 	defer func() {
@@ -144,106 +146,36 @@ func (s scraper) collectCheckLogs(ctx context.Context, id string) error {
 		_ = resp.Body.Close()
 	}()
 
-	extractor := newBlackboxExporterLogsExtractor(resp.Body)
-
-	for extractor.Scan() {
-		s.logger.Printf("log from probe: %s", extractor.Text())
-	}
-
-	return nil
-}
-
-func newBlackboxExporterLogsExtractor(r io.Reader) *bbeLogsExtractor {
-	return &bbeLogsExtractor{s: bufio.NewScanner(r)}
-}
-
-type extractorState int
-
-const (
-	stateBeforeLogs extractorState = iota
-	stateInLogs
-	stateAfterLogs
-)
-
-type bbeLogsExtractor struct {
-	s     *bufio.Scanner
-	state extractorState
-}
-
-func (e *bbeLogsExtractor) Scan() bool {
-	for e.s.Scan() {
-		switch e.state {
-		case stateBeforeLogs:
-			if e.s.Text() == "Logs for the probe:" {
-				// start of logs
-				e.state = stateInLogs
-			}
-
-		case stateInLogs:
-			// first blank line ends the logs
-			if e.s.Text() == "" {
-				e.state = stateAfterLogs
-				return false
-			}
-
-			return true
-
-		case stateAfterLogs:
-			return false
-		}
-	}
-
-	return false
-}
-
-func (e *bbeLogsExtractor) Text() string {
-	if e.state != stateInLogs {
-		return ""
-	}
-
-	return e.s.Text()
-}
-
-func (e *bbeLogsExtractor) Err() error {
-	return e.s.Err()
-}
-
-func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, string, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", s.target, nil)
+	metrics, logs, err := extractMetricsAndLogs(resp.Body)
 	if err != nil {
-		return nil, "", fmt.Errorf("creating new request: %w", err)
+		return nil, nil, fmt.Errorf("extracting data from blackbox-exporter: %w", err)
 	}
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, "", fmt.Errorf("requesting data from %s: %w", s.target, err)
-	}
+	// XXX(mem): the following is needed in order to derive the
+	// correct format from the response headers, but since we are
+	// passing debug=true, we loose access to that.
+	//
+	// format := expfmt.ResponseFormat(resp.Header)
+	//
+	// Instead hard-code the format to be plain text.
 
-	defer func() {
-		// drain body
-		_, _ = io.Copy(ioutil.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	format := expfmt.FmtText
 
-	format := expfmt.ResponseFormat(resp.Header)
-
-	dec := expfmt.NewDecoder(resp.Body, format)
+	dec := expfmt.NewDecoder(bytes.NewReader(metrics), format)
 
 	ts := make([]prompb.TimeSeries, 0)
 
-	resultsId := resp.Header.Get("Probe-Results-Id")
-
 	for {
-		var metrics dto.MetricFamily
+		var mf dto.MetricFamily
 
-		switch err := dec.Decode(&metrics); err {
+		switch err := dec.Decode(&mf); err {
 		case nil:
 			// got metrics
-			mName := metrics.GetName()
-			mType := metrics.GetType()
+			mName := mf.GetName()
+			mType := mf.GetType()
 			isProbeSuccess := mName == "probe_success" && mType == dto.MetricType_GAUGE
 
-			for _, m := range metrics.GetMetric() {
+			for _, m := range mf.GetMetric() {
 				if isProbeSuccess && m.GetGauge().GetValue() == 0 {
 					// TODO(mem): need to collect
 					// logs from blackbox-exporter.
@@ -254,18 +186,18 @@ func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, stri
 					// the metrics.
 					ts = appendDtoToTimeseries(nil, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 
-					err := fmt.Errorf("probe=%s endpoint=%s target=%s err=%w", s.probeName, s.endpoint, s.target, errCheckFailed)
-					return ts, resultsId, err
+					err := fmt.Errorf("probe=%s endpoint=%s target=%s err=%w", s.probeName, s.endpoint, target, errCheckFailed)
+					return ts, logs, err
 				}
 
 				ts = appendDtoToTimeseries(ts, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 			}
 
 		case io.EOF:
-			return ts, resultsId, nil
+			return ts, logs, nil
 
 		default:
-			return nil, resultsId, err
+			return nil, nil, fmt.Errorf("decoding results from blackbox-exporter: %w", err)
 		}
 	}
 }
@@ -372,4 +304,66 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, checkName, probe
 	}
 
 	return ts
+}
+
+func extractMetricsAndLogs(r io.Reader) ([]byte, []byte, error) {
+	type extractorState int
+
+	const (
+		stateLookingForHeader extractorState = iota
+		stateInLogs
+		stateInMetrics
+	)
+
+	var (
+		state   extractorState
+		metrics bytes.Buffer
+		logs    bytes.Buffer
+		cur     *bytes.Buffer
+	)
+
+	s := bufio.NewScanner(r)
+
+SCAN:
+	for s.Scan() {
+		switch state {
+		case stateLookingForHeader:
+			switch text := s.Text(); text {
+			case "Logs for the probe:":
+				state = stateInLogs
+				cur = &logs
+
+			case "Metrics that would have been returned:":
+				state = stateInMetrics
+				cur = &metrics
+			}
+
+		case stateInLogs, stateInMetrics:
+			// first blank line ends the data and goes back
+			// to searching for the next header
+			if s.Text() == "" {
+				// we break out early if we have both
+				// logs and metrics
+				if logs.Len() > 0 && metrics.Len() > 0 {
+					break SCAN
+				}
+				state = stateLookingForHeader
+				continue
+			}
+
+			if _, err := cur.Write(s.Bytes()); err != nil {
+				return nil, nil, err
+			}
+
+			if _, err := cur.WriteRune('\n'); err != nil {
+				return nil, nil, err
+			}
+		}
+	}
+
+	if err := s.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	return metrics.Bytes(), logs.Bytes(), nil
 }
