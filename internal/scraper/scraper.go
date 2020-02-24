@@ -1,4 +1,4 @@
-package main
+package scraper
 
 import (
 	"bufio"
@@ -18,18 +18,32 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
-type TimeSeries []prompb.TimeSeries
-
 // "github.com/prometheus/common/expfmt"
 
-type scraper struct {
-	publishCh chan<- TimeSeries
+type Scraper struct {
+	publishCh chan<- []prompb.TimeSeries
 	probeName string
 	checkName string
 	target    string
-	logsURL   url.URL
 	endpoint  string
 	logger    logger
+}
+
+type logger interface {
+	Printf(format string, v ...interface{})
+}
+
+type TimeSeries = []prompb.TimeSeries
+
+func New(publishCh chan<- []prompb.TimeSeries, probeName, checkName, target, endpoint string, logger logger) *Scraper {
+	return &Scraper{
+		publishCh: publishCh,
+		probeName: probeName,
+		checkName: checkName,
+		target:    target,
+		endpoint:  endpoint,
+		logger:    logger,
+	}
 }
 
 var errCheckFailed = errors.New("probe failed")
@@ -70,7 +84,7 @@ func (sm checkStateMachine) isFailing() bool {
 	return sm.failures > sm.threshold
 }
 
-func (s scraper) run(ctx context.Context) {
+func (s Scraper) Run(ctx context.Context) {
 	s.logger.Printf("starting scraper at %s for %s", s.probeName, s.target)
 
 	// TODO(mem): keep count of the number of successive errors and
@@ -122,7 +136,7 @@ func (s scraper) run(ctx context.Context) {
 	}
 }
 
-func (s scraper) collectData(ctx context.Context, t time.Time) (TimeSeries, []byte, error) {
+func (s Scraper) collectData(ctx context.Context, t time.Time) ([]prompb.TimeSeries, []byte, error) {
 	u, _ := url.Parse(s.target)
 	q := u.Query()
 	// this is needed in order to obtain the logs alongside the metrics

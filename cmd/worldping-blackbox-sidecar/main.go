@@ -15,6 +15,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/grafana/worldping-blackbox-sidecar/internal/checks"
+	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -101,7 +103,7 @@ func run(args []string, stdout io.Writer) error {
 		}
 	}(cancel)
 
-	publishCh := make(chan TimeSeries)
+	publishCh := make(chan []prompb.TimeSeries)
 
 	config := config{
 		forwarderAddress: *grpcForwarderAddr,
@@ -131,16 +133,9 @@ func run(args []string, stdout io.Writer) error {
 		config.metrics.URL = u.String()
 	}
 
-	checksUpdater := checksUpdater{
-		apiServerAddr:            *grpcApiServerAddr,
-		blackboxExporterProbeURL: blackboxExporterProbeURL,
-		blackboxExporterLogsURL:  blackboxExporterLogsURL,
-		logger:                   logger,
-		publishCh:                publishCh,
-		probeName:                *probeName,
-	}
+	checksUpdater := checks.NewUpdater(*grpcApiServerAddr, blackboxExporterProbeURL, blackboxExporterLogsURL, logger, publishCh, *probeName)
 
-	go checksUpdater.run(ctx)
+	go checksUpdater.Run(ctx)
 
 	publisher := publisher{
 		publishCh: publishCh,

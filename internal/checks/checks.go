@@ -1,4 +1,4 @@
-package main
+package checks
 
 import (
 	"context"
@@ -7,13 +7,15 @@ import (
 	"net/url"
 
 	protobuf "github.com/gogo/protobuf/types"
+	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
+	"github.com/grafana/worldping-blackbox-sidecar/internal/scraper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-type checksUpdater struct {
+type Updater struct {
 	apiServerAddr            string
 	blackboxExporterProbeURL *url.URL
 	blackboxExporterLogsURL  *url.URL
@@ -22,7 +24,24 @@ type checksUpdater struct {
 	probeName                string
 }
 
-func (c checksUpdater) run(ctx context.Context) {
+type logger interface {
+	Printf(format string, v ...interface{})
+}
+
+type TimeSeries = []prompb.TimeSeries
+
+func NewUpdater(apiServerAddr string, blackboxExporterProbeURL, blackboxExporterLogsURL *url.URL, logger logger, publishCh chan<- TimeSeries, probeName string) *Updater {
+	return &Updater{
+		apiServerAddr:            apiServerAddr,
+		blackboxExporterProbeURL: blackboxExporterProbeURL,
+		blackboxExporterLogsURL:  blackboxExporterLogsURL,
+		logger:                   logger,
+		publishCh:                publishCh,
+		probeName:                probeName,
+	}
+}
+
+func (c Updater) Run(ctx context.Context) {
 	for {
 		// XXX(mem): add backoff? GRPC already has a backoff
 		// while connecting.
@@ -35,7 +54,7 @@ func (c checksUpdater) run(ctx context.Context) {
 	}
 }
 
-func (c checksUpdater) loop(ctx context.Context) error {
+func (c Updater) loop(ctx context.Context) error {
 	c.logger.Printf("Fetching check configuration from %s", c.apiServerAddr)
 
 	conn, err := grpc.Dial(c.apiServerAddr, grpc.WithInsecure(), grpc.WithBlock())
@@ -95,7 +114,7 @@ func (c checksUpdater) loop(ctx context.Context) error {
 	}
 }
 
-func (c checksUpdater) handleCheckAdd(ctx context.Context, check worldping.Check) error {
+func (c Updater) handleCheckAdd(ctx context.Context, check worldping.Check) error {
 	var (
 		module    string
 		target    string
@@ -130,19 +149,11 @@ func (c checksUpdater) handleCheckAdd(ctx context.Context, check worldping.Check
 	q.Add("module", module)
 	probeURL.RawQuery = q.Encode()
 
-	scraper := scraper{
-		publishCh: c.publishCh,
-		probeName: c.probeName,
-		checkName: checkName,
-		target:    probeURL.String(),
-		logsURL:   *c.blackboxExporterLogsURL,
-		endpoint:  target,
-		logger:    c.logger,
-	}
+	scraper := scraper.New(c.publishCh, c.probeName, checkName, probeURL.String(), target, c.logger)
 
 	// XXX(mem): this needs to change to check for existing queries
 	// and to handle enabling / disabling of checks
-	go scraper.run(ctx)
+	go scraper.Run(ctx)
 
 	return nil
 }

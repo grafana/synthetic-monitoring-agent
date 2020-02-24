@@ -31,7 +31,7 @@ type pusher struct {
 }
 
 type publisher struct {
-	publishCh <-chan TimeSeries
+	publishCh <-chan []prompb.TimeSeries
 	cfg       config
 	logger    logger
 }
@@ -76,7 +76,7 @@ func (p publisher) run(ctx context.Context) error {
 	}
 }
 
-func (p pusher) push(ctx context.Context, ts TimeSeries) {
+func (p pusher) push(ctx context.Context, ts []prompb.TimeSeries) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, p.pushTimeout)
 	defer cancel()
 
