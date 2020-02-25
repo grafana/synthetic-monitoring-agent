@@ -45,18 +45,18 @@ func New(check worldping.Check, publishCh chan<- []prompb.TimeSeries, probeName 
 	)
 
 	// Map the change to a blackbox exporter module
-	if check.Settings.PingSettings != nil {
+	if check.Settings.Ping != nil {
 		checkName = "ping"
 		module = "icmp_v4"
-		target = check.Settings.PingSettings.Hostname
-	} else if check.Settings.HttpSettings != nil {
+		target = check.Settings.Ping.Hostname
+	} else if check.Settings.Http != nil {
 		checkName = "http"
 		module = "http_2xx_v4"
-		target = check.Settings.HttpSettings.Url
-	} else if check.Settings.DnsSettings != nil {
+		target = check.Settings.Http.Url
+	} else if check.Settings.Dns != nil {
 		checkName = "dns"
 		module = "dns_v4"
-		target = check.Settings.DnsSettings.Server
+		target = check.Settings.Dns.Server
 	} else {
 		return nil, fmt.Errorf("unsupported change")
 	}

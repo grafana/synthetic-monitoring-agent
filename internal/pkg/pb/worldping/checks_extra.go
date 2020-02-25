@@ -47,15 +47,15 @@ var (
 func (c *Check) Validate() error {
 	settingsCount := 0
 
-	if c.Settings.PingSettings != nil {
+	if c.Settings.Ping != nil {
 		settingsCount++
 	}
 
-	if c.Settings.HttpSettings != nil {
+	if c.Settings.Http != nil {
 		settingsCount++
 	}
 
-	if c.Settings.DnsSettings != nil {
+	if c.Settings.Dns != nil {
 		settingsCount++
 	}
 
