@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"sync"
 
 	protobuf "github.com/gogo/protobuf/types"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
@@ -22,6 +23,8 @@ type Updater struct {
 	logger                   logger
 	publishCh                chan<- TimeSeries
 	probeName                string
+	scrapersMutex            sync.Mutex
+	scrapers                 map[int64]*scraper.Scraper
 }
 
 type logger interface {
@@ -38,6 +41,7 @@ func NewUpdater(apiServerAddr string, blackboxExporterProbeURL, blackboxExporter
 		logger:                   logger,
 		publishCh:                publishCh,
 		probeName:                probeName,
+		scrapers:                 make(map[int64]*scraper.Scraper),
 	}
 }
 
@@ -88,6 +92,9 @@ func (c Updater) loop(ctx context.Context) error {
 					}
 
 				case worldping.CheckOperation_UPDATE:
+					if err := c.handleCheckUpdate(ctx, change.Check); err != nil {
+						c.logger.Printf("handling check update: %s", err)
+					}
 
 				case worldping.CheckOperation_DELETE:
 				}
@@ -115,45 +122,63 @@ func (c Updater) loop(ctx context.Context) error {
 }
 
 func (c Updater) handleCheckAdd(ctx context.Context, check worldping.Check) error {
-	var (
-		module    string
-		target    string
-		checkName string
-	)
-
-	// Map the change to a blackbox exporter module
-	if check.Settings.PingSettings != nil {
-		checkName = "ping"
-		module = "icmp_v4"
-		target = check.Settings.PingSettings.Hostname
-	} else if check.Settings.HttpSettings != nil {
-		checkName = "http"
-		module = "http_2xx_v4"
-		target = check.Settings.HttpSettings.Url
-	} else if check.Settings.DnsSettings != nil {
-		checkName = "dns"
-		module = "dns_v4"
-		target = check.Settings.DnsSettings.Server
-	} else {
-		return fmt.Errorf("unsupported change")
-	}
-
 	if c.blackboxExporterProbeURL == nil {
 		c.logger.Printf("no blackbox exporter probe URL configured, ignoring check change")
 		return nil
 	}
 
-	probeURL := *c.blackboxExporterProbeURL
-	q := probeURL.Query()
-	q.Add("target", target)
-	q.Add("module", module)
-	probeURL.RawQuery = q.Encode()
+	scraper, err := scraper.New(check, c.publishCh, c.probeName, *c.blackboxExporterProbeURL, c.logger)
+	if err != nil {
+		return fmt.Errorf("cannot create new scraper: %w", err)
+	}
 
-	scraper := scraper.New(c.publishCh, c.probeName, checkName, probeURL.String(), target, c.logger)
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
 
-	// XXX(mem): this needs to change to check for existing queries
-	// and to handle enabling / disabling of checks
+	if _, found := c.scrapers[check.Id]; found {
+		return fmt.Errorf("check with id %d already exists", check.Id)
+	}
+
+	c.scrapers[check.Id] = scraper
+
+	if !check.Enabled {
+		c.logger.Printf("skipping run for check probe=%d id=%d, check is disabled", c.probeName, check.Id)
+		return nil
+	}
+
 	go scraper.Run(ctx)
+
+	return nil
+}
+
+func (c Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) error {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+
+	scraper, found := c.scrapers[check.Id]
+	if !found {
+		c.logger.Printf("got an update request for an unknown check: %#v", check)
+		return nil
+	}
+
+	scraper.Update(check)
+
+	return nil
+}
+
+func (c Updater) handleCheckDelete(ctx context.Context, check worldping.Check) error {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+
+	scraper, found := c.scrapers[check.Id]
+	if !found {
+		c.logger.Printf("got a delete request for an unknown check: %#v", check)
+		return nil
+	}
+
+	scraper.Delete()
+
+	delete(c.scrapers, check.Id)
 
 	return nil
 }

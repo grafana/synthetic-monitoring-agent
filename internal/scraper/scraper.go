@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
+	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )
@@ -24,9 +25,10 @@ type Scraper struct {
 	publishCh chan<- []prompb.TimeSeries
 	probeName string
 	checkName string
-	target    string
-	endpoint  string
+	provider  url.URL // provider is the BBE URL
+	endpoint  string  // endpoint is the thing to be checked (hostname, URL, ...)
 	logger    logger
+	check     worldping.Check
 }
 
 type logger interface {
@@ -35,15 +37,44 @@ type logger interface {
 
 type TimeSeries = []prompb.TimeSeries
 
-func New(publishCh chan<- []prompb.TimeSeries, probeName, checkName, target, endpoint string, logger logger) *Scraper {
+func New(check worldping.Check, publishCh chan<- []prompb.TimeSeries, probeName string, probeURL url.URL, logger logger) (*Scraper, error) {
+	var (
+		module    string
+		target    string
+		checkName string
+	)
+
+	// Map the change to a blackbox exporter module
+	if check.Settings.PingSettings != nil {
+		checkName = "ping"
+		module = "icmp_v4"
+		target = check.Settings.PingSettings.Hostname
+	} else if check.Settings.HttpSettings != nil {
+		checkName = "http"
+		module = "http_2xx_v4"
+		target = check.Settings.HttpSettings.Url
+	} else if check.Settings.DnsSettings != nil {
+		checkName = "dns"
+		module = "dns_v4"
+		target = check.Settings.DnsSettings.Server
+	} else {
+		return nil, fmt.Errorf("unsupported change")
+	}
+
+	q := probeURL.Query()
+	q.Set("target", target)
+	q.Set("module", module)
+	probeURL.RawQuery = q.Encode()
+
 	return &Scraper{
 		publishCh: publishCh,
 		probeName: probeName,
 		checkName: checkName,
-		target:    target,
-		endpoint:  endpoint,
+		provider:  probeURL,
+		endpoint:  target,
 		logger:    logger,
-	}
+		check:     check,
+	}, nil
 }
 
 var errCheckFailed = errors.New("probe failed")
@@ -85,7 +116,7 @@ func (sm checkStateMachine) isFailing() bool {
 }
 
 func (s Scraper) Run(ctx context.Context) {
-	s.logger.Printf("starting scraper at %s for %s", s.probeName, s.target)
+	s.logger.Printf("starting scraper probe=%s endpoint=%s provider=%s", s.probeName, s.endpoint, s.provider)
 
 	// TODO(mem): keep count of the number of successive errors and
 	// collect logs if threshold is reached.
@@ -98,18 +129,18 @@ func (s Scraper) Run(ctx context.Context) {
 		switch {
 		case errors.Is(err, errCheckFailed):
 			sm.fail(func() {
-				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s target=%s`, s.probeName, s.endpoint, s.target)
+				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider)
 				// XXX(mem): post logs to Loki
 				s.logger.Printf("logs: %s", logs)
 			})
 
 		case err != nil:
-			s.logger.Printf("Error collecting data from %s: %s", s.target, err)
+			s.logger.Printf(`msg="error collecting data" probe=%s endpoint=%s provider=%s: %s`, s.probeName, s.endpoint, s.provider, err)
 			return
 
 		default:
 			sm.pass(func() {
-				s.logger.Printf(`msg="check entered PASS state" probe=%s endpoint=%s target=%s`, s.probeName, s.endpoint, s.target)
+				s.logger.Printf(`msg="check entered PASS state" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider)
 			})
 		}
 
@@ -118,12 +149,15 @@ func (s Scraper) Run(ctx context.Context) {
 		}
 	}
 
+	T := time.Duration(s.check.Frequency) * time.Millisecond // period, ms
+
+	// one-time offset
+	time.Sleep(time.Duration(s.check.Offset))
+
 	s.logger.Printf("scraping first set")
 	scrape(ctx, time.Now())
 
-	const T = 5 * 1000 // period, ms
-
-	ticker := time.NewTicker(T * time.Millisecond)
+	ticker := time.NewTicker(T)
 	defer ticker.Stop()
 
 	for {
@@ -131,13 +165,36 @@ func (s Scraper) Run(ctx context.Context) {
 		case <-ctx.Done():
 
 		case t := <-ticker.C:
+			// TODO(mem): add timeout handling here?
+
 			scrape(ctx, t)
 		}
+
 	}
 }
 
+func (s *Scraper) Update(check worldping.Check) {
+	s.check = check
+
+	// XXX(mem): restart scraper
+
+	if !check.Enabled {
+		// XXX(mem): this scraper must be running (current
+		// s.check.Enabled == true); stop it in that case.
+		s.logger.Printf("check is disabled for probe=%s endpoint=%s provider=%s", s.probeName, s.endpoint, s.provider)
+		return
+	}
+
+	// XXX(mem): this needs to change to check for existing queries
+	// and to handle enabling / disabling of checks
+}
+
+func (s *Scraper) Delete() {
+	// XXX(mem): stop the running scraper
+}
+
 func (s Scraper) collectData(ctx context.Context, t time.Time) ([]prompb.TimeSeries, []byte, error) {
-	u, _ := url.Parse(s.target)
+	u := s.provider
 	q := u.Query()
 	// this is needed in order to obtain the logs alongside the metrics
 	q.Add("debug", "true")
