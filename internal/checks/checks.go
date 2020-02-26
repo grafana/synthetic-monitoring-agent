@@ -45,7 +45,7 @@ func NewUpdater(apiServerAddr string, blackboxExporterProbeURL, blackboxExporter
 	}
 }
 
-func (c Updater) Run(ctx context.Context) {
+func (c *Updater) Run(ctx context.Context) {
 	for {
 		// XXX(mem): add backoff? GRPC already has a backoff
 		// while connecting.
@@ -58,7 +58,7 @@ func (c Updater) Run(ctx context.Context) {
 	}
 }
 
-func (c Updater) loop(ctx context.Context) error {
+func (c *Updater) loop(ctx context.Context) error {
 	c.logger.Printf("Fetching check configuration from %s", c.apiServerAddr)
 
 	conn, err := grpc.Dial(c.apiServerAddr, grpc.WithInsecure(), grpc.WithBlock())
@@ -97,6 +97,9 @@ func (c Updater) loop(ctx context.Context) error {
 					}
 
 				case worldping.CheckOperation_DELETE:
+					if err := c.handleCheckDelete(ctx, change.Check); err != nil {
+						c.logger.Printf("handling check delete: %s", err)
+					}
 				}
 
 			case io.EOF:
@@ -121,7 +124,7 @@ func (c Updater) loop(ctx context.Context) error {
 	}
 }
 
-func (c Updater) handleCheckAdd(ctx context.Context, check worldping.Check) error {
+func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) error {
 	if c.blackboxExporterProbeURL == nil {
 		c.logger.Printf("no blackbox exporter probe URL configured, ignoring check change")
 		return nil
@@ -151,7 +154,7 @@ func (c Updater) handleCheckAdd(ctx context.Context, check worldping.Check) erro
 	return nil
 }
 
-func (c Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) error {
+func (c *Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) error {
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
@@ -166,7 +169,7 @@ func (c Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) e
 	return nil
 }
 
-func (c Updater) handleCheckDelete(ctx context.Context, check worldping.Check) error {
+func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) error {
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 

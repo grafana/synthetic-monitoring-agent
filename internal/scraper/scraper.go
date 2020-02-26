@@ -288,10 +288,10 @@ func makeTimeseries(t time.Time, value float64, labels ...*prompb.Label) prompb.
 
 func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, checkName, probeName, endpoint, mName string, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
 	baseLabels := []*prompb.Label{
-		&prompb.Label{Name: "__name__", Value: mName},
-		&prompb.Label{Name: "check", Value: checkName},
-		&prompb.Label{Name: "probe", Value: probeName},
-		&prompb.Label{Name: "endpoint", Value: endpoint},
+		{Name: "__name__", Value: mName},
+		{Name: "check", Value: checkName},
+		{Name: "probe", Value: probeName},
+		{Name: "endpoint", Value: endpoint},
 	}
 
 	var metricLabels []*prompb.Label
