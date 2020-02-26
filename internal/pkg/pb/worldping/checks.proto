@@ -46,7 +46,7 @@ message CheckChange {
 // The "settings" field defines the type of check.
 message Check {
 	int64           id        = 1  [(gogoproto.jsontag) = "id"];         // unique ID
-	int64           tennantId = 2  [(gogoproto.jsontag) = "tennant_id"]; // grafana.com org ID
+	int64           orgId     = 2  [(gogoproto.jsontag) = "org_id"];     // grafana.com org ID
 	int64           frequency = 3  [(gogoproto.jsontag) = "frequency"];  // every X milliseconds
 	int64           offset    = 4  [(gogoproto.jsontag) = "offset"];     // ??? REMOVE???? ??? why user configured?
 	int64           timeout   = 5  [(gogoproto.jsontag) = "timeout"];    // maximum time before aborting
@@ -151,9 +151,9 @@ message ResponseTimeValidation {
 
 message HttpCheckValidations {
 	option (gogoproto.onlyone) = true;
-	HttpHeaderValidation   header       = 1 [(gogoproto.jsontag) = "header"];
-	HttpBodyValidation     body         = 2 [(gogoproto.jsontag) = "body"];
-	ResponseTimeValidation responseTime = 3 [(gogoproto.jsontag) = "response_time"];
+	HttpHeaderValidation   header       = 1 [(gogoproto.jsontag) = "header,omitempty"];
+	HttpBodyValidation     body         = 2 [(gogoproto.jsontag) = "body,omitempty"];
+	ResponseTimeValidation responseTime = 3 [(gogoproto.jsontag) = "response_time,omitempty"];
 }
 
 message HttpHeaderValidation {
@@ -171,10 +171,10 @@ message HttpBodyValidation {
 
 message DNSCheckValidation {
 	option (gogoproto.onlyone) = true;
-	DnsTtlValidation       ttl          = 1 [(gogoproto.jsontag) = "ttl"];
-	DnsTextValidation      text         = 2 [(gogoproto.jsontag) = "text"];
-	DnsHostValidation      host         = 4 [(gogoproto.jsontag) = "host"];
-	ResponseTimeValidation responseTime = 3 [(gogoproto.jsontag) = "response_time"];
+	DnsTtlValidation       ttl          = 1 [(gogoproto.jsontag) = "ttl,omitempty"];
+	DnsTextValidation      text         = 2 [(gogoproto.jsontag) = "text,omitempty"];
+	DnsHostValidation      host         = 4 [(gogoproto.jsontag) = "host,omitempty"];
+	ResponseTimeValidation responseTime = 3 [(gogoproto.jsontag) = "response_time,omitempty"];
 }
 
 message DnsTtlValidation {
@@ -197,5 +197,5 @@ message DnsHostValidation { // must match all entries
 
 message PingCheckValidation {
 	option (gogoproto.onlyone) = true;
-	ResponseTimeValidation responseTime = 1 [(gogoproto.jsontag) = "response_time"];
+	ResponseTimeValidation responseTime = 1 [(gogoproto.jsontag) = "response_time,omitempty"];
 }
