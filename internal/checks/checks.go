@@ -129,16 +129,20 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) err
 		return nil
 	}
 
-	scraper, err := scraper.New(check, c.publishCh, c.probeName, *c.blackboxExporterProbeURL, c.logger)
-	if err != nil {
-		return fmt.Errorf("cannot create new scraper: %w", err)
-	}
-
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
 	if _, found := c.scrapers[check.Id]; found {
+		// we can get here if the API sent us a check add twice:
+		// once during the initial conneciton and another right
+		// after that. The window for that is small, but it
+		// exists.
 		return fmt.Errorf("check with id %d already exists", check.Id)
+	}
+
+	scraper, err := scraper.New(check, c.publishCh, c.probeName, *c.blackboxExporterProbeURL, c.logger)
+	if err != nil {
+		return fmt.Errorf("cannot create new scraper: %w", err)
 	}
 
 	c.scrapers[check.Id] = scraper
