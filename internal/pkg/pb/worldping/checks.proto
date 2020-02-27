@@ -16,7 +16,6 @@ package worldping;
 
 option go_package = "worldping";
 
-import "google/protobuf/empty.proto";
 import "gogoproto/gogo.proto";
 
 option (gogoproto.marshaler_all) = true;
@@ -27,7 +26,13 @@ option (gogoproto.goproto_getters_all) = false;
 service Checks {
 	// GetChanges returns a list of check operations, specifying
 	// whether to add, update or delete checks.
-	rpc GetChanges(google.protobuf.Empty) returns (stream CheckChange) {};
+	rpc GetChanges(ProbeInfo) returns (stream CheckChange) {};
+}
+
+// ProbeInfo represents a probe
+message ProbeInfo {
+	// name is the name of the probe
+	string name = 1;
 }
 
 enum CheckOperation {

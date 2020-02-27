@@ -7,7 +7,6 @@ import (
 	"net/url"
 	"sync"
 
-	protobuf "github.com/gogo/protobuf/types"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/scraper"
@@ -69,8 +68,8 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	client := worldping.NewChecksClient(conn)
 
-	var empty protobuf.Empty
-	cc, err := client.GetChanges(ctx, &empty)
+	probeInfo := worldping.ProbeInfo{Name: c.probeName}
+	cc, err := client.GetChanges(ctx, &probeInfo)
 	if err != nil {
 		return fmt.Errorf("getting changes from %s: %w", c.apiServerAddr, err)
 	}
