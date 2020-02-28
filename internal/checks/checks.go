@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
 	"net/url"
+	"os"
 	"sync"
 
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
@@ -159,31 +162,16 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) err
 
 	c.scrapers[check.Id] = scraper
 
-	// XXX(mem) after adding a scraper, regenerate configuration
-	// file.
-
-	var config struct {
-		Modules map[string]interface{} `yaml:"modules"`
-	}
-
-	config.Modules = make(map[string]interface{})
-
-	for i := range c.scrapers {
-		moduleName := c.scrapers[i].GetModuleName()
-		moduleConfig := c.scrapers[i].GetModuleConfig()
-		config.Modules[moduleName] = moduleConfig
-	}
-
-	b, err := yaml.Marshal(config)
-	if err != nil {
-		c.logger.Printf("cannot marshal to YAML: %s", err)
-	} else {
-		c.logger.Printf("resulting YAML:\n%s", string(b))
-	}
-
-	if !check.Enabled {
-		c.logger.Printf("skipping run for check probe=%d id=%d, check is disabled", c.probeName, check.Id)
-		return nil
+	// XXX(mem): this needs to be rate-limited somehow, it doesn't
+	// make sense to post 600 reload requests in a second. The trick
+	// is that the scraper cannot run until the configuration has
+	// been updated.
+	//
+	// Possibly delay starting the scraper using a list and a
+	// timeout?
+	if err := c.updateBBEConfiguration(); err != nil {
+		// XXX(mem): bail out?
+		c.logger.Printf("updating blackbox-exporter configuration: %s", err)
 	}
 
 	go scraper.Run(ctx)
@@ -219,6 +207,57 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) 
 	scraper.Delete()
 
 	delete(c.scrapers, check.Id)
+
+	return nil
+}
+
+func (c *Updater) updateBBEConfiguration() error {
+	var config struct {
+		Modules map[string]interface{} `yaml:"modules"`
+	}
+
+	config.Modules = make(map[string]interface{})
+
+	for i := range c.scrapers {
+		moduleName := c.scrapers[i].GetModuleName()
+		config.Modules[moduleName] = c.scrapers[i].GetModuleConfig()
+	}
+
+	b, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("cannot marshal to YAML: %w", err)
+	}
+
+	fh, err := os.Create(c.bbeConfigFilename)
+	if err != nil {
+		return fmt.Errorf("cannot create blackbox-exporter configuration file %s: %w", c.bbeConfigFilename, err)
+	}
+	defer fh.Close()
+
+	n, err := fh.Write(b)
+	if err != nil {
+		return fmt.Errorf("failed to write blackbox-exporter configuration file %s, wrote %s bytes: %w", c.bbeConfigFilename, n, err)
+	}
+
+	req, err := http.NewRequestWithContext(context.TODO(), "POST", c.blackboxExporterReloadURL.String(), nil)
+	if err != nil {
+		return fmt.Errorf("creating new request: %w", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("posting configuration reload request : %w", err)
+	}
+
+	defer func() {
+		// drain body
+		_, _ = io.Copy(ioutil.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected response posting configuration reload request : %s", resp.Status)
+	}
 
 	return nil
 }
