@@ -30,6 +30,7 @@ func run(args []string, stdout io.Writer) error {
 
 	var (
 		verbose             = flags.Bool("verbose", false, "verbose logging")
+		bbeConfigFilename   = flags.String("blackbox-exporter-config", "worldping.yaml", "filename for blackbox exporter configuration")
 		blackboxExporterStr = flags.String("blackbox-exporter-url", "http://localhost:9115/", "base URL for blackbox exporter")
 		grpcApiServerAddr   = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
 		grpcForwarderAddr   = flags.String("forwarder-server-address", "localhost:4041", "GRPC forwarder server address")
@@ -42,11 +43,6 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	blackboxExporterURL, err := url.Parse(*blackboxExporterStr)
-	if err != nil {
-		return err
-	}
-
-	blackboxExporterProbeURL, err := blackboxExporterURL.Parse("probe")
 	if err != nil {
 		return err
 	}
@@ -128,7 +124,10 @@ func run(args []string, stdout io.Writer) error {
 		config.metrics.URL = u.String()
 	}
 
-	checksUpdater := checks.NewUpdater(*grpcApiServerAddr, blackboxExporterProbeURL, logger, publishCh, *probeName)
+	checksUpdater, err := checks.NewUpdater(*grpcApiServerAddr, *bbeConfigFilename, blackboxExporterURL, logger, publishCh, *probeName)
+	if err != nil {
+		log.Fatalf("Cannot create checks updater: %s", err)
+	}
 
 	go checksUpdater.Run(ctx)
 

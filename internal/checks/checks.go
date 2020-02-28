@@ -17,13 +17,15 @@ import (
 )
 
 type Updater struct {
-	apiServerAddr            string
-	blackboxExporterProbeURL *url.URL
-	logger                   logger
-	publishCh                chan<- TimeSeries
-	probeName                string
-	scrapersMutex            sync.Mutex
-	scrapers                 map[int64]*scraper.Scraper
+	apiServerAddr             string
+	bbeConfigFilename         string
+	blackboxExporterProbeURL  *url.URL
+	blackboxExporterReloadURL *url.URL
+	logger                    logger
+	publishCh                 chan<- TimeSeries
+	probeName                 string
+	scrapersMutex             sync.Mutex
+	scrapers                  map[int64]*scraper.Scraper
 }
 
 type logger interface {
@@ -32,15 +34,31 @@ type logger interface {
 
 type TimeSeries = []prompb.TimeSeries
 
-func NewUpdater(apiServerAddr string, blackboxExporterProbeURL *url.URL, logger logger, publishCh chan<- TimeSeries, probeName string) *Updater {
-	return &Updater{
-		apiServerAddr:            apiServerAddr,
-		blackboxExporterProbeURL: blackboxExporterProbeURL,
-		logger:                   logger,
-		publishCh:                publishCh,
-		probeName:                probeName,
-		scrapers:                 make(map[int64]*scraper.Scraper),
+func NewUpdater(apiServerAddr, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- TimeSeries, probeName string) (*Updater, error) {
+	if blackboxExporterURL == nil {
+		return nil, fmt.Errorf("invalid blackbox-exporter URL")
 	}
+
+	blackboxExporterProbeURL, err := blackboxExporterURL.Parse("probe")
+	if err != nil {
+		return nil, err
+	}
+
+	blackboxExporterReloadURL, err := blackboxExporterURL.Parse("-/reload")
+	if err != nil {
+		return nil, err
+	}
+
+	return &Updater{
+		apiServerAddr:             apiServerAddr,
+		bbeConfigFilename:         bbeConfigFilename,
+		blackboxExporterProbeURL:  blackboxExporterProbeURL,
+		blackboxExporterReloadURL: blackboxExporterReloadURL,
+		logger:                    logger,
+		publishCh:                 publishCh,
+		probeName:                 probeName,
+		scrapers:                  make(map[int64]*scraper.Scraper),
+	}, nil
 }
 
 func (c *Updater) Run(ctx context.Context) {
@@ -123,11 +141,6 @@ func (c *Updater) loop(ctx context.Context) error {
 }
 
 func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) error {
-	if c.blackboxExporterProbeURL == nil {
-		c.logger.Printf("no blackbox exporter probe URL configured, ignoring check change")
-		return nil
-	}
-
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
