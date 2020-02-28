@@ -11,24 +11,30 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
+	bbeconfig "github.com/prometheus/blackbox_exporter/config"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 )
 
 // "github.com/prometheus/common/expfmt"
 
+var bbConf bbeconfig.Config
+
 type Scraper struct {
-	publishCh chan<- []prompb.TimeSeries
-	probeName string
-	checkName string
-	provider  url.URL // provider is the BBE URL
-	endpoint  string  // endpoint is the thing to be checked (hostname, URL, ...)
-	logger    logger
-	check     worldping.Check
+	publishCh  chan<- []prompb.TimeSeries
+	probeName  string
+	checkName  string
+	provider   url.URL // provider is the BBE URL
+	endpoint   string  // endpoint is the thing to be checked (hostname, URL, ...)
+	logger     logger
+	check      worldping.Check
+	bbeModule  *bbeconfig.Module
+	moduleName string
 }
 
 type logger interface {
@@ -39,23 +45,78 @@ type TimeSeries = []prompb.TimeSeries
 
 func New(check worldping.Check, publishCh chan<- []prompb.TimeSeries, probeName string, probeURL url.URL, logger logger) (*Scraper, error) {
 	var (
-		module    string
-		target    string
-		checkName string
+		target     string
+		checkName  string
+		moduleName string
+		bbeModule  bbeconfig.Module
 	)
+
+	bbeModule.Timeout = time.Duration(check.Timeout) * time.Millisecond
+
+	ipVersionToIpProtocol := func(v worldping.IpVersion) (string, bool) {
+		switch v {
+		case worldping.IpVersion_V4:
+			// preferred_ip_protocol = ip4
+			// ip_protocol_fallback = false
+			return "ip4", false
+		case worldping.IpVersion_V6:
+			// preferred_ip_protocol = ip6
+			// ip_protocol_fallback = false
+			return "ip6", false
+		case worldping.IpVersion_Any:
+			// preferred_ip_protocol = ip6
+			// ip_protocol_fallback = true
+			return "ip6", true
+		}
+
+		return "", false
+	}
 
 	// Map the change to a blackbox exporter module
 	if check.Settings.Ping != nil {
+		bbeModule.Prober = "icmp"
 		checkName = "ping"
-		module = "icmp_v4"
+
+		bbeModule.ICMP.IPProtocol, bbeModule.ICMP.IPProtocolFallback = ipVersionToIpProtocol(check.Settings.Ping.IpVersion)
+
+		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.ICMP.IPProtocol, check.Id)
+
 		target = check.Settings.Ping.Hostname
 	} else if check.Settings.Http != nil {
+		bbeModule.Prober = "http"
 		checkName = "http"
-		module = "http_2xx_v4"
+
+		bbeModule.HTTP.IPProtocol, bbeModule.HTTP.IPProtocolFallback = ipVersionToIpProtocol(check.Settings.Http.IpVersion)
+
+		bbeModule.HTTP.Body = check.Settings.Http.Body
+
+		bbeModule.HTTP.Method = check.Settings.Http.Method.String()
+
+		for _, header := range check.Settings.Http.Headers {
+			parts := strings.SplitN(header, ":", 2)
+			var value string
+			if len(parts) == 2 {
+				value = strings.TrimLeft(parts[1], " ")
+			}
+			bbeModule.HTTP.Headers[parts[0]] = value
+		}
+
+		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.HTTP.IPProtocol, check.Id)
+
 		target = check.Settings.Http.Url
 	} else if check.Settings.Dns != nil {
 		checkName = "dns"
-		module = "dns_v4"
+
+		// BBE dns_probe actually tests the DNS server, so we
+		// need to pass the query (e.g. www.grafana.com) as part
+		// of the configuration and the server as the target
+		// parameter.
+		bbeModule.DNS.QueryName = check.Settings.Dns.Name
+		bbeModule.DNS.QueryType = check.Settings.Dns.RecordType.String()
+		bbeModule.DNS.TransportProtocol = "udp"
+
+		bbeModule.DNS.IPProtocol, bbeModule.DNS.IPProtocolFallback = ipVersionToIpProtocol(check.Settings.Dns.IpVersion)
+
 		target = check.Settings.Dns.Server
 	} else {
 		return nil, fmt.Errorf("unsupported change")
@@ -63,17 +124,19 @@ func New(check worldping.Check, publishCh chan<- []prompb.TimeSeries, probeName 
 
 	q := probeURL.Query()
 	q.Set("target", target)
-	q.Set("module", module)
+	q.Set("module", moduleName)
 	probeURL.RawQuery = q.Encode()
 
 	return &Scraper{
-		publishCh: publishCh,
-		probeName: probeName,
-		checkName: checkName,
-		provider:  probeURL,
-		endpoint:  target,
-		logger:    logger,
-		check:     check,
+		publishCh:  publishCh,
+		probeName:  probeName,
+		checkName:  checkName,
+		provider:   probeURL,
+		endpoint:   target,
+		logger:     logger,
+		check:      check,
+		bbeModule:  &bbeModule,
+		moduleName: moduleName,
 	}, nil
 }
 
@@ -191,6 +254,14 @@ func (s *Scraper) Update(check worldping.Check) {
 
 func (s *Scraper) Delete() {
 	// XXX(mem): stop the running scraper
+}
+
+func (s *Scraper) GetModuleName() string {
+	return s.moduleName
+}
+
+func (s *Scraper) GetModuleConfig() interface{} {
+	return s.bbeModule
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) ([]prompb.TimeSeries, []byte, error) {

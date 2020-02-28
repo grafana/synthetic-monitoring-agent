@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"gopkg.in/yaml.v2"
 )
 
 type Updater struct {
@@ -144,6 +145,28 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) err
 	}
 
 	c.scrapers[check.Id] = scraper
+
+	// XXX(mem) after adding a scraper, regenerate configuration
+	// file.
+
+	var config struct {
+		Modules map[string]interface{} `yaml:"modules"`
+	}
+
+	config.Modules = make(map[string]interface{})
+
+	for i := range c.scrapers {
+		moduleName := c.scrapers[i].GetModuleName()
+		moduleConfig := c.scrapers[i].GetModuleConfig()
+		config.Modules[moduleName] = moduleConfig
+	}
+
+	b, err := yaml.Marshal(config)
+	if err != nil {
+		c.logger.Printf("cannot marshal to YAML: %s", err)
+	} else {
+		c.logger.Printf("resulting YAML:\n%s", string(b))
+	}
 
 	if !check.Enabled {
 		c.logger.Printf("skipping run for check probe=%d id=%d, check is disabled", c.probeName, check.Id)
