@@ -51,11 +51,6 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	blackboxExporterLogsURL, err := blackboxExporterURL.Parse("logs")
-	if err != nil {
-		return err
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -133,7 +128,7 @@ func run(args []string, stdout io.Writer) error {
 		config.metrics.URL = u.String()
 	}
 
-	checksUpdater := checks.NewUpdater(*grpcApiServerAddr, blackboxExporterProbeURL, blackboxExporterLogsURL, logger, publishCh, *probeName)
+	checksUpdater := checks.NewUpdater(*grpcApiServerAddr, blackboxExporterProbeURL, logger, publishCh, *probeName)
 
 	go checksUpdater.Run(ctx)
 

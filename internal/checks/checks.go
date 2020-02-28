@@ -18,7 +18,6 @@ import (
 type Updater struct {
 	apiServerAddr            string
 	blackboxExporterProbeURL *url.URL
-	blackboxExporterLogsURL  *url.URL
 	logger                   logger
 	publishCh                chan<- TimeSeries
 	probeName                string
@@ -32,11 +31,10 @@ type logger interface {
 
 type TimeSeries = []prompb.TimeSeries
 
-func NewUpdater(apiServerAddr string, blackboxExporterProbeURL, blackboxExporterLogsURL *url.URL, logger logger, publishCh chan<- TimeSeries, probeName string) *Updater {
+func NewUpdater(apiServerAddr string, blackboxExporterProbeURL *url.URL, logger logger, publishCh chan<- TimeSeries, probeName string) *Updater {
 	return &Updater{
 		apiServerAddr:            apiServerAddr,
 		blackboxExporterProbeURL: blackboxExporterProbeURL,
-		blackboxExporterLogsURL:  blackboxExporterLogsURL,
 		logger:                   logger,
 		publishCh:                publishCh,
 		probeName:                probeName,
