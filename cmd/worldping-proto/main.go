@@ -126,7 +126,7 @@ func write(checkType checkType) {
 		Offset:    2300,
 		Timeout:   2500,
 		Enabled:   true,
-		Tags:      []string{"production"},
+		Labels:    []worldping.Label{{Name: "environment", Value: "production"}},
 		Settings:  settings,
 	}
 

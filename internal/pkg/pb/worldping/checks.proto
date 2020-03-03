@@ -46,20 +46,25 @@ message CheckChange {
 	Check          check     = 2 [(gogoproto.nullable) = false];
 }
 
+message Label {
+	string Name  = 1;
+	string Value = 2;
+}
+
 // Check represents a check.
 //
 // The "settings" field defines the type of check.
 message Check {
 	int64           id        = 1  [(gogoproto.jsontag) = "id"];         // unique ID
-	int64           orgId     = 2  [(gogoproto.jsontag) = "org_id"];     // grafana.com org ID
+	int64           orgId     = 2  [(gogoproto.jsontag) = "orgId"];      // grafana.com org ID
 	int64           frequency = 3  [(gogoproto.jsontag) = "frequency"];  // every X milliseconds
 	int64           offset    = 4  [(gogoproto.jsontag) = "offset"];     // ??? REMOVE???? ??? why user configured?
 	int64           timeout   = 5  [(gogoproto.jsontag) = "timeout"];    // maximum time before aborting
 	bool            enabled   = 6  [(gogoproto.jsontag) = "enabled"];    // user enable/disable   
-	repeated string tags      = 7  [(gogoproto.jsontag) = "tags"];       // Custom labels applied to all lables (ie: production)
+	repeated Label  labels    = 7  [(gogoproto.nullable) = false, (gogoproto.jsontag) = "labels"];     // Custom labels applied to all lables (ie: production)
 	CheckSettings   settings  = 8  [(gogoproto.nullable) = false, (gogoproto.jsontag) = "settings"];
-	int64           created   = 9  [(gogoproto.jsontag) = "created"]; // time the check was created
-	int64           modified  = 10 [(gogoproto.jsontag) = "modified"]; // last time modified
+	int64           created   = 9  [(gogoproto.jsontag) = "created"];    // time the check was created
+	int64           modified  = 10 [(gogoproto.jsontag) = "modified"];   // last time modified
 }
 
 // CheckSettings provides the settings for exactly one type of check.
@@ -80,7 +85,7 @@ message CheckSettings {
 // threshold.
 message PingSettings {
 	string                       hostname   = 1 [(gogoproto.jsontag) = "hostname"];
-	IpVersion                    ipVersion  = 2 [(gogoproto.jsontag) = "ip_version"];
+	IpVersion                    ipVersion  = 2 [(gogoproto.jsontag) = "ipVersion"];
 	repeated PingCheckValidation validation = 3 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "validation"];
 }
 
@@ -97,9 +102,9 @@ message HttpSettings {
 	HttpMethod                    method        = 2 [(gogoproto.jsontag) = "method"];
 	repeated string               headers       = 3 [(gogoproto.jsontag) = "headers"];
 	string                        body          = 4 [(gogoproto.jsontag) = "body"];
-	int64                         downloadLimit = 5 [(gogoproto.jsontag) = "download_limit"];
-	IpVersion                     ipVersion     = 6 [(gogoproto.jsontag) = "ip_version"];
-	bool                          validateCert  = 7 [(gogoproto.jsontag) = "validate_cert"];
+	int64                         downloadLimit = 5 [(gogoproto.jsontag) = "downloadLimit"];
+	IpVersion                     ipVersion     = 6 [(gogoproto.jsontag) = "ipVersion"];
+	bool                          validateCert  = 7 [(gogoproto.jsontag) = "validateCert"];
 	repeated HttpCheckValidations validation    = 8 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "validation"];
 }
 
@@ -123,9 +128,9 @@ enum DnsProtocol {
 // DnsSettings provides the settings for a DNS check.
 message DnsSettings {
 	string                      name       = 1 [(gogoproto.jsontag) = "name"];
-	DnsRecordType               recordType = 2 [(gogoproto.jsontag) = "record_type"];
+	DnsRecordType               recordType = 2 [(gogoproto.jsontag) = "recordType"];
 	string                      server     = 3 [(gogoproto.jsontag) = "server"];
-	IpVersion                   ipVersion  = 4 [(gogoproto.jsontag) = "ip_version"];
+	IpVersion                   ipVersion  = 4 [(gogoproto.jsontag) = "ipVersion"];
 	DnsProtocol                 protocol   = 5 [(gogoproto.jsontag) = "protocol"];
 	int32                       port       = 6 [(gogoproto.jsontag) = "port"];
 	repeated DNSCheckValidation validation = 7 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "validation"];
@@ -158,7 +163,7 @@ message HttpCheckValidations {
 	option (gogoproto.onlyone) = true;
 	HttpHeaderValidation   header       = 1 [(gogoproto.jsontag) = "header,omitempty"];
 	HttpBodyValidation     body         = 2 [(gogoproto.jsontag) = "body,omitempty"];
-	ResponseTimeValidation responseTime = 3 [(gogoproto.jsontag) = "response_time,omitempty"];
+	ResponseTimeValidation responseTime = 3 [(gogoproto.jsontag) = "responseTime,omitempty"];
 }
 
 message HttpHeaderValidation {
@@ -179,7 +184,7 @@ message DNSCheckValidation {
 	DnsTtlValidation       ttl          = 1 [(gogoproto.jsontag) = "ttl,omitempty"];
 	DnsTextValidation      text         = 2 [(gogoproto.jsontag) = "text,omitempty"];
 	DnsHostValidation      host         = 4 [(gogoproto.jsontag) = "host,omitempty"];
-	ResponseTimeValidation responseTime = 3 [(gogoproto.jsontag) = "response_time,omitempty"];
+	ResponseTimeValidation responseTime = 3 [(gogoproto.jsontag) = "responseTime,omitempty"];
 }
 
 message DnsTtlValidation {
@@ -202,5 +207,5 @@ message DnsHostValidation { // must match all entries
 
 message PingCheckValidation {
 	option (gogoproto.onlyone) = true;
-	ResponseTimeValidation responseTime = 1 [(gogoproto.jsontag) = "response_time,omitempty"];
+	ResponseTimeValidation responseTime = 1 [(gogoproto.jsontag) = "responseTime,omitempty"];
 }
