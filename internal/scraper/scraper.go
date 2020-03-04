@@ -14,8 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/logproto"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
+	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -26,7 +28,7 @@ import (
 var bbConf bbeconfig.Config
 
 type Scraper struct {
-	publishCh  chan<- []prompb.TimeSeries
+	publishCh  chan<- pusher.Payload
 	probeName  string
 	checkName  string
 	provider   url.URL // provider is the BBE URL
@@ -42,8 +44,22 @@ type logger interface {
 }
 
 type TimeSeries = []prompb.TimeSeries
+type Streams = []logproto.Stream
 
-func New(check worldping.Check, publishCh chan<- []prompb.TimeSeries, probeName string, probeURL url.URL, logger logger) (*Scraper, error) {
+type probeData struct {
+	ts      TimeSeries
+	streams Streams
+}
+
+func (d *probeData) Metrics() TimeSeries {
+	return d.ts
+}
+
+func (d *probeData) Streams() Streams {
+	return d.streams
+}
+
+func New(check worldping.Check, publishCh chan<- pusher.Payload, probeName string, probeURL url.URL, logger logger) (*Scraper, error) {
 	var (
 		target     string
 		checkName  string
@@ -187,7 +203,7 @@ func (s Scraper) Run(ctx context.Context) {
 	var sm checkStateMachine
 
 	scrape := func(ctx context.Context, t time.Time) {
-		ts, logs, err := s.collectData(ctx, t)
+		payload, logs, err := s.collectData(ctx, t)
 
 		switch {
 		case errors.Is(err, errCheckFailed):
@@ -207,8 +223,8 @@ func (s Scraper) Run(ctx context.Context) {
 			})
 		}
 
-		if ts != nil {
-			s.publishCh <- ts
+		if payload != nil {
+			s.publishCh <- payload
 		}
 	}
 
@@ -272,7 +288,7 @@ func (s *Scraper) GetModuleConfig() interface{} {
 	return s.bbeModule
 }
 
-func (s Scraper) collectData(ctx context.Context, t time.Time) ([]prompb.TimeSeries, []byte, error) {
+func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, []byte, error) {
 	u := s.provider
 	q := u.Query()
 	// this is needed in order to obtain the logs alongside the metrics
@@ -337,14 +353,14 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) ([]prompb.TimeSer
 					ts = appendDtoToTimeseries(nil, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 
 					err := fmt.Errorf("probe=%s endpoint=%s target=%s err=%w", s.probeName, s.endpoint, target, errCheckFailed)
-					return ts, logs, err
+					return &probeData{ts: ts}, logs, err
 				}
 
 				ts = appendDtoToTimeseries(ts, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 			}
 
 		case io.EOF:
-			return ts, logs, nil
+			return &probeData{ts: ts}, logs, nil
 
 		default:
 			return nil, nil, fmt.Errorf("decoding results from blackbox-exporter: %w", err)

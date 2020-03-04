@@ -49,12 +49,12 @@ type pusher struct {
 }
 
 type Publisher struct {
-	publishCh <-chan []prompb.TimeSeries
+	publishCh <-chan Payload
 	cfg       Config
 	logger    logger
 }
 
-func NewPublisher(publishCh <-chan []prompb.TimeSeries, config Config, logger logger) *Publisher {
+func NewPublisher(publishCh <-chan Payload, config Config, logger logger) *Publisher {
 	return &Publisher{
 		publishCh: publishCh,
 		cfg:       config,
@@ -96,13 +96,18 @@ func (p Publisher) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 
-		case ts := <-p.publishCh:
-			go pusher.push(ctx, ts)
+		case payload := <-p.publishCh:
+			go pusher.push(ctx, payload)
 		}
 	}
 }
 
-func (p pusher) push(ctx context.Context, ts []prompb.TimeSeries) {
+type Payload interface {
+	Metrics() []prompb.TimeSeries
+	Streams() []logproto.Stream
+}
+
+func (p pusher) push(ctx context.Context, payload Payload) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, p.pushTimeout)
 	defer cancel()
 
@@ -118,7 +123,7 @@ func (p pusher) push(ctx context.Context, ts []prompb.TimeSeries) {
 					Password: p.metricsRemote.password,
 				},
 			},
-			Metrics: prompb.WriteRequest{Timeseries: ts},
+			Metrics: prompb.WriteRequest{Timeseries: payload.Metrics()},
 		},
 		Events: &worldping.EventsRequest{
 			Remote: worldping.Remote{
@@ -130,7 +135,7 @@ func (p pusher) push(ctx context.Context, ts []prompb.TimeSeries) {
 				},
 			},
 			// Events: logproto.PushRequest{Streams: streams},
-			Events: logproto.PushRequest{Streams: nil},
+			Events: logproto.PushRequest{Streams: payload.Streams()},
 		},
 	}
 

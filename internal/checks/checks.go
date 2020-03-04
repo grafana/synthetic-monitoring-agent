@@ -10,8 +10,10 @@ import (
 	"os"
 	"sync"
 
+	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/logproto"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
+	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/scraper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -25,7 +27,7 @@ type Updater struct {
 	blackboxExporterProbeURL  *url.URL
 	blackboxExporterReloadURL *url.URL
 	logger                    logger
-	publishCh                 chan<- TimeSeries
+	publishCh                 chan<- pusher.Payload
 	probeName                 string
 	scrapersMutex             sync.Mutex
 	scrapers                  map[int64]*scraper.Scraper
@@ -36,8 +38,9 @@ type logger interface {
 }
 
 type TimeSeries = []prompb.TimeSeries
+type Streams = []logproto.Stream
 
-func NewUpdater(apiServerAddr, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- TimeSeries, probeName string) (*Updater, error) {
+func NewUpdater(apiServerAddr, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- pusher.Payload, probeName string) (*Updater, error) {
 	if blackboxExporterURL == nil {
 		return nil, fmt.Errorf("invalid blackbox-exporter URL")
 	}

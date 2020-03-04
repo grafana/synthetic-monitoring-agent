@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/grafana/worldping-blackbox-sidecar/internal/checks"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -95,7 +94,7 @@ func run(args []string, stdout io.Writer) error {
 		}
 	}(cancel)
 
-	publishCh := make(chan []prompb.TimeSeries)
+	publishCh := make(chan pusher.Payload)
 
 	config := pusher.Config{
 		ForwarderAddress: *grpcForwarderAddr,
