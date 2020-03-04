@@ -212,25 +212,33 @@ func (s Scraper) Run(ctx context.Context) {
 		}
 	}
 
-	T := time.Duration(s.check.Frequency) * time.Millisecond // period, ms
+	tickWithOffset(ctx, scrape, s.check.Offset, s.check.Frequency)
+}
 
-	// one-time offset
-	time.Sleep(time.Duration(s.check.Offset))
+func tickWithOffset(ctx context.Context, f func(context.Context, time.Time), offset, period int64) {
+	timer := time.NewTimer(time.Duration(offset) * time.Millisecond)
 
-	s.logger.Printf("scraping first set")
-	scrape(ctx, time.Now())
+	select {
+	case <-ctx.Done():
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return
 
-	ticker := time.NewTicker(T)
-	defer ticker.Stop()
+	case t := <-timer.C:
+		f(ctx, t)
+	}
+
+	ticker := time.NewTicker(time.Duration(period) * time.Millisecond)
 
 	for {
 		select {
 		case <-ctx.Done():
+			ticker.Stop()
+			return
 
 		case t := <-ticker.C:
-			// TODO(mem): add timeout handling here?
-
-			scrape(ctx, t)
+			f(ctx, t)
 		}
 
 	}
