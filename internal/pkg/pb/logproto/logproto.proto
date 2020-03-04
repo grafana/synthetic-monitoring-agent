@@ -24,7 +24,10 @@ service Ingester {
 }
 
 message PushRequest {
-  repeated Stream streams = 1 [(gogoproto.jsontag) = "streams"];
+  // The original logproto.proto file does not have nullable = false
+  // here. This makes it very awkaward to work with the resulting type,
+  // having to get pointers for each element of the resuting slice.
+  repeated Stream streams = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "streams"];
 }
 
 message PushResponse {
