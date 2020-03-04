@@ -17,6 +17,7 @@ import (
 
 	"github.com/grafana/worldping-blackbox-sidecar/internal/checks"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
+	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -96,15 +97,15 @@ func run(args []string, stdout io.Writer) error {
 
 	publishCh := make(chan []prompb.TimeSeries)
 
-	config := config{
-		forwarderAddress: *grpcForwarderAddr,
+	config := pusher.Config{
+		ForwarderAddress: *grpcForwarderAddr,
 	}
 
-	if err := envconfig.Process("worldping_test_metrics", &config.metrics); err != nil {
+	if err := envconfig.Process("worldping_test_metrics", &config.Metrics); err != nil {
 		log.Fatalf("Error obtaining metrics configuration from environment: %s", err)
 	}
 
-	if err := envconfig.Process("worldping_test_events", &config.events); err != nil {
+	if err := envconfig.Process("worldping_test_events", &config.Events); err != nil {
 		log.Fatalf("Error obtaining events configuration from environment: %s", err)
 	}
 
@@ -112,16 +113,16 @@ func run(args []string, stdout io.Writer) error {
 	//
 	// it's trying to deal with the fact that the URL shown to users
 	// is not the push URL but the base for the API endpoints
-	if u, err := url.Parse(config.events.URL + "/push"); err != nil {
-		log.Fatalf("Invalid events push URL %q: %s", config.events.URL, err)
+	if u, err := url.Parse(config.Events.URL + "/push"); err != nil {
+		log.Fatalf("Invalid events push URL %q: %s", config.Events.URL, err)
 	} else {
-		config.events.URL = u.String()
+		config.Events.URL = u.String()
 	}
 
-	if u, err := url.Parse(config.metrics.URL + "/push"); err != nil {
-		log.Fatalf("Invalid metrics push URL %q: %s", config.metrics.URL, err)
+	if u, err := url.Parse(config.Metrics.URL + "/push"); err != nil {
+		log.Fatalf("Invalid metrics push URL %q: %s", config.Metrics.URL, err)
 	} else {
-		config.metrics.URL = u.String()
+		config.Metrics.URL = u.String()
 	}
 
 	checksUpdater, err := checks.NewUpdater(*grpcApiServerAddr, *bbeConfigFilename, blackboxExporterURL, logger, publishCh, *probeName)
@@ -131,14 +132,10 @@ func run(args []string, stdout io.Writer) error {
 
 	go checksUpdater.Run(ctx)
 
-	publisher := publisher{
-		publishCh: publishCh,
-		cfg:       config,
-		logger:    logger,
-	}
+	publisher := pusher.NewPublisher(publishCh, config, logger)
 
 	go func() {
-		if err := publisher.run(ctx); err != nil {
+		if err := publisher.Run(ctx); err != nil {
 			// we should never see this, if we are here
 			// something bad happened
 			logger.Printf("E: while running publisher: %s", err)
@@ -161,24 +158,6 @@ func main() {
 	if err := run(os.Args, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "E: %s\n", err)
 		os.Exit(exitFail)
-	}
-}
-
-type config struct {
-	forwarderAddress string
-
-	metrics struct {
-		Name     string `required:"true"`
-		URL      string `required:"true"`
-		Username string `required:"true"`
-		Password string `required:"true"`
-	}
-
-	events struct {
-		Name     string `required:"true"`
-		URL      string `required:"true"`
-		Username string `required:"true"`
-		Password string `required:"true"`
 	}
 }
 

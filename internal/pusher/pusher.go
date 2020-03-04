@@ -1,4 +1,4 @@
-package main
+package pusher
 
 import (
 	"context"
@@ -10,6 +10,24 @@ import (
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
 	"google.golang.org/grpc"
 )
+
+type Config struct {
+	ForwarderAddress string
+
+	Metrics struct {
+		Name     string `required:"true"`
+		URL      string `required:"true"`
+		Username string `required:"true"`
+		Password string `required:"true"`
+	}
+
+	Events struct {
+		Name     string `required:"true"`
+		URL      string `required:"true"`
+		Username string `required:"true"`
+		Password string `required:"true"`
+	}
+}
 
 type logger interface {
 	Printf(format string, v ...interface{})
@@ -30,18 +48,26 @@ type pusher struct {
 	eventsRemote  remoteInfo
 }
 
-type publisher struct {
+type Publisher struct {
 	publishCh <-chan []prompb.TimeSeries
-	cfg       config
+	cfg       Config
 	logger    logger
 }
 
-func (p publisher) run(ctx context.Context) error {
-	p.logger.Printf("Publishing data to %s", p.cfg.forwarderAddress)
+func NewPublisher(publishCh <-chan []prompb.TimeSeries, config Config, logger logger) *Publisher {
+	return &Publisher{
+		publishCh: publishCh,
+		cfg:       config,
+		logger:    logger,
+	}
+}
 
-	conn, err := grpc.Dial(p.cfg.forwarderAddress, grpc.WithInsecure(), grpc.WithBlock())
+func (p Publisher) Run(ctx context.Context) error {
+	p.logger.Printf("Publishing data to %s", p.cfg.ForwarderAddress)
+
+	conn, err := grpc.Dial(p.cfg.ForwarderAddress, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
-		return fmt.Errorf("connecting to %s: %w", p.cfg.forwarderAddress, err)
+		return fmt.Errorf("connecting to %s: %w", p.cfg.ForwarderAddress, err)
 	}
 	defer conn.Close()
 
@@ -52,16 +78,16 @@ func (p publisher) run(ctx context.Context) error {
 		logger:      p.logger,
 		pushTimeout: 1 * time.Second,
 		metricsRemote: remoteInfo{
-			name:     p.cfg.metrics.Name,
-			url:      p.cfg.metrics.URL,
-			username: p.cfg.metrics.Username,
-			password: p.cfg.metrics.Password,
+			name:     p.cfg.Metrics.Name,
+			url:      p.cfg.Metrics.URL,
+			username: p.cfg.Metrics.Username,
+			password: p.cfg.Metrics.Password,
 		},
 		eventsRemote: remoteInfo{
-			name:     p.cfg.events.Name,
-			url:      p.cfg.events.URL,
-			username: p.cfg.events.Username,
-			password: p.cfg.events.Password,
+			name:     p.cfg.Events.Name,
+			url:      p.cfg.Events.URL,
+			username: p.cfg.Events.Username,
+			password: p.cfg.Events.Password,
 		},
 	}
 
