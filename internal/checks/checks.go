@@ -239,7 +239,7 @@ func (c *Updater) updateBBEConfiguration() error {
 
 	n, err := fh.Write(b)
 	if err != nil {
-		return fmt.Errorf("failed to write blackbox-exporter configuration file %s, wrote %s bytes: %w", c.bbeConfigFilename, n, err)
+		return fmt.Errorf("failed to write blackbox-exporter configuration file %s, wrote %d bytes: %w", c.bbeConfigFilename, n, err)
 	}
 
 	req, err := http.NewRequestWithContext(context.TODO(), "POST", c.blackboxExporterReloadURL.String(), nil)

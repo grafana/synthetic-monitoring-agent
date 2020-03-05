@@ -24,10 +24,6 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
-// "github.com/prometheus/common/expfmt"
-
-var bbConf bbeconfig.Config
-
 type Scraper struct {
 	publishCh  chan<- pusher.Payload
 	probeName  string
@@ -389,7 +385,9 @@ RECORD:
 			}
 		}
 
-		enc.EndRecord()
+		if err := enc.EndRecord(); err != nil {
+			s.logger.Printf(`Error reencoding logs: %s:`, err)
+		}
 
 		// this is creating one stream per log line because the labels might have to change between lines (level
 		// is not going to be the same).
@@ -627,20 +625,22 @@ func fmtLabels(labels []labelPair) string {
 
 	var s strings.Builder
 
-	s.WriteRune('{')
+	// these calls do not produce errors, the errors are required to
+	// satisfy interfaces
+	_, _ = s.WriteRune('{')
 
 	for i, pair := range labels {
 		if i > 0 {
-			s.WriteRune(',')
+			_, _ = s.WriteRune(',')
 		}
-		s.WriteString(pair.name)
-		s.WriteRune('=')
-		s.WriteRune('"')
-		s.WriteString(pair.value)
-		s.WriteRune('"')
+		_, _ = s.WriteString(pair.name)
+		_, _ = s.WriteRune('=')
+		_, _ = s.WriteRune('"')
+		_, _ = s.WriteString(pair.value)
+		_, _ = s.WriteRune('"')
 	}
 
-	s.WriteRune('}')
+	_, _ = s.WriteRune('}')
 
 	return s.String()
 }
