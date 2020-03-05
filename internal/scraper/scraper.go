@@ -319,25 +319,31 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		return nil, err
 	}
 
-	streams := s.extractLogs(t, target, logs)
-
-	ts, err := s.extractTimeseries(t, target, metrics)
-
-	return &probeData{ts: ts, streams: streams}, err
-}
-
-func (s Scraper) extractLogs(t time.Time, target string, logs []byte) Streams {
-	var streams Streams
-	var line strings.Builder
-
-	dec := logfmt.NewDecoder(bytes.NewReader(logs))
-
+	// TODO(mem): this is constant for the scraper, move this
+	// outside this function?
 	baseLabels := []labelPair{
 		{name: "check_id", value: strconv.FormatInt(s.check.Id, 10)},
 		{name: "check_name", value: s.checkName},
 		{name: "endpoint", value: s.endpoint},
 		{name: "probe", value: s.probeName},
 	}
+
+	for _, l := range s.check.Labels {
+		baseLabels = append(baseLabels, labelPair{name: "label_" + l.Name, value: l.Value})
+	}
+
+	streams := s.extractLogs(t, logs, baseLabels)
+
+	ts, err := s.extractTimeseries(t, metrics, baseLabels)
+
+	return &probeData{ts: ts, streams: streams}, err
+}
+
+func (s Scraper) extractLogs(t time.Time, logs []byte, baseLabels []labelPair) Streams {
+	var streams Streams
+	var line strings.Builder
+
+	dec := logfmt.NewDecoder(bytes.NewReader(logs))
 
 	labels := make([]labelPair, 0, len(baseLabels))
 
@@ -405,7 +411,7 @@ RECORD:
 	return streams
 }
 
-func (s Scraper) extractTimeseries(t time.Time, target string, metrics []byte) (TimeSeries, error) {
+func (s Scraper) extractTimeseries(t time.Time, metrics []byte, baseLabels []labelPair) (TimeSeries, error) {
 	// XXX(mem): the following is needed in order to derive the
 	// correct format from the response headers, but since we are
 	// passing debug=true, we loose access to that.
@@ -413,12 +419,16 @@ func (s Scraper) extractTimeseries(t time.Time, target string, metrics []byte) (
 	// format := expfmt.ResponseFormat(resp.Header)
 	//
 	// Instead hard-code the format to be plain text.
-
 	format := expfmt.FmtText
 
 	dec := expfmt.NewDecoder(bytes.NewReader(metrics), format)
 
 	ts := make([]prompb.TimeSeries, 0)
+
+	metricLabels := make([]*prompb.Label, 0, len(baseLabels))
+	for _, label := range baseLabels {
+		metricLabels = append(metricLabels, &prompb.Label{Name: label.name, Value: label.value})
+	}
 
 	for {
 		var mf dto.MetricFamily
@@ -432,20 +442,20 @@ func (s Scraper) extractTimeseries(t time.Time, target string, metrics []byte) (
 
 			for _, m := range mf.GetMetric() {
 				if isProbeSuccess && m.GetGauge().GetValue() == 0 {
-					ts = appendDtoToTimeseries(nil, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
+					ts = appendDtoToTimeseries(nil, t, mName, metricLabels, mType, m)
 
-					err := fmt.Errorf(`msg="check failed" probe=%s endpoint=%s target=%s err="%w"`, s.probeName, s.endpoint, target, errCheckFailed)
+					err := fmt.Errorf(`msg="check failed" check_name=%s probe=%s endpoint=%s err="%w"`, s.checkName, s.probeName, s.endpoint, errCheckFailed)
 					return ts, err
 				}
 
-				ts = appendDtoToTimeseries(ts, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
+				ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
 			}
 
 		case io.EOF:
 			return ts, nil
 
 		default:
-			return nil, fmt.Errorf(`msg="decoding results from blackbox-exporter" probe=%s endpoint=%s target=%s err="%w"`, s.probeName, s.endpoint, target, err)
+			return nil, fmt.Errorf(`msg="decoding results from blackbox-exporter" probe=%s endpoint=%s err="%w"`, s.probeName, s.endpoint, err)
 		}
 	}
 }
@@ -463,26 +473,15 @@ func makeTimeseries(t time.Time, value float64, labels ...*prompb.Label) prompb.
 	return ts
 }
 
-func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, checkName, probeName, endpoint, mName string, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
-	baseLabels := []*prompb.Label{
-		{Name: "__name__", Value: mName},
-		{Name: "check", Value: checkName},
-		{Name: "probe", Value: probeName},
-		{Name: "endpoint", Value: endpoint},
-	}
+func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, baseLabels []*prompb.Label, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
+	ml := metric.GetLabel()
 
-	var metricLabels []*prompb.Label
-
-	if ml := metric.GetLabel(); len(ml) > 0 {
-		metricLabels = make([]*prompb.Label, len(ml))
-		for i, l := range ml {
-			metricLabels[i] = &prompb.Label{Name: *(l.Name), Value: *(l.Value)}
-		}
-	}
-
-	labels := make([]*prompb.Label, 0, len(baseLabels)+len(metricLabels))
+	labels := make([]*prompb.Label, 0, 1+len(baseLabels)+len(ml))
+	labels = append(labels, &prompb.Label{Name: "__name__", Value: mName})
 	labels = append(labels, baseLabels...)
-	labels = append(labels, metricLabels...)
+	for _, l := range ml {
+		labels = append(labels, &prompb.Label{Name: *(l.Name), Value: *(l.Value)})
+	}
 
 	switch mType {
 	case dto.MetricType_COUNTER:
