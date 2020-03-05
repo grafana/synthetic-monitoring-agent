@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/logproto"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
@@ -195,7 +196,7 @@ func (sm checkStateMachine) isFailing() bool {
 }
 
 func (s Scraper) Run(ctx context.Context) {
-	s.logger.Printf("starting scraper probe=%s endpoint=%s provider=%s", s.probeName, s.endpoint, s.provider)
+	s.logger.Printf(`msg="starting scraper" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
 
 	// TODO(mem): keep count of the number of successive errors and
 	// collect logs if threshold is reached.
@@ -203,23 +204,21 @@ func (s Scraper) Run(ctx context.Context) {
 	var sm checkStateMachine
 
 	scrape := func(ctx context.Context, t time.Time) {
-		payload, logs, err := s.collectData(ctx, t)
+		payload, err := s.collectData(ctx, t)
 
 		switch {
 		case errors.Is(err, errCheckFailed):
 			sm.fail(func() {
-				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider)
-				// XXX(mem): post logs to Loki
-				s.logger.Printf("logs: %s", logs)
+				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
 			})
 
 		case err != nil:
-			s.logger.Printf(`msg="error collecting data" probe=%s endpoint=%s provider=%s: %s`, s.probeName, s.endpoint, s.provider, err)
+			s.logger.Printf(`msg="error collecting data" probe=%s endpoint=%s provider=%s err="%s"`, s.probeName, s.endpoint, s.provider.String(), err)
 			return
 
 		default:
 			sm.pass(func() {
-				s.logger.Printf(`msg="check entered PASS state" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider)
+				s.logger.Printf(`msg="check entered PASS state" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
 			})
 		}
 
@@ -288,7 +287,7 @@ func (s *Scraper) GetModuleConfig() interface{} {
 	return s.bbeModule
 }
 
-func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, []byte, error) {
+func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
 	u := s.provider
 	q := u.Query()
 	// this is needed in order to obtain the logs alongside the metrics
@@ -298,12 +297,14 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, []by
 
 	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("creating new request: %w", err)
+		err = fmt.Errorf(`msg="creating new request" probe=%s endpoint=%s target=%s err="%w"`, s.probeName, s.endpoint, target, err)
+		return nil, err
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, nil, fmt.Errorf("requesting data from %s: %w", target, err)
+		err = fmt.Errorf(`msg="requesting data from" probe=%s endpoint=%s target=%s err="%w"`, s.probeName, s.endpoint, target, err)
+		return nil, err
 	}
 
 	defer func() {
@@ -314,9 +315,97 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, []by
 
 	metrics, logs, err := extractMetricsAndLogs(resp.Body)
 	if err != nil {
-		return nil, nil, fmt.Errorf("extracting data from blackbox-exporter: %w", err)
+		err = fmt.Errorf(`msg="extracting data from blackbox-exporter" probe=%s endpoint=%s target=%s err="%w"`, s.probeName, s.endpoint, target, err)
+		return nil, err
 	}
 
+	streams := s.extractLogs(t, target, logs)
+
+	ts, err := s.extractTimeseries(t, target, metrics)
+
+	return &probeData{ts: ts, streams: streams}, err
+}
+
+func (s Scraper) extractLogs(t time.Time, target string, logs []byte) Streams {
+	var streams Streams
+	var line strings.Builder
+
+	dec := logfmt.NewDecoder(bytes.NewReader(logs))
+
+	baseLabels := []labelPair{
+		{name: "check_id", value: strconv.FormatInt(s.check.Id, 10)},
+		{name: "check_name", value: s.checkName},
+		{name: "endpoint", value: s.endpoint},
+		{name: "probe", value: s.probeName},
+	}
+
+	labels := make([]labelPair, 0, len(baseLabels))
+
+RECORD:
+	for dec.ScanRecord() {
+		var t time.Time
+
+		line.Reset()
+
+		enc := logfmt.NewEncoder(&line)
+
+		labels = labels[:0]
+		labels = append(labels, baseLabels...)
+
+		for dec.ScanKeyval() {
+			value := dec.Value()
+
+			switch key := dec.Key(); string(key) {
+			case "ts":
+				var err error
+				t, err = time.Parse(time.RFC3339Nano, string(value))
+				if err != nil {
+					// We should never hit this as the timestamp string in the log should be valid.
+					// Without a timestamp we cannot do anything. And we cannot use something like
+					// time.Now() because that would mess up other entries
+					s.logger.Printf(`Invalid timestamp "%s" scanning logs: %s:`, string(value), err)
+					continue RECORD
+				}
+
+			case "caller", "module":
+				// skip
+
+			case "level":
+				// this has to be tranlated to a label
+				labels = append(labels, labelPair{name: "level", value: string(value)})
+
+			default:
+				if err := enc.EncodeKeyval(key, value); err != nil {
+					// We should never hit this because all the entries are valid.
+					s.logger.Printf(`Invalid entry "%s: %s" scanning logs: %s:`, string(key), string(value), err)
+					continue RECORD
+				}
+			}
+		}
+
+		enc.EndRecord()
+
+		// this is creating one stream per log line because the labels might have to change between lines (level
+		// is not going to be the same).
+		streams = append(streams, logproto.Stream{
+			Labels: fmtLabels(labels),
+			Entries: []logproto.Entry{
+				{
+					Timestamp: t,
+					Line:      line.String(),
+				},
+			},
+		})
+	}
+
+	if err := dec.Err(); err != nil {
+		s.logger.Printf("error decoding logs: %s", err)
+	}
+
+	return streams
+}
+
+func (s Scraper) extractTimeseries(t time.Time, target string, metrics []byte) (TimeSeries, error) {
 	// XXX(mem): the following is needed in order to derive the
 	// correct format from the response headers, but since we are
 	// passing debug=true, we loose access to that.
@@ -343,27 +432,20 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, []by
 
 			for _, m := range mf.GetMetric() {
 				if isProbeSuccess && m.GetGauge().GetValue() == 0 {
-					// TODO(mem): need to collect
-					// logs from blackbox-exporter.
-					//
-					// We could run the probe with
-					// debug=true and have custom
-					// code to extract the logs and
-					// the metrics.
 					ts = appendDtoToTimeseries(nil, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 
-					err := fmt.Errorf("probe=%s endpoint=%s target=%s err=%w", s.probeName, s.endpoint, target, errCheckFailed)
-					return &probeData{ts: ts}, logs, err
+					err := fmt.Errorf(`msg="check failed" probe=%s endpoint=%s target=%s err="%w"`, s.probeName, s.endpoint, target, errCheckFailed)
+					return ts, err
 				}
 
 				ts = appendDtoToTimeseries(ts, t, s.checkName, s.probeName, s.endpoint, mName, mType, m)
 			}
 
 		case io.EOF:
-			return &probeData{ts: ts}, logs, nil
+			return ts, nil
 
 		default:
-			return nil, nil, fmt.Errorf("decoding results from blackbox-exporter: %w", err)
+			return nil, fmt.Errorf(`msg="decoding results from blackbox-exporter" probe=%s endpoint=%s target=%s err="%w"`, s.probeName, s.endpoint, target, err)
 		}
 	}
 }
@@ -532,4 +614,34 @@ SCAN:
 	}
 
 	return metrics.Bytes(), logs.Bytes(), nil
+}
+
+type labelPair struct {
+	name  string
+	value string
+}
+
+func fmtLabels(labels []labelPair) string {
+	if len(labels) == 0 {
+		return ""
+	}
+
+	var s strings.Builder
+
+	s.WriteRune('{')
+
+	for i, pair := range labels {
+		if i > 0 {
+			s.WriteRune(',')
+		}
+		s.WriteString(pair.name)
+		s.WriteRune('=')
+		s.WriteRune('"')
+		s.WriteString(pair.value)
+		s.WriteRune('"')
+	}
+
+	s.WriteRune('}')
+
+	return s.String()
 }
