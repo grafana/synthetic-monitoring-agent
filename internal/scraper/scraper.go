@@ -319,18 +319,49 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// outside this function?
 	baseLabels := []labelPair{
 		{name: "check_id", value: strconv.FormatInt(s.check.Id, 10)},
-		{name: "check_name", value: s.checkName},
-		{name: "endpoint", value: s.endpoint},
 		{name: "probe", value: s.probeName},
 	}
 
-	for _, l := range s.check.Labels {
-		baseLabels = append(baseLabels, labelPair{name: "label_" + l.Name, value: l.Value})
+	checkInfoLabels := []labelPair{
+		{name: "check_name", value: s.checkName},
+		{name: "endpoint", value: s.endpoint},
+		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
 	}
 
-	streams := s.extractLogs(t, logs, baseLabels)
+	for _, l := range s.check.Labels {
+		checkInfoLabels = append(checkInfoLabels, labelPair{name: "label_" + l.Name, value: l.Value})
+	}
 
-	ts, err := s.extractTimeseries(t, metrics, baseLabels)
+	// timeseries need to differentiate between base labels and
+	// check info labels in order to be able to apply the later only
+	// to the worldping_check_info metric
+	ts, err := s.extractTimeseries(t, metrics, baseLabels, checkInfoLabels)
+
+	// apply a probe_success label to streams to help identify log
+	// lines which belong to failures
+	successLabel := labelPair{name: "probe_success"}
+
+	switch {
+	case err == nil:
+		// OK
+		successLabel.value = "1"
+
+	case errors.Is(err, errCheckFailed):
+		// probe failed
+		successLabel.value = "0"
+
+	default:
+		// something else failed
+		return nil, err
+	}
+
+	allLabels := append(baseLabels, checkInfoLabels...)
+
+	allLabels = append(allLabels, successLabel)
+
+	// streams need to have all the labels applied to them because
+	// loki does not support joins
+	streams := s.extractLogs(t, logs, allLabels)
 
 	return &probeData{ts: ts, streams: streams}, err
 }
@@ -409,7 +440,7 @@ RECORD:
 	return streams
 }
 
-func (s Scraper) extractTimeseries(t time.Time, metrics []byte, baseLabels []labelPair) (TimeSeries, error) {
+func (s Scraper) extractTimeseries(t time.Time, metrics []byte, baseLabels, checkInfoLabels []labelPair) (TimeSeries, error) {
 	// XXX(mem): the following is needed in order to derive the
 	// correct format from the response headers, but since we are
 	// passing debug=true, we loose access to that.
@@ -421,12 +452,14 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, baseLabels []lab
 
 	dec := expfmt.NewDecoder(bytes.NewReader(metrics), format)
 
-	ts := make([]prompb.TimeSeries, 0)
-
 	metricLabels := make([]*prompb.Label, 0, len(baseLabels))
 	for _, label := range baseLabels {
 		metricLabels = append(metricLabels, &prompb.Label{Name: label.name, Value: label.value})
 	}
+
+	checkInfoMetric := makeCheckInfoMetrics(t, baseLabels, checkInfoLabels)
+
+	ts := []prompb.TimeSeries{checkInfoMetric}
 
 	for {
 		var mf dto.MetricFamily
@@ -440,7 +473,11 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, baseLabels []lab
 
 			for _, m := range mf.GetMetric() {
 				if isProbeSuccess && m.GetGauge().GetValue() == 0 {
-					ts = appendDtoToTimeseries(nil, t, mName, metricLabels, mType, m)
+					// discard whatever we have and publish only the check info metrics and and
+					// probe_success
+					ts := make([]prompb.TimeSeries, 0, 2)
+					ts = append(ts, checkInfoMetric)
+					ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
 
 					err := fmt.Errorf(`msg="check failed" check_name=%s probe=%s endpoint=%s err="%w"`, s.checkName, s.probeName, s.endpoint, errCheckFailed)
 					return ts, err
@@ -549,6 +586,22 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, ba
 	}
 
 	return ts
+}
+
+func makeCheckInfoMetrics(t time.Time, baseLabels, checkInfoLabels []labelPair) prompb.TimeSeries {
+	labels := make([]*prompb.Label, 0, 1+len(baseLabels)+len(checkInfoLabels))
+
+	labels = append(labels, &prompb.Label{Name: "__name__", Value: "worldping_check_info"})
+
+	for _, label := range baseLabels {
+		labels = append(labels, &prompb.Label{Name: label.name, Value: label.value})
+	}
+
+	for _, label := range checkInfoLabels {
+		labels = append(labels, &prompb.Label{Name: label.name, Value: label.value})
+	}
+
+	return makeTimeseries(t, 1, labels...)
 }
 
 func extractMetricsAndLogs(r io.Reader) ([]byte, []byte, error) {
