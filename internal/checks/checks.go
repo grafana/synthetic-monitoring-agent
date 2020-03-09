@@ -158,6 +158,50 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) err
 		return fmt.Errorf("check with id %d already exists", check.Id)
 	}
 
+	return c.addAndStartScraper(ctx, check)
+}
+
+func (c *Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) error {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+
+	scraper, found := c.scrapers[check.Id]
+	if !found {
+		c.logger.Printf("got an update request for an unknown check: %#v", check)
+		return nil
+	}
+
+	// this is the lazy way to update the scraper: tear everything
+	// down, start it again.
+
+	scraper.Stop()
+	delete(c.scrapers, check.Id)
+
+	return c.addAndStartScraper(ctx, check)
+}
+
+func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) error {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+
+	scraper, found := c.scrapers[check.Id]
+	if !found {
+		c.logger.Printf("got a delete request for an unknown check: %#v", check)
+		return nil
+	}
+
+	scraper.Stop()
+
+	delete(c.scrapers, check.Id)
+
+	return nil
+}
+
+// addAndStartScraper creates a new scraper, adds it to the list of
+// scrapers managed by this updater and starts running it.
+//
+// This MUST be called with the scrapersMutex held.
+func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check) error {
 	scraper, err := scraper.New(check, c.publishCh, c.probeName, *c.blackboxExporterProbeURL, c.logger)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
@@ -178,38 +222,6 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) err
 	}
 
 	go scraper.Run(ctx)
-
-	return nil
-}
-
-func (c *Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) error {
-	c.scrapersMutex.Lock()
-	defer c.scrapersMutex.Unlock()
-
-	scraper, found := c.scrapers[check.Id]
-	if !found {
-		c.logger.Printf("got an update request for an unknown check: %#v", check)
-		return nil
-	}
-
-	scraper.Update(check)
-
-	return nil
-}
-
-func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) error {
-	c.scrapersMutex.Lock()
-	defer c.scrapersMutex.Unlock()
-
-	scraper, found := c.scrapers[check.Id]
-	if !found {
-		c.logger.Printf("got a delete request for an unknown check: %#v", check)
-		return nil
-	}
-
-	scraper.Delete()
-
-	delete(c.scrapers, check.Id)
 
 	return nil
 }

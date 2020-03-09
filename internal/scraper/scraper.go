@@ -34,6 +34,7 @@ type Scraper struct {
 	check      worldping.Check
 	bbeModule  *bbeconfig.Module
 	moduleName string
+	stop       chan struct{}
 }
 
 type logger interface {
@@ -150,6 +151,7 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probeName strin
 		check:      check,
 		bbeModule:  &bbeModule,
 		moduleName: moduleName,
+		stop:       make(chan struct{}),
 	}, nil
 }
 
@@ -191,7 +193,7 @@ func (sm checkStateMachine) isFailing() bool {
 	return sm.failures > sm.threshold
 }
 
-func (s Scraper) Run(ctx context.Context) {
+func (s *Scraper) Run(ctx context.Context) {
 	s.logger.Printf(`msg="starting scraper" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
 
 	// TODO(mem): keep count of the number of successive errors and
@@ -223,14 +225,27 @@ func (s Scraper) Run(ctx context.Context) {
 		}
 	}
 
-	tickWithOffset(ctx, scrape, s.check.Offset, s.check.Frequency)
+	tickWithOffset(ctx, s.stop, scrape, s.check.Offset, s.check.Frequency)
+
+	s.logger.Printf(`msg="scraper stopped" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
 }
 
-func tickWithOffset(ctx context.Context, f func(context.Context, time.Time), offset, period int64) {
+func (s *Scraper) Stop() {
+	s.logger.Printf(`msg="stopping scraper" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
+	close(s.stop)
+}
+
+func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Context, time.Time), offset, period int64) {
 	timer := time.NewTimer(time.Duration(offset) * time.Millisecond)
 
 	select {
 	case <-ctx.Done():
+		if !timer.Stop() {
+			<-timer.C
+		}
+		return
+
+	case <-stop:
 		if !timer.Stop() {
 			<-timer.C
 		}
@@ -248,31 +263,15 @@ func tickWithOffset(ctx context.Context, f func(context.Context, time.Time), off
 			ticker.Stop()
 			return
 
+		case <-stop:
+			ticker.Stop()
+			return
+
 		case t := <-ticker.C:
 			f(ctx, t)
 		}
 
 	}
-}
-
-func (s *Scraper) Update(check worldping.Check) {
-	s.check = check
-
-	// XXX(mem): restart scraper
-
-	if !check.Enabled {
-		// XXX(mem): this scraper must be running (current
-		// s.check.Enabled == true); stop it in that case.
-		s.logger.Printf("check is disabled for probe=%s endpoint=%s provider=%s", s.probeName, s.endpoint, s.provider)
-		return
-	}
-
-	// XXX(mem): this needs to change to check for existing queries
-	// and to handle enabling / disabling of checks
-}
-
-func (s *Scraper) Delete() {
-	// XXX(mem): stop the running scraper
 }
 
 func (s *Scraper) GetModuleName() string {
