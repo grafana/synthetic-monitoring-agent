@@ -316,9 +316,10 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	// TODO(mem): this is constant for the scraper, move this
 	// outside this function?
-	baseLabels := []labelPair{
+	sharedLabels := []labelPair{
 		{name: "check_id", value: strconv.FormatInt(s.check.Id, 10)},
 		{name: "probe", value: s.probeName},
+		{name: "config_version", value: strconv.FormatInt(s.check.Modified, 10)},
 	}
 
 	checkInfoLabels := []labelPair{
@@ -334,7 +335,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// timeseries need to differentiate between base labels and
 	// check info labels in order to be able to apply the later only
 	// to the worldping_check_info metric
-	ts, err := s.extractTimeseries(t, metrics, baseLabels, checkInfoLabels)
+	ts, err := s.extractTimeseries(t, metrics, sharedLabels, checkInfoLabels)
 
 	// apply a probe_success label to streams to help identify log
 	// lines which belong to failures
@@ -354,7 +355,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		return nil, err
 	}
 
-	allLabels := append(baseLabels, checkInfoLabels...)
+	allLabels := append(sharedLabels, checkInfoLabels...)
 
 	allLabels = append(allLabels, successLabel)
 
@@ -365,13 +366,13 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	return &probeData{ts: ts, streams: streams}, err
 }
 
-func (s Scraper) extractLogs(t time.Time, logs []byte, baseLabels []labelPair) Streams {
+func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair) Streams {
 	var streams Streams
 	var line strings.Builder
 
 	dec := logfmt.NewDecoder(bytes.NewReader(logs))
 
-	labels := make([]labelPair, 0, len(baseLabels))
+	labels := make([]labelPair, 0, len(sharedLabels))
 
 RECORD:
 	for dec.ScanRecord() {
@@ -382,7 +383,7 @@ RECORD:
 		enc := logfmt.NewEncoder(&line)
 
 		labels = labels[:0]
-		labels = append(labels, baseLabels...)
+		labels = append(labels, sharedLabels...)
 
 		for dec.ScanKeyval() {
 			value := dec.Value()
@@ -439,7 +440,7 @@ RECORD:
 	return streams
 }
 
-func (s Scraper) extractTimeseries(t time.Time, metrics []byte, baseLabels, checkInfoLabels []labelPair) (TimeSeries, error) {
+func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, checkInfoLabels []labelPair) (TimeSeries, error) {
 	// XXX(mem): the following is needed in order to derive the
 	// correct format from the response headers, but since we are
 	// passing debug=true, we loose access to that.
@@ -451,12 +452,12 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, baseLabels, chec
 
 	dec := expfmt.NewDecoder(bytes.NewReader(metrics), format)
 
-	metricLabels := make([]*prompb.Label, 0, len(baseLabels))
-	for _, label := range baseLabels {
+	metricLabels := make([]*prompb.Label, 0, len(sharedLabels))
+	for _, label := range sharedLabels {
 		metricLabels = append(metricLabels, &prompb.Label{Name: label.name, Value: label.value})
 	}
 
-	checkInfoMetric := makeCheckInfoMetrics(t, baseLabels, checkInfoLabels)
+	checkInfoMetric := makeCheckInfoMetrics(t, sharedLabels, checkInfoLabels)
 
 	ts := []prompb.TimeSeries{checkInfoMetric}
 
@@ -507,12 +508,12 @@ func makeTimeseries(t time.Time, value float64, labels ...*prompb.Label) prompb.
 	return ts
 }
 
-func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, baseLabels []*prompb.Label, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
+func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sharedLabels []*prompb.Label, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
 	ml := metric.GetLabel()
 
-	labels := make([]*prompb.Label, 0, 1+len(baseLabels)+len(ml))
+	labels := make([]*prompb.Label, 0, 1+len(sharedLabels)+len(ml))
 	labels = append(labels, &prompb.Label{Name: "__name__", Value: mName})
-	labels = append(labels, baseLabels...)
+	labels = append(labels, sharedLabels...)
 	for _, l := range ml {
 		labels = append(labels, &prompb.Label{Name: *(l.Name), Value: *(l.Value)})
 	}
@@ -587,12 +588,12 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, ba
 	return ts
 }
 
-func makeCheckInfoMetrics(t time.Time, baseLabels, checkInfoLabels []labelPair) prompb.TimeSeries {
-	labels := make([]*prompb.Label, 0, 1+len(baseLabels)+len(checkInfoLabels))
+func makeCheckInfoMetrics(t time.Time, sharedLabels, checkInfoLabels []labelPair) prompb.TimeSeries {
+	labels := make([]*prompb.Label, 0, 1+len(sharedLabels)+len(checkInfoLabels))
 
 	labels = append(labels, &prompb.Label{Name: "__name__", Value: "worldping_check_info"})
 
-	for _, label := range baseLabels {
+	for _, label := range sharedLabels {
 		labels = append(labels, &prompb.Label{Name: label.name, Value: label.value})
 	}
 
