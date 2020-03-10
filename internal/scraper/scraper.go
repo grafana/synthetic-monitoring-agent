@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -22,6 +23,11 @@ import (
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+)
+
+var (
+	staleNaN    uint64  = 0x7ff0000000000002
+	staleMarker float64 = math.Float64frombits(staleNaN)
 )
 
 type Scraper struct {
@@ -201,8 +207,12 @@ func (s *Scraper) Run(ctx context.Context) {
 
 	var sm checkStateMachine
 
+	// need to keep the most recently published payload for clean up
+	var payload *probeData
+
 	scrape := func(ctx context.Context, t time.Time) {
-		payload, err := s.collectData(ctx, t)
+		var err error
+		payload, err = s.collectData(ctx, t)
 
 		switch {
 		case errors.Is(err, errCheckFailed):
@@ -225,7 +235,31 @@ func (s *Scraper) Run(ctx context.Context) {
 		}
 	}
 
-	tickWithOffset(ctx, s.stop, scrape, s.check.Offset, s.check.Frequency)
+	cleanup := func(ctx context.Context, t time.Time) {
+		if payload == nil {
+			return
+		}
+
+		staleSample := prompb.Sample{
+			Timestamp: t.UnixNano()/1e6 + 1, // ms
+			Value:     staleMarker,
+		}
+
+		for i := range payload.ts {
+			ts := &payload.ts[i]
+			for j := range ts.Samples {
+				ts.Samples[j] = staleSample
+			}
+		}
+
+		payload.streams = nil
+
+		s.publishCh <- payload
+
+		payload = nil
+	}
+
+	tickWithOffset(ctx, s.stop, scrape, cleanup, s.check.Offset, s.check.Frequency)
 
 	s.logger.Printf(`msg="scraper stopped" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
 }
@@ -235,8 +269,10 @@ func (s *Scraper) Stop() {
 	close(s.stop)
 }
 
-func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Context, time.Time), offset, period int64) {
+func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Context, time.Time), cleanup func(context.Context, time.Time), offset, period int64) {
 	timer := time.NewTimer(time.Duration(offset) * time.Millisecond)
+
+	var lastTick time.Time
 
 	select {
 	case <-ctx.Done():
@@ -249,9 +285,11 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 		if !timer.Stop() {
 			<-timer.C
 		}
+		// we haven't done anything yet, no clean up
 		return
 
 	case t := <-timer.C:
+		lastTick = t
 		f(ctx, t)
 	}
 
@@ -265,9 +303,16 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 
 		case <-stop:
 			ticker.Stop()
+			// if we are here, we already pushed something
+			// at least once, lastTick cannot be zero, but
+			// just in case...
+			if !lastTick.IsZero() {
+				cleanup(ctx, lastTick)
+			}
 			return
 
 		case t := <-ticker.C:
+			lastTick = t
 			f(ctx, t)
 		}
 
