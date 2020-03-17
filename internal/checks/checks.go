@@ -28,7 +28,8 @@ type Updater struct {
 	blackboxExporterReloadURL *url.URL
 	logger                    logger
 	publishCh                 chan<- pusher.Payload
-	probeName                 string
+	apiToken                  []byte
+	probe                     *worldping.Probe
 	scrapersMutex             sync.Mutex
 	scrapers                  map[int64]*scraper.Scraper
 	conn                      *grpc.ClientConn
@@ -41,7 +42,7 @@ type logger interface {
 type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
-func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- pusher.Payload, probeName string) (*Updater, error) {
+func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- pusher.Payload, apiToken []byte) (*Updater, error) {
 	if blackboxExporterURL == nil {
 		return nil, fmt.Errorf("invalid blackbox-exporter URL")
 	}
@@ -63,7 +64,7 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 		blackboxExporterReloadURL: blackboxExporterReloadURL,
 		logger:                    logger,
 		publishCh:                 publishCh,
-		probeName:                 probeName,
+		apiToken:                  apiToken,
 		scrapers:                  make(map[int64]*scraper.Scraper),
 	}, nil
 }
@@ -87,8 +88,20 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	client := worldping.NewChecksClient(c.conn)
 
-	probeInfo := worldping.ProbeInfo{Name: c.probeName}
-	cc, err := client.GetChanges(ctx, &probeInfo)
+	probeAuth := worldping.ProbeAuth{Token: c.apiToken}
+
+	result, err := client.RegisterProbe(ctx, &probeAuth)
+	if err != nil {
+		return fmt.Errorf("registering probe with worldping-api: %w", err)
+	} else if result.Status.Code != worldping.StatusCode_OK {
+		return fmt.Errorf("registering probe with worldping-api, response: %w", result.Status.Message)
+	}
+
+	c.probe = &result.Probe
+
+	c.logger.Printf("registered probe (%d, %s) with worldping-api", c.probe.Id, c.probe.Name)
+
+	cc, err := client.GetChanges(ctx, &probeAuth)
 	if err != nil {
 		return fmt.Errorf("getting changes from worldping-api: %w", err)
 	}
@@ -198,7 +211,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) 
 //
 // This MUST be called with the scrapersMutex held.
 func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check) error {
-	scraper, err := scraper.New(check, c.publishCh, c.probeName, *c.blackboxExporterProbeURL, c.logger)
+	scraper, err := scraper.New(check, c.publishCh, c.probe.Name, *c.blackboxExporterProbeURL, c.logger)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}

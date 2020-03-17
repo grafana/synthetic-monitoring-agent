@@ -24,15 +24,46 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 service Checks {
+	// RegisterProbe causes the specified probe, via ProbeAuth, to
+	// be reported as online with the API.
+	rpc RegisterProbe(ProbeAuth) returns (RegisterProbeResult) {};
+
 	// GetChanges returns a list of check operations, specifying
 	// whether to add, update or delete checks.
-	rpc GetChanges(ProbeInfo) returns (stream CheckChange) {};
+	rpc GetChanges(ProbeAuth) returns (stream CheckChange) {};
 }
 
-// ProbeInfo represents a probe
-message ProbeInfo {
-	// name is the name of the probe
-	string name = 1;
+enum StatusCode {
+	OK               = 0;
+	NOT_FOUND        = 1;
+	INVALID_ARGUMENT = 2;
+	ALREADY_EXISTS   = 3;
+	INTERNAL_ERROR   = 4;
+}
+
+message Status {
+	StatusCode code    = 1;
+	string     message = 2;
+}
+
+message RegisterProbeResult {
+	Probe  probe  = 1 [(gogoproto.nullable) = false];
+	Status status = 2 [(gogoproto.nullable) = false];
+}
+
+// Probe represents a probe
+message Probe {
+	int64          id        = 1 [(gogoproto.jsontag) = "id"];                                   // ID of the probe, assigned by the API
+	int64          tenantId  = 2 [(gogoproto.jsontag) = "tenantId"];                             // ID of the worldping tenant this probe belongs to
+	string         name      = 3 [(gogoproto.jsontag) = "name"];                                 // name of the probe
+	float          latitude  = 5 [(gogoproto.jsontag) = "latitude"];                             // latitude of the probe
+	float          longitude = 6 [(gogoproto.jsontag) = "longitude"];                            // longitude of the probe
+	repeated Label labels    = 8 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "labels"]; // probe-specific labels applied to all metrics and events
+}
+
+// ProbeAuth represents the authorization tokens used to identify the probe with worldping-api
+message ProbeAuth {
+	bytes token = 1 [(gogoproto.jsontag) = "token"];
 }
 
 service Tenants {

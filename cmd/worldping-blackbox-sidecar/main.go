@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -34,7 +36,7 @@ func run(args []string, stdout io.Writer) error {
 		blackboxExporterStr = flags.String("blackbox-exporter-url", "http://localhost:9115/", "base URL for blackbox exporter")
 		grpcApiServerAddr   = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
 		httpListenAddr      = flags.String("listen-address", ":4050", "listen address")
-		probeName           = flags.String("probe-name", "probe-1", "name for this probe")
+		apiToken            = flags.String("api-token", "", "base64-encoded API token")
 	)
 
 	if err := flags.Parse(args[1:]); err != nil {
@@ -44,6 +46,15 @@ func run(args []string, stdout io.Writer) error {
 	blackboxExporterURL, err := url.Parse(*blackboxExporterStr)
 	if err != nil {
 		return err
+	}
+
+	if *apiToken == "" {
+		return fmt.Errorf("invalid API token")
+	}
+
+	token, err := decodeB64(*apiToken)
+	if err != nil {
+		return fmt.Errorf("decoding API token: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -101,7 +112,7 @@ func run(args []string, stdout io.Writer) error {
 	}
 	defer conn.Close()
 
-	checksUpdater, err := checks.NewUpdater(conn, *bbeConfigFilename, blackboxExporterURL, logger, publishCh, *probeName)
+	checksUpdater, err := checks.NewUpdater(conn, *bbeConfigFilename, blackboxExporterURL, logger, publishCh, token)
 	if err != nil {
 		log.Fatalf("Cannot create checks updater: %s", err)
 	}
@@ -200,4 +211,10 @@ func runHttpServer(l net.Listener, server *http.Server) error {
 	}
 
 	return nil
+}
+
+func decodeB64(in string) ([]byte, error) {
+	buf := strings.NewReader(in)
+	dec := base64.NewDecoder(base64.StdEncoding, buf)
+	return ioutil.ReadAll(dec)
 }
