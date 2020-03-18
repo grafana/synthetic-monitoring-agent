@@ -3,93 +3,62 @@ package pusher
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net/url"
+	"strconv"
+	"sync"
 	"time"
 
+	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/loki"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/logproto"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
+	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/prom"
 	"google.golang.org/grpc"
 )
 
-type Config struct {
-	ForwarderAddress string
+const (
+	defaultBufferCapacity = 10 * 1024
+	userAgent             = "worldping-blackbox-sidecar/0.0.1"
+)
 
-	Metrics struct {
-		Name     string `required:"true"`
-		URL      string `required:"true"`
-		Username string `required:"true"`
-		Password string `required:"true"`
-	}
-
-	Events struct {
-		Name     string `required:"true"`
-		URL      string `required:"true"`
-		Username string `required:"true"`
-		Password string `required:"true"`
-	}
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		buf := make([]byte, 0, defaultBufferCapacity)
+		return &buf
+	},
 }
 
-type logger interface {
-	Printf(format string, v ...interface{})
+type remoteTarget struct {
+	Events *prom.Client
+	Metrics *prom.Client
 }
 
-type remoteInfo struct {
-	name     string
-	url      string
-	username string
-	password string
-}
-
-type pusher struct {
-	client        worldping.PusherClient
-	logger        logger
-	pushTimeout   time.Duration
-	metricsRemote remoteInfo
-	eventsRemote  remoteInfo
+type Payload interface {
+	Tenant()  int64
+	Metrics() []prompb.TimeSeries
+	Streams() []logproto.Stream
 }
 
 type Publisher struct {
-	publishCh <-chan Payload
-	cfg       Config
-	logger    logger
+	tenantsClient worldping.TenantsClient
+	logger       logger
+	publishCh    <-chan Payload
+	clientsMutex sync.Mutex
+	clients      map[int64]*remoteTarget
 }
 
-func NewPublisher(publishCh <-chan Payload, config Config, logger logger) *Publisher {
+func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger logger) *Publisher {
 	return &Publisher{
+		tenantsClient: worldping.NewTenantsClient(conn),
 		publishCh: publishCh,
-		cfg:       config,
+		clients:   make(map[int64]*remoteTarget),
 		logger:    logger,
 	}
 }
 
-func (p Publisher) Run(ctx context.Context) error {
-	p.logger.Printf("Publishing data to %s", p.cfg.ForwarderAddress)
-
-	conn, err := grpc.Dial(p.cfg.ForwarderAddress, grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		return fmt.Errorf("connecting to %s: %w", p.cfg.ForwarderAddress, err)
-	}
-	defer conn.Close()
-
-	c := worldping.NewPusherClient(conn)
-
-	pusher := pusher{
-		client:      c,
-		logger:      p.logger,
-		pushTimeout: 1 * time.Second,
-		metricsRemote: remoteInfo{
-			name:     p.cfg.Metrics.Name,
-			url:      p.cfg.Metrics.URL,
-			username: p.cfg.Metrics.Username,
-			password: p.cfg.Metrics.Password,
-		},
-		eventsRemote: remoteInfo{
-			name:     p.cfg.Events.Name,
-			url:      p.cfg.Events.URL,
-			username: p.cfg.Events.Username,
-			password: p.cfg.Events.Password,
-		},
-	}
+func (p *Publisher) Run(ctx context.Context) error {
 
 	for {
 		select {
@@ -97,51 +66,149 @@ func (p Publisher) Run(ctx context.Context) error {
 			return nil
 
 		case payload := <-p.publishCh:
-			go pusher.push(ctx, payload)
+			go p.publish(ctx, payload)
 		}
 	}
 }
 
-type Payload interface {
-	Metrics() []prompb.TimeSeries
-	Streams() []logproto.Stream
+var discardLogs = log.New(ioutil.Discard, "", 0)
+
+func (p *Publisher) publish(ctx context.Context, payload Payload) {
+	var logger logger
+	logger = discardLogs
+
+	if p.logger != nil {
+		logger = p.logger
+	}
+
+	logger.Printf("handling publish request...")
+	client, err := p.getClient(ctx, payload.Tenant())
+	if err != nil {
+		logger.Printf("failed to get clients for tenant: %w", err)
+		return
+	}
+	if len(payload.Streams()) > 0 {
+		logger.Printf("handling publish events...")
+		if err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
+			logger.Printf("handling events publish: %w", err)
+		}
+	}
+
+	if len(payload.Metrics()) > 0 {
+		logger.Printf("handling push metrics...")
+		if err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
+			fmt.Printf("handling metrics publish: %w", err)
+		}
+	}
 }
 
-func (p pusher) push(ctx context.Context, payload Payload) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, p.pushTimeout)
+type logger interface {
+	Printf(format string, v ...interface{})
+}
+
+func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams []logproto.Stream) error {
+	buf := bufPool.Get().(*[]byte)
+	defer bufPool.Put(buf)
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	// streams := getStreams(now, endpoint, p.name)
-
-	req := &worldping.PushRequest{
-		Metrics: &worldping.MetricsRequest{
-			Remote: worldping.Remote{
-				Name: p.metricsRemote.name,
-				Url:  p.metricsRemote.url,
-				Auth: &worldping.Auth{
-					Username: p.metricsRemote.username,
-					Password: p.metricsRemote.password,
-				},
-			},
-			Metrics: prompb.WriteRequest{Timeseries: payload.Metrics()},
-		},
-		Events: &worldping.EventsRequest{
-			Remote: worldping.Remote{
-				Name: p.eventsRemote.name,
-				Url:  p.eventsRemote.url,
-				Auth: &worldping.Auth{
-					Username: p.eventsRemote.username,
-					Password: p.eventsRemote.password,
-				},
-			},
-			// Events: logproto.PushRequest{Streams: streams},
-			Events: logproto.PushRequest{Streams: payload.Streams()},
-		},
+	if err := loki.SendStreamsWithBackoff(ctx, client, streams, buf); err != nil {
+		p.logger.Printf("W: error while sending events: %s", err)
+		return fmt.Errorf("sending events: %w", err)
 	}
 
-	resp, err := p.client.Push(timeoutCtx, req)
+	return nil
+}
 
+func (p *Publisher) pushMetrics(ctx context.Context, client *prom.Client, metrics []prompb.TimeSeries) error {
+	buf := bufPool.Get().(*[]byte)
+	defer bufPool.Put(buf)
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	if err := prom.SendSamplesWithBackoff(ctx, client, metrics, buf); err != nil {
+		p.logger.Printf("W: error while sending timeseries: %s", err)
+		return fmt.Errorf("sending timeseries: %w", err)
+	}
+
+	return nil
+}
+
+func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarget, error) {
+	p.clientsMutex.Lock()
+	defer p.clientsMutex.Unlock()
+
+	client, found := p.clients[tenantId]
+	if found {
+		return client, nil
+	}
+
+	req := worldping.TenantInfo{
+		Id: tenantId,
+	}
+	tenant, err := p.tenantsClient.GetTenant(ctx,&req)
 	if err != nil {
-		p.logger.Printf("resp=%#v err=%s", resp, err)
+		p.logger.Printf("failed to get tenant from worldping-api. %v", err)
+		return nil, err
 	}
+	mClientCfg, err := clientFromRemoteInfo(tenantId, tenant.MetricsRemote)
+	if err != nil {
+		return nil, fmt.Errorf("creating metrics client configuration: %w", err)
+	}
+	mClient, err := prom.NewClient(tenant.MetricsRemote.Name, mClientCfg)
+	if err != nil {
+		return nil, fmt.Errorf("creating metrics client: %w", err)
+	}
+	eClientCfg, err := clientFromRemoteInfo(tenantId, tenant.EventsRemote)
+	if err != nil {
+		return nil, fmt.Errorf("creating events client configuration: %w", err)
+	}
+	eClient, err := prom.NewClient(tenant.EventsRemote.Name, eClientCfg)
+	if err != nil {
+		return nil, fmt.Errorf("creating events client: %w", err)
+	}
+	clients := &remoteTarget{
+		Metrics: mClient,
+		Events: eClient,
+	}
+	
+	p.clients[tenantId] = clients
+
+	return clients, nil
+}
+
+func clientFromRemoteInfo(tenantId int64, remote *worldping.RemoteInfo) (*prom.ClientConfig, error) {
+	// TODO(mem): this is hacky.
+	//
+	// it's trying to deal with the fact that the URL shown to users
+	// is not the push URL but the base for the API endpoints
+	u, err := url.Parse(remote.Url + "/push")
+	if err != nil {
+		// XXX(mem): do we really return an error here?
+		return nil, fmt.Errorf("parsing URL: %w", err)
+	}
+
+	clientCfg := prom.ClientConfig{
+		URL:       u,
+		Timeout:   5 * time.Second,
+		UserAgent: userAgent,
+	}
+
+	if remote.Username != "" {
+		clientCfg.HTTPClientConfig.BasicAuth = &prom.BasicAuth{
+			Username: remote.Username,
+			Password: remote.Password,
+		}
+	}
+
+	if clientCfg.Headers == nil {
+		clientCfg.Headers = make(map[string]string)
+	}
+
+	clientCfg.Headers["X-Prometheus-Remote-Write-Version"] = "0.1.0"
+	clientCfg.Headers["X-Scope-OrgID"] = strconv.FormatInt(tenantId, 10)
+	
+	return &clientCfg, nil
 }

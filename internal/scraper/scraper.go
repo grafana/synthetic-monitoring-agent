@@ -51,8 +51,9 @@ type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
 type probeData struct {
-	ts      TimeSeries
-	streams Streams
+	tenantId int64
+	ts       TimeSeries
+	streams  Streams
 }
 
 func (d *probeData) Metrics() TimeSeries {
@@ -61,6 +62,10 @@ func (d *probeData) Metrics() TimeSeries {
 
 func (d *probeData) Streams() Streams {
 	return d.streams
+}
+
+func (d *probeData) Tenant() int64 {
+	return d.tenantId
 }
 
 func New(check worldping.Check, publishCh chan<- pusher.Payload, probeName string, probeURL url.URL, logger logger) (*Scraper, error) {
@@ -408,7 +413,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// loki does not support joins
 	streams := s.extractLogs(t, logs, allLabels)
 
-	return &probeData{ts: ts, streams: streams}, err
+	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, err
 }
 
 func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair) Streams {

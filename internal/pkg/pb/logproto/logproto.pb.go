@@ -58,6 +58,9 @@ func (Direction) EnumDescriptor() ([]byte, []int) {
 }
 
 type PushRequest struct {
+	// The original logproto.proto file does not have nullable = false
+	// here. This makes it very awkaward to work with the resulting type,
+	// having to get pointers for each element of the resuting slice.
 	Streams              []Stream `protobuf:"bytes,1,rep,name=streams,proto3" json:"streams"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
