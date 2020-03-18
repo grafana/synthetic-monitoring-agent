@@ -121,7 +121,7 @@ func write(checkType checkType) {
 
 	check := worldping.Check{
 		Id:        123,
-		OrgId:     27172,
+		TenantId:  27172,
 		Frequency: 5000,
 		Offset:    2300,
 		Timeout:   2500,

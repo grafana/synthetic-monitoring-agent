@@ -17,8 +17,8 @@ import (
 
 	"github.com/grafana/worldping-blackbox-sidecar/internal/checks"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
-	"github.com/kelseyhightower/envconfig"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"google.golang.org/grpc"
 )
 
 var exitError error
@@ -33,7 +33,6 @@ func run(args []string, stdout io.Writer) error {
 		bbeConfigFilename   = flags.String("blackbox-exporter-config", "worldping.yaml", "filename for blackbox exporter configuration")
 		blackboxExporterStr = flags.String("blackbox-exporter-url", "http://localhost:9115/", "base URL for blackbox exporter")
 		grpcApiServerAddr   = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
-		grpcForwarderAddr   = flags.String("forwarder-server-address", "localhost:4041", "GRPC forwarder server address")
 		httpListenAddr      = flags.String("listen-address", ":4050", "listen address")
 		probeName           = flags.String("probe-name", "probe-1", "name for this probe")
 	)
@@ -96,42 +95,20 @@ func run(args []string, stdout io.Writer) error {
 
 	publishCh := make(chan pusher.Payload)
 
-	config := pusher.Config{
-		ForwarderAddress: *grpcForwarderAddr,
+	conn, err := grpc.Dial(*grpcApiServerAddr, grpc.WithInsecure(), grpc.WithBlock())
+	if err != nil {
+		return fmt.Errorf("dialing GRPC server %s: %w", *grpcApiServerAddr, err)
 	}
+	defer conn.Close()
 
-	if err := envconfig.Process("worldping_test_metrics", &config.Metrics); err != nil {
-		log.Fatalf("Error obtaining metrics configuration from environment: %s", err)
-	}
-
-	if err := envconfig.Process("worldping_test_events", &config.Events); err != nil {
-		log.Fatalf("Error obtaining events configuration from environment: %s", err)
-	}
-
-	// TODO(mem): this is hacky.
-	//
-	// it's trying to deal with the fact that the URL shown to users
-	// is not the push URL but the base for the API endpoints
-	if u, err := url.Parse(config.Events.URL + "/push"); err != nil {
-		log.Fatalf("Invalid events push URL %q: %s", config.Events.URL, err)
-	} else {
-		config.Events.URL = u.String()
-	}
-
-	if u, err := url.Parse(config.Metrics.URL + "/push"); err != nil {
-		log.Fatalf("Invalid metrics push URL %q: %s", config.Metrics.URL, err)
-	} else {
-		config.Metrics.URL = u.String()
-	}
-
-	checksUpdater, err := checks.NewUpdater(*grpcApiServerAddr, *bbeConfigFilename, blackboxExporterURL, logger, publishCh, *probeName)
+	checksUpdater, err := checks.NewUpdater(conn, *bbeConfigFilename, blackboxExporterURL, logger, publishCh, *probeName)
 	if err != nil {
 		log.Fatalf("Cannot create checks updater: %s", err)
 	}
 
 	go checksUpdater.Run(ctx)
 
-	publisher := pusher.NewPublisher(publishCh, config, logger)
+	publisher := pusher.NewPublisher(conn, publishCh, logger)
 
 	go func() {
 		if err := publisher.Run(ctx); err != nil {

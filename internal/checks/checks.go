@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/logproto"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
@@ -22,7 +23,6 @@ import (
 )
 
 type Updater struct {
-	apiServerAddr             string
 	bbeConfigFilename         string
 	blackboxExporterProbeURL  *url.URL
 	blackboxExporterReloadURL *url.URL
@@ -31,6 +31,7 @@ type Updater struct {
 	probeName                 string
 	scrapersMutex             sync.Mutex
 	scrapers                  map[int64]*scraper.Scraper
+	conn                      *grpc.ClientConn
 }
 
 type logger interface {
@@ -40,7 +41,7 @@ type logger interface {
 type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
-func NewUpdater(apiServerAddr, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- pusher.Payload, probeName string) (*Updater, error) {
+func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- pusher.Payload, probeName string) (*Updater, error) {
 	if blackboxExporterURL == nil {
 		return nil, fmt.Errorf("invalid blackbox-exporter URL")
 	}
@@ -56,7 +57,7 @@ func NewUpdater(apiServerAddr, bbeConfigFilename string, blackboxExporterURL *ur
 	}
 
 	return &Updater{
-		apiServerAddr:             apiServerAddr,
+		conn:                      conn,
 		bbeConfigFilename:         bbeConfigFilename,
 		blackboxExporterProbeURL:  blackboxExporterProbeURL,
 		blackboxExporterReloadURL: blackboxExporterReloadURL,
@@ -73,6 +74,7 @@ func (c *Updater) Run(ctx context.Context) {
 		// while connecting.
 		if err := c.loop(ctx); err != nil {
 			c.logger.Printf("handling check changes: %s", err)
+			time.Sleep(time.Second * 2)
 			continue
 		}
 
@@ -81,20 +83,14 @@ func (c *Updater) Run(ctx context.Context) {
 }
 
 func (c *Updater) loop(ctx context.Context) error {
-	c.logger.Printf("Fetching check configuration from %s", c.apiServerAddr)
+	c.logger.Printf("Fetching check configuration from worldping-api")
 
-	conn, err := grpc.Dial(c.apiServerAddr, grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		return fmt.Errorf("dialing GRPC server %s: %w", c.apiServerAddr, err)
-	}
-	defer conn.Close()
-
-	client := worldping.NewChecksClient(conn)
+	client := worldping.NewChecksClient(c.conn)
 
 	probeInfo := worldping.ProbeInfo{Name: c.probeName}
 	cc, err := client.GetChanges(ctx, &probeInfo)
 	if err != nil {
-		return fmt.Errorf("getting changes from %s: %w", c.apiServerAddr, err)
+		return fmt.Errorf("getting changes from worldping-api: %w", err)
 	}
 
 	for {
@@ -139,7 +135,7 @@ func (c *Updater) loop(ctx context.Context) error {
 				if status.Code(err) == codes.Canceled {
 					return nil
 				} else {
-					return fmt.Errorf("getting changes from %s: %w", c.apiServerAddr, err)
+					return fmt.Errorf("getting changes from worldping-api: %w", err)
 				}
 			}
 		}
