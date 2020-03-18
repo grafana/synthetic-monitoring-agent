@@ -31,35 +31,34 @@ var bufPool = sync.Pool{
 }
 
 type remoteTarget struct {
-	Events *prom.Client
+	Events  *prom.Client
 	Metrics *prom.Client
 }
 
 type Payload interface {
-	Tenant()  int64
+	Tenant() int64
 	Metrics() []prompb.TimeSeries
 	Streams() []logproto.Stream
 }
 
 type Publisher struct {
 	tenantsClient worldping.TenantsClient
-	logger       logger
-	publishCh    <-chan Payload
-	clientsMutex sync.Mutex
-	clients      map[int64]*remoteTarget
+	logger        logger
+	publishCh     <-chan Payload
+	clientsMutex  sync.Mutex
+	clients       map[int64]*remoteTarget
 }
 
 func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger logger) *Publisher {
 	return &Publisher{
 		tenantsClient: worldping.NewTenantsClient(conn),
-		publishCh: publishCh,
-		clients:   make(map[int64]*remoteTarget),
-		logger:    logger,
+		publishCh:     publishCh,
+		clients:       make(map[int64]*remoteTarget),
+		logger:        logger,
 	}
 }
 
 func (p *Publisher) Run(ctx context.Context) error {
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -148,7 +147,7 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarge
 	req := worldping.TenantInfo{
 		Id: tenantId,
 	}
-	tenant, err := p.tenantsClient.GetTenant(ctx,&req)
+	tenant, err := p.tenantsClient.GetTenant(ctx, &req)
 	if err != nil {
 		p.logger.Printf("failed to get tenant from worldping-api. %v", err)
 		return nil, err
@@ -171,7 +170,7 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarge
 	}
 	clients := &remoteTarget{
 		Metrics: mClient,
-		Events: eClient,
+		Events:  eClient,
 	}
 	p.clientsMutex.Lock()
 	p.clients[tenantId] = clients
@@ -210,6 +209,6 @@ func clientFromRemoteInfo(tenantId int64, remote *worldping.RemoteInfo) (*prom.C
 
 	clientCfg.Headers["X-Prometheus-Remote-Write-Version"] = "0.1.0"
 	clientCfg.Headers["X-Scope-OrgID"] = strconv.FormatInt(tenantId, 10)
-	
+
 	return &clientCfg, nil
 }
