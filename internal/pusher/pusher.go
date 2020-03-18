@@ -138,9 +138,9 @@ func (p *Publisher) pushMetrics(ctx context.Context, client *prom.Client, metric
 
 func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarget, error) {
 	p.clientsMutex.Lock()
-	defer p.clientsMutex.Unlock()
 
 	client, found := p.clients[tenantId]
+	p.clientsMutex.Unlock()
 	if found {
 		return client, nil
 	}
@@ -173,8 +173,9 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarge
 		Metrics: mClient,
 		Events: eClient,
 	}
-	
+	p.clientsMutex.Lock()
 	p.clients[tenantId] = clients
+	p.clientsMutex.Unlock()
 
 	return clients, nil
 }
