@@ -407,7 +407,11 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	allLabels := append(sharedLabels, checkInfoLabels...)
 
-	allLabels = append(allLabels, successLabel)
+	// apply a source label to streams to help identify log
+	// lines which belong to worldping
+	sourceLabel := labelPair{name: "source", value: "worldping"}
+
+	allLabels = append(allLabels, successLabel, sourceLabel)
 
 	// streams need to have all the labels applied to them because
 	// loki does not support joins
