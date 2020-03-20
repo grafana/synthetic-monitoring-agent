@@ -514,7 +514,7 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 	checkInfoMetric := makeCheckInfoMetrics(t, sharedLabels, checkInfoLabels)
 
 	ts := []prompb.TimeSeries{checkInfoMetric}
-
+	var checkErr error
 	for {
 		var mf dto.MetricFamily
 
@@ -527,21 +527,15 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 
 			for _, m := range mf.GetMetric() {
 				if isProbeSuccess && m.GetGauge().GetValue() == 0 {
-					// discard whatever we have and publish only the check info metrics and and
-					// probe_success
-					ts := make([]prompb.TimeSeries, 0, 2)
-					ts = append(ts, checkInfoMetric)
-					ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
-
-					err := fmt.Errorf(`msg="check failed" check_name=%s probe=%s endpoint=%s err="%w"`, s.checkName, s.probeName, s.endpoint, errCheckFailed)
-					return ts, err
+					// return an error to the caller, signalling that the check failed.
+					checkErr = fmt.Errorf(`msg="check failed" check_name=%s probe=%s endpoint=%s err="%w"`, s.checkName, s.probeName, s.endpoint, errCheckFailed)
 				}
 
 				ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
 			}
 
 		case io.EOF:
-			return ts, nil
+			return ts, checkErr
 
 		default:
 			return nil, fmt.Errorf(`msg="decoding results from blackbox-exporter" probe=%s endpoint=%s err="%w"`, s.probeName, s.endpoint, err)
