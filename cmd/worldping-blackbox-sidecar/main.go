@@ -117,7 +117,12 @@ func run(args []string, stdout io.Writer) error {
 		log.Fatalf("Cannot create checks updater: %s", err)
 	}
 
-	go checksUpdater.Run(ctx)
+	go func() {
+		if err := checksUpdater.Run(ctx); err != nil {
+			logger.Printf("E: while running checks updater: %s", err)
+			cancel()
+		}
+	}()
 
 	publisher := pusher.NewPublisher(conn, publishCh, logger)
 

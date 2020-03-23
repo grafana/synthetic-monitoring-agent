@@ -39,6 +39,7 @@ enum StatusCode {
 	INVALID_ARGUMENT = 2;
 	ALREADY_EXISTS   = 3;
 	INTERNAL_ERROR   = 4;
+	NOT_AUTHORIZED   = 5;
 }
 
 message Status {

@@ -2,6 +2,7 @@ package checks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,6 +21,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gopkg.in/yaml.v2"
+)
+
+var (
+	errNotAuthorized = fmt.Errorf("probe not authorized")
 )
 
 type Updater struct {
@@ -69,17 +74,25 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 	}, nil
 }
 
-func (c *Updater) Run(ctx context.Context) {
+func (c *Updater) Run(ctx context.Context) error {
 	for {
-		// XXX(mem): add backoff? GRPC already has a backoff
-		// while connecting.
-		if err := c.loop(ctx); err != nil {
-			c.logger.Printf("handling check changes: %s", err)
+		err := c.loop(ctx)
+		switch {
+		case err == nil:
+			return nil
+
+		case errors.Is(err, errNotAuthorized):
+			// our token is invalid, bail out?
+			return err
+
+		default:
+			// XXX(mem): this might be a connection error.  Add backoff? GRPC already
+			// has a backoff while connecting.
+			c.logger.Printf("while handling check changes: %s", err)
 			time.Sleep(time.Second * 2)
 			continue
 		}
 
-		break
 	}
 }
 
@@ -93,8 +106,17 @@ func (c *Updater) loop(ctx context.Context) error {
 	result, err := client.RegisterProbe(ctx, &probeAuth)
 	if err != nil {
 		return fmt.Errorf("registering probe with worldping-api: %w", err)
-	} else if result.Status.Code != worldping.StatusCode_OK {
-		return fmt.Errorf("registering probe with worldping-api, response: %w", result.Status.Message)
+	}
+
+	switch result.Status.Code {
+	case worldping.StatusCode_OK:
+		// continue
+
+	case worldping.StatusCode_NOT_AUTHORIZED:
+		return errNotAuthorized
+
+	default:
+		return fmt.Errorf("registering probe with worldping-api, response: %s", result.Status.Message)
 	}
 
 	c.probe = &result.Probe
