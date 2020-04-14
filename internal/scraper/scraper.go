@@ -376,9 +376,15 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		{name: "check_name", value: s.checkName},
 		{name: "endpoint", value: s.endpoint},
 		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
+		{name: "latitude", value: strconv.FormatFloat(float64(s.probe.Latitude), 'f', 6, 32)},
+		{name: "longitude", value: strconv.FormatFloat(float64(s.probe.Longitude), 'f', 6, 32)},
 	}
 
 	for _, l := range s.check.Labels {
+		checkInfoLabels = append(checkInfoLabels, labelPair{name: "label_" + l.Name, value: l.Value})
+	}
+
+	for _, l := range s.probe.Labels {
 		checkInfoLabels = append(checkInfoLabels, labelPair{name: "label_" + l.Name, value: l.Value})
 	}
 
