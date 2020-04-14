@@ -27,17 +27,30 @@ var (
 	errNotAuthorized = fmt.Errorf("probe not authorized")
 )
 
+// Updater represents a probe along with the collection of scrapers
+// running on that probe and it manages the configuration for
+// blackbox-exporter that corresponds to the collection of scrapers.
 type Updater struct {
-	bbeConfigFilename         string
-	blackboxExporterProbeURL  *url.URL
-	blackboxExporterReloadURL *url.URL
-	logger                    logger
-	publishCh                 chan<- pusher.Payload
-	apiToken                  []byte
-	probe                     *worldping.Probe
-	scrapersMutex             sync.Mutex
-	scrapers                  map[int64]*scraper.Scraper
-	conn                      *grpc.ClientConn
+	bbeInfo       bbeInfo
+	api           apiInfo
+	logger        logger
+	publishCh     chan<- pusher.Payload
+	probe         *worldping.Probe
+	scrapersMutex sync.Mutex
+	scrapers      map[int64]*scraper.Scraper
+}
+
+// bbeInfo represents the information necessary to communicate with
+// blackbox-exporter
+type bbeInfo struct {
+	configFilename string
+	reloadURL      string
+	probeURL       *url.URL
+}
+
+type apiInfo struct {
+	conn  *grpc.ClientConn
+	token []byte
 }
 
 type logger interface {
@@ -63,14 +76,18 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 	}
 
 	return &Updater{
-		conn:                      conn,
-		bbeConfigFilename:         bbeConfigFilename,
-		blackboxExporterProbeURL:  blackboxExporterProbeURL,
-		blackboxExporterReloadURL: blackboxExporterReloadURL,
-		logger:                    logger,
-		publishCh:                 publishCh,
-		apiToken:                  apiToken,
-		scrapers:                  make(map[int64]*scraper.Scraper),
+		api: apiInfo{
+			conn:  conn,
+			token: apiToken,
+		},
+		bbeInfo: bbeInfo{
+			configFilename: bbeConfigFilename,
+			probeURL:       blackboxExporterProbeURL,
+			reloadURL:      blackboxExporterReloadURL.String(),
+		},
+		logger:    logger,
+		publishCh: publishCh,
+		scrapers:  make(map[int64]*scraper.Scraper),
 	}, nil
 }
 
@@ -99,9 +116,9 @@ func (c *Updater) Run(ctx context.Context) error {
 func (c *Updater) loop(ctx context.Context) error {
 	c.logger.Printf("Fetching check configuration from worldping-api")
 
-	client := worldping.NewChecksClient(c.conn)
+	client := worldping.NewChecksClient(c.api.conn)
 
-	probeAuth := worldping.ProbeAuth{Token: c.apiToken}
+	probeAuth := worldping.ProbeAuth{Token: c.api.token}
 
 	result, err := client.RegisterProbe(ctx, &probeAuth)
 	if err != nil {
@@ -127,6 +144,11 @@ func (c *Updater) loop(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("getting changes from worldping-api: %w", err)
 	}
+
+	// XXX(mem): possibly create a new context here that gets
+	// cancelled when this function returns, so that the scrapers
+	// are stopped; they should also be removed from the map of
+	// running scrapers.
 
 	for {
 		select {
@@ -233,7 +255,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) 
 //
 // This MUST be called with the scrapersMutex held.
 func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check) error {
-	scraper, err := scraper.New(check, c.publishCh, c.probe.Name, *c.blackboxExporterProbeURL, c.logger)
+	scraper, err := scraper.New(check, c.publishCh, c.probe.Name, *c.bbeInfo.probeURL, c.logger)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}
@@ -247,7 +269,7 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check)
 	//
 	// Possibly delay starting the scraper using a list and a
 	// timeout?
-	if err := c.updateBBEConfiguration(); err != nil {
+	if err := c.bbeInfo.updateConfig(c.scrapers); err != nil {
 		// XXX(mem): bail out?
 		c.logger.Printf("updating blackbox-exporter configuration: %s", err)
 	}
@@ -257,16 +279,16 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check)
 	return nil
 }
 
-func (c *Updater) updateBBEConfiguration() error {
+func (bbe *bbeInfo) updateConfig(scrapers map[int64]*scraper.Scraper) error {
 	var config struct {
 		Modules map[string]interface{} `yaml:"modules"`
 	}
 
 	config.Modules = make(map[string]interface{})
 
-	for i := range c.scrapers {
-		moduleName := c.scrapers[i].GetModuleName()
-		config.Modules[moduleName] = c.scrapers[i].GetModuleConfig()
+	for _, scraper := range scrapers {
+		moduleName := scraper.GetModuleName()
+		config.Modules[moduleName] = scraper.GetModuleConfig()
 	}
 
 	b, err := yaml.Marshal(config)
@@ -274,18 +296,18 @@ func (c *Updater) updateBBEConfiguration() error {
 		return fmt.Errorf("cannot marshal to YAML: %w", err)
 	}
 
-	fh, err := os.Create(c.bbeConfigFilename)
+	fh, err := os.Create(bbe.configFilename)
 	if err != nil {
-		return fmt.Errorf("cannot create blackbox-exporter configuration file %s: %w", c.bbeConfigFilename, err)
+		return fmt.Errorf("cannot create blackbox-exporter configuration file %s: %w", bbe.configFilename, err)
 	}
 	defer fh.Close()
 
 	n, err := fh.Write(b)
 	if err != nil {
-		return fmt.Errorf("failed to write blackbox-exporter configuration file %s, wrote %d bytes: %w", c.bbeConfigFilename, n, err)
+		return fmt.Errorf("failed to write blackbox-exporter configuration file %s, wrote %d bytes: %w", bbe.configFilename, n, err)
 	}
 
-	req, err := http.NewRequestWithContext(context.TODO(), "POST", c.blackboxExporterReloadURL.String(), nil)
+	req, err := http.NewRequestWithContext(context.TODO(), "POST", bbe.reloadURL, nil)
 	if err != nil {
 		return fmt.Errorf("creating new request: %w", err)
 	}
