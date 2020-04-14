@@ -32,12 +32,12 @@ var (
 
 type Scraper struct {
 	publishCh  chan<- pusher.Payload
-	probeName  string
 	checkName  string
 	provider   url.URL // provider is the BBE URL
 	endpoint   string  // endpoint is the thing to be checked (hostname, URL, ...)
 	logger     logger
 	check      worldping.Check
+	probe      worldping.Probe
 	bbeModule  *bbeconfig.Module
 	moduleName string
 	stop       chan struct{}
@@ -68,7 +68,7 @@ func (d *probeData) Tenant() int64 {
 	return d.tenantId
 }
 
-func New(check worldping.Check, publishCh chan<- pusher.Payload, probeName string, probeURL url.URL, logger logger) (*Scraper, error) {
+func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, probeURL url.URL, logger logger) (*Scraper, error) {
 	var (
 		target     string
 		checkName  string
@@ -154,12 +154,12 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probeName strin
 
 	return &Scraper{
 		publishCh:  publishCh,
-		probeName:  probeName,
 		checkName:  checkName,
 		provider:   probeURL,
 		endpoint:   target,
 		logger:     logger,
 		check:      check,
+		probe:      probe,
 		bbeModule:  &bbeModule,
 		moduleName: moduleName,
 		stop:       make(chan struct{}),
@@ -205,7 +205,7 @@ func (sm checkStateMachine) isFailing() bool {
 }
 
 func (s *Scraper) Run(ctx context.Context) {
-	s.logger.Printf(`msg="starting scraper" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
+	s.logger.Printf(`msg="starting scraper" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
 
 	// TODO(mem): keep count of the number of successive errors and
 	// collect logs if threshold is reached.
@@ -222,16 +222,16 @@ func (s *Scraper) Run(ctx context.Context) {
 		switch {
 		case errors.Is(err, errCheckFailed):
 			sm.fail(func() {
-				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
+				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
 			})
 
 		case err != nil:
-			s.logger.Printf(`msg="error collecting data" probe=%s endpoint=%s provider=%s err="%s"`, s.probeName, s.endpoint, s.provider.String(), err)
+			s.logger.Printf(`msg="error collecting data" probe=%s endpoint=%s provider=%s err="%s"`, s.probe.Name, s.endpoint, s.provider.String(), err)
 			return
 
 		default:
 			sm.pass(func() {
-				s.logger.Printf(`msg="check entered PASS state" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
+				s.logger.Printf(`msg="check entered PASS state" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
 			})
 		}
 
@@ -266,11 +266,11 @@ func (s *Scraper) Run(ctx context.Context) {
 
 	tickWithOffset(ctx, s.stop, scrape, cleanup, s.check.Offset, s.check.Frequency)
 
-	s.logger.Printf(`msg="scraper stopped" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
+	s.logger.Printf(`msg="scraper stopped" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
 }
 
 func (s *Scraper) Stop() {
-	s.logger.Printf(`msg="stopping scraper" probe=%s endpoint=%s provider=%s`, s.probeName, s.endpoint, s.provider.String())
+	s.logger.Printf(`msg="stopping scraper" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
 	close(s.stop)
 }
 
@@ -342,13 +342,13 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
 	if err != nil {
-		err = fmt.Errorf(`msg="creating new request" probe=%s endpoint=%s target=%s err="%w"`, s.probeName, s.endpoint, target, err)
+		err = fmt.Errorf(`msg="creating new request" probe=%s endpoint=%s target=%s err="%w"`, s.probe.Name, s.endpoint, target, err)
 		return nil, err
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		err = fmt.Errorf(`msg="requesting data from" probe=%s endpoint=%s target=%s err="%w"`, s.probeName, s.endpoint, target, err)
+		err = fmt.Errorf(`msg="requesting data from" probe=%s endpoint=%s target=%s err="%w"`, s.probe.Name, s.endpoint, target, err)
 		return nil, err
 	}
 
@@ -360,7 +360,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	metrics, logs, err := extractMetricsAndLogs(resp.Body)
 	if err != nil {
-		err = fmt.Errorf(`msg="extracting data from blackbox-exporter" probe=%s endpoint=%s target=%s err="%w"`, s.probeName, s.endpoint, target, err)
+		err = fmt.Errorf(`msg="extracting data from blackbox-exporter" probe=%s endpoint=%s target=%s err="%w"`, s.probe.Name, s.endpoint, target, err)
 		return nil, err
 	}
 
@@ -368,7 +368,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// outside this function?
 	sharedLabels := []labelPair{
 		{name: "check_id", value: strconv.FormatInt(s.check.Id, 10)},
-		{name: "probe", value: s.probeName},
+		{name: "probe", value: s.probe.Name},
 		{name: "config_version", value: strconv.FormatInt(s.check.Modified, 10)},
 	}
 
@@ -528,7 +528,7 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 			for _, m := range mf.GetMetric() {
 				if isProbeSuccess && m.GetGauge().GetValue() == 0 {
 					// return an error to the caller, signalling that the check failed.
-					checkErr = fmt.Errorf(`msg="check failed" check_name=%s probe=%s endpoint=%s err="%w"`, s.checkName, s.probeName, s.endpoint, errCheckFailed)
+					checkErr = fmt.Errorf(`msg="check failed" check_name=%s probe=%s endpoint=%s err="%w"`, s.checkName, s.probe.Name, s.endpoint, errCheckFailed)
 				}
 
 				ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
@@ -538,7 +538,7 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 			return ts, checkErr
 
 		default:
-			return nil, fmt.Errorf(`msg="decoding results from blackbox-exporter" probe=%s endpoint=%s err="%w"`, s.probeName, s.endpoint, err)
+			return nil, fmt.Errorf(`msg="decoding results from blackbox-exporter" probe=%s endpoint=%s err="%w"`, s.probe.Name, s.endpoint, err)
 		}
 	}
 }

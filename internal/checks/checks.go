@@ -255,7 +255,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) 
 //
 // This MUST be called with the scrapersMutex held.
 func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check) error {
-	scraper, err := scraper.New(check, c.publishCh, c.probe.Name, *c.bbeInfo.probeURL, c.logger)
+	scraper, err := scraper.New(check, c.publishCh, *c.probe, *c.bbeInfo.probeURL, c.logger)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}
