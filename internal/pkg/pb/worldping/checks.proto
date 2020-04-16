@@ -24,13 +24,21 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.goproto_getters_all) = false;
 
 service Checks {
-	// RegisterProbe causes the specified probe, via ProbeAuth, to
-	// be reported as online with the API.
-	rpc RegisterProbe(ProbeAuth) returns (RegisterProbeResult) {};
+	// RegisterProbe causes this probe to be reported as online with
+	// worldping-api.
+	//
+	// The probe is identified via an authentication token provided
+	// in a different channel by worldping-api.
+	rpc RegisterProbe(Void) returns (RegisterProbeResult) {};
 
 	// GetChanges returns a list of check operations, specifying
 	// whether to add, update or delete checks.
-	rpc GetChanges(ProbeAuth) returns (stream CheckChange) {};
+	rpc GetChanges(Void) returns (stream CheckChange) {};
+}
+
+// Void is an empty message used by RPC methods that don't take
+// arguments.
+message Void {
 }
 
 enum StatusCode {
@@ -60,11 +68,6 @@ message Probe {
 	float          latitude  = 5 [(gogoproto.jsontag) = "latitude"];                             // latitude of the probe
 	float          longitude = 6 [(gogoproto.jsontag) = "longitude"];                            // longitude of the probe
 	repeated Label labels    = 8 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "labels"]; // probe-specific labels applied to all metrics and events
-}
-
-// ProbeAuth represents the authorization tokens used to identify the probe with worldping-api
-message ProbeAuth {
-	bytes token = 1 [(gogoproto.jsontag) = "token"];
 }
 
 service Tenants {

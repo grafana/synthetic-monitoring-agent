@@ -116,9 +116,7 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	client := worldping.NewChecksClient(c.api.conn)
 
-	probeAuth := worldping.ProbeAuth{Token: c.api.token}
-
-	result, err := client.RegisterProbe(ctx, &probeAuth)
+	result, err := client.RegisterProbe(ctx, &worldping.Void{})
 	if err != nil {
 		return fmt.Errorf("registering probe with worldping-api: %w", err)
 	}
@@ -138,7 +136,7 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	c.logger.Printf("registered probe (%d, %s) with worldping-api", c.probe.Id, c.probe.Name)
 
-	cc, err := client.GetChanges(ctx, &probeAuth)
+	cc, err := client.GetChanges(ctx, &worldping.Void{})
 	if err != nil {
 		return fmt.Errorf("getting changes from worldping-api: %w", err)
 	}
