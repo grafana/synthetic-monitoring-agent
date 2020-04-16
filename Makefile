@@ -57,7 +57,7 @@ run: scripts/go/bin/bra ## Build and run web server on filesystem changes.
 .PHONY: test-go
 test-go: ## Run Go tests.
 	$(S) echo "test backend"
-	$(GO) test -v ./pkg/...
+	$(GO) test -v ./...
 
 .PHONY: test
 test: test-go ## Run all tests.
@@ -110,3 +110,7 @@ clean: ## Clean up intermediate build artifacts.
 .PHONY: help
 help: ## Display this help.
 	$(S) awk 'BEGIN {FS = ":.*##"; printf "Usage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+.PHONY: docker
+docker: build
+	$(S) docker build -t us.gcr.io/kubernetes-dev/worldping-blackbox-sidecar:latest .

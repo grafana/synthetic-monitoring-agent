@@ -1,0 +1,42 @@
+version: 2
+jobs:
+  lint:
+    docker:
+      - image: circleci/golang:1.13.10
+    steps:
+      - checkout
+      - run: make lint
+
+  test:
+    docker:
+      - image: circleci/golang:1.13.10
+    steps:
+      - checkout
+      - run: make test
+
+  build:
+    docker:
+      - image: circleci/golang:1.13.10
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: build docker image
+          command: make docker
+      - deploy:
+          command: |
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
+              docker login -u $DOCKER_USER -p "$DOCKER_PASS" https://us.gcr.io
+              docker push us.gcr.io/kubernetes-dev/worldping-blackbox-sidecar:latest
+            fi
+
+workflows:
+  version: 2
+  test_and_build:
+    jobs:
+      - lint
+      - test
+      - build:
+          requires:
+            - test
+            - lint
