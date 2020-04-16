@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
+	"github.com/grafana/worldping-api/pkg/pb/worldping"
 )
 
 type checkType int

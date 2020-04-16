@@ -16,13 +16,13 @@ import (
 	"time"
 
 	"github.com/go-logfmt/logfmt"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/logproto"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/worldping"
+	"github.com/grafana/loki/pkg/logproto"
+	"github.com/grafana/worldping-api/pkg/pb/worldping"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/prometheus/prompb"
 )
 
 var (
@@ -48,7 +48,7 @@ type logger interface {
 }
 
 type TimeSeries = []prompb.TimeSeries
-type Streams = []logproto.Stream
+type Streams = []*logproto.Stream
 
 type probeData struct {
 	tenantId int64
@@ -482,7 +482,7 @@ RECORD:
 
 		// this is creating one stream per log line because the labels might have to change between lines (level
 		// is not going to be the same).
-		streams = append(streams, logproto.Stream{
+		streams = append(streams, &logproto.Stream{
 			Labels: fmtLabels(labels),
 			Entries: []logproto.Entry{
 				{
@@ -512,9 +512,9 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 
 	dec := expfmt.NewDecoder(bytes.NewReader(metrics), format)
 
-	metricLabels := make([]*prompb.Label, 0, len(sharedLabels))
+	metricLabels := make([]prompb.Label, 0, len(sharedLabels))
 	for _, label := range sharedLabels {
-		metricLabels = append(metricLabels, &prompb.Label{Name: label.name, Value: label.value})
+		metricLabels = append(metricLabels, prompb.Label{Name: label.name, Value: label.value})
 	}
 
 	checkInfoMetric := makeCheckInfoMetrics(t, sharedLabels, checkInfoLabels)
@@ -549,10 +549,10 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 	}
 }
 
-func makeTimeseries(t time.Time, value float64, labels ...*prompb.Label) prompb.TimeSeries {
+func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.TimeSeries {
 	var ts prompb.TimeSeries
 
-	ts.Labels = make([]*prompb.Label, len(labels))
+	ts.Labels = make([]prompb.Label, len(labels))
 	copy(ts.Labels, labels)
 
 	ts.Samples = []prompb.Sample{
@@ -562,14 +562,14 @@ func makeTimeseries(t time.Time, value float64, labels ...*prompb.Label) prompb.
 	return ts
 }
 
-func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sharedLabels []*prompb.Label, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
+func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sharedLabels []prompb.Label, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
 	ml := metric.GetLabel()
 
-	labels := make([]*prompb.Label, 0, 1+len(sharedLabels)+len(ml))
-	labels = append(labels, &prompb.Label{Name: "__name__", Value: mName})
+	labels := make([]prompb.Label, 0, 1+len(sharedLabels)+len(ml))
+	labels = append(labels, prompb.Label{Name: "__name__", Value: mName})
 	labels = append(labels, sharedLabels...)
 	for _, l := range ml {
-		labels = append(labels, &prompb.Label{Name: *(l.Name), Value: *(l.Value)})
+		labels = append(labels, prompb.Label{Name: *(l.Name), Value: *(l.Value)})
 	}
 
 	switch mType {
@@ -591,20 +591,20 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 	case dto.MetricType_SUMMARY:
 		if s := metric.GetSummary(); s != nil {
 			if q := s.GetQuantile(); q != nil {
-				sLabels := make([]*prompb.Label, len(labels))
+				sLabels := make([]prompb.Label, len(labels))
 				copy(sLabels, labels)
 
-				sLabels[0] = &prompb.Label{Name: "__name__", Value: mName + "_sum"}
+				sLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_sum"}
 				ts = append(ts, makeTimeseries(t, s.GetSampleSum(), sLabels...))
 
-				sLabels[0] = &prompb.Label{Name: "__name__", Value: mName + "_count"}
+				sLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_count"}
 				ts = append(ts, makeTimeseries(t, float64(s.GetSampleCount()), sLabels...))
 
-				sLabels = make([]*prompb.Label, len(labels)+1)
+				sLabels = make([]prompb.Label, len(labels)+1)
 				copy(sLabels, labels)
 
 				for _, v := range q {
-					sLabels[len(sLabels)-1] = &prompb.Label{
+					sLabels[len(sLabels)-1] = prompb.Label{
 						Name:  "quantile",
 						Value: strconv.FormatFloat(v.GetQuantile(), 'G', -1, 64),
 					}
@@ -616,20 +616,20 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 	case dto.MetricType_HISTOGRAM:
 		if h := metric.GetHistogram(); h != nil {
 			if b := h.GetBucket(); b != nil {
-				hLabels := make([]*prompb.Label, len(labels))
+				hLabels := make([]prompb.Label, len(labels))
 				copy(hLabels, labels)
 
-				hLabels[0] = &prompb.Label{Name: "__name__", Value: mName + "_sum"}
+				hLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_sum"}
 				ts = append(ts, makeTimeseries(t, h.GetSampleSum(), hLabels...))
 
-				hLabels[0] = &prompb.Label{Name: "__name__", Value: mName + "_count"}
+				hLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_count"}
 				ts = append(ts, makeTimeseries(t, float64(h.GetSampleCount()), hLabels...))
 
-				hLabels = make([]*prompb.Label, len(labels)+1)
+				hLabels = make([]prompb.Label, len(labels)+1)
 				copy(hLabels, labels)
 
 				for _, v := range b {
-					hLabels[len(hLabels)-1] = &prompb.Label{
+					hLabels[len(hLabels)-1] = prompb.Label{
 						Name:  "le",
 						Value: strconv.FormatFloat(v.GetUpperBound(), 'G', -1, 64),
 					}
@@ -643,16 +643,16 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 }
 
 func makeCheckInfoMetrics(t time.Time, sharedLabels, checkInfoLabels []labelPair) prompb.TimeSeries {
-	labels := make([]*prompb.Label, 0, 1+len(sharedLabels)+len(checkInfoLabels))
+	labels := make([]prompb.Label, 0, 1+len(sharedLabels)+len(checkInfoLabels))
 
-	labels = append(labels, &prompb.Label{Name: "__name__", Value: "worldping_check_info"})
+	labels = append(labels, prompb.Label{Name: "__name__", Value: "worldping_check_info"})
 
 	for _, label := range sharedLabels {
-		labels = append(labels, &prompb.Label{Name: label.name, Value: label.value})
+		labels = append(labels, prompb.Label{Name: label.name, Value: label.value})
 	}
 
 	for _, label := range checkInfoLabels {
-		labels = append(labels, &prompb.Label{Name: label.name, Value: label.value})
+		labels = append(labels, prompb.Label{Name: label.name, Value: label.value})
 	}
 
 	return makeTimeseries(t, 1, labels...)

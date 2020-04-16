@@ -11,7 +11,7 @@ GO = GO111MODULE=on go
 GO_PKGS ?= ./...
 SH_FILES ?= $(shell find ./scripts -name *.sh)
 
-COMMANDS := $(shell $(GO) list ./cmd/...)
+COMMANDS := $(shell $(GO) list -mod=vendor ./cmd/...)
 
 .DEFAULT_GOAL := all
 
@@ -35,7 +35,7 @@ BUILD_GO_TARGETS := $(addprefix build-go-, $(COMMANDS))
 .PHONY: $(BUILD_GO_TARGETS)
 $(BUILD_GO_TARGETS): build-go-%:
 	$(S) echo 'Building $*'
-	$(GO) build $*
+	$(GO) build -mod=vendor $*
 
 .PHONY: build-go
 build-go: $(BUILD_GO_TARGETS) ## Build all Go binaries.
@@ -57,7 +57,7 @@ run: scripts/go/bin/bra ## Build and run web server on filesystem changes.
 .PHONY: test-go
 test-go: ## Run Go tests.
 	$(S) echo "test backend"
-	$(GO) test -v ./...
+	$(GO) test -mod=vendor -v ./...
 
 .PHONY: test
 test: test-go ## Run all tests.
@@ -72,6 +72,7 @@ scripts/go/bin/golangci-lint: scripts/go/go.mod
 golangci-lint: scripts/go/bin/golangci-lint
 	$(S) echo "lint via golangci-lint"
 	$(S) scripts/go/bin/golangci-lint run \
+	    --modules-download-mode=vendor \
 		--config ./scripts/go/configs/golangci.yml \
 		$(GO_PKGS)
 
@@ -91,7 +92,7 @@ gosec: scripts/go/bin/gosec
 .PHONY: go-vet
 go-vet:
 	$(S) echo "lint via go vet"
-	$(S) $(GO) vet $(GO_PKGS)
+	$(S) $(GO) vet -mod vendor $(GO_PKGS)
 
 .PHONY: lint-go
 lint-go: go-vet golangci-lint gosec ## Run all Go code checks.

@@ -6,7 +6,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/logproto"
+	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/prom"
 )
 
@@ -18,7 +18,7 @@ type recoverableError struct {
 }
 
 // sendSamples to the remote storage with backoff for recoverable errors.
-func SendStreamsWithBackoff(ctx context.Context, client *prom.Client, streams []logproto.Stream, buf *[]byte) error {
+func SendStreamsWithBackoff(ctx context.Context, client *prom.Client, streams []*logproto.Stream, buf *[]byte) error {
 	backoff := minBackoff
 	req, err := buildStreamsPushRequest(streams, *buf)
 	*buf = req
@@ -53,7 +53,7 @@ func SendStreamsWithBackoff(ctx context.Context, client *prom.Client, streams []
 	}
 }
 
-func buildStreamsPushRequest(streams []logproto.Stream, buf []byte) ([]byte, error) {
+func buildStreamsPushRequest(streams []*logproto.Stream, buf []byte) ([]byte, error) {
 	req := &logproto.PushRequest{
 		Streams: streams,
 	}
