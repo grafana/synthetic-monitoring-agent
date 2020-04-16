@@ -49,8 +49,7 @@ type bbeInfo struct {
 }
 
 type apiInfo struct {
-	conn  *grpc.ClientConn
-	token []byte
+	conn *grpc.ClientConn
 }
 
 type logger interface {
@@ -60,7 +59,7 @@ type logger interface {
 type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
-func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- pusher.Payload, apiToken []byte) (*Updater, error) {
+func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- pusher.Payload) (*Updater, error) {
 	if blackboxExporterURL == nil {
 		return nil, fmt.Errorf("invalid blackbox-exporter URL")
 	}
@@ -77,8 +76,7 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 
 	return &Updater{
 		api: apiInfo{
-			conn:  conn,
-			token: apiToken,
+			conn: conn,
 		},
 		bbeInfo: bbeInfo{
 			configFilename: bbeConfigFilename,

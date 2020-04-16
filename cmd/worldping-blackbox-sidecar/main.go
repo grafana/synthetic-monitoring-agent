@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
@@ -13,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -50,11 +48,6 @@ func run(args []string, stdout io.Writer) error {
 
 	if *apiToken == "" {
 		return fmt.Errorf("invalid API token")
-	}
-
-	token, err := decodeB64(*apiToken)
-	if err != nil {
-		return fmt.Errorf("decoding API token: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -106,13 +99,21 @@ func run(args []string, stdout io.Writer) error {
 
 	publishCh := make(chan pusher.Payload)
 
-	conn, err := grpc.Dial(*grpcApiServerAddr, grpc.WithInsecure(), grpc.WithBlock())
+	apiCreds := creds{Token: *apiToken}
+
+	opts := []grpc.DialOption{
+		grpc.WithInsecure(),
+		grpc.WithBlock(),
+		grpc.WithPerRPCCredentials(apiCreds),
+	}
+
+	conn, err := grpc.DialContext(ctx, *grpcApiServerAddr, opts...)
 	if err != nil {
 		return fmt.Errorf("dialing GRPC server %s: %w", *grpcApiServerAddr, err)
 	}
 	defer conn.Close()
 
-	checksUpdater, err := checks.NewUpdater(conn, *bbeConfigFilename, blackboxExporterURL, logger, publishCh, token)
+	checksUpdater, err := checks.NewUpdater(conn, *bbeConfigFilename, blackboxExporterURL, logger, publishCh)
 	if err != nil {
 		log.Fatalf("Cannot create checks updater: %s", err)
 	}
@@ -144,6 +145,22 @@ func run(args []string, stdout io.Writer) error {
 	_ = httpServer.Shutdown(timeoutCtx)
 
 	return exitError
+}
+
+type creds struct {
+	Token string
+}
+
+func (c creds) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
+	return map[string]string{
+		"authorization": "Bearer " + c.Token,
+	}, nil
+}
+
+func (c creds) RequireTransportSecurity() bool {
+	log.Printf("RequireTransportSecurity")
+	// XXX(mem): this is true
+	return false
 }
 
 func main() {
@@ -216,10 +233,4 @@ func runHttpServer(l net.Listener, server *http.Server) error {
 	}
 
 	return nil
-}
-
-func decodeB64(in string) ([]byte, error) {
-	buf := strings.NewReader(in)
-	dec := base64.NewDecoder(base64.StdEncoding, buf)
-	return ioutil.ReadAll(dec)
 }
