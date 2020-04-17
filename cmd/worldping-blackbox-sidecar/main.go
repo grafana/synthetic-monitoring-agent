@@ -112,10 +112,14 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 	if *grpcInsecure {
 =======
 	if ! *grpcSecure {
 >>>>>>> add cli flag to control whether grpc.WithInsecure is used
+=======
+	if !*grpcSecure {
+>>>>>>> lint
 		opts = append(opts, grpc.WithInsecure())
 	}
 
