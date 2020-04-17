@@ -33,7 +33,11 @@ func run(args []string, stdout io.Writer) error {
 		bbeConfigFilename   = flags.String("blackbox-exporter-config", "worldping.yaml", "filename for blackbox exporter configuration")
 		blackboxExporterStr = flags.String("blackbox-exporter-url", "http://localhost:9115/", "base URL for blackbox exporter")
 		grpcApiServerAddr   = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
+<<<<<<< HEAD
 		grpcInsecure        = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
+=======
+		grpcSecure          = flags.Bool("api-secure", false, "Ensure connections to GRPC API use TLS")
+>>>>>>> add cli flag to control whether grpc.WithInsecure is used
 		httpListenAddr      = flags.String("listen-address", ":4050", "listen address")
 		apiToken            = flags.String("api-token", "", "base64-encoded API token")
 	)
@@ -107,7 +111,11 @@ func run(args []string, stdout io.Writer) error {
 		grpc.WithPerRPCCredentials(apiCreds),
 	}
 
+<<<<<<< HEAD
 	if *grpcInsecure {
+=======
+	if ! *grpcSecure {
+>>>>>>> add cli flag to control whether grpc.WithInsecure is used
 		opts = append(opts, grpc.WithInsecure())
 	}
 
