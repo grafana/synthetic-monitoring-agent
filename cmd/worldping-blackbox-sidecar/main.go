@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 var exitError error
@@ -109,6 +112,9 @@ func run(args []string, stdout io.Writer) error {
 
 	if *grpcInsecure {
 		opts = append(opts, grpc.WithInsecure())
+	} else {
+		creds := credentials.NewTLS(&tls.Config{ServerName: grpcApiHost(*grpcApiServerAddr)})
+		opts = append(opts, grpc.WithTransportCredentials(creds))
 	}
 
 	conn, err := grpc.DialContext(ctx, *grpcApiServerAddr, opts...)
@@ -149,6 +155,15 @@ func run(args []string, stdout io.Writer) error {
 	_ = httpServer.Shutdown(timeoutCtx)
 
 	return exitError
+}
+
+func grpcApiHost(addr string) string {
+	colonPos := strings.LastIndex(addr, ":")
+	if colonPos == -1 {
+		colonPos = len(addr)
+	}
+	hostname := addr[:colonPos]
+	return hostname
 }
 
 type creds struct {
