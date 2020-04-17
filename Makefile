@@ -16,17 +16,14 @@ COMMANDS := $(shell $(GO) list -mod=vendor ./cmd/...)
 .DEFAULT_GOAL := all
 
 .PHONY: all
-all: deps build
+all: build
 
 ##@ Dependencies
 
-.PHONY: deps-go
-deps-go: ## Install Go dependencies.
+.PHONY: vendor-go
+vendor-go: ## Install Go dependencies.
 	$(S) true
-	$(GO) mod download
-
-.PHONY: deps
-deps: deps-go ## Install all dependencies.
+	$(GO) mod vendor
 
 ##@ Building
 
