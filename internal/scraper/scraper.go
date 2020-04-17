@@ -116,7 +116,9 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		bbeModule.HTTP.Body = check.Settings.Http.Body
 
 		bbeModule.HTTP.Method = check.Settings.Http.Method.String()
-
+		if len(check.Settings.Http.Headers) > 0 {
+			bbeModule.HTTP.Headers = make(map[string]string)
+		}
 		for _, header := range check.Settings.Http.Headers {
 			parts := strings.SplitN(header, ":", 2)
 			var value string
