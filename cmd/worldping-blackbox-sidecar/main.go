@@ -107,7 +107,7 @@ func run(args []string, stdout io.Writer) error {
 		grpc.WithPerRPCCredentials(apiCreds),
 	}
 
-	if ! *grpcSecure {
+	if !*grpcSecure {
 		opts = append(opts, grpc.WithInsecure())
 	}
 
