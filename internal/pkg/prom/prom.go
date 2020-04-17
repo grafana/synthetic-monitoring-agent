@@ -18,9 +18,9 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/pb/prompb"
 	"github.com/mwitkow/go-conntrack"
 	"github.com/pkg/errors"
+	"github.com/prometheus/prometheus/prompb"
 )
 
 const maxErrMsgLen = 256
