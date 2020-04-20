@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/worldping-api/pkg/pb/worldping"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
+	"github.com/mmcloughlin/geohash"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -389,6 +390,9 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	for _, l := range s.probe.Labels {
 		checkInfoLabels = append(checkInfoLabels, labelPair{name: "label_" + l.Name, value: l.Value})
 	}
+	// add geohash label
+	h := geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))
+	checkInfoLabels = append(checkInfoLabels, labelPair{name: "geohash", value: h})
 
 	// timeseries need to differentiate between base labels and
 	// check info labels in order to be able to apply the later only

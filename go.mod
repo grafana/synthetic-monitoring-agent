@@ -10,6 +10,7 @@ require (
 	github.com/grafana/loki v6.7.8+incompatible
 	github.com/grafana/worldping-api v0.0.0-00010101000000-000000000000
 	github.com/kelseyhightower/envconfig v1.4.0 // indirect
+	github.com/mmcloughlin/geohash v0.9.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/blackbox_exporter v0.16.0
