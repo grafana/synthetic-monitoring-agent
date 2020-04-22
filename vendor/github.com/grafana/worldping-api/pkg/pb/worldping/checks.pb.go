@@ -69,21 +69,21 @@ func (StatusCode) EnumDescriptor() ([]byte, []int) {
 type CheckOperation int32
 
 const (
-	CheckOperation_ADD    CheckOperation = 0
-	CheckOperation_UPDATE CheckOperation = 1
-	CheckOperation_DELETE CheckOperation = 2
+	CheckOperation_CHECK_ADD    CheckOperation = 0
+	CheckOperation_CHECK_UPDATE CheckOperation = 1
+	CheckOperation_CHECK_DELETE CheckOperation = 2
 )
 
 var CheckOperation_name = map[int32]string{
-	0: "ADD",
-	1: "UPDATE",
-	2: "DELETE",
+	0: "CHECK_ADD",
+	1: "CHECK_UPDATE",
+	2: "CHECK_DELETE",
 }
 
 var CheckOperation_value = map[string]int32{
-	"ADD":    0,
-	"UPDATE": 1,
-	"DELETE": 2,
+	"CHECK_ADD":    0,
+	"CHECK_UPDATE": 1,
+	"CHECK_DELETE": 2,
 }
 
 func (x CheckOperation) String() string {
@@ -98,23 +98,35 @@ type HttpMethod int32
 
 const (
 	HttpMethod_GET     HttpMethod = 0
-	HttpMethod_HEAD    HttpMethod = 1
-	HttpMethod_POST    HttpMethod = 2
-	HttpMethod_OPTIONS HttpMethod = 3
+	HttpMethod_CONNECT HttpMethod = 1
+	HttpMethod_DELETE  HttpMethod = 2
+	HttpMethod_HEAD    HttpMethod = 3
+	HttpMethod_OPTIONS HttpMethod = 4
+	HttpMethod_POST    HttpMethod = 5
+	HttpMethod_PUT     HttpMethod = 6
+	HttpMethod_TRACE   HttpMethod = 7
 )
 
 var HttpMethod_name = map[int32]string{
 	0: "GET",
-	1: "HEAD",
-	2: "POST",
-	3: "OPTIONS",
+	1: "CONNECT",
+	2: "DELETE",
+	3: "HEAD",
+	4: "OPTIONS",
+	5: "POST",
+	6: "PUT",
+	7: "TRACE",
 }
 
 var HttpMethod_value = map[string]int32{
 	"GET":     0,
-	"HEAD":    1,
-	"POST":    2,
-	"OPTIONS": 3,
+	"CONNECT": 1,
+	"DELETE":  2,
+	"HEAD":    3,
+	"OPTIONS": 4,
+	"POST":    5,
+	"PUT":     6,
+	"TRACE":   7,
 }
 
 func (x HttpMethod) String() string {
@@ -128,39 +140,42 @@ func (HttpMethod) EnumDescriptor() ([]byte, []int) {
 type DnsRecordType int32
 
 const (
-	DnsRecordType_A     DnsRecordType = 0
-	DnsRecordType_AAAA  DnsRecordType = 1
-	DnsRecordType_CNAME DnsRecordType = 2
-	DnsRecordType_MX    DnsRecordType = 3
-	DnsRecordType_NS    DnsRecordType = 4
-	DnsRecordType_PTR   DnsRecordType = 5
-	DnsRecordType_SOA   DnsRecordType = 6
-	DnsRecordType_SRV   DnsRecordType = 7
-	DnsRecordType_TXT   DnsRecordType = 8
+	DnsRecordType_ANY   DnsRecordType = 0
+	DnsRecordType_A     DnsRecordType = 1
+	DnsRecordType_AAAA  DnsRecordType = 2
+	DnsRecordType_CNAME DnsRecordType = 3
+	DnsRecordType_MX    DnsRecordType = 4
+	DnsRecordType_NS    DnsRecordType = 5
+	DnsRecordType_PTR   DnsRecordType = 6
+	DnsRecordType_SOA   DnsRecordType = 7
+	DnsRecordType_SRV   DnsRecordType = 8
+	DnsRecordType_TXT   DnsRecordType = 9
 )
 
 var DnsRecordType_name = map[int32]string{
-	0: "A",
-	1: "AAAA",
-	2: "CNAME",
-	3: "MX",
-	4: "NS",
-	5: "PTR",
-	6: "SOA",
-	7: "SRV",
-	8: "TXT",
+	0: "ANY",
+	1: "A",
+	2: "AAAA",
+	3: "CNAME",
+	4: "MX",
+	5: "NS",
+	6: "PTR",
+	7: "SOA",
+	8: "SRV",
+	9: "TXT",
 }
 
 var DnsRecordType_value = map[string]int32{
-	"A":     0,
-	"AAAA":  1,
-	"CNAME": 2,
-	"MX":    3,
-	"NS":    4,
-	"PTR":   5,
-	"SOA":   6,
-	"SRV":   7,
-	"TXT":   8,
+	"ANY":   0,
+	"A":     1,
+	"AAAA":  2,
+	"CNAME": 3,
+	"MX":    4,
+	"NS":    5,
+	"PTR":   6,
+	"SOA":   7,
+	"SRV":   8,
+	"TXT":   9,
 }
 
 func (x DnsRecordType) String() string {
@@ -222,62 +237,6 @@ func (x IpVersion) String() string {
 
 func (IpVersion) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_a921b63774164c1f, []int{5}
-}
-
-type ValidationMethod int32
-
-const (
-	ValidationMethod_Regex        ValidationMethod = 0
-	ValidationMethod_IncludesText ValidationMethod = 1
-	ValidationMethod_ExcludesText ValidationMethod = 2
-	ValidationMethod_ExactMatch   ValidationMethod = 3
-)
-
-var ValidationMethod_name = map[int32]string{
-	0: "Regex",
-	1: "IncludesText",
-	2: "ExcludesText",
-	3: "ExactMatch",
-}
-
-var ValidationMethod_value = map[string]int32{
-	"Regex":        0,
-	"IncludesText": 1,
-	"ExcludesText": 2,
-	"ExactMatch":   3,
-}
-
-func (x ValidationMethod) String() string {
-	return proto.EnumName(ValidationMethod_name, int32(x))
-}
-
-func (ValidationMethod) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{6}
-}
-
-type ValidationSeverity int32
-
-const (
-	ValidationSeverity_Warning  ValidationSeverity = 0
-	ValidationSeverity_Critical ValidationSeverity = 1
-)
-
-var ValidationSeverity_name = map[int32]string{
-	0: "Warning",
-	1: "Critical",
-}
-
-var ValidationSeverity_value = map[string]int32{
-	"Warning":  0,
-	"Critical": 1,
-}
-
-func (x ValidationSeverity) String() string {
-	return proto.EnumName(ValidationSeverity_name, int32(x))
-}
-
-func (ValidationSeverity) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{7}
 }
 
 // Void is an empty message used by RPC methods that don't take
@@ -495,8 +454,8 @@ type Tenant struct {
 	OrgId                int64       `protobuf:"varint,2,opt,name=orgId,proto3" json:"orgId"`
 	MetricsRemote        *RemoteInfo `protobuf:"bytes,3,opt,name=metricsRemote,proto3" json:"metricsRemote"`
 	EventsRemote         *RemoteInfo `protobuf:"bytes,4,opt,name=eventsRemote,proto3" json:"eventsRemote"`
-	Created              int64       `protobuf:"varint,5,opt,name=created,proto3" json:"created"`
-	Modified             int64       `protobuf:"varint,6,opt,name=modified,proto3" json:"modified"`
+	Created              int64       `protobuf:"varint,100,opt,name=created,proto3" json:"created"`
+	Modified             int64       `protobuf:"varint,101,opt,name=modified,proto3" json:"modified"`
 	XXX_NoUnkeyedLiteral struct{}    `json:"-"`
 	XXX_unrecognized     []byte      `json:"-"`
 	XXX_sizecache        int32       `json:"-"`
@@ -621,8 +580,8 @@ func (m *CheckChange) XXX_DiscardUnknown() {
 var xxx_messageInfo_CheckChange proto.InternalMessageInfo
 
 type Label struct {
-	Name                 string   `protobuf:"bytes,1,opt,name=Name,proto3" json:"Name,omitempty"`
-	Value                string   `protobuf:"bytes,2,opt,name=Value,proto3" json:"Value,omitempty"`
+	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name"`
+	Value                string   `protobuf:"bytes,2,opt,name=value,proto3" json:"value"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
 	XXX_sizecache        int32    `json:"-"`
@@ -760,18 +719,16 @@ var xxx_messageInfo_CheckSettings proto.InternalMessageInfo
 // PingSettings provides the settings for a ping check.
 //
 // "hostname" is the hostname to check.
-// "ipVersion" is the IP version to use for name resolution.
-//
-// The "validation" field provides the validations to be performed on
-// the result, for example, the ping time must be below a particular
-// threshold.
+// "ipVersion" is the IP version to use in the IP layer.
 type PingSettings struct {
-	Hostname             string                `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname"`
-	IpVersion            IpVersion             `protobuf:"varint,2,opt,name=ipVersion,proto3,enum=worldping.IpVersion" json:"ipVersion"`
-	Validation           []PingCheckValidation `protobuf:"bytes,3,rep,name=validation,proto3" json:"validation"`
-	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
-	XXX_unrecognized     []byte                `json:"-"`
-	XXX_sizecache        int32                 `json:"-"`
+	Hostname             string    `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname"`
+	IpVersion            IpVersion `protobuf:"varint,2,opt,name=ipVersion,proto3,enum=worldping.IpVersion" json:"ipVersion"`
+	SourceIpAddress      string    `protobuf:"bytes,3,opt,name=sourceIpAddress,proto3" json:"sourceIpAddress,omitempty"`
+	PayloadSize          int64     `protobuf:"varint,4,opt,name=payloadSize,proto3" json:"payloadSize,omitempty"`
+	DontFragment         bool      `protobuf:"varint,5,opt,name=dontFragment,proto3" json:"dontFragment"`
+	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
+	XXX_unrecognized     []byte    `json:"-"`
+	XXX_sizecache        int32     `json:"-"`
 }
 
 func (m *PingSettings) Reset()         { *m = PingSettings{} }
@@ -809,17 +766,23 @@ var xxx_messageInfo_PingSettings proto.InternalMessageInfo
 
 // HttpSettings provides the settings for a HTTP check.
 type HttpSettings struct {
-	Url                  string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url"`
-	Method               HttpMethod             `protobuf:"varint,2,opt,name=method,proto3,enum=worldping.HttpMethod" json:"method"`
-	Headers              []string               `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers"`
-	Body                 string                 `protobuf:"bytes,4,opt,name=body,proto3" json:"body"`
-	DownloadLimit        int64                  `protobuf:"varint,5,opt,name=downloadLimit,proto3" json:"downloadLimit"`
-	IpVersion            IpVersion              `protobuf:"varint,6,opt,name=ipVersion,proto3,enum=worldping.IpVersion" json:"ipVersion"`
-	ValidateCert         bool                   `protobuf:"varint,7,opt,name=validateCert,proto3" json:"validateCert"`
-	Validation           []HttpCheckValidations `protobuf:"bytes,8,rep,name=validation,proto3" json:"validation"`
-	XXX_NoUnkeyedLiteral struct{}               `json:"-"`
-	XXX_unrecognized     []byte                 `json:"-"`
-	XXX_sizecache        int32                  `json:"-"`
+	Url                          string        `protobuf:"bytes,1,opt,name=url,proto3" json:"url"`
+	Method                       HttpMethod    `protobuf:"varint,2,opt,name=method,proto3,enum=worldping.HttpMethod" json:"method"`
+	Headers                      []string      `protobuf:"bytes,3,rep,name=headers,proto3" json:"headers,omitempty"`
+	Body                         string        `protobuf:"bytes,4,opt,name=body,proto3" json:"body,omitempty"`
+	IpVersion                    IpVersion     `protobuf:"varint,5,opt,name=ipVersion,proto3,enum=worldping.IpVersion" json:"ipVersion"`
+	NoFollowRedirects            bool          `protobuf:"varint,6,opt,name=noFollowRedirects,proto3" json:"noFollowRedirects"`
+	FailIfSSL                    bool          `protobuf:"varint,7,opt,name=failIfSSL,proto3" json:"failIfSSL"`
+	FailIfNotSSL                 bool          `protobuf:"varint,8,opt,name=failIfNotSSL,proto3" json:"failIfNotSSL"`
+	ValidStatusCodes             []int32       `protobuf:"varint,9,rep,packed,name=validStatusCodes,proto3" json:"validStatusCodes,omitempty"`
+	ValidHTTPVersions            []string      `protobuf:"bytes,10,rep,name=validHTTPVersions,proto3" json:"validHTTPVersions,omitempty"`
+	FailIfBodyMatchesRegexp      []string      `protobuf:"bytes,11,rep,name=failIfBodyMatchesRegexp,proto3" json:"failIfBodyMatchesRegexp,omitempty"`
+	FailIfBodyNotMatchesRegexp   []string      `protobuf:"bytes,12,rep,name=failIfBodyNotMatchesRegexp,proto3" json:"failIfBodyNotMatchesRegexp,omitempty"`
+	FailIfHeaderMatchesRegexp    []HeaderMatch `protobuf:"bytes,13,rep,name=failIfHeaderMatchesRegexp,proto3" json:"failIfHeaderMatchesRegexp,omitempty"`
+	FailIfHeaderNotMatchesRegexp []HeaderMatch `protobuf:"bytes,14,rep,name=failIfHeaderNotMatchesRegexp,proto3" json:"failIfHeaderNotMatchesRegexp,omitempty"`
+	XXX_NoUnkeyedLiteral         struct{}      `json:"-"`
+	XXX_unrecognized             []byte        `json:"-"`
+	XXX_sizecache                int32         `json:"-"`
 }
 
 func (m *HttpSettings) Reset()         { *m = HttpSettings{} }
@@ -855,25 +818,116 @@ func (m *HttpSettings) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_HttpSettings proto.InternalMessageInfo
 
+type HeaderMatch struct {
+	Header               string   `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
+	Regexp               string   `protobuf:"bytes,2,opt,name=regexp,proto3" json:"regexp,omitempty"`
+	AllowMissing         bool     `protobuf:"varint,3,opt,name=allowMissing,proto3" json:"allowMissing,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *HeaderMatch) Reset()         { *m = HeaderMatch{} }
+func (m *HeaderMatch) String() string { return proto.CompactTextString(m) }
+func (*HeaderMatch) ProtoMessage()    {}
+func (*HeaderMatch) Descriptor() ([]byte, []int) {
+	return fileDescriptor_a921b63774164c1f, []int{13}
+}
+func (m *HeaderMatch) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *HeaderMatch) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_HeaderMatch.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *HeaderMatch) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_HeaderMatch.Merge(m, src)
+}
+func (m *HeaderMatch) XXX_Size() int {
+	return m.Size()
+}
+func (m *HeaderMatch) XXX_DiscardUnknown() {
+	xxx_messageInfo_HeaderMatch.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_HeaderMatch proto.InternalMessageInfo
+
+type DNSRRValidator struct {
+	FailIfMatchesRegexp    []string `protobuf:"bytes,1,rep,name=failIfMatchesRegexp,proto3" json:"failIfMatchesRegexp,omitempty"`
+	FailIfNotMatchesRegexp []string `protobuf:"bytes,2,rep,name=failIfNotMatchesRegexp,proto3" json:"failIfNotMatchesRegexp,omitempty"`
+	XXX_NoUnkeyedLiteral   struct{} `json:"-"`
+	XXX_unrecognized       []byte   `json:"-"`
+	XXX_sizecache          int32    `json:"-"`
+}
+
+func (m *DNSRRValidator) Reset()         { *m = DNSRRValidator{} }
+func (m *DNSRRValidator) String() string { return proto.CompactTextString(m) }
+func (*DNSRRValidator) ProtoMessage()    {}
+func (*DNSRRValidator) Descriptor() ([]byte, []int) {
+	return fileDescriptor_a921b63774164c1f, []int{14}
+}
+func (m *DNSRRValidator) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *DNSRRValidator) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_DNSRRValidator.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *DNSRRValidator) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_DNSRRValidator.Merge(m, src)
+}
+func (m *DNSRRValidator) XXX_Size() int {
+	return m.Size()
+}
+func (m *DNSRRValidator) XXX_DiscardUnknown() {
+	xxx_messageInfo_DNSRRValidator.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_DNSRRValidator proto.InternalMessageInfo
+
 // DnsSettings provides the settings for a DNS check.
+//
+// The way blackbox-exporter works, a DNS check tests a _server_, so the
+// _target_ of the check is a server address, and the check itself
+// contains the record to check.
 type DnsSettings struct {
-	Name                 string               `protobuf:"bytes,1,opt,name=name,proto3" json:"name"`
-	RecordType           DnsRecordType        `protobuf:"varint,2,opt,name=recordType,proto3,enum=worldping.DnsRecordType" json:"recordType"`
-	Server               string               `protobuf:"bytes,3,opt,name=server,proto3" json:"server"`
-	IpVersion            IpVersion            `protobuf:"varint,4,opt,name=ipVersion,proto3,enum=worldping.IpVersion" json:"ipVersion"`
-	Protocol             DnsProtocol          `protobuf:"varint,5,opt,name=protocol,proto3,enum=worldping.DnsProtocol" json:"protocol"`
-	Port                 int32                `protobuf:"varint,6,opt,name=port,proto3" json:"port"`
-	Validation           []DNSCheckValidation `protobuf:"bytes,7,rep,name=validation,proto3" json:"validation"`
-	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
-	XXX_unrecognized     []byte               `json:"-"`
-	XXX_sizecache        int32                `json:"-"`
+	Name                 string          `protobuf:"bytes,1,opt,name=name,proto3" json:"name"`
+	Server               string          `protobuf:"bytes,2,opt,name=server,proto3" json:"server"`
+	Port                 int32           `protobuf:"varint,3,opt,name=port,proto3" json:"port"`
+	RecordType           DnsRecordType   `protobuf:"varint,4,opt,name=recordType,proto3,enum=worldping.DnsRecordType" json:"recordType"`
+	Protocol             DnsProtocol     `protobuf:"varint,5,opt,name=protocol,proto3,enum=worldping.DnsProtocol" json:"protocol"`
+	IpVersion            IpVersion       `protobuf:"varint,6,opt,name=ipVersion,proto3,enum=worldping.IpVersion" json:"ipVersion"`
+	SourceIpAddress      string          `protobuf:"bytes,7,opt,name=sourceIpAddress,proto3" json:"sourceIpAddress,omitempty"`
+	ValidRCodes          []string        `protobuf:"bytes,8,rep,name=validRCodes,proto3" json:"validRCodes,omitempty"`
+	ValidateAnswer       *DNSRRValidator `protobuf:"bytes,9,opt,name=validateAnswer,proto3" json:"validateAnswerRRS,omitempty"`
+	ValidateAuthority    *DNSRRValidator `protobuf:"bytes,10,opt,name=validateAuthority,proto3" json:"validateAuthorityRRS,omitempty"`
+	ValidateAdditional   *DNSRRValidator `protobuf:"bytes,11,opt,name=validateAdditional,proto3" json:"validateAditionalRRS,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
+	XXX_unrecognized     []byte          `json:"-"`
+	XXX_sizecache        int32           `json:"-"`
 }
 
 func (m *DnsSettings) Reset()         { *m = DnsSettings{} }
 func (m *DnsSettings) String() string { return proto.CompactTextString(m) }
 func (*DnsSettings) ProtoMessage()    {}
 func (*DnsSettings) Descriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{13}
+	return fileDescriptor_a921b63774164c1f, []int{15}
 }
 func (m *DnsSettings) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -902,383 +956,6 @@ func (m *DnsSettings) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_DnsSettings proto.InternalMessageInfo
 
-type ResponseTimeValidation struct {
-	Threshold            int32              `protobuf:"varint,1,opt,name=threshold,proto3" json:"threshold"`
-	Severity             ValidationSeverity `protobuf:"varint,2,opt,name=severity,proto3,enum=worldping.ValidationSeverity" json:"severity"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
-}
-
-func (m *ResponseTimeValidation) Reset()         { *m = ResponseTimeValidation{} }
-func (m *ResponseTimeValidation) String() string { return proto.CompactTextString(m) }
-func (*ResponseTimeValidation) ProtoMessage()    {}
-func (*ResponseTimeValidation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{14}
-}
-func (m *ResponseTimeValidation) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *ResponseTimeValidation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_ResponseTimeValidation.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *ResponseTimeValidation) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_ResponseTimeValidation.Merge(m, src)
-}
-func (m *ResponseTimeValidation) XXX_Size() int {
-	return m.Size()
-}
-func (m *ResponseTimeValidation) XXX_DiscardUnknown() {
-	xxx_messageInfo_ResponseTimeValidation.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_ResponseTimeValidation proto.InternalMessageInfo
-
-type HttpCheckValidations struct {
-	Header               *HttpHeaderValidation   `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
-	Body                 *HttpBodyValidation     `protobuf:"bytes,2,opt,name=body,proto3" json:"body,omitempty"`
-	ResponseTime         *ResponseTimeValidation `protobuf:"bytes,3,opt,name=responseTime,proto3" json:"responseTime,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
-}
-
-func (m *HttpCheckValidations) Reset()         { *m = HttpCheckValidations{} }
-func (m *HttpCheckValidations) String() string { return proto.CompactTextString(m) }
-func (*HttpCheckValidations) ProtoMessage()    {}
-func (*HttpCheckValidations) Descriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{15}
-}
-func (m *HttpCheckValidations) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *HttpCheckValidations) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_HttpCheckValidations.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *HttpCheckValidations) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_HttpCheckValidations.Merge(m, src)
-}
-func (m *HttpCheckValidations) XXX_Size() int {
-	return m.Size()
-}
-func (m *HttpCheckValidations) XXX_DiscardUnknown() {
-	xxx_messageInfo_HttpCheckValidations.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_HttpCheckValidations proto.InternalMessageInfo
-
-type HttpHeaderValidation struct {
-	Header               string             `protobuf:"bytes,1,opt,name=header,proto3" json:"header"`
-	Method               ValidationMethod   `protobuf:"varint,2,opt,name=method,proto3,enum=worldping.ValidationMethod" json:"method"`
-	Value                string             `protobuf:"bytes,3,opt,name=value,proto3" json:"value"`
-	Severity             ValidationSeverity `protobuf:"varint,4,opt,name=severity,proto3,enum=worldping.ValidationSeverity" json:"severity"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
-}
-
-func (m *HttpHeaderValidation) Reset()         { *m = HttpHeaderValidation{} }
-func (m *HttpHeaderValidation) String() string { return proto.CompactTextString(m) }
-func (*HttpHeaderValidation) ProtoMessage()    {}
-func (*HttpHeaderValidation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{16}
-}
-func (m *HttpHeaderValidation) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *HttpHeaderValidation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_HttpHeaderValidation.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *HttpHeaderValidation) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_HttpHeaderValidation.Merge(m, src)
-}
-func (m *HttpHeaderValidation) XXX_Size() int {
-	return m.Size()
-}
-func (m *HttpHeaderValidation) XXX_DiscardUnknown() {
-	xxx_messageInfo_HttpHeaderValidation.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_HttpHeaderValidation proto.InternalMessageInfo
-
-type HttpBodyValidation struct {
-	Method               ValidationMethod   `protobuf:"varint,1,opt,name=method,proto3,enum=worldping.ValidationMethod" json:"method"`
-	Value                string             `protobuf:"bytes,2,opt,name=value,proto3" json:"value"`
-	Severity             ValidationSeverity `protobuf:"varint,3,opt,name=severity,proto3,enum=worldping.ValidationSeverity" json:"severity"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
-}
-
-func (m *HttpBodyValidation) Reset()         { *m = HttpBodyValidation{} }
-func (m *HttpBodyValidation) String() string { return proto.CompactTextString(m) }
-func (*HttpBodyValidation) ProtoMessage()    {}
-func (*HttpBodyValidation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{17}
-}
-func (m *HttpBodyValidation) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *HttpBodyValidation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_HttpBodyValidation.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *HttpBodyValidation) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_HttpBodyValidation.Merge(m, src)
-}
-func (m *HttpBodyValidation) XXX_Size() int {
-	return m.Size()
-}
-func (m *HttpBodyValidation) XXX_DiscardUnknown() {
-	xxx_messageInfo_HttpBodyValidation.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_HttpBodyValidation proto.InternalMessageInfo
-
-type DNSCheckValidation struct {
-	Ttl                  *DnsTtlValidation       `protobuf:"bytes,1,opt,name=ttl,proto3" json:"ttl,omitempty"`
-	Text                 *DnsTextValidation      `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
-	Host                 *DnsHostValidation      `protobuf:"bytes,4,opt,name=host,proto3" json:"host,omitempty"`
-	ResponseTime         *ResponseTimeValidation `protobuf:"bytes,3,opt,name=responseTime,proto3" json:"responseTime,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
-}
-
-func (m *DNSCheckValidation) Reset()         { *m = DNSCheckValidation{} }
-func (m *DNSCheckValidation) String() string { return proto.CompactTextString(m) }
-func (*DNSCheckValidation) ProtoMessage()    {}
-func (*DNSCheckValidation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{18}
-}
-func (m *DNSCheckValidation) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *DNSCheckValidation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_DNSCheckValidation.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *DNSCheckValidation) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DNSCheckValidation.Merge(m, src)
-}
-func (m *DNSCheckValidation) XXX_Size() int {
-	return m.Size()
-}
-func (m *DNSCheckValidation) XXX_DiscardUnknown() {
-	xxx_messageInfo_DNSCheckValidation.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_DNSCheckValidation proto.InternalMessageInfo
-
-type DnsTtlValidation struct {
-	// always less or equal
-	Name                 string             `protobuf:"bytes,1,opt,name=name,proto3" json:"name"`
-	Value                int32              `protobuf:"varint,2,opt,name=value,proto3" json:"value"`
-	Severity             ValidationSeverity `protobuf:"varint,3,opt,name=severity,proto3,enum=worldping.ValidationSeverity" json:"severity"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
-}
-
-func (m *DnsTtlValidation) Reset()         { *m = DnsTtlValidation{} }
-func (m *DnsTtlValidation) String() string { return proto.CompactTextString(m) }
-func (*DnsTtlValidation) ProtoMessage()    {}
-func (*DnsTtlValidation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{19}
-}
-func (m *DnsTtlValidation) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *DnsTtlValidation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_DnsTtlValidation.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *DnsTtlValidation) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DnsTtlValidation.Merge(m, src)
-}
-func (m *DnsTtlValidation) XXX_Size() int {
-	return m.Size()
-}
-func (m *DnsTtlValidation) XXX_DiscardUnknown() {
-	xxx_messageInfo_DnsTtlValidation.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_DnsTtlValidation proto.InternalMessageInfo
-
-type DnsTextValidation struct {
-	Method               ValidationMethod   `protobuf:"varint,1,opt,name=method,proto3,enum=worldping.ValidationMethod" json:"method"`
-	Value                string             `protobuf:"bytes,2,opt,name=value,proto3" json:"value"`
-	Severity             ValidationSeverity `protobuf:"varint,3,opt,name=severity,proto3,enum=worldping.ValidationSeverity" json:"severity"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
-}
-
-func (m *DnsTextValidation) Reset()         { *m = DnsTextValidation{} }
-func (m *DnsTextValidation) String() string { return proto.CompactTextString(m) }
-func (*DnsTextValidation) ProtoMessage()    {}
-func (*DnsTextValidation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{20}
-}
-func (m *DnsTextValidation) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *DnsTextValidation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_DnsTextValidation.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *DnsTextValidation) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DnsTextValidation.Merge(m, src)
-}
-func (m *DnsTextValidation) XXX_Size() int {
-	return m.Size()
-}
-func (m *DnsTextValidation) XXX_DiscardUnknown() {
-	xxx_messageInfo_DnsTextValidation.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_DnsTextValidation proto.InternalMessageInfo
-
-type DnsHostValidation struct {
-	Host                 []string           `protobuf:"bytes,1,rep,name=host,proto3" json:"host"`
-	Severity             ValidationSeverity `protobuf:"varint,2,opt,name=severity,proto3,enum=worldping.ValidationSeverity" json:"severity"`
-	XXX_NoUnkeyedLiteral struct{}           `json:"-"`
-	XXX_unrecognized     []byte             `json:"-"`
-	XXX_sizecache        int32              `json:"-"`
-}
-
-func (m *DnsHostValidation) Reset()         { *m = DnsHostValidation{} }
-func (m *DnsHostValidation) String() string { return proto.CompactTextString(m) }
-func (*DnsHostValidation) ProtoMessage()    {}
-func (*DnsHostValidation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{21}
-}
-func (m *DnsHostValidation) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *DnsHostValidation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_DnsHostValidation.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *DnsHostValidation) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_DnsHostValidation.Merge(m, src)
-}
-func (m *DnsHostValidation) XXX_Size() int {
-	return m.Size()
-}
-func (m *DnsHostValidation) XXX_DiscardUnknown() {
-	xxx_messageInfo_DnsHostValidation.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_DnsHostValidation proto.InternalMessageInfo
-
-type PingCheckValidation struct {
-	ResponseTime         *ResponseTimeValidation `protobuf:"bytes,1,opt,name=responseTime,proto3" json:"responseTime,omitempty"`
-	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
-	XXX_unrecognized     []byte                  `json:"-"`
-	XXX_sizecache        int32                   `json:"-"`
-}
-
-func (m *PingCheckValidation) Reset()         { *m = PingCheckValidation{} }
-func (m *PingCheckValidation) String() string { return proto.CompactTextString(m) }
-func (*PingCheckValidation) ProtoMessage()    {}
-func (*PingCheckValidation) Descriptor() ([]byte, []int) {
-	return fileDescriptor_a921b63774164c1f, []int{22}
-}
-func (m *PingCheckValidation) XXX_Unmarshal(b []byte) error {
-	return m.Unmarshal(b)
-}
-func (m *PingCheckValidation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	if deterministic {
-		return xxx_messageInfo_PingCheckValidation.Marshal(b, m, deterministic)
-	} else {
-		b = b[:cap(b)]
-		n, err := m.MarshalToSizedBuffer(b)
-		if err != nil {
-			return nil, err
-		}
-		return b[:n], nil
-	}
-}
-func (m *PingCheckValidation) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_PingCheckValidation.Merge(m, src)
-}
-func (m *PingCheckValidation) XXX_Size() int {
-	return m.Size()
-}
-func (m *PingCheckValidation) XXX_DiscardUnknown() {
-	xxx_messageInfo_PingCheckValidation.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_PingCheckValidation proto.InternalMessageInfo
-
 func init() {
 	proto.RegisterEnum("worldping.StatusCode", StatusCode_name, StatusCode_value)
 	proto.RegisterEnum("worldping.CheckOperation", CheckOperation_name, CheckOperation_value)
@@ -1286,8 +963,6 @@ func init() {
 	proto.RegisterEnum("worldping.DnsRecordType", DnsRecordType_name, DnsRecordType_value)
 	proto.RegisterEnum("worldping.DnsProtocol", DnsProtocol_name, DnsProtocol_value)
 	proto.RegisterEnum("worldping.IpVersion", IpVersion_name, IpVersion_value)
-	proto.RegisterEnum("worldping.ValidationMethod", ValidationMethod_name, ValidationMethod_value)
-	proto.RegisterEnum("worldping.ValidationSeverity", ValidationSeverity_name, ValidationSeverity_value)
 	proto.RegisterType((*Void)(nil), "worldping.Void")
 	proto.RegisterType((*Status)(nil), "worldping.Status")
 	proto.RegisterType((*RegisterProbeResult)(nil), "worldping.RegisterProbeResult")
@@ -1301,142 +976,138 @@ func init() {
 	proto.RegisterType((*CheckSettings)(nil), "worldping.CheckSettings")
 	proto.RegisterType((*PingSettings)(nil), "worldping.PingSettings")
 	proto.RegisterType((*HttpSettings)(nil), "worldping.HttpSettings")
+	proto.RegisterType((*HeaderMatch)(nil), "worldping.HeaderMatch")
+	proto.RegisterType((*DNSRRValidator)(nil), "worldping.DNSRRValidator")
 	proto.RegisterType((*DnsSettings)(nil), "worldping.DnsSettings")
-	proto.RegisterType((*ResponseTimeValidation)(nil), "worldping.ResponseTimeValidation")
-	proto.RegisterType((*HttpCheckValidations)(nil), "worldping.HttpCheckValidations")
-	proto.RegisterType((*HttpHeaderValidation)(nil), "worldping.HttpHeaderValidation")
-	proto.RegisterType((*HttpBodyValidation)(nil), "worldping.HttpBodyValidation")
-	proto.RegisterType((*DNSCheckValidation)(nil), "worldping.DNSCheckValidation")
-	proto.RegisterType((*DnsTtlValidation)(nil), "worldping.DnsTtlValidation")
-	proto.RegisterType((*DnsTextValidation)(nil), "worldping.DnsTextValidation")
-	proto.RegisterType((*DnsHostValidation)(nil), "worldping.DnsHostValidation")
-	proto.RegisterType((*PingCheckValidation)(nil), "worldping.PingCheckValidation")
 }
 
 func init() { proto.RegisterFile("checks.proto", fileDescriptor_a921b63774164c1f) }
 
 var fileDescriptor_a921b63774164c1f = []byte{
-	// 1912 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xd4, 0x58, 0x4f, 0x73, 0x23, 0x47,
-	0x15, 0xd7, 0x68, 0x24, 0x59, 0x7a, 0xfe, 0x43, 0x6f, 0xc7, 0x59, 0x94, 0xdd, 0x8d, 0xc7, 0xa8,
-	0x80, 0x32, 0x4e, 0x6a, 0x97, 0x98, 0x54, 0x96, 0xc0, 0x21, 0x91, 0x2c, 0xc5, 0x56, 0xc5, 0x96,
-	0x9c, 0x96, 0x6c, 0x96, 0x5c, 0x5c, 0x63, 0x4d, 0x5b, 0x9a, 0x62, 0x34, 0x23, 0x66, 0x5a, 0x5e,
-	0x9b, 0x03, 0x57, 0x6e, 0x70, 0xe2, 0x00, 0x27, 0xbe, 0x01, 0x7c, 0x02, 0xb8, 0x6e, 0x15, 0x07,
-	0x38, 0x70, 0x56, 0xc1, 0x52, 0x5c, 0xf4, 0x09, 0x38, 0x52, 0xfd, 0x67, 0x46, 0x3d, 0x23, 0xb3,
-	0x9b, 0x64, 0x13, 0xaa, 0xb8, 0xa8, 0x5f, 0xbf, 0x7e, 0xfd, 0xba, 0xfb, 0xf7, 0x7e, 0xef, 0x75,
-	0x6b, 0x60, 0x6d, 0x30, 0xa2, 0x83, 0x9f, 0x44, 0x0f, 0x27, 0x61, 0xc0, 0x02, 0x5c, 0x79, 0x1a,
-	0x84, 0x9e, 0x33, 0x71, 0xfd, 0xe1, 0xbd, 0xcd, 0x61, 0x30, 0x0c, 0x84, 0xf6, 0x11, 0x97, 0xa4,
-	0x41, 0xad, 0x04, 0x85, 0xb3, 0xc0, 0x75, 0x6a, 0xc7, 0x50, 0xea, 0x31, 0x9b, 0x4d, 0x23, 0xfc,
-	0x1d, 0x28, 0x0c, 0x02, 0x87, 0x56, 0x8d, 0x6d, 0x63, 0x67, 0x63, 0xef, 0xf5, 0x87, 0x89, 0x87,
-	0x87, 0xd2, 0x60, 0x3f, 0x70, 0x28, 0x11, 0x26, 0xb8, 0x0a, 0x2b, 0x63, 0x1a, 0x45, 0xf6, 0x90,
-	0x56, 0xf3, 0xdb, 0xc6, 0x4e, 0x85, 0xc4, 0xdd, 0x1a, 0x83, 0xd7, 0x08, 0x1d, 0xba, 0x11, 0xa3,
-	0xe1, 0x49, 0x18, 0x5c, 0x50, 0x42, 0xa3, 0xa9, 0xc7, 0xf0, 0xdb, 0x50, 0x9c, 0xf0, 0xae, 0x70,
-	0xbe, 0xba, 0x87, 0x34, 0xe7, 0xc2, 0xac, 0x51, 0x78, 0x36, 0xb3, 0x72, 0x44, 0x1a, 0xe1, 0x47,
-	0x50, 0x8a, 0xc4, 0x92, 0xc2, 0xfb, 0xea, 0xde, 0x9d, 0xa5, 0xbd, 0x28, 0x7b, 0x65, 0x56, 0xfb,
-	0xb7, 0x01, 0x45, 0xe1, 0x07, 0xdf, 0x85, 0xbc, 0xeb, 0x88, 0x55, 0xcc, 0x46, 0x69, 0x3e, 0xb3,
-	0xf2, 0xae, 0x43, 0xf2, 0xae, 0x83, 0x77, 0xa0, 0xcc, 0xa8, 0x6f, 0xfb, 0xac, 0xed, 0x08, 0xa7,
-	0x66, 0x63, 0x6d, 0x3e, 0xb3, 0x12, 0x1d, 0x49, 0x24, 0xfc, 0x00, 0x0a, 0xbe, 0x3d, 0xa6, 0x55,
-	0x93, 0x1f, 0xac, 0x51, 0x9e, 0xcf, 0x2c, 0xd1, 0x27, 0xe2, 0x97, 0xfb, 0xf1, 0x6c, 0xe6, 0xb2,
-	0xa9, 0x43, 0xab, 0xc5, 0x6d, 0x63, 0x27, 0x2f, 0xfd, 0xc4, 0x3a, 0x92, 0x48, 0xf8, 0x2d, 0xa8,
-	0x78, 0x81, 0x3f, 0x94, 0xa6, 0x25, 0x61, 0xba, 0x3e, 0x9f, 0x59, 0x0b, 0x25, 0x59, 0x88, 0xf8,
-	0xfb, 0x50, 0xf2, 0xec, 0x0b, 0xea, 0x45, 0xd5, 0xf2, 0xb6, 0x99, 0x01, 0xe8, 0x88, 0x0f, 0x34,
-	0x36, 0xf8, 0x81, 0xe7, 0x33, 0x4b, 0xd9, 0x11, 0xd5, 0xd6, 0x1e, 0x00, 0xf4, 0xe5, 0xd6, 0xfd,
-	0xcb, 0x00, 0x6f, 0x2c, 0x8e, 0xcf, 0x8f, 0x5d, 0xfb, 0x7d, 0x1e, 0x4a, 0x72, 0xf8, 0xbf, 0x22,
-	0x63, 0x41, 0x31, 0x08, 0x87, 0x09, 0x2c, 0x95, 0xf9, 0xcc, 0x92, 0x0a, 0x22, 0x1b, 0xdc, 0x81,
-	0xf5, 0x31, 0x65, 0xa1, 0x3b, 0x88, 0x08, 0x1d, 0x07, 0x4c, 0x22, 0xb3, 0x9a, 0x22, 0x88, 0x1c,
-	0xe0, 0x3b, 0x68, 0xdc, 0x99, 0xcf, 0xac, 0xb4, 0x3d, 0x49, 0x77, 0xf1, 0xc7, 0xb0, 0x46, 0xaf,
-	0xa8, 0xcf, 0x62, 0x77, 0x85, 0x17, 0xb9, 0x43, 0xf3, 0x99, 0x95, 0x32, 0x27, 0xa9, 0x1e, 0xfe,
-	0x16, 0xac, 0x0c, 0x42, 0x6a, 0x33, 0xea, 0x88, 0x70, 0x98, 0x8d, 0xd5, 0xf9, 0xcc, 0x8a, 0x55,
-	0x24, 0x16, 0x78, 0xd8, 0xc6, 0x81, 0xe3, 0x5e, 0xba, 0xd4, 0x11, 0xb1, 0x50, 0xe1, 0x8f, 0x75,
-	0x24, 0x91, 0x6a, 0xbf, 0x31, 0x00, 0x16, 0xeb, 0x27, 0x6c, 0x30, 0x6e, 0x65, 0xc3, 0x1b, 0x60,
-	0x4e, 0x43, 0x4f, 0xe6, 0x40, 0x63, 0x65, 0x3e, 0xb3, 0x78, 0x97, 0xf0, 0x1f, 0xbe, 0xe2, 0x34,
-	0xa2, 0xa1, 0x46, 0x25, 0xb1, 0x62, 0xac, 0x23, 0x89, 0xc4, 0x2d, 0x27, 0x76, 0x14, 0x3d, 0x0d,
-	0x42, 0x47, 0x60, 0xa1, 0x2c, 0x63, 0x1d, 0x49, 0xa4, 0x1a, 0x83, 0xd5, 0x7d, 0x9e, 0xe4, 0xfb,
-	0x23, 0xdb, 0x1f, 0x52, 0xfc, 0x18, 0x2a, 0xc1, 0x84, 0x86, 0x36, 0x73, 0x03, 0x5f, 0x65, 0xed,
-	0x1b, 0x1a, 0x8a, 0xc2, 0xb4, 0x1b, 0x1b, 0x90, 0x85, 0x2d, 0xcf, 0x46, 0x51, 0x2c, 0x54, 0x7a,
-	0xa1, 0xec, 0xa4, 0x38, 0x1b, 0x85, 0x51, 0xed, 0x1d, 0x28, 0x0a, 0x0a, 0x62, 0x0c, 0x85, 0x4e,
-	0x82, 0x05, 0x11, 0x32, 0xde, 0x84, 0xe2, 0x99, 0xed, 0x4d, 0xe3, 0x3a, 0x20, 0x3b, 0xb5, 0x7f,
-	0x9a, 0x50, 0x14, 0x9e, 0xbe, 0x84, 0x7c, 0x7c, 0x0b, 0x2a, 0x97, 0x21, 0xfd, 0xe9, 0x94, 0xfa,
-	0x83, 0x1b, 0x81, 0xa4, 0x29, 0xf3, 0x28, 0x51, 0x92, 0x85, 0x88, 0x6b, 0x50, 0x0a, 0x2e, 0x2f,
-	0x23, 0xca, 0x04, 0x92, 0x66, 0x03, 0x78, 0xc6, 0x48, 0x0d, 0x51, 0x2d, 0xa7, 0x0c, 0x73, 0xc7,
-	0x34, 0x98, 0x32, 0x9d, 0x32, 0x4a, 0x45, 0x62, 0x81, 0x9b, 0x51, 0xdf, 0xbe, 0xf0, 0x14, 0x63,
-	0xca, 0xd2, 0x4c, 0xa9, 0x48, 0x2c, 0x68, 0x99, 0xbb, 0xf2, 0xf9, 0x32, 0x17, 0x7f, 0x04, 0xe5,
-	0x88, 0x32, 0xe6, 0xfa, 0x43, 0x9e, 0xf5, 0x3c, 0x10, 0xd5, 0x6c, 0x20, 0x7a, 0x6a, 0xbc, 0x81,
-	0x94, 0x8f, 0x64, 0x06, 0x49, 0x24, 0xfc, 0x6d, 0x28, 0x89, 0xb2, 0x19, 0x55, 0x2b, 0xdb, 0xe6,
-	0x8e, 0xb9, 0x58, 0x4f, 0x6a, 0x89, 0x6a, 0xf5, 0x54, 0x71, 0x3e, 0x63, 0xaa, 0xd0, 0x17, 0xa6,
-	0xca, 0xdf, 0x0c, 0x58, 0x4f, 0x6d, 0x13, 0x7f, 0x00, 0x05, 0xbe, 0x79, 0x55, 0xe5, 0xbf, 0xae,
-	0x57, 0x79, 0xd7, 0x1f, 0x26, 0xa7, 0xc1, 0xf3, 0x99, 0xb5, 0xc1, 0xd5, 0x6f, 0x07, 0x63, 0x97,
-	0xd1, 0xf1, 0x84, 0xdd, 0x10, 0x31, 0x91, 0x3b, 0x18, 0x31, 0x36, 0x51, 0xc4, 0xd4, 0x1d, 0x1c,
-	0x32, 0x36, 0x49, 0x3b, 0xe0, 0x86, 0xba, 0x03, 0xde, 0xc7, 0x3f, 0x04, 0xd3, 0xf1, 0x23, 0x55,
-	0xa2, 0xee, 0x6a, 0xf3, 0x9b, 0x7e, 0x94, 0x4c, 0x17, 0x35, 0xca, 0xf1, 0x23, 0x6d, 0x36, 0x9f,
-	0xf5, 0x83, 0xc2, 0xb3, 0xdf, 0x59, 0x46, 0xed, 0x2f, 0x06, 0xac, 0xe9, 0xdb, 0xe5, 0x88, 0x8c,
-	0x82, 0x88, 0x69, 0x75, 0x40, 0x20, 0x12, 0xeb, 0x48, 0x22, 0xe1, 0x3a, 0x54, 0xdc, 0xc9, 0x19,
-	0x0d, 0x23, 0x9e, 0x91, 0x79, 0x91, 0x91, 0x9b, 0xda, 0x1e, 0xda, 0xf1, 0x98, 0x64, 0x70, 0x62,
-	0x4a, 0x16, 0x22, 0x26, 0x00, 0x57, 0xb6, 0xe7, 0x3a, 0x32, 0xab, 0x4d, 0xc1, 0xa9, 0xad, 0x0c,
-	0x90, 0x02, 0xf4, 0xb3, 0xc4, 0xaa, 0x81, 0x55, 0xc4, 0xb5, 0x99, 0x44, 0x93, 0x6b, 0x7f, 0x30,
-	0x61, 0x4d, 0xc7, 0x2f, 0xae, 0x5b, 0xc6, 0x2d, 0x75, 0xeb, 0x7d, 0x28, 0x8d, 0x29, 0x1b, 0x05,
-	0x8e, 0xda, 0xff, 0xeb, 0x99, 0x18, 0x1c, 0x8b, 0x41, 0x99, 0x58, 0xd2, 0x90, 0xa8, 0x96, 0x13,
-	0x6c, 0x44, 0x6d, 0x87, 0x86, 0x91, 0xd8, 0x77, 0x45, 0x12, 0x4c, 0xa9, 0x48, 0x2c, 0xf0, 0x92,
-	0x7a, 0x11, 0x38, 0x37, 0xaa, 0xd6, 0x89, 0x92, 0xca, 0xfb, 0x44, 0xfc, 0xe2, 0xc7, 0xb0, 0xee,
-	0x04, 0x4f, 0x7d, 0x2f, 0xb0, 0x9d, 0x23, 0x77, 0xec, 0xc6, 0x39, 0x2a, 0x43, 0xa6, 0x0f, 0x90,
-	0x74, 0x37, 0x8d, 0x7d, 0xe9, 0x0b, 0x61, 0xff, 0x2e, 0xac, 0x29, 0xd4, 0xe8, 0x3e, 0x0d, 0x59,
-	0x75, 0x45, 0xe4, 0xbd, 0xb8, 0x82, 0x74, 0x3d, 0x49, 0xf5, 0x70, 0x2f, 0x15, 0x31, 0x79, 0x7f,
-	0x5b, 0x19, 0xd4, 0x32, 0x11, 0x8b, 0x5e, 0x1a, 0xb2, 0x5f, 0x99, 0xb0, 0xaa, 0x51, 0xf6, 0x25,
-	0xf7, 0xd0, 0x21, 0x40, 0x48, 0x07, 0x41, 0xe8, 0xf4, 0x6f, 0x26, 0x54, 0x05, 0xae, 0x9a, 0x26,
-	0x3f, 0x49, 0xc6, 0x1b, 0x1b, 0x7c, 0xdd, 0x85, 0x3d, 0xd1, 0x64, 0x5e, 0x40, 0x23, 0x1a, 0x5e,
-	0xd1, 0x50, 0x5d, 0x5a, 0x22, 0xce, 0x52, 0x43, 0x54, 0x9b, 0x46, 0xba, 0xf0, 0x85, 0x90, 0xfe,
-	0x10, 0xca, 0xe2, 0x19, 0x3a, 0x08, 0x3c, 0x11, 0xe0, 0x8d, 0x6c, 0xae, 0x9e, 0xa8, 0x51, 0x75,
-	0x17, 0xaa, 0x1e, 0x49, 0x24, 0x0e, 0xc8, 0x24, 0x08, 0x99, 0x88, 0x74, 0x51, 0x02, 0xc2, 0xfb,
-	0x44, 0xfc, 0xe2, 0x4f, 0x52, 0x31, 0x91, 0x95, 0xf9, 0x4d, 0x7d, 0x85, 0x4e, 0xef, 0xf3, 0x26,
-	0xd1, 0x2f, 0x0d, 0xb8, 0x4b, 0x68, 0x34, 0x09, 0xfc, 0x88, 0xf6, 0xdd, 0x31, 0x5d, 0x4c, 0xe5,
-	0x57, 0x14, 0x1b, 0x85, 0x34, 0x1a, 0x05, 0x9e, 0xbc, 0xeb, 0x8a, 0xf2, 0xe8, 0x89, 0x92, 0x2c,
-	0x44, 0x7c, 0xc0, 0xcb, 0xfe, 0x15, 0x0d, 0x5d, 0x76, 0xa3, 0x22, 0xa5, 0x6f, 0x6c, 0xe1, 0xb5,
-	0xa7, 0x8c, 0x24, 0x02, 0xf1, 0x14, 0x92, 0x48, 0xb5, 0x5f, 0xe7, 0x61, 0xf3, 0x36, 0x6e, 0xe1,
-	0x63, 0x28, 0xc9, 0x5c, 0x53, 0x75, 0x38, 0x4b, 0xc6, 0x43, 0x31, 0xa8, 0x1d, 0x7d, 0x73, 0x3e,
-	0xb3, 0x90, 0x9c, 0xa2, 0x95, 0x44, 0xe5, 0x04, 0xb7, 0x54, 0xbe, 0xca, 0x9a, 0xfc, 0x66, 0xc6,
-	0x59, 0x23, 0x70, 0x6e, 0x74, 0x14, 0x79, 0x65, 0xe6, 0xe6, 0x7a, 0x65, 0x16, 0x89, 0x6d, 0xc3,
-	0x5a, 0xa8, 0xc1, 0xa7, 0x4a, 0xf4, 0x37, 0x52, 0xcf, 0xbe, 0xdb, 0xd0, 0x6d, 0xdc, 0x9b, 0xcf,
-	0xac, 0xbb, 0xfa, 0x54, 0xcd, 0x75, 0xca, 0xa5, 0xaa, 0xdf, 0xff, 0x32, 0x24, 0x2e, 0xd9, 0x63,
-	0x72, 0x6e, 0x6b, 0xb8, 0x28, 0x6e, 0x4b, 0x4d, 0x72, 0xd8, 0x0f, 0x32, 0xe5, 0xef, 0xfe, 0xad,
-	0xb1, 0x79, 0x41, 0x11, 0xb4, 0xa0, 0x78, 0x25, 0x1e, 0x44, 0x32, 0x7f, 0xc4, 0x73, 0x5a, 0x28,
-	0x88, 0x6c, 0x52, 0xf1, 0x2f, 0xbc, 0x4a, 0xfc, 0xff, 0x64, 0x00, 0x5e, 0x8e, 0x80, 0x76, 0x02,
-	0xe3, 0x15, 0x4f, 0x90, 0xff, 0x0c, 0x27, 0x30, 0x5f, 0xe5, 0x04, 0x7f, 0xce, 0x03, 0x5e, 0xce,
-	0x44, 0xfc, 0x21, 0x98, 0x8c, 0x79, 0x8a, 0xbc, 0xf7, 0xd3, 0x75, 0xa1, 0xcf, 0x3c, 0x8d, 0x1a,
-	0xe2, 0x56, 0x60, 0xcc, 0xd3, 0x2f, 0x72, 0xc6, 0x3c, 0xdc, 0x84, 0x02, 0xa3, 0xd7, 0x4c, 0x51,
-	0xf6, 0x41, 0xc6, 0x05, 0xbd, 0x66, 0x59, 0xc6, 0x72, 0x6b, 0x9d, 0xb1, 0xbc, 0xcf, 0xbd, 0xf0,
-	0x9b, 0x5d, 0xfd, 0x41, 0xc9, 0x78, 0x39, 0x0c, 0xa2, 0x25, 0x2f, 0xdc, 0x3a, 0xf5, 0x22, 0x09,
-	0x22, 0xf6, 0xbf, 0xe3, 0xfd, 0x6f, 0x0d, 0x40, 0x59, 0x84, 0x5e, 0x72, 0x6f, 0xa4, 0x42, 0x5d,
-	0xfc, 0x2a, 0x43, 0xfd, 0x47, 0x03, 0xee, 0x2c, 0x61, 0xff, 0xff, 0xc4, 0xd5, 0x9f, 0x89, 0xfd,
-	0xa7, 0xa3, 0xce, 0xd1, 0x15, 0x0c, 0x31, 0xc4, 0x73, 0x47, 0xa0, 0xcb, 0xfb, 0x2a, 0xf2, 0x5f,
-	0x5a, 0xa5, 0xff, 0x39, 0xbc, 0x76, 0xcb, 0xb3, 0x6f, 0x89, 0x59, 0xc6, 0x57, 0xc4, 0xac, 0xdd,
-	0x29, 0xc0, 0xe2, 0x13, 0x10, 0x2e, 0x41, 0xbe, 0xfb, 0x31, 0xca, 0xe1, 0x75, 0xa8, 0x74, 0xba,
-	0xfd, 0xf3, 0x8f, 0xba, 0xa7, 0x9d, 0x26, 0x32, 0xf0, 0x26, 0xa0, 0x76, 0xe7, 0xac, 0x7e, 0xd4,
-	0x6e, 0x9e, 0xd7, 0xc9, 0xc1, 0xe9, 0x71, 0xab, 0xd3, 0x47, 0x79, 0x8c, 0x61, 0xa3, 0x7e, 0x44,
-	0x5a, 0xf5, 0xe6, 0x8f, 0xcf, 0x5b, 0x4f, 0xda, 0xbd, 0x7e, 0x0f, 0x99, 0x5c, 0xd7, 0xee, 0xf4,
-	0x5b, 0xa4, 0x53, 0x3f, 0x3a, 0x6f, 0x11, 0xd2, 0x25, 0xa8, 0xc0, 0x75, 0xdc, 0x59, 0xfd, 0xb4,
-	0x7f, 0xd8, 0x25, 0xed, 0x4f, 0x5b, 0x4d, 0x54, 0xdc, 0x7d, 0x07, 0x36, 0xd2, 0xff, 0x61, 0xf1,
-	0x0a, 0x98, 0xf5, 0x66, 0x13, 0xe5, 0x30, 0x40, 0xe9, 0xf4, 0xa4, 0x59, 0xef, 0xb7, 0x90, 0xc1,
-	0xe5, 0x66, 0xeb, 0xa8, 0xd5, 0x6f, 0xa1, 0xfc, 0xee, 0x7b, 0x00, 0x8b, 0x47, 0x2a, 0x37, 0x3f,
-	0x68, 0xf5, 0x51, 0x0e, 0x97, 0xa1, 0x70, 0xd8, 0xaa, 0xf3, 0x5d, 0x96, 0xa1, 0x70, 0xd2, 0xed,
-	0xf1, 0x9d, 0xad, 0xc2, 0x4a, 0xf7, 0xa4, 0xdf, 0xee, 0x76, 0x7a, 0xc8, 0xdc, 0x3d, 0x87, 0xf5,
-	0xd4, 0x1b, 0x09, 0x17, 0xc1, 0xa8, 0xcb, 0x89, 0xf5, 0x7a, 0xbd, 0x8e, 0x0c, 0x5c, 0x81, 0xe2,
-	0x7e, 0xa7, 0x7e, 0xdc, 0x42, 0x79, 0x0e, 0xc0, 0xf1, 0x13, 0x64, 0xf2, 0xb6, 0xd3, 0x43, 0x05,
-	0xbe, 0xcc, 0x49, 0x9f, 0xa0, 0x22, 0x17, 0x7a, 0xdd, 0x3a, 0x2a, 0x09, 0x81, 0x9c, 0xa1, 0x15,
-	0x2e, 0xf4, 0x9f, 0xf4, 0x51, 0x79, 0xd7, 0x12, 0xcf, 0xb9, 0xf8, 0x55, 0x23, 0xf4, 0xfb, 0x27,
-	0x28, 0xc7, 0x85, 0xd3, 0xe6, 0x09, 0x32, 0x76, 0xbf, 0x09, 0x95, 0xe4, 0xe1, 0x24, 0xce, 0xe9,
-	0xdf, 0xa0, 0x1c, 0x5f, 0xe2, 0xec, 0x5d, 0x64, 0x88, 0xf6, 0x3d, 0x94, 0xdf, 0xfd, 0x04, 0x50,
-	0x36, 0x2f, 0xf8, 0xce, 0x08, 0x1d, 0xd2, 0x6b, 0x94, 0xc3, 0x08, 0xd6, 0xda, 0xfe, 0xc0, 0x9b,
-	0x3a, 0x54, 0x64, 0x1a, 0x32, 0xb8, 0xa6, 0x75, 0xad, 0x69, 0xf2, 0x78, 0x03, 0xa0, 0x75, 0x6d,
-	0x0f, 0xd8, 0xb1, 0xcd, 0x06, 0x23, 0x64, 0xee, 0x3e, 0x02, 0xbc, 0x4c, 0x45, 0x8e, 0xce, 0x8f,
-	0xec, 0xd0, 0x77, 0xfd, 0x21, 0xca, 0xe1, 0x35, 0x28, 0xef, 0x87, 0x2e, 0x73, 0x07, 0xb6, 0x87,
-	0x8c, 0xbd, 0x5f, 0x18, 0x50, 0x12, 0x71, 0x89, 0x70, 0x03, 0xd6, 0x53, 0x5f, 0xfb, 0xf0, 0xd7,
-	0x74, 0x82, 0x07, 0xae, 0x73, 0x6f, 0x2b, 0xc5, 0xc6, 0xa5, 0x0f, 0x83, 0xb5, 0x1c, 0x7e, 0x1f,
-	0xe0, 0x80, 0x32, 0xf9, 0x49, 0x23, 0x5a, 0x76, 0x70, 0x37, 0xfb, 0x9f, 0x58, 0x5a, 0xd6, 0x72,
-	0xdf, 0x35, 0xf6, 0x1a, 0xb0, 0x22, 0x3f, 0x6e, 0x45, 0xf8, 0x31, 0x54, 0x0e, 0x28, 0x53, 0x9f,
-	0xba, 0xf4, 0xff, 0x2c, 0x8b, 0x8f, 0x63, 0xf7, 0xee, 0x2c, 0xa9, 0x6b, 0xb9, 0xc6, 0xfd, 0x67,
-	0xff, 0xd8, 0xca, 0x3d, 0x7b, 0xbe, 0x65, 0xfc, 0xf5, 0xf9, 0x96, 0xf1, 0xf7, 0xe7, 0x5b, 0xc6,
-	0xa7, 0x8b, 0x4f, 0xa7, 0x17, 0x25, 0xf1, 0xdc, 0xfc, 0xde, 0x7f, 0x02, 0x00, 0x00, 0xff, 0xff,
-	0x88, 0xb6, 0x51, 0xeb, 0x5c, 0x15, 0x00, 0x00,
+	// 1958 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x58, 0x4f, 0x6f, 0xdb, 0xc8,
+	0x15, 0x17, 0xf5, 0x5f, 0x4f, 0xb6, 0x96, 0x9e, 0x4d, 0xb2, 0x8a, 0x77, 0xd7, 0xf4, 0xb2, 0xd9,
+	0x85, 0xeb, 0x04, 0x49, 0x91, 0x2e, 0xda, 0x6e, 0x17, 0x68, 0x4b, 0xfd, 0x49, 0xec, 0xc6, 0x96,
+	0x8c, 0x91, 0x6c, 0x64, 0x17, 0x05, 0x0c, 0x5a, 0x1c, 0x4b, 0xc4, 0x4a, 0xa4, 0x4a, 0x8e, 0x92,
+	0xba, 0xb7, 0xf6, 0x52, 0xa0, 0xdf, 0xa0, 0xa7, 0xf6, 0xda, 0x53, 0x8f, 0xfd, 0x00, 0xbd, 0xe4,
+	0xd8, 0x43, 0xcf, 0x6c, 0x9b, 0x23, 0x3f, 0x41, 0x8f, 0xc5, 0xfc, 0x21, 0x35, 0x94, 0xec, 0x04,
+	0xbb, 0xc8, 0x45, 0x7c, 0xf3, 0x9b, 0xdf, 0xfc, 0x66, 0xe6, 0xcd, 0x7b, 0x6f, 0x28, 0xc2, 0xc6,
+	0x68, 0x42, 0x46, 0xdf, 0x84, 0x0f, 0xe7, 0x81, 0x4f, 0x7d, 0x54, 0x7b, 0xe9, 0x07, 0x53, 0x67,
+	0xee, 0x7a, 0xe3, 0xed, 0x5b, 0x63, 0x7f, 0xec, 0x73, 0xf4, 0x11, 0xb3, 0x04, 0xc1, 0x2c, 0x43,
+	0xf1, 0xcc, 0x77, 0x1d, 0xf3, 0x18, 0xca, 0x03, 0x6a, 0xd3, 0x45, 0x88, 0xbe, 0x0f, 0xc5, 0x91,
+	0xef, 0x90, 0xa6, 0xb6, 0xab, 0xed, 0x35, 0x1e, 0xdf, 0x7e, 0x98, 0x2a, 0x3c, 0x14, 0x84, 0xb6,
+	0xef, 0x10, 0xcc, 0x29, 0xa8, 0x09, 0x95, 0x19, 0x09, 0x43, 0x7b, 0x4c, 0x9a, 0xf9, 0x5d, 0x6d,
+	0xaf, 0x86, 0x93, 0xa6, 0x49, 0xe1, 0x7d, 0x4c, 0xc6, 0x6e, 0x48, 0x49, 0x70, 0x12, 0xf8, 0x17,
+	0x04, 0x93, 0x70, 0x31, 0xa5, 0xe8, 0x01, 0x94, 0xe6, 0xac, 0xc9, 0xc5, 0xeb, 0x8f, 0x75, 0x45,
+	0x9c, 0xd3, 0x5a, 0xc5, 0x57, 0x91, 0x91, 0xc3, 0x82, 0x84, 0x1e, 0x41, 0x39, 0xe4, 0x53, 0x72,
+	0xf5, 0xfa, 0xe3, 0xad, 0xb5, 0xb5, 0x48, 0xbe, 0xa4, 0x99, 0xff, 0xd3, 0xa0, 0xc4, 0x75, 0xd0,
+	0x1d, 0xc8, 0xbb, 0x0e, 0x9f, 0xa5, 0xd0, 0x2a, 0xc7, 0x91, 0x91, 0x77, 0x1d, 0x9c, 0x77, 0x1d,
+	0xb4, 0x07, 0x55, 0x4a, 0x3c, 0xdb, 0xa3, 0x87, 0x0e, 0x17, 0x2d, 0xb4, 0x36, 0xe2, 0xc8, 0x48,
+	0x31, 0x9c, 0x5a, 0xe8, 0x23, 0x28, 0x7a, 0xf6, 0x8c, 0x34, 0x0b, 0x6c, 0x63, 0xad, 0x6a, 0x1c,
+	0x19, 0xbc, 0x8d, 0xf9, 0x2f, 0xd3, 0x99, 0xda, 0xd4, 0xa5, 0x0b, 0x87, 0x34, 0x4b, 0xbb, 0xda,
+	0x5e, 0x5e, 0xe8, 0x24, 0x18, 0x4e, 0x2d, 0x74, 0x1f, 0x6a, 0x53, 0xdf, 0x1b, 0x0b, 0x6a, 0x99,
+	0x53, 0x37, 0xe3, 0xc8, 0x58, 0x82, 0x78, 0x69, 0xa2, 0x9f, 0x40, 0x79, 0x6a, 0x5f, 0x90, 0x69,
+	0xd8, 0xac, 0xee, 0x16, 0x56, 0x1c, 0x74, 0xc4, 0x3a, 0x5a, 0x0d, 0xb6, 0xe1, 0x38, 0x32, 0x24,
+	0x0f, 0xcb, 0xa7, 0xf9, 0x11, 0xc0, 0x50, 0x2c, 0xdd, 0xbb, 0xf4, 0x51, 0x63, 0xb9, 0x7d, 0xb6,
+	0x6d, 0xf3, 0x6f, 0x79, 0x28, 0x8b, 0xee, 0x1b, 0x3d, 0x63, 0x40, 0xc9, 0x0f, 0xc6, 0xa9, 0x5b,
+	0x6a, 0x71, 0x64, 0x08, 0x00, 0x8b, 0x07, 0xea, 0xc1, 0xe6, 0x8c, 0xd0, 0xc0, 0x1d, 0x85, 0x98,
+	0xcc, 0x7c, 0x2a, 0x3c, 0x53, 0xcf, 0x04, 0x88, 0xe8, 0x60, 0x2b, 0x68, 0x6d, 0xc5, 0x91, 0x91,
+	0xe5, 0xe3, 0x6c, 0x13, 0x3d, 0x83, 0x0d, 0xf2, 0x82, 0x78, 0x34, 0x91, 0x2b, 0xbe, 0x49, 0x4e,
+	0x8f, 0x23, 0x23, 0x43, 0xc7, 0x99, 0x16, 0xfa, 0x14, 0x2a, 0xa3, 0x80, 0xd8, 0x94, 0x38, 0x4d,
+	0x87, 0xaf, 0xbf, 0x1e, 0x47, 0x46, 0x02, 0xe1, 0xc4, 0x60, 0xc7, 0x36, 0xf3, 0x1d, 0xf7, 0xd2,
+	0x25, 0x4e, 0x93, 0x2c, 0x8f, 0x3f, 0xc1, 0x70, 0x6a, 0x99, 0x7f, 0xd2, 0x00, 0x96, 0xf3, 0xa7,
+	0xd1, 0xa0, 0x5d, 0x1b, 0x0d, 0x77, 0xa1, 0xb0, 0x08, 0xa6, 0x22, 0x07, 0x5a, 0x95, 0x38, 0x32,
+	0x58, 0x13, 0xb3, 0x1f, 0x36, 0xe3, 0x22, 0x24, 0x81, 0x12, 0x4a, 0x7c, 0xc6, 0x04, 0xc3, 0xa9,
+	0xc5, 0x98, 0x73, 0x3b, 0x0c, 0x5f, 0xfa, 0x81, 0xc3, 0x7d, 0x21, 0x99, 0x09, 0x86, 0x53, 0xcb,
+	0xa4, 0x50, 0x6f, 0xb3, 0x24, 0x6f, 0x4f, 0x6c, 0x6f, 0x4c, 0xd0, 0x8f, 0xa1, 0xe6, 0xcf, 0x49,
+	0x60, 0x53, 0xd7, 0xf7, 0x64, 0xd6, 0xde, 0x55, 0xbc, 0xc8, 0xa9, 0xfd, 0x84, 0x80, 0x97, 0x5c,
+	0x96, 0x8d, 0xbc, 0x58, 0xc8, 0xf4, 0xd2, 0x57, 0x07, 0x25, 0xd9, 0xc8, 0x49, 0xe6, 0x13, 0x28,
+	0xf1, 0x10, 0x7c, 0x8b, 0x2f, 0x0c, 0x28, 0xbd, 0xb0, 0xa7, 0x0b, 0x59, 0x11, 0x44, 0x1c, 0x71,
+	0x00, 0x8b, 0x87, 0xf9, 0xef, 0x02, 0x94, 0xb8, 0xfc, 0x3b, 0x48, 0xd2, 0xfb, 0x50, 0xbb, 0x0c,
+	0xc8, 0xaf, 0x17, 0xc4, 0x1b, 0x5d, 0x71, 0xf7, 0x16, 0x44, 0x72, 0xa5, 0x20, 0x5e, 0x9a, 0xc8,
+	0x84, 0xb2, 0x7f, 0x79, 0x19, 0x12, 0xca, 0xdd, 0x5b, 0x68, 0x01, 0x4b, 0x23, 0x81, 0x60, 0xf9,
+	0x64, 0x71, 0x44, 0xdd, 0x19, 0xf1, 0x17, 0x94, 0xa7, 0xb5, 0x8c, 0x23, 0x09, 0xe1, 0xc4, 0x60,
+	0x34, 0xe2, 0xd9, 0x17, 0x53, 0xe2, 0xf0, 0x94, 0xae, 0x0a, 0x9a, 0x84, 0x70, 0x62, 0x28, 0xe9,
+	0x5c, 0xf9, 0x76, 0xe9, 0x8c, 0x9e, 0x40, 0x35, 0x24, 0x94, 0xba, 0xde, 0x98, 0x95, 0x02, 0x76,
+	0x3a, 0xcd, 0xd5, 0xd3, 0x19, 0xc8, 0xfe, 0x96, 0x2e, 0x35, 0xd2, 0x11, 0x38, 0xb5, 0xd8, 0x9e,
+	0x79, 0x2d, 0x0d, 0x9b, 0xb5, 0xdd, 0x42, 0xb2, 0x67, 0x81, 0x60, 0xf9, 0x7c, 0xf7, 0xb9, 0xf3,
+	0x2f, 0x0d, 0x36, 0x33, 0x4b, 0x44, 0x3f, 0x87, 0x22, 0x5b, 0xb8, 0x2c, 0xfb, 0x1f, 0xa8, 0x65,
+	0xdf, 0xf5, 0xc6, 0xe9, 0x4e, 0x50, 0x1c, 0x19, 0x0d, 0x06, 0x3f, 0xf0, 0x67, 0x2e, 0x25, 0xb3,
+	0x39, 0xbd, 0xc2, 0x7c, 0x20, 0x13, 0x98, 0x50, 0x3a, 0x97, 0x91, 0xaa, 0x0a, 0x1c, 0x50, 0x3a,
+	0xcf, 0x0a, 0x30, 0xa2, 0x2a, 0xc0, 0xda, 0xe8, 0x4b, 0x28, 0x38, 0x5e, 0x28, 0x6b, 0xd6, 0x1d,
+	0x65, 0x7c, 0xc7, 0x0b, 0xd3, 0xe1, 0xbc, 0x68, 0x39, 0x5e, 0xa8, 0x8c, 0x66, 0xa3, 0x7e, 0x5a,
+	0x7c, 0xf5, 0x17, 0x43, 0x33, 0xff, 0x9e, 0x87, 0x0d, 0x75, 0xb9, 0xcc, 0x23, 0x13, 0x3f, 0xa4,
+	0x4a, 0x32, 0x70, 0x8f, 0x24, 0x18, 0x4e, 0x2d, 0x64, 0x41, 0xcd, 0x9d, 0x9f, 0x91, 0x20, 0x64,
+	0x29, 0x9a, 0xe7, 0x29, 0x7a, 0x4b, 0x59, 0xc3, 0x61, 0xd2, 0x27, 0xa2, 0x37, 0xa5, 0xe2, 0xa5,
+	0x89, 0x9e, 0xc2, 0x7b, 0xa1, 0xbf, 0x08, 0x46, 0xe4, 0x70, 0x6e, 0x39, 0x4e, 0x40, 0xc2, 0x50,
+	0xd6, 0x93, 0x8f, 0xe3, 0xc8, 0xb8, 0xbb, 0xd2, 0xa5, 0x6c, 0x60, 0x75, 0x14, 0xfa, 0x12, 0xea,
+	0x73, 0xfb, 0x6a, 0xea, 0xdb, 0xce, 0xc0, 0xfd, 0x2d, 0x91, 0xb9, 0x70, 0x37, 0x8e, 0x8c, 0xdb,
+	0x0a, 0xac, 0x08, 0xa8, 0x6c, 0xf4, 0x39, 0x6c, 0x38, 0xbe, 0x47, 0x9f, 0x04, 0xf6, 0x78, 0x46,
+	0x3c, 0x91, 0x24, 0x55, 0x51, 0x9d, 0x55, 0x1c, 0x67, 0x5a, 0xe6, 0x9f, 0xab, 0xb0, 0xa1, 0x9e,
+	0x53, 0x52, 0x30, 0xb5, 0x6b, 0x0a, 0xe6, 0x17, 0x50, 0x9e, 0x11, 0x3a, 0xf1, 0x1d, 0xe9, 0xa7,
+	0xdb, 0x2b, 0x67, 0x7d, 0xcc, 0x3b, 0x45, 0x20, 0x0b, 0x22, 0x96, 0x4f, 0xf4, 0x08, 0x2a, 0x13,
+	0x62, 0x3b, 0x24, 0x60, 0xae, 0x29, 0xec, 0xd5, 0x5a, 0xb7, 0xe3, 0xc8, 0xd8, 0x92, 0x90, 0xb2,
+	0xa3, 0x84, 0x85, 0x3e, 0x83, 0xe2, 0x85, 0xef, 0x5c, 0xc9, 0x72, 0xcb, 0x83, 0x87, 0xb5, 0xd5,
+	0xe0, 0x61, 0xed, 0xec, 0xf1, 0x95, 0xbe, 0xd3, 0xf1, 0xb5, 0x61, 0xcb, 0xf3, 0x9f, 0xf8, 0xd3,
+	0xa9, 0xff, 0x12, 0x13, 0xc7, 0x0d, 0xc8, 0x88, 0x86, 0xb2, 0x76, 0xf0, 0x55, 0xae, 0x75, 0xe2,
+	0x75, 0x88, 0x97, 0x3b, 0xdb, 0x9d, 0x1e, 0x5e, 0x0e, 0x06, 0x47, 0xcd, 0x0a, 0x1f, 0x2c, 0xca,
+	0x5d, 0x02, 0xe2, 0xa5, 0xc9, 0x8e, 0x4a, 0x34, 0x7a, 0x3e, 0x65, 0xfc, 0xea, 0xf2, 0xa8, 0x54,
+	0x1c, 0x67, 0x5a, 0xe8, 0x97, 0xa0, 0xbf, 0xb0, 0xa7, 0xae, 0xb3, 0x7c, 0xd7, 0x13, 0xa5, 0xa3,
+	0xd4, 0xda, 0x89, 0x23, 0x63, 0x7b, 0xb5, 0x4f, 0x71, 0xd5, 0xda, 0x38, 0x74, 0x0c, 0x5b, 0x1c,
+	0x3b, 0x18, 0x0e, 0x4f, 0xa4, 0x1f, 0xc2, 0x26, 0xf0, 0x93, 0x31, 0xe2, 0xc8, 0xf8, 0x70, 0xad,
+	0x53, 0x51, 0x5b, 0x1f, 0x89, 0xce, 0xe1, 0x03, 0xb1, 0xd4, 0x96, 0xef, 0x5c, 0x1d, 0xdb, 0x74,
+	0x34, 0x21, 0x21, 0x26, 0x63, 0xf2, 0x9b, 0x79, 0xb3, 0xce, 0x45, 0x3f, 0x8d, 0x23, 0xe3, 0x93,
+	0x1b, 0x28, 0x8a, 0xf4, 0x4d, 0x2a, 0x68, 0x02, 0xdb, 0xcb, 0xae, 0x9e, 0x4f, 0xb3, 0x73, 0x6c,
+	0xf0, 0x39, 0xf6, 0xe2, 0xc8, 0xb8, 0x77, 0x33, 0x4b, 0x99, 0xe6, 0x0d, 0x5a, 0xe8, 0x77, 0x1a,
+	0xdc, 0x15, 0xdd, 0x07, 0x3c, 0x14, 0xb3, 0x33, 0x6d, 0xf2, 0xcb, 0x42, 0x2d, 0x52, 0x0a, 0xab,
+	0x75, 0x5f, 0x96, 0xfb, 0xef, 0xdd, 0x28, 0xa0, 0x2c, 0xe2, 0xe6, 0x59, 0xd0, 0x1f, 0x35, 0xf8,
+	0x48, 0xed, 0x5d, 0xdb, 0x70, 0xe3, 0x8d, 0xcb, 0x78, 0x28, 0x97, 0xf1, 0xd9, 0x9b, 0x34, 0x94,
+	0x95, 0xbc, 0x71, 0x2e, 0xf3, 0xaf, 0x1a, 0xd4, 0x15, 0x75, 0xf4, 0x00, 0xca, 0x22, 0x49, 0x65,
+	0x8d, 0xb8, 0x15, 0x47, 0x86, 0x2e, 0x10, 0x45, 0x53, 0x72, 0x18, 0x3b, 0x10, 0x6b, 0xce, 0x2f,
+	0xd9, 0xc1, 0xea, 0x0a, 0x24, 0x07, 0xfd, 0x0c, 0x36, 0x6c, 0x96, 0x57, 0xc7, 0x6e, 0x18, 0xb2,
+	0x4b, 0xa9, 0xc0, 0x13, 0x63, 0x3b, 0x8e, 0x8c, 0x3b, 0x2a, 0xae, 0x8c, 0xcc, 0xf0, 0xcd, 0x7f,
+	0x68, 0xd0, 0xe8, 0xf4, 0x06, 0x18, 0x9f, 0xb1, 0x10, 0xb5, 0xa9, 0x1f, 0xa0, 0x01, 0xbc, 0x2f,
+	0xb6, 0x97, 0xf5, 0xa0, 0xc6, 0x43, 0xe6, 0x93, 0x38, 0x32, 0x3e, 0xbe, 0xa6, 0x5b, 0x99, 0xe0,
+	0xba, 0xd1, 0xe8, 0x57, 0x70, 0x27, 0x4d, 0xcd, 0xac, 0x6e, 0x9e, 0xeb, 0xde, 0x8b, 0x23, 0x63,
+	0xf7, 0x7a, 0x86, 0x22, 0x7d, 0x83, 0x86, 0xf9, 0xfb, 0x32, 0xd4, 0x95, 0xbb, 0xef, 0x2d, 0x6f,
+	0x75, 0x26, 0x94, 0x43, 0x12, 0xbc, 0x20, 0x81, 0xf4, 0x30, 0x2f, 0xbf, 0x02, 0xc1, 0xf2, 0xc9,
+	0x14, 0xe6, 0x7e, 0x40, 0xb9, 0x3f, 0x4b, 0x42, 0x81, 0xb5, 0x31, 0xff, 0x45, 0x07, 0x00, 0x01,
+	0x19, 0xf9, 0x81, 0x33, 0xbc, 0x9a, 0x8b, 0x5b, 0xa7, 0x91, 0x79, 0xa7, 0xe9, 0x78, 0x21, 0x4e,
+	0xfb, 0x5b, 0x8d, 0x38, 0x32, 0x14, 0x3e, 0x56, 0x6c, 0xf4, 0x0b, 0xa8, 0xf2, 0xff, 0xae, 0x23,
+	0x7f, 0x2a, 0x8b, 0xf1, 0xca, 0x7d, 0x7e, 0x22, 0x7b, 0xe5, 0x0b, 0xb4, 0x6c, 0xe1, 0xd4, 0xca,
+	0xd6, 0xf3, 0xf2, 0xbb, 0xba, 0x8e, 0x2b, 0xdf, 0xf5, 0x3a, 0xe6, 0xa5, 0x0e, 0x8b, 0x5a, 0x5b,
+	0xe5, 0x47, 0xcb, 0xaf, 0x63, 0x05, 0x56, 0xaf, 0x63, 0x05, 0x46, 0x17, 0xd0, 0x78, 0x21, 0x82,
+	0x90, 0x58, 0x5e, 0xf8, 0x92, 0x04, 0xcd, 0x1a, 0x7f, 0xc1, 0x51, 0xdf, 0xff, 0xb3, 0xa1, 0xaa,
+	0x54, 0xde, 0x74, 0x10, 0xc6, 0x03, 0x65, 0x82, 0x15, 0x45, 0xf4, 0x8d, 0xac, 0xe2, 0x0c, 0x59,
+	0xd0, 0x89, 0x1f, 0xb8, 0xf4, 0xaa, 0x09, 0x6f, 0x9b, 0xc6, 0x8c, 0x23, 0x63, 0x67, 0x6d, 0x5c,
+	0x76, 0xa6, 0x75, 0x5d, 0x34, 0x03, 0x94, 0x82, 0x8e, 0xe3, 0xb2, 0xbf, 0x29, 0xf6, 0xb4, 0x59,
+	0xff, 0x76, 0xb3, 0x25, 0xe3, 0xb2, 0xb3, 0x5d, 0x23, 0xbc, 0xbf, 0x00, 0x58, 0x5e, 0x58, 0xa8,
+	0x0c, 0xf9, 0xfe, 0x33, 0x3d, 0x87, 0x36, 0xa1, 0xd6, 0xeb, 0x0f, 0xcf, 0x9f, 0xf4, 0x4f, 0x7b,
+	0x1d, 0x5d, 0x43, 0xb7, 0x40, 0x3f, 0xec, 0x9d, 0x59, 0x47, 0x87, 0x9d, 0x73, 0x0b, 0x3f, 0x3d,
+	0x3d, 0xee, 0xf6, 0x86, 0x7a, 0x1e, 0x21, 0x68, 0x58, 0x47, 0xb8, 0x6b, 0x75, 0xbe, 0x3a, 0xef,
+	0x3e, 0x3f, 0x1c, 0x0c, 0x07, 0x7a, 0x81, 0x61, 0x87, 0xbd, 0x61, 0x17, 0xf7, 0xac, 0xa3, 0xf3,
+	0x2e, 0xc6, 0x7d, 0xac, 0x17, 0x19, 0xc6, 0xc4, 0xac, 0xd3, 0xe1, 0x41, 0x1f, 0x1f, 0x7e, 0xdd,
+	0xed, 0xe8, 0xa5, 0xfd, 0x36, 0x34, 0xb2, 0xff, 0xca, 0xd8, 0x94, 0xed, 0x83, 0x6e, 0xfb, 0xd9,
+	0xb9, 0xd5, 0xe9, 0xe8, 0x39, 0xa4, 0xc3, 0x86, 0x68, 0x9e, 0x9e, 0x74, 0xac, 0x61, 0x57, 0xd7,
+	0x96, 0x48, 0xa7, 0x7b, 0xd4, 0x1d, 0x76, 0xf5, 0xfc, 0xfe, 0x08, 0x60, 0xf9, 0x3e, 0x84, 0x2a,
+	0x50, 0x78, 0xda, 0x1d, 0xea, 0x39, 0x54, 0x87, 0x4a, 0xbb, 0xdf, 0xeb, 0x75, 0xdb, 0x43, 0x5d,
+	0x43, 0x00, 0xe5, 0x84, 0x8f, 0xaa, 0x50, 0x3c, 0xe8, 0x5a, 0x1d, 0xbd, 0xc0, 0x28, 0xfd, 0x93,
+	0xe1, 0x61, 0xbf, 0x37, 0xd0, 0x8b, 0x0c, 0x3e, 0xe9, 0x0f, 0x86, 0x7a, 0x89, 0x49, 0x9c, 0x9c,
+	0x0e, 0xf5, 0x32, 0xaa, 0x41, 0x69, 0x88, 0xad, 0x76, 0x57, 0xaf, 0xec, 0x4f, 0x60, 0x33, 0x93,
+	0x98, 0x8c, 0x64, 0xf5, 0xbe, 0xd2, 0x73, 0xa8, 0x04, 0x9a, 0xa5, 0x6b, 0x6c, 0xb8, 0x65, 0x59,
+	0x96, 0x9e, 0x67, 0xa3, 0xda, 0x3d, 0xeb, 0xb8, 0xab, 0x17, 0x98, 0x23, 0x8f, 0x9f, 0xeb, 0x45,
+	0xf6, 0xec, 0x0d, 0xa4, 0xf2, 0x10, 0xeb, 0x65, 0x66, 0x0c, 0xfa, 0x96, 0x5e, 0xe1, 0x06, 0x3e,
+	0xd3, 0xab, 0xcc, 0x18, 0x3e, 0x1f, 0xea, 0xb5, 0x7d, 0x83, 0x97, 0xa3, 0x24, 0x75, 0x39, 0xde,
+	0x3e, 0xd1, 0x73, 0xcc, 0x38, 0xed, 0x9c, 0xe8, 0xda, 0xfe, 0x3d, 0xa8, 0xa5, 0x89, 0xc9, 0x97,
+	0xe1, 0x5d, 0xe9, 0x39, 0x36, 0xc5, 0xd9, 0xe7, 0xba, 0xc6, 0x9f, 0x3f, 0xd2, 0xf3, 0x8f, 0xff,
+	0xa0, 0x41, 0x99, 0xfb, 0x36, 0x44, 0x2d, 0xd8, 0xcc, 0x7c, 0x83, 0x42, 0xef, 0x29, 0x01, 0x74,
+	0xe6, 0xbb, 0xce, 0xf6, 0x4e, 0xe6, 0x63, 0xc3, 0xda, 0xe7, 0x2a, 0x33, 0x87, 0xbe, 0x00, 0x78,
+	0x4a, 0xa8, 0xf8, 0xa3, 0x1d, 0xae, 0x0b, 0xdc, 0x59, 0xfd, 0x53, 0x26, 0x98, 0x66, 0xee, 0x07,
+	0xda, 0xe3, 0x16, 0x54, 0xc4, 0x27, 0x97, 0x90, 0xfd, 0x43, 0x7f, 0x4a, 0xa8, 0xfc, 0x00, 0xa3,
+	0xbe, 0xd0, 0x2e, 0x3f, 0xd9, 0x6c, 0x6f, 0xad, 0xc1, 0x66, 0xae, 0xf5, 0xe1, 0xab, 0xff, 0xee,
+	0xe4, 0x5e, 0xbd, 0xde, 0xd1, 0xfe, 0xf9, 0x7a, 0x47, 0xfb, 0xcf, 0xeb, 0x1d, 0xed, 0xeb, 0xe5,
+	0x07, 0xbd, 0x8b, 0x32, 0xaf, 0x67, 0x3f, 0xfc, 0x7f, 0x00, 0x00, 0x00, 0xff, 0xff, 0x79, 0xec,
+	0x79, 0x62, 0xf2, 0x13, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1913,12 +1584,16 @@ func (m *Tenant) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	if m.Modified != 0 {
 		i = encodeVarintChecks(dAtA, i, uint64(m.Modified))
 		i--
-		dAtA[i] = 0x30
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xa8
 	}
 	if m.Created != 0 {
 		i = encodeVarintChecks(dAtA, i, uint64(m.Created))
 		i--
-		dAtA[i] = 0x28
+		dAtA[i] = 0x6
+		i--
+		dAtA[i] = 0xa0
 	}
 	if m.EventsRemote != nil {
 		{
@@ -2301,19 +1976,27 @@ func (m *PingSettings) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.Validation) > 0 {
-		for iNdEx := len(m.Validation) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Validation[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintChecks(dAtA, i, uint64(size))
-			}
-			i--
-			dAtA[i] = 0x1a
+	if m.DontFragment {
+		i--
+		if m.DontFragment {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
 		}
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.PayloadSize != 0 {
+		i = encodeVarintChecks(dAtA, i, uint64(m.PayloadSize))
+		i--
+		dAtA[i] = 0x20
+	}
+	if len(m.SourceIpAddress) > 0 {
+		i -= len(m.SourceIpAddress)
+		copy(dAtA[i:], m.SourceIpAddress)
+		i = encodeVarintChecks(dAtA, i, uint64(len(m.SourceIpAddress)))
+		i--
+		dAtA[i] = 0x1a
 	}
 	if m.IpVersion != 0 {
 		i = encodeVarintChecks(dAtA, i, uint64(m.IpVersion))
@@ -2354,10 +2037,10 @@ func (m *HttpSettings) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.Validation) > 0 {
-		for iNdEx := len(m.Validation) - 1; iNdEx >= 0; iNdEx-- {
+	if len(m.FailIfHeaderNotMatchesRegexp) > 0 {
+		for iNdEx := len(m.FailIfHeaderNotMatchesRegexp) - 1; iNdEx >= 0; iNdEx-- {
 			{
-				size, err := m.Validation[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				size, err := m.FailIfHeaderNotMatchesRegexp[iNdEx].MarshalToSizedBuffer(dAtA[:i])
 				if err != nil {
 					return 0, err
 				}
@@ -2365,12 +2048,82 @@ func (m *HttpSettings) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 				i = encodeVarintChecks(dAtA, i, uint64(size))
 			}
 			i--
-			dAtA[i] = 0x42
+			dAtA[i] = 0x72
 		}
 	}
-	if m.ValidateCert {
+	if len(m.FailIfHeaderMatchesRegexp) > 0 {
+		for iNdEx := len(m.FailIfHeaderMatchesRegexp) - 1; iNdEx >= 0; iNdEx-- {
+			{
+				size, err := m.FailIfHeaderMatchesRegexp[iNdEx].MarshalToSizedBuffer(dAtA[:i])
+				if err != nil {
+					return 0, err
+				}
+				i -= size
+				i = encodeVarintChecks(dAtA, i, uint64(size))
+			}
+			i--
+			dAtA[i] = 0x6a
+		}
+	}
+	if len(m.FailIfBodyNotMatchesRegexp) > 0 {
+		for iNdEx := len(m.FailIfBodyNotMatchesRegexp) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.FailIfBodyNotMatchesRegexp[iNdEx])
+			copy(dAtA[i:], m.FailIfBodyNotMatchesRegexp[iNdEx])
+			i = encodeVarintChecks(dAtA, i, uint64(len(m.FailIfBodyNotMatchesRegexp[iNdEx])))
+			i--
+			dAtA[i] = 0x62
+		}
+	}
+	if len(m.FailIfBodyMatchesRegexp) > 0 {
+		for iNdEx := len(m.FailIfBodyMatchesRegexp) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.FailIfBodyMatchesRegexp[iNdEx])
+			copy(dAtA[i:], m.FailIfBodyMatchesRegexp[iNdEx])
+			i = encodeVarintChecks(dAtA, i, uint64(len(m.FailIfBodyMatchesRegexp[iNdEx])))
+			i--
+			dAtA[i] = 0x5a
+		}
+	}
+	if len(m.ValidHTTPVersions) > 0 {
+		for iNdEx := len(m.ValidHTTPVersions) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ValidHTTPVersions[iNdEx])
+			copy(dAtA[i:], m.ValidHTTPVersions[iNdEx])
+			i = encodeVarintChecks(dAtA, i, uint64(len(m.ValidHTTPVersions[iNdEx])))
+			i--
+			dAtA[i] = 0x52
+		}
+	}
+	if len(m.ValidStatusCodes) > 0 {
+		dAtA13 := make([]byte, len(m.ValidStatusCodes)*10)
+		var j12 int
+		for _, num1 := range m.ValidStatusCodes {
+			num := uint64(num1)
+			for num >= 1<<7 {
+				dAtA13[j12] = uint8(uint64(num)&0x7f | 0x80)
+				num >>= 7
+				j12++
+			}
+			dAtA13[j12] = uint8(num)
+			j12++
+		}
+		i -= j12
+		copy(dAtA[i:], dAtA13[:j12])
+		i = encodeVarintChecks(dAtA, i, uint64(j12))
 		i--
-		if m.ValidateCert {
+		dAtA[i] = 0x4a
+	}
+	if m.FailIfNotSSL {
+		i--
+		if m.FailIfNotSSL {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x40
+	}
+	if m.FailIfSSL {
+		i--
+		if m.FailIfSSL {
 			dAtA[i] = 1
 		} else {
 			dAtA[i] = 0
@@ -2378,13 +2131,18 @@ func (m *HttpSettings) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x38
 	}
-	if m.IpVersion != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.IpVersion))
+	if m.NoFollowRedirects {
+		i--
+		if m.NoFollowRedirects {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
 		i--
 		dAtA[i] = 0x30
 	}
-	if m.DownloadLimit != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.DownloadLimit))
+	if m.IpVersion != 0 {
+		i = encodeVarintChecks(dAtA, i, uint64(m.IpVersion))
 		i--
 		dAtA[i] = 0x28
 	}
@@ -2419,6 +2177,102 @@ func (m *HttpSettings) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
+func (m *HeaderMatch) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *HeaderMatch) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *HeaderMatch) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.AllowMissing {
+		i--
+		if m.AllowMissing {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x18
+	}
+	if len(m.Regexp) > 0 {
+		i -= len(m.Regexp)
+		copy(dAtA[i:], m.Regexp)
+		i = encodeVarintChecks(dAtA, i, uint64(len(m.Regexp)))
+		i--
+		dAtA[i] = 0x12
+	}
+	if len(m.Header) > 0 {
+		i -= len(m.Header)
+		copy(dAtA[i:], m.Header)
+		i = encodeVarintChecks(dAtA, i, uint64(len(m.Header)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *DNSRRValidator) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *DNSRRValidator) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *DNSRRValidator) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.FailIfNotMatchesRegexp) > 0 {
+		for iNdEx := len(m.FailIfNotMatchesRegexp) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.FailIfNotMatchesRegexp[iNdEx])
+			copy(dAtA[i:], m.FailIfNotMatchesRegexp[iNdEx])
+			i = encodeVarintChecks(dAtA, i, uint64(len(m.FailIfNotMatchesRegexp[iNdEx])))
+			i--
+			dAtA[i] = 0x12
+		}
+	}
+	if len(m.FailIfMatchesRegexp) > 0 {
+		for iNdEx := len(m.FailIfMatchesRegexp) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.FailIfMatchesRegexp[iNdEx])
+			copy(dAtA[i:], m.FailIfMatchesRegexp[iNdEx])
+			i = encodeVarintChecks(dAtA, i, uint64(len(m.FailIfMatchesRegexp[iNdEx])))
+			i--
+			dAtA[i] = 0xa
+		}
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *DnsSettings) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -2443,22 +2297,60 @@ func (m *DnsSettings) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	if len(m.Validation) > 0 {
-		for iNdEx := len(m.Validation) - 1; iNdEx >= 0; iNdEx-- {
-			{
-				size, err := m.Validation[iNdEx].MarshalToSizedBuffer(dAtA[:i])
-				if err != nil {
-					return 0, err
-				}
-				i -= size
-				i = encodeVarintChecks(dAtA, i, uint64(size))
+	if m.ValidateAdditional != nil {
+		{
+			size, err := m.ValidateAdditional.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
 			}
+			i -= size
+			i = encodeVarintChecks(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x5a
+	}
+	if m.ValidateAuthority != nil {
+		{
+			size, err := m.ValidateAuthority.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintChecks(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x52
+	}
+	if m.ValidateAnswer != nil {
+		{
+			size, err := m.ValidateAnswer.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintChecks(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x4a
+	}
+	if len(m.ValidRCodes) > 0 {
+		for iNdEx := len(m.ValidRCodes) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.ValidRCodes[iNdEx])
+			copy(dAtA[i:], m.ValidRCodes[iNdEx])
+			i = encodeVarintChecks(dAtA, i, uint64(len(m.ValidRCodes[iNdEx])))
 			i--
-			dAtA[i] = 0x3a
+			dAtA[i] = 0x42
 		}
 	}
-	if m.Port != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Port))
+	if len(m.SourceIpAddress) > 0 {
+		i -= len(m.SourceIpAddress)
+		copy(dAtA[i:], m.SourceIpAddress)
+		i = encodeVarintChecks(dAtA, i, uint64(len(m.SourceIpAddress)))
+		i--
+		dAtA[i] = 0x3a
+	}
+	if m.IpVersion != 0 {
+		i = encodeVarintChecks(dAtA, i, uint64(m.IpVersion))
 		i--
 		dAtA[i] = 0x30
 	}
@@ -2467,465 +2359,27 @@ func (m *DnsSettings) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x28
 	}
-	if m.IpVersion != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.IpVersion))
+	if m.RecordType != 0 {
+		i = encodeVarintChecks(dAtA, i, uint64(m.RecordType))
 		i--
 		dAtA[i] = 0x20
+	}
+	if m.Port != 0 {
+		i = encodeVarintChecks(dAtA, i, uint64(m.Port))
+		i--
+		dAtA[i] = 0x18
 	}
 	if len(m.Server) > 0 {
 		i -= len(m.Server)
 		copy(dAtA[i:], m.Server)
 		i = encodeVarintChecks(dAtA, i, uint64(len(m.Server)))
 		i--
-		dAtA[i] = 0x1a
-	}
-	if m.RecordType != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.RecordType))
-		i--
-		dAtA[i] = 0x10
+		dAtA[i] = 0x12
 	}
 	if len(m.Name) > 0 {
 		i -= len(m.Name)
 		copy(dAtA[i:], m.Name)
 		i = encodeVarintChecks(dAtA, i, uint64(len(m.Name)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *ResponseTimeValidation) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ResponseTimeValidation) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *ResponseTimeValidation) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Severity != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Severity))
-		i--
-		dAtA[i] = 0x10
-	}
-	if m.Threshold != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Threshold))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *HttpCheckValidations) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *HttpCheckValidations) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *HttpCheckValidations) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.ResponseTime != nil {
-		{
-			size, err := m.ResponseTime.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintChecks(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
-	}
-	if m.Body != nil {
-		{
-			size, err := m.Body.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintChecks(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.Header != nil {
-		{
-			size, err := m.Header.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintChecks(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *HttpHeaderValidation) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *HttpHeaderValidation) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *HttpHeaderValidation) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Severity != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Severity))
-		i--
-		dAtA[i] = 0x20
-	}
-	if len(m.Value) > 0 {
-		i -= len(m.Value)
-		copy(dAtA[i:], m.Value)
-		i = encodeVarintChecks(dAtA, i, uint64(len(m.Value)))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if m.Method != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Method))
-		i--
-		dAtA[i] = 0x10
-	}
-	if len(m.Header) > 0 {
-		i -= len(m.Header)
-		copy(dAtA[i:], m.Header)
-		i = encodeVarintChecks(dAtA, i, uint64(len(m.Header)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *HttpBodyValidation) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *HttpBodyValidation) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *HttpBodyValidation) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Severity != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Severity))
-		i--
-		dAtA[i] = 0x18
-	}
-	if len(m.Value) > 0 {
-		i -= len(m.Value)
-		copy(dAtA[i:], m.Value)
-		i = encodeVarintChecks(dAtA, i, uint64(len(m.Value)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.Method != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Method))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *DNSCheckValidation) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *DNSCheckValidation) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *DNSCheckValidation) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Host != nil {
-		{
-			size, err := m.Host.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintChecks(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x22
-	}
-	if m.ResponseTime != nil {
-		{
-			size, err := m.ResponseTime.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintChecks(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x1a
-	}
-	if m.Text != nil {
-		{
-			size, err := m.Text.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintChecks(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.Ttl != nil {
-		{
-			size, err := m.Ttl.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintChecks(dAtA, i, uint64(size))
-		}
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *DnsTtlValidation) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *DnsTtlValidation) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *DnsTtlValidation) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Severity != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Severity))
-		i--
-		dAtA[i] = 0x18
-	}
-	if m.Value != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Value))
-		i--
-		dAtA[i] = 0x10
-	}
-	if len(m.Name) > 0 {
-		i -= len(m.Name)
-		copy(dAtA[i:], m.Name)
-		i = encodeVarintChecks(dAtA, i, uint64(len(m.Name)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *DnsTextValidation) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *DnsTextValidation) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *DnsTextValidation) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Severity != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Severity))
-		i--
-		dAtA[i] = 0x18
-	}
-	if len(m.Value) > 0 {
-		i -= len(m.Value)
-		copy(dAtA[i:], m.Value)
-		i = encodeVarintChecks(dAtA, i, uint64(len(m.Value)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.Method != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Method))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *DnsHostValidation) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *DnsHostValidation) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *DnsHostValidation) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.Severity != 0 {
-		i = encodeVarintChecks(dAtA, i, uint64(m.Severity))
-		i--
-		dAtA[i] = 0x10
-	}
-	if len(m.Host) > 0 {
-		for iNdEx := len(m.Host) - 1; iNdEx >= 0; iNdEx-- {
-			i -= len(m.Host[iNdEx])
-			copy(dAtA[i:], m.Host[iNdEx])
-			i = encodeVarintChecks(dAtA, i, uint64(len(m.Host[iNdEx])))
-			i--
-			dAtA[i] = 0xa
-		}
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *PingCheckValidation) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBuffer(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *PingCheckValidation) MarshalTo(dAtA []byte) (int, error) {
-	size := m.Size()
-	return m.MarshalToSizedBuffer(dAtA[:size])
-}
-
-func (m *PingCheckValidation) MarshalToSizedBuffer(dAtA []byte) (int, error) {
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.XXX_unrecognized != nil {
-		i -= len(m.XXX_unrecognized)
-		copy(dAtA[i:], m.XXX_unrecognized)
-	}
-	if m.ResponseTime != nil {
-		{
-			size, err := m.ResponseTime.MarshalToSizedBuffer(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarintChecks(dAtA, i, uint64(size))
-		}
 		i--
 		dAtA[i] = 0xa
 	}
@@ -3060,10 +2514,10 @@ func (m *Tenant) Size() (n int) {
 		n += 1 + l + sovChecks(uint64(l))
 	}
 	if m.Created != 0 {
-		n += 1 + sovChecks(uint64(m.Created))
+		n += 2 + sovChecks(uint64(m.Created))
 	}
 	if m.Modified != 0 {
-		n += 1 + sovChecks(uint64(m.Modified))
+		n += 2 + sovChecks(uint64(m.Modified))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -3224,11 +2678,15 @@ func (m *PingSettings) Size() (n int) {
 	if m.IpVersion != 0 {
 		n += 1 + sovChecks(uint64(m.IpVersion))
 	}
-	if len(m.Validation) > 0 {
-		for _, e := range m.Validation {
-			l = e.Size()
-			n += 1 + l + sovChecks(uint64(l))
-		}
+	l = len(m.SourceIpAddress)
+	if l > 0 {
+		n += 1 + l + sovChecks(uint64(l))
+	}
+	if m.PayloadSize != 0 {
+		n += 1 + sovChecks(uint64(m.PayloadSize))
+	}
+	if m.DontFragment {
+		n += 2
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -3259,18 +2717,99 @@ func (m *HttpSettings) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovChecks(uint64(l))
 	}
-	if m.DownloadLimit != 0 {
-		n += 1 + sovChecks(uint64(m.DownloadLimit))
-	}
 	if m.IpVersion != 0 {
 		n += 1 + sovChecks(uint64(m.IpVersion))
 	}
-	if m.ValidateCert {
+	if m.NoFollowRedirects {
 		n += 2
 	}
-	if len(m.Validation) > 0 {
-		for _, e := range m.Validation {
+	if m.FailIfSSL {
+		n += 2
+	}
+	if m.FailIfNotSSL {
+		n += 2
+	}
+	if len(m.ValidStatusCodes) > 0 {
+		l = 0
+		for _, e := range m.ValidStatusCodes {
+			l += sovChecks(uint64(e))
+		}
+		n += 1 + sovChecks(uint64(l)) + l
+	}
+	if len(m.ValidHTTPVersions) > 0 {
+		for _, s := range m.ValidHTTPVersions {
+			l = len(s)
+			n += 1 + l + sovChecks(uint64(l))
+		}
+	}
+	if len(m.FailIfBodyMatchesRegexp) > 0 {
+		for _, s := range m.FailIfBodyMatchesRegexp {
+			l = len(s)
+			n += 1 + l + sovChecks(uint64(l))
+		}
+	}
+	if len(m.FailIfBodyNotMatchesRegexp) > 0 {
+		for _, s := range m.FailIfBodyNotMatchesRegexp {
+			l = len(s)
+			n += 1 + l + sovChecks(uint64(l))
+		}
+	}
+	if len(m.FailIfHeaderMatchesRegexp) > 0 {
+		for _, e := range m.FailIfHeaderMatchesRegexp {
 			l = e.Size()
+			n += 1 + l + sovChecks(uint64(l))
+		}
+	}
+	if len(m.FailIfHeaderNotMatchesRegexp) > 0 {
+		for _, e := range m.FailIfHeaderNotMatchesRegexp {
+			l = e.Size()
+			n += 1 + l + sovChecks(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *HeaderMatch) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Header)
+	if l > 0 {
+		n += 1 + l + sovChecks(uint64(l))
+	}
+	l = len(m.Regexp)
+	if l > 0 {
+		n += 1 + l + sovChecks(uint64(l))
+	}
+	if m.AllowMissing {
+		n += 2
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *DNSRRValidator) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.FailIfMatchesRegexp) > 0 {
+		for _, s := range m.FailIfMatchesRegexp {
+			l = len(s)
+			n += 1 + l + sovChecks(uint64(l))
+		}
+	}
+	if len(m.FailIfNotMatchesRegexp) > 0 {
+		for _, s := range m.FailIfNotMatchesRegexp {
+			l = len(s)
 			n += 1 + l + sovChecks(uint64(l))
 		}
 	}
@@ -3290,225 +2829,42 @@ func (m *DnsSettings) Size() (n int) {
 	if l > 0 {
 		n += 1 + l + sovChecks(uint64(l))
 	}
-	if m.RecordType != 0 {
-		n += 1 + sovChecks(uint64(m.RecordType))
-	}
 	l = len(m.Server)
 	if l > 0 {
 		n += 1 + l + sovChecks(uint64(l))
 	}
-	if m.IpVersion != 0 {
-		n += 1 + sovChecks(uint64(m.IpVersion))
+	if m.Port != 0 {
+		n += 1 + sovChecks(uint64(m.Port))
+	}
+	if m.RecordType != 0 {
+		n += 1 + sovChecks(uint64(m.RecordType))
 	}
 	if m.Protocol != 0 {
 		n += 1 + sovChecks(uint64(m.Protocol))
 	}
-	if m.Port != 0 {
-		n += 1 + sovChecks(uint64(m.Port))
+	if m.IpVersion != 0 {
+		n += 1 + sovChecks(uint64(m.IpVersion))
 	}
-	if len(m.Validation) > 0 {
-		for _, e := range m.Validation {
-			l = e.Size()
-			n += 1 + l + sovChecks(uint64(l))
-		}
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *ResponseTimeValidation) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Threshold != 0 {
-		n += 1 + sovChecks(uint64(m.Threshold))
-	}
-	if m.Severity != 0 {
-		n += 1 + sovChecks(uint64(m.Severity))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *HttpCheckValidations) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Header != nil {
-		l = m.Header.Size()
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.Body != nil {
-		l = m.Body.Size()
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.ResponseTime != nil {
-		l = m.ResponseTime.Size()
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *HttpHeaderValidation) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Header)
+	l = len(m.SourceIpAddress)
 	if l > 0 {
 		n += 1 + l + sovChecks(uint64(l))
 	}
-	if m.Method != 0 {
-		n += 1 + sovChecks(uint64(m.Method))
-	}
-	l = len(m.Value)
-	if l > 0 {
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.Severity != 0 {
-		n += 1 + sovChecks(uint64(m.Severity))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *HttpBodyValidation) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Method != 0 {
-		n += 1 + sovChecks(uint64(m.Method))
-	}
-	l = len(m.Value)
-	if l > 0 {
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.Severity != 0 {
-		n += 1 + sovChecks(uint64(m.Severity))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *DNSCheckValidation) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Ttl != nil {
-		l = m.Ttl.Size()
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.Text != nil {
-		l = m.Text.Size()
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.ResponseTime != nil {
-		l = m.ResponseTime.Size()
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.Host != nil {
-		l = m.Host.Size()
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *DnsTtlValidation) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.Name)
-	if l > 0 {
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.Value != 0 {
-		n += 1 + sovChecks(uint64(m.Value))
-	}
-	if m.Severity != 0 {
-		n += 1 + sovChecks(uint64(m.Severity))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *DnsTextValidation) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Method != 0 {
-		n += 1 + sovChecks(uint64(m.Method))
-	}
-	l = len(m.Value)
-	if l > 0 {
-		n += 1 + l + sovChecks(uint64(l))
-	}
-	if m.Severity != 0 {
-		n += 1 + sovChecks(uint64(m.Severity))
-	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
-	}
-	return n
-}
-
-func (m *DnsHostValidation) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if len(m.Host) > 0 {
-		for _, s := range m.Host {
+	if len(m.ValidRCodes) > 0 {
+		for _, s := range m.ValidRCodes {
 			l = len(s)
 			n += 1 + l + sovChecks(uint64(l))
 		}
 	}
-	if m.Severity != 0 {
-		n += 1 + sovChecks(uint64(m.Severity))
+	if m.ValidateAnswer != nil {
+		l = m.ValidateAnswer.Size()
+		n += 1 + l + sovChecks(uint64(l))
 	}
-	if m.XXX_unrecognized != nil {
-		n += len(m.XXX_unrecognized)
+	if m.ValidateAuthority != nil {
+		l = m.ValidateAuthority.Size()
+		n += 1 + l + sovChecks(uint64(l))
 	}
-	return n
-}
-
-func (m *PingCheckValidation) Size() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.ResponseTime != nil {
-		l = m.ResponseTime.Size()
+	if m.ValidateAdditional != nil {
+		l = m.ValidateAdditional.Size()
 		n += 1 + l + sovChecks(uint64(l))
 	}
 	if m.XXX_unrecognized != nil {
@@ -3544,79 +2900,6 @@ func (this *CheckSettings) SetValue(value interface{}) bool {
 		this.Http = vt
 	case *DnsSettings:
 		this.Dns = vt
-	default:
-		return false
-	}
-	return true
-}
-func (this *HttpCheckValidations) GetValue() interface{} {
-	if this.Header != nil {
-		return this.Header
-	}
-	if this.Body != nil {
-		return this.Body
-	}
-	if this.ResponseTime != nil {
-		return this.ResponseTime
-	}
-	return nil
-}
-
-func (this *HttpCheckValidations) SetValue(value interface{}) bool {
-	switch vt := value.(type) {
-	case *HttpHeaderValidation:
-		this.Header = vt
-	case *HttpBodyValidation:
-		this.Body = vt
-	case *ResponseTimeValidation:
-		this.ResponseTime = vt
-	default:
-		return false
-	}
-	return true
-}
-func (this *DNSCheckValidation) GetValue() interface{} {
-	if this.Ttl != nil {
-		return this.Ttl
-	}
-	if this.Text != nil {
-		return this.Text
-	}
-	if this.ResponseTime != nil {
-		return this.ResponseTime
-	}
-	if this.Host != nil {
-		return this.Host
-	}
-	return nil
-}
-
-func (this *DNSCheckValidation) SetValue(value interface{}) bool {
-	switch vt := value.(type) {
-	case *DnsTtlValidation:
-		this.Ttl = vt
-	case *DnsTextValidation:
-		this.Text = vt
-	case *ResponseTimeValidation:
-		this.ResponseTime = vt
-	case *DnsHostValidation:
-		this.Host = vt
-	default:
-		return false
-	}
-	return true
-}
-func (this *PingCheckValidation) GetValue() interface{} {
-	if this.ResponseTime != nil {
-		return this.ResponseTime
-	}
-	return nil
-}
-
-func (this *PingCheckValidation) SetValue(value interface{}) bool {
-	switch vt := value.(type) {
-	case *ResponseTimeValidation:
-		this.ResponseTime = vt
 	default:
 		return false
 	}
@@ -4293,7 +3576,7 @@ func (m *Tenant) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 5:
+		case 100:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Created", wireType)
 			}
@@ -4312,7 +3595,7 @@ func (m *Tenant) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 6:
+		case 101:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Modified", wireType)
 			}
@@ -5356,9 +4639,9 @@ func (m *PingSettings) Unmarshal(dAtA []byte) error {
 			}
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Validation", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field SourceIpAddress", wireType)
 			}
-			var msglen int
+			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowChecks
@@ -5368,26 +4651,63 @@ func (m *PingSettings) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				stringLen |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
 				return ErrInvalidLengthChecks
 			}
-			postIndex := iNdEx + msglen
+			postIndex := iNdEx + intStringLen
 			if postIndex < 0 {
 				return ErrInvalidLengthChecks
 			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Validation = append(m.Validation, PingCheckValidation{})
-			if err := m.Validation[len(m.Validation)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
+			m.SourceIpAddress = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PayloadSize", wireType)
+			}
+			m.PayloadSize = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PayloadSize |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DontFragment", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.DontFragment = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipChecks(dAtA[iNdEx:])
@@ -5559,25 +4879,6 @@ func (m *HttpSettings) Unmarshal(dAtA []byte) error {
 			iNdEx = postIndex
 		case 5:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field DownloadLimit", wireType)
-			}
-			m.DownloadLimit = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.DownloadLimit |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 6:
-			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field IpVersion", wireType)
 			}
 			m.IpVersion = 0
@@ -5595,9 +4896,9 @@ func (m *HttpSettings) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-		case 7:
+		case 6:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ValidateCert", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field NoFollowRedirects", wireType)
 			}
 			var v int
 			for shift := uint(0); ; shift += 7 {
@@ -5614,10 +4915,222 @@ func (m *HttpSettings) Unmarshal(dAtA []byte) error {
 					break
 				}
 			}
-			m.ValidateCert = bool(v != 0)
+			m.NoFollowRedirects = bool(v != 0)
+		case 7:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FailIfSSL", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.FailIfSSL = bool(v != 0)
 		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FailIfNotSSL", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.FailIfNotSSL = bool(v != 0)
+		case 9:
+			if wireType == 0 {
+				var v int32
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowChecks
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					v |= int32(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				m.ValidStatusCodes = append(m.ValidStatusCodes, v)
+			} else if wireType == 2 {
+				var packedLen int
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowChecks
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					packedLen |= int(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				if packedLen < 0 {
+					return ErrInvalidLengthChecks
+				}
+				postIndex := iNdEx + packedLen
+				if postIndex < 0 {
+					return ErrInvalidLengthChecks
+				}
+				if postIndex > l {
+					return io.ErrUnexpectedEOF
+				}
+				var elementCount int
+				var count int
+				for _, integer := range dAtA[iNdEx:postIndex] {
+					if integer < 128 {
+						count++
+					}
+				}
+				elementCount = count
+				if elementCount != 0 && len(m.ValidStatusCodes) == 0 {
+					m.ValidStatusCodes = make([]int32, 0, elementCount)
+				}
+				for iNdEx < postIndex {
+					var v int32
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowChecks
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						v |= int32(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					m.ValidStatusCodes = append(m.ValidStatusCodes, v)
+				}
+			} else {
+				return fmt.Errorf("proto: wrong wireType = %d for field ValidStatusCodes", wireType)
+			}
+		case 10:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Validation", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ValidHTTPVersions", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthChecks
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ValidHTTPVersions = append(m.ValidHTTPVersions, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FailIfBodyMatchesRegexp", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthChecks
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.FailIfBodyMatchesRegexp = append(m.FailIfBodyMatchesRegexp, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 12:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FailIfBodyNotMatchesRegexp", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthChecks
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.FailIfBodyNotMatchesRegexp = append(m.FailIfBodyNotMatchesRegexp, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 13:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FailIfHeaderMatchesRegexp", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -5644,10 +5157,300 @@ func (m *HttpSettings) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Validation = append(m.Validation, HttpCheckValidations{})
-			if err := m.Validation[len(m.Validation)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			m.FailIfHeaderMatchesRegexp = append(m.FailIfHeaderMatchesRegexp, HeaderMatch{})
+			if err := m.FailIfHeaderMatchesRegexp[len(m.FailIfHeaderMatchesRegexp)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		case 14:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FailIfHeaderNotMatchesRegexp", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthChecks
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.FailIfHeaderNotMatchesRegexp = append(m.FailIfHeaderNotMatchesRegexp, HeaderMatch{})
+			if err := m.FailIfHeaderNotMatchesRegexp[len(m.FailIfHeaderNotMatchesRegexp)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipChecks(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *HeaderMatch) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowChecks
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: HeaderMatch: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: HeaderMatch: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthChecks
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Header = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Regexp", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthChecks
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Regexp = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AllowMissing", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.AllowMissing = bool(v != 0)
+		default:
+			iNdEx = preIndex
+			skippy, err := skipChecks(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *DNSRRValidator) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowChecks
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: DNSRRValidator: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: DNSRRValidator: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FailIfMatchesRegexp", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthChecks
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.FailIfMatchesRegexp = append(m.FailIfMatchesRegexp, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field FailIfNotMatchesRegexp", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthChecks
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthChecks
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.FailIfNotMatchesRegexp = append(m.FailIfNotMatchesRegexp, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -5736,25 +5539,6 @@ func (m *DnsSettings) Unmarshal(dAtA []byte) error {
 			m.Name = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field RecordType", wireType)
-			}
-			m.RecordType = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.RecordType |= DnsRecordType(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Server", wireType)
 			}
@@ -5786,11 +5570,11 @@ func (m *DnsSettings) Unmarshal(dAtA []byte) error {
 			}
 			m.Server = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 4:
+		case 3:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field IpVersion", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Port", wireType)
 			}
-			m.IpVersion = 0
+			m.Port = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowChecks
@@ -5800,7 +5584,26 @@ func (m *DnsSettings) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.IpVersion |= IpVersion(b&0x7F) << shift
+				m.Port |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field RecordType", wireType)
+			}
+			m.RecordType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.RecordType |= DnsRecordType(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -5826,9 +5629,9 @@ func (m *DnsSettings) Unmarshal(dAtA []byte) error {
 			}
 		case 6:
 			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Port", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field IpVersion", wireType)
 			}
-			m.Port = 0
+			m.IpVersion = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowChecks
@@ -5838,356 +5641,14 @@ func (m *DnsSettings) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Port |= int32(b&0x7F) << shift
+				m.IpVersion |= IpVersion(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
 		case 7:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Validation", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthChecks
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Validation = append(m.Validation, DNSCheckValidation{})
-			if err := m.Validation[len(m.Validation)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipChecks(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *ResponseTimeValidation) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowChecks
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ResponseTimeValidation: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ResponseTimeValidation: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Threshold", wireType)
-			}
-			m.Threshold = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Threshold |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Severity", wireType)
-			}
-			m.Severity = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Severity |= ValidationSeverity(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipChecks(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *HttpCheckValidations) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowChecks
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: HttpCheckValidations: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: HttpCheckValidations: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthChecks
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Header == nil {
-				m.Header = &HttpHeaderValidation{}
-			}
-			if err := m.Header.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Body", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthChecks
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Body == nil {
-				m.Body = &HttpBodyValidation{}
-			}
-			if err := m.Body.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ResponseTime", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthChecks
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ResponseTime == nil {
-				m.ResponseTime = &ResponseTimeValidation{}
-			}
-			if err := m.ResponseTime.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipChecks(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *HttpHeaderValidation) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowChecks
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: HttpHeaderValidation: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: HttpHeaderValidation: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Header", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field SourceIpAddress", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -6215,30 +5676,11 @@ func (m *HttpHeaderValidation) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Header = string(dAtA[iNdEx:postIndex])
+			m.SourceIpAddress = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Method", wireType)
-			}
-			m.Method = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Method |= ValidationMethod(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
+		case 8:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ValidRCodes", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -6266,208 +5708,11 @@ func (m *HttpHeaderValidation) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Value = string(dAtA[iNdEx:postIndex])
+			m.ValidRCodes = append(m.ValidRCodes, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
-		case 4:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Severity", wireType)
-			}
-			m.Severity = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Severity |= ValidationSeverity(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipChecks(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *HttpBodyValidation) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowChecks
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: HttpBodyValidation: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: HttpBodyValidation: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Method", wireType)
-			}
-			m.Method = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Method |= ValidationMethod(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
+		case 9:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthChecks
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Value = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Severity", wireType)
-			}
-			m.Severity = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Severity |= ValidationSeverity(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipChecks(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *DNSCheckValidation) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowChecks
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: DNSCheckValidation: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DNSCheckValidation: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Ttl", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ValidateAnswer", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -6494,16 +5739,16 @@ func (m *DNSCheckValidation) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Ttl == nil {
-				m.Ttl = &DnsTtlValidation{}
+			if m.ValidateAnswer == nil {
+				m.ValidateAnswer = &DNSRRValidator{}
 			}
-			if err := m.Ttl.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.ValidateAnswer.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
-		case 2:
+		case 10:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Text", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ValidateAuthority", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -6530,16 +5775,16 @@ func (m *DNSCheckValidation) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.Text == nil {
-				m.Text = &DnsTextValidation{}
+			if m.ValidateAuthority == nil {
+				m.ValidateAuthority = &DNSRRValidator{}
 			}
-			if err := m.Text.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.ValidateAuthority.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
-		case 3:
+		case 11:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ResponseTime", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field ValidateAdditional", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -6566,489 +5811,10 @@ func (m *DNSCheckValidation) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if m.ResponseTime == nil {
-				m.ResponseTime = &ResponseTimeValidation{}
+			if m.ValidateAdditional == nil {
+				m.ValidateAdditional = &DNSRRValidator{}
 			}
-			if err := m.ResponseTime.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Host", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthChecks
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Host == nil {
-				m.Host = &DnsHostValidation{}
-			}
-			if err := m.Host.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipChecks(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *DnsTtlValidation) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowChecks
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: DnsTtlValidation: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DnsTtlValidation: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthChecks
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Name = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
-			}
-			m.Value = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Value |= int32(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Severity", wireType)
-			}
-			m.Severity = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Severity |= ValidationSeverity(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipChecks(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *DnsTextValidation) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowChecks
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: DnsTextValidation: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DnsTextValidation: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Method", wireType)
-			}
-			m.Method = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Method |= ValidationMethod(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthChecks
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Value = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Severity", wireType)
-			}
-			m.Severity = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Severity |= ValidationSeverity(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipChecks(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *DnsHostValidation) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowChecks
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: DnsHostValidation: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: DnsHostValidation: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Host", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLengthChecks
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Host = append(m.Host, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Severity", wireType)
-			}
-			m.Severity = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Severity |= ValidationSeverity(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skipChecks(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *PingCheckValidation) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowChecks
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: PingCheckValidation: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: PingCheckValidation: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ResponseTime", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowChecks
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthChecks
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLengthChecks
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.ResponseTime == nil {
-				m.ResponseTime = &ResponseTimeValidation{}
-			}
-			if err := m.ResponseTime.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+			if err := m.ValidateAdditional.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

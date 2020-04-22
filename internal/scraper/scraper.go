@@ -105,6 +105,12 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 
 		bbeModule.ICMP.IPProtocol, bbeModule.ICMP.IPProtocolFallback = ipVersionToIpProtocol(check.Settings.Ping.IpVersion)
 
+		bbeModule.ICMP.SourceIPAddress = check.Settings.Ping.SourceIpAddress
+
+		bbeModule.ICMP.PayloadSize = int(check.Settings.Ping.PayloadSize)
+
+		bbeModule.ICMP.DontFragment = check.Settings.Ping.DontFragment
+
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.ICMP.IPProtocol, check.Id)
 
 		target = check.Settings.Ping.Hostname
@@ -117,6 +123,13 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		bbeModule.HTTP.Body = check.Settings.Http.Body
 
 		bbeModule.HTTP.Method = check.Settings.Http.Method.String()
+
+		bbeModule.HTTP.FailIfSSL = check.Settings.Http.FailIfSSL
+
+		bbeModule.HTTP.FailIfNotSSL = check.Settings.Http.FailIfNotSSL
+
+		bbeModule.HTTP.NoFollowRedirects = check.Settings.Http.NoFollowRedirects
+
 		if len(check.Settings.Http.Headers) > 0 {
 			bbeModule.HTTP.Headers = make(map[string]string)
 		}
@@ -129,11 +142,45 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 			bbeModule.HTTP.Headers[parts[0]] = value
 		}
 
+		bbeModule.HTTP.ValidStatusCodes = make([]int, 0, len(check.Settings.Http.ValidStatusCodes))
+		for _, code := range check.Settings.Http.ValidStatusCodes {
+			bbeModule.HTTP.ValidStatusCodes = append(bbeModule.HTTP.ValidStatusCodes, int(code))
+		}
+
+		bbeModule.HTTP.ValidHTTPVersions = make([]string, len(check.Settings.Http.ValidHTTPVersions))
+		copy(bbeModule.HTTP.ValidHTTPVersions, check.Settings.Http.ValidHTTPVersions)
+
+		bbeModule.HTTP.FailIfBodyMatchesRegexp = make([]string, len(check.Settings.Http.FailIfBodyMatchesRegexp))
+		copy(bbeModule.HTTP.FailIfBodyMatchesRegexp, check.Settings.Http.FailIfBodyMatchesRegexp)
+
+		bbeModule.HTTP.FailIfBodyNotMatchesRegexp = make([]string, len(check.Settings.Http.FailIfBodyNotMatchesRegexp))
+		copy(bbeModule.HTTP.FailIfBodyNotMatchesRegexp, check.Settings.Http.FailIfBodyNotMatchesRegexp)
+
+		bbeModule.HTTP.FailIfHeaderMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(check.Settings.Http.FailIfHeaderMatchesRegexp))
+		for _, m := range check.Settings.Http.FailIfHeaderMatchesRegexp {
+			bbeModule.HTTP.FailIfHeaderMatchesRegexp = append(bbeModule.HTTP.FailIfHeaderMatchesRegexp, bbeconfig.HeaderMatch{
+				Header:       m.Header,
+				Regexp:       m.Regexp,
+				AllowMissing: m.AllowMissing,
+			})
+		}
+
+		bbeModule.HTTP.FailIfHeaderNotMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(check.Settings.Http.FailIfHeaderNotMatchesRegexp))
+		for _, m := range check.Settings.Http.FailIfHeaderNotMatchesRegexp {
+			bbeModule.HTTP.FailIfHeaderNotMatchesRegexp = append(bbeModule.HTTP.FailIfHeaderNotMatchesRegexp, bbeconfig.HeaderMatch{
+				Header:       m.Header,
+				Regexp:       m.Regexp,
+				AllowMissing: m.AllowMissing,
+			})
+		}
+
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.HTTP.IPProtocol, check.Id)
 
 		target = check.Settings.Http.Url
 	} else if check.Settings.Dns != nil {
 		checkName = "dns"
+
+		bbeModule.DNS.IPProtocol, bbeModule.DNS.IPProtocolFallback = ipVersionToIpProtocol(check.Settings.Dns.IpVersion)
 
 		// BBE dns_probe actually tests the DNS server, so we
 		// need to pass the query (e.g. www.grafana.com) as part
@@ -141,9 +188,25 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		// parameter.
 		bbeModule.DNS.QueryName = check.Settings.Dns.Name
 		bbeModule.DNS.QueryType = check.Settings.Dns.RecordType.String()
-		bbeModule.DNS.TransportProtocol = "udp"
+		bbeModule.DNS.SourceIPAddress = check.Settings.Dns.SourceIpAddress
+		bbeModule.DNS.TransportProtocol = check.Settings.Dns.Protocol.String()
 
-		bbeModule.DNS.IPProtocol, bbeModule.DNS.IPProtocolFallback = ipVersionToIpProtocol(check.Settings.Dns.IpVersion)
+		bbeModule.DNS.ValidRcodes = check.Settings.Dns.ValidRCodes
+
+		if check.Settings.Dns.ValidateAnswer != nil {
+			bbeModule.DNS.ValidateAnswer.FailIfMatchesRegexp = check.Settings.Dns.ValidateAnswer.FailIfMatchesRegexp
+			bbeModule.DNS.ValidateAnswer.FailIfNotMatchesRegexp = check.Settings.Dns.ValidateAnswer.FailIfNotMatchesRegexp
+		}
+
+		if check.Settings.Dns.ValidateAuthority != nil {
+			bbeModule.DNS.ValidateAuthority.FailIfMatchesRegexp = check.Settings.Dns.ValidateAuthority.FailIfMatchesRegexp
+			bbeModule.DNS.ValidateAuthority.FailIfNotMatchesRegexp = check.Settings.Dns.ValidateAuthority.FailIfNotMatchesRegexp
+		}
+
+		if check.Settings.Dns.ValidateAdditional != nil {
+			bbeModule.DNS.ValidateAdditional.FailIfMatchesRegexp = check.Settings.Dns.ValidateAdditional.FailIfMatchesRegexp
+			bbeModule.DNS.ValidateAdditional.FailIfNotMatchesRegexp = check.Settings.Dns.ValidateAdditional.FailIfNotMatchesRegexp
+		}
 
 		target = check.Settings.Dns.Server
 	} else {

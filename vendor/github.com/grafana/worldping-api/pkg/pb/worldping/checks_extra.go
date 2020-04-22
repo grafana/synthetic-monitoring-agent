@@ -17,35 +17,35 @@
 package worldping
 
 import (
-	fmt "fmt"
+	"errors"
 	"strconv"
 	"strings"
 )
 
 var (
-	ErrInvalidCheckProbes = fmt.Errorf("invalid check probes")
+	ErrInvalidCheckProbes = errors.New("invalid check probes")
 
-	ErrInvalidCheckSettings = fmt.Errorf("invalid check settings")
+	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
-	ErrInvalidDnsProtocolString = fmt.Errorf("invalid DNS protocl string")
-	ErrInvalidDnsProtocolValue  = fmt.Errorf("invalid DNS protocol value")
+	ErrInvalidPingHostname    = errors.New("invalid ping hostname")
+	ErrInvalidPingPayloadSize = errors.New("invalid ping payload size")
 
-	ErrInvalidDnsRecordTypeString = fmt.Errorf("invalid DNS record type string")
-	ErrInvalidDnsRecordTypeValue  = fmt.Errorf("invalid DNS record type value")
+	ErrInvalidDnsName             = errors.New("invalid DNS name")
+	ErrInvalidDnsServer           = errors.New("invalid DNS server")
+	ErrInvalidDnsPort             = errors.New("invalid DNS port")
+	ErrInvalidDnsProtocolString   = errors.New("invalid DNS protocol string")
+	ErrInvalidDnsProtocolValue    = errors.New("invalid DNS protocol value")
+	ErrInvalidDnsRecordTypeString = errors.New("invalid DNS record type string")
+	ErrInvalidDnsRecordTypeValue  = errors.New("invalid DNS record type value")
 
-	ErrInvalidHttpMethodString = fmt.Errorf("invalid HTTP method string")
-	ErrInvalidHttpMethodValue  = fmt.Errorf("invalid HTTP method value")
+	ErrInvalidHttpUrl          = errors.New("invalid HTTP URL")
+	ErrInvalidHttpMethodString = errors.New("invalid HTTP method string")
+	ErrInvalidHttpMethodValue  = errors.New("invalid HTTP method value")
 
-	ErrInvalidIpVersionString = fmt.Errorf("invalid ip version string")
-	ErrInvalidIpVersionValue  = fmt.Errorf("invalid ip version value")
+	ErrInvalidIpVersionString = errors.New("invalid ip version string")
+	ErrInvalidIpVersionValue  = errors.New("invalid ip version value")
 
-	ErrInvalidValidationMethodString = fmt.Errorf("invalid validation method string")
-	ErrInvalidValidationMethodValue  = fmt.Errorf("invalid validation method value")
-
-	ErrInvalidValidationSeverityString = fmt.Errorf("invalid validation severity string")
-	ErrInvalidValidationSeverityValue  = fmt.Errorf("invalid validation severity value")
-
-	ErrInvalidProbe = fmt.Errorf("invalid probe")
+	ErrInvalidProbe = errors.New("invalid probe")
 )
 
 func (c *Check) Validate() error {
@@ -69,6 +69,42 @@ func (c *Check) Validate() error {
 
 	if settingsCount != 1 {
 		return ErrInvalidCheckSettings
+	}
+
+	return nil
+}
+
+func (s *PingSettings) Validate() error {
+	if s.Hostname == "" {
+		return ErrInvalidPingHostname
+	}
+
+	if s.PayloadSize < 0 || s.PayloadSize > 65499 {
+		return ErrInvalidPingPayloadSize
+	}
+
+	return nil
+}
+
+func (s *HttpSettings) Validate() error {
+	if len(s.Url) == 0 {
+		return ErrInvalidHttpUrl
+	}
+
+	return nil
+}
+
+func (s *DnsSettings) Validate() error {
+	if len(s.Name) == 0 {
+		return ErrInvalidDnsName
+	}
+
+	if len(s.Server) == 0 {
+		return ErrInvalidDnsServer
+	}
+
+	if s.Port < 0 || s.Port > 65535 {
+		return ErrInvalidDnsPort
 	}
 
 	return nil
@@ -129,40 +165,6 @@ func (out *IpVersion) UnmarshalJSON(b []byte) error {
 	}
 
 	return ErrInvalidIpVersionString
-}
-
-func (v ValidationMethod) MarshalJSON() ([]byte, error) {
-	if b := lookupValue(int32(v), ValidationMethod_name); b != nil {
-		return b, nil
-	}
-
-	return nil, ErrInvalidValidationSeverityValue
-}
-
-func (out *ValidationMethod) UnmarshalJSON(b []byte) error {
-	if v, found := lookupString(b, ValidationMethod_value); found {
-		*out = ValidationMethod(v)
-		return nil
-	}
-
-	return ErrInvalidValidationMethodString
-}
-
-func (v ValidationSeverity) MarshalJSON() ([]byte, error) {
-	if b := lookupValue(int32(v), ValidationSeverity_name); b != nil {
-		return b, nil
-	}
-
-	return nil, ErrInvalidValidationSeverityValue
-}
-
-func (out *ValidationSeverity) UnmarshalJSON(b []byte) error {
-	if v, found := lookupString(b, ValidationSeverity_value); found {
-		*out = ValidationSeverity(v)
-		return nil
-	}
-
-	return ErrInvalidValidationSeverityString
 }
 
 func (v HttpMethod) MarshalJSON() ([]byte, error) {
