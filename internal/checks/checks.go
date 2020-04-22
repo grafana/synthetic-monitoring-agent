@@ -157,17 +157,17 @@ func (c *Updater) loop(ctx context.Context) error {
 				c.logger.Printf("Got change: %#v", change)
 
 				switch change.Operation {
-				case worldping.CheckOperation_ADD:
+				case worldping.CheckOperation_CHECK_ADD:
 					if err := c.handleCheckAdd(ctx, change.Check); err != nil {
 						c.logger.Printf("handling check add: %s", err)
 					}
 
-				case worldping.CheckOperation_UPDATE:
+				case worldping.CheckOperation_CHECK_UPDATE:
 					if err := c.handleCheckUpdate(ctx, change.Check); err != nil {
 						c.logger.Printf("handling check update: %s", err)
 					}
 
-				case worldping.CheckOperation_DELETE:
+				case worldping.CheckOperation_CHECK_DELETE:
 					if err := c.handleCheckDelete(ctx, change.Check); err != nil {
 						c.logger.Printf("handling check delete: %s", err)
 					}

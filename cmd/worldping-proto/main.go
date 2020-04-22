@@ -69,14 +69,6 @@ func write(checkType checkType) {
 			Ping: &worldping.PingSettings{
 				Hostname:  "grafana.com",
 				IpVersion: worldping.IpVersion_V4,
-				Validation: []worldping.PingCheckValidation{
-					{
-						ResponseTime: &worldping.ResponseTimeValidation{
-							Threshold: 250,
-							Severity:  worldping.ValidationSeverity_Warning,
-						},
-					},
-				},
 			},
 		}
 
@@ -86,15 +78,7 @@ func write(checkType checkType) {
 				Url:          "https://grafana.com/",
 				Method:       worldping.HttpMethod_GET,
 				IpVersion:    worldping.IpVersion_V4,
-				ValidateCert: true,
-				Validation: []worldping.HttpCheckValidations{
-					{
-						ResponseTime: &worldping.ResponseTimeValidation{
-							Threshold: 250,
-							Severity:  worldping.ValidationSeverity_Warning,
-						},
-					},
-				},
+				FailIfNotSSL: true,
 			},
 		}
 
@@ -107,14 +91,6 @@ func write(checkType checkType) {
 				IpVersion:  worldping.IpVersion_V4,
 				Protocol:   worldping.DnsProtocol_TCP,
 				Port:       53,
-				Validation: []worldping.DNSCheckValidation{
-					{
-						ResponseTime: &worldping.ResponseTimeValidation{
-							Threshold: 250,
-							Severity:  worldping.ValidationSeverity_Warning,
-						},
-					},
-				},
 			},
 		}
 	}

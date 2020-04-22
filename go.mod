@@ -8,7 +8,7 @@ require (
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/snappy v0.0.1
 	github.com/grafana/loki v6.7.8+incompatible
-	github.com/grafana/worldping-api v0.0.0-20200422122327-cabd52ca5303
+	github.com/grafana/worldping-api v0.0.0-20200428212250-b45afe93fb96
 	github.com/mmcloughlin/geohash v0.9.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/pkg/errors v0.9.1
