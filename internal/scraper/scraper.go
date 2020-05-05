@@ -72,6 +72,7 @@ func (d *probeData) Tenant() int64 {
 func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, probeURL url.URL, logger logger) (*Scraper, error) {
 	var (
 		target     string
+		endpoint   string
 		checkName  string
 		moduleName string
 		bbeModule  bbeconfig.Module
@@ -114,6 +115,7 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.ICMP.IPProtocol, check.Id)
 
 		target = check.Settings.Ping.Hostname
+		endpoint = target
 	} else if check.Settings.Http != nil {
 		bbeModule.Prober = "http"
 		checkName = "http"
@@ -177,6 +179,7 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.HTTP.IPProtocol, check.Id)
 
 		target = check.Settings.Http.Url
+		endpoint = target
 	} else if check.Settings.Dns != nil {
 		bbeModule.Prober = "dns"
 		checkName = "dns"
@@ -212,6 +215,7 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.DNS.IPProtocol, check.Id)
 
 		target = check.Settings.Dns.Server
+		endpoint = check.Settings.Dns.Name
 	} else {
 		return nil, fmt.Errorf("unsupported change")
 	}
@@ -225,7 +229,7 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		publishCh:  publishCh,
 		checkName:  checkName,
 		provider:   probeURL,
-		endpoint:   target,
+		endpoint:   endpoint,
 		logger:     logger,
 		check:      check,
 		probe:      probe,
