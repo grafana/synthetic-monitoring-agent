@@ -2,28 +2,56 @@
 ##
 ## For more information, refer to https://suva.sh/posts/well-documented-makefiles/
 
+ROOTDIR := $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+DISTDIR := $(abspath $(ROOTDIR)/dist)
+
+BUILD_VERSION := $(shell git describe --dirty --tags --always)
+BUILD_COMMIT := $(shell git rev-parse HEAD^{commit})
+BUILD_STAMP := $(shell date --utc --rfc-3339=seconds)
+
+include config.mk
+
 -include local/Makefile
 
 S := @
 V :=
 
-GO = GO111MODULE=on go
+GO := GO111MODULE=on go
+GO_VENDOR := $(if $(realpath $(ROOTDIR)/vendor/modules.txt),true,false)
+GO_BUILD_COMMON_FLAGS := -trimpath
+ifeq ($(GO_VENDOR),true)
+	GO_BUILD_MOD_FLAGS := -mod=vendor
+	GOLANGCI_LINT_MOD_FLAGS := --modules-download-mode=vendor
+else
+	GO_BUILD_MOD_FLAGS := -mod=readonly
+	GOLANGCI_LINT_MOD_FLAGS := --modules-download-mode=readonly
+endif
+GO_BUILD_FLAGS := $(GO_BUILD_MOD_FLAGS) $(GO_BUILD_COMMON_FLAGS)
+
 GO_PKGS ?= ./...
 SH_FILES ?= $(shell find ./scripts -name *.sh)
 
-COMMANDS := $(shell $(GO) list -mod=vendor ./cmd/...)
+COMMANDS := $(shell $(GO) list $(GO_BUILD_MOD_FLAGS) ./cmd/...)
 
 .DEFAULT_GOAL := all
 
 .PHONY: all
-all: build
+all: deps build
 
 ##@ Dependencies
 
-.PHONY: vendor-go
-vendor-go: ## Install Go dependencies.
-	$(S) true
+.PHONY: deps-go
+deps-go: ## Install Go dependencies.
+ifeq ($(GO_VENDOR),true)
 	$(GO) mod vendor
+else
+	$(GO) mod download
+endif
+	$(GO) mod verify
+	$(GO) mod tidy
+
+.PHONY: deps
+deps: deps-go ## Install all dependencies.
 
 ##@ Building
 
@@ -31,12 +59,11 @@ BUILD_GO_TARGETS := $(addprefix build-go-, $(COMMANDS))
 
 .PHONY: $(BUILD_GO_TARGETS)
 $(BUILD_GO_TARGETS): build-go-%:
-	$(S) echo 'Building $*'
-	$(GO) build -mod=vendor $*
+	$(call build_go_command,$*)
 
 .PHONY: build-go
 build-go: $(BUILD_GO_TARGETS) ## Build all Go binaries.
-	$(S) true
+	$(S) echo Done.
 
 .PHONY: build
 build: build-go ## Build everything.
@@ -54,7 +81,7 @@ run: scripts/go/bin/bra ## Build and run web server on filesystem changes.
 .PHONY: test-go
 test-go: ## Run Go tests.
 	$(S) echo "test backend"
-	$(GO) test -mod=vendor -v ./...
+	$(GO) test $(GO_BUILD_MOD_FLAGS) -v ./...
 
 .PHONY: test
 test: test-go ## Run all tests.
@@ -69,7 +96,7 @@ scripts/go/bin/golangci-lint: scripts/go/go.mod
 golangci-lint: scripts/go/bin/golangci-lint
 	$(S) echo "lint via golangci-lint"
 	$(S) scripts/go/bin/golangci-lint run \
-	    --modules-download-mode=vendor \
+		$(GOLANGCI_LINT_MOD_FLAGS) \
 		--config ./scripts/go/configs/golangci.yml \
 		$(GO_PKGS)
 
@@ -89,7 +116,7 @@ gosec: scripts/go/bin/gosec
 .PHONY: go-vet
 go-vet:
 	$(S) echo "lint via go vet"
-	$(S) $(GO) vet -mod vendor $(GO_PKGS)
+	$(S) $(GO) vet $(GO_BUILD_MOD_FLAGS) $(GO_PKGS)
 
 .PHONY: lint-go
 lint-go: go-vet golangci-lint gosec ## Run all Go code checks.
@@ -101,9 +128,14 @@ lint: lint-go ## Run all code checks.
 
 .PHONY: clean
 clean: ## Clean up intermediate build artifacts.
-	$(S) echo "cleaning"
-	rm -rf node_modules
-	rm -rf public/build
+	$(S) echo "Cleaning intermediate build artifacts..."
+	$(V) rm -rf node_modules
+	$(V) rm -rf public/build
+
+.PHONY: distclean
+distclean: clean ## Clean up all build artifacts.
+	$(S) echo "Cleaning all build artifacts..."
+	$(V) git clean -Xf
 
 .PHONY: help
 help: ## Display this help.
@@ -111,4 +143,14 @@ help: ## Display this help.
 
 .PHONY: docker
 docker: build
-	$(S) docker build -t us.gcr.io/kubernetes-dev/worldping-blackbox-sidecar:latest .
+	$(S) docker build -t $(DOCKER_TAG) ./
+
+define build_go_command
+	$(S) echo 'Building $(1)'
+	$(S) mkdir -p dist
+	$(V) $(GO) build \
+		$(GO_BUILD_FLAGS) \
+		-o '$(DISTDIR)/$(notdir $(1))' \
+		-ldflags '-X "main.commit=$(BUILD_COMMIT)" -X "main.version=$(BUILD_VERSION)" -X "main.buildstamp=$(BUILD_STAMP)"' \
+		'$(1)'
+endef
