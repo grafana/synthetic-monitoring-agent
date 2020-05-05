@@ -80,23 +80,20 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 		logger = p.logger
 	}
 
-	logger.Printf("handling publish request...")
 	client, err := p.getClient(ctx, payload.Tenant())
 	if err != nil {
-		logger.Printf("failed to get clients for tenant: %s", err.Error())
+		logger.Printf(`action="get clients" tenant=%d err="%s"`, payload.Tenant(), err.Error())
 		return
 	}
 	if len(payload.Streams()) > 0 {
-		logger.Printf("handling publish events...")
 		if err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
-			logger.Printf("handling events publish: %s", err.Error())
+			logger.Printf(`action="publish events" tenant=%d err="%s"`, payload.Tenant(), err.Error())
 		}
 	}
 
 	if len(payload.Metrics()) > 0 {
-		logger.Printf("handling push metrics...")
 		if err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
-			logger.Printf("handling metrics publish: %s", err.Error())
+			logger.Printf(`action="publish metrics" tenant=%d err="%s"`, payload.Tenant(), err.Error())
 		}
 	}
 }
