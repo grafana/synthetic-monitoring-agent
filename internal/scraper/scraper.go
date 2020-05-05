@@ -178,6 +178,7 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 
 		target = check.Settings.Http.Url
 	} else if check.Settings.Dns != nil {
+		bbeModule.Prober = "dns"
 		checkName = "dns"
 
 		bbeModule.DNS.IPProtocol, bbeModule.DNS.IPProtocolFallback = ipVersionToIpProtocol(check.Settings.Dns.IpVersion)
@@ -207,6 +208,8 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 			bbeModule.DNS.ValidateAdditional.FailIfMatchesRegexp = check.Settings.Dns.ValidateAdditional.FailIfMatchesRegexp
 			bbeModule.DNS.ValidateAdditional.FailIfNotMatchesRegexp = check.Settings.Dns.ValidateAdditional.FailIfNotMatchesRegexp
 		}
+
+		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.DNS.IPProtocol, check.Id)
 
 		target = check.Settings.Dns.Server
 	} else {
