@@ -24,7 +24,8 @@ import (
 )
 
 var (
-	errNotAuthorized = fmt.Errorf("probe not authorized")
+	errNotAuthorized    = errors.New("probe not authorized")
+	errTransportClosing = errors.New("transport closing")
 )
 
 // Updater represents a probe along with the collection of scrapers
@@ -100,9 +101,20 @@ func (c *Updater) Run(ctx context.Context) error {
 			// our token is invalid, bail out?
 			return err
 
+		case errors.Is(err, errTransportClosing):
+			// the other end went away? Since we don't know if it's coming back, bail out.
+			//
+			// TODO(mem): we could try to rebuild the connection (fall to the default case below), but that
+			// requires some limit to avoid spining forever
+			return err
+
+		case errors.Is(err, context.Canceled):
+			// context was cancelled, clean up
+			return nil
+
 		default:
-			// XXX(mem): this might be a connection error.  Add backoff? GRPC already
-			// has a backoff while connecting.
+			// TODO(mem): this might be a transient error (e.g. bad connection). We need to add a backoff
+			// here.
 			c.logger.Printf("while handling check changes: %s", err)
 			time.Sleep(time.Second * 2)
 			continue
@@ -116,9 +128,33 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	client := worldping.NewChecksClient(c.api.conn)
 
+	grpcErrorHandler := func(action string, err error) error {
+		status, ok := status.FromError(err)
+		c.logger.Printf("updater error: %#v message: %q code: %d", err, status.Message(), status.Code())
+
+		switch {
+		case !ok:
+			return fmt.Errorf("%s: %w", action, err)
+
+		case status.Code() == codes.Canceled:
+			// either we were told to shut down
+			return context.Canceled
+
+		case status.Message() == "transport is closing":
+			// the other end is shutting down
+			return errTransportClosing
+
+		case status.Code() == codes.PermissionDenied:
+			return errNotAuthorized
+
+		default:
+			return status.Err()
+		}
+	}
+
 	result, err := client.RegisterProbe(ctx, &worldping.Void{})
 	if err != nil {
-		return fmt.Errorf("registering probe with worldping-api: %w", err)
+		return grpcErrorHandler("registering probe with worldping-api", err)
 	}
 
 	switch result.Status.Code {
@@ -138,7 +174,7 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	cc, err := client.GetChanges(ctx, &worldping.Void{})
 	if err != nil {
-		return fmt.Errorf("getting changes from worldping-api: %w", err)
+		return grpcErrorHandler("requesting changes from worldping-api", err)
 	}
 
 	// XXX(mem): possibly create a new context here that gets
@@ -181,15 +217,7 @@ func (c *Updater) loop(ctx context.Context) error {
 				return nil
 
 			default:
-				// if the context is canceled and the
-				// GRPC client processes the event
-				// before we do, we get an error
-				// representing the cancellation
-				if status.Code(err) == codes.Canceled {
-					return nil
-				} else {
-					return fmt.Errorf("getting changes from worldping-api: %w", err)
-				}
+				return grpcErrorHandler("getting changes from worldping-api", err)
 			}
 		}
 	}
