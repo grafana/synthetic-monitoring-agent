@@ -2,29 +2,25 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
 	"net"
-	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
-	"strings"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/grafana/worldping-blackbox-sidecar/internal/checks"
+	"github.com/grafana/worldping-blackbox-sidecar/internal/http"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
+	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/errgroup"
 )
-
-var exitError error
 
 const exitFail = 1
 
@@ -54,70 +50,64 @@ func run(args []string, stdout io.Writer) error {
 		return fmt.Errorf("invalid API token")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	baseCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	g, ctx := errgroup.WithContext(baseCtx)
 
 	loggerWriter := ioutil.Discard
 	if *verbose {
 		loggerWriter = stdout
 	}
 
-	tag := fmt.Sprintf("%s: ", args[0])
+	progname := filepath.Base(args[0])
 
-	logger := log.New(loggerWriter, tag, log.LstdFlags)
+	logger := log.New(loggerWriter, progname+": ", log.LstdFlags|log.Lmicroseconds)
 
-	go signalHandler(ctx, cancel, logger)
+	g.Go(func() error {
+		return signalHandler(ctx, logger)
+	})
 
-	logger.Printf("Starting worldping-blackbox-sidecar (%s, %s, %s)", version, commit, buildstamp)
+	logger.Printf("Starting %s (%s, %s, %s)", progname, version, commit, buildstamp)
 
-	if err := registerMetrics(); err != nil {
+	if err := registerMetrics(prometheus.DefaultRegisterer); err != nil {
 		return err
 	}
 
-	httpConfig := httpConfig{
-		listenAddr:   *httpListenAddr,
-		logger:       logger,
-		readTimeout:  5 * time.Second,
-		writeTimeout: 10 * time.Second,
-		idleTimeout:  15 * time.Second,
+	router := newRouter()
+
+	httpConfig := http.Config{
+		ListenAddr:   *httpListenAddr,
+		Logger:       logger,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
 	}
 
-	httpServer := newHttpServer(ctx, httpConfig)
+	httpServer := http.NewServer(ctx, router, httpConfig)
 
-	go func(cancel context.CancelFunc) {
-		var lc net.ListenConfig
+	httpListener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", httpServer.ListenAddr())
+	if err != nil {
+		return err
+	}
 
-		l, err := lc.Listen(ctx, "tcp", httpServer.Addr)
-		if err != nil {
-			exitError = err
-			cancel()
-			return
-		}
+	g.Go(func() error {
+		<-ctx.Done()
+		timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer timeoutCancel()
 
-		if err := runHttpServer(l, httpServer); err != nil {
-			exitError = err
-			cancel()
-			return
-		}
-	}(cancel)
+		// we probably cannot do anything meaningful with this
+		// error but return it anyways.
+		return httpServer.Shutdown(timeoutCtx)
+	})
+
+	g.Go(func() error {
+		return httpServer.Run(httpListener)
+	})
 
 	publishCh := make(chan pusher.Payload)
 
-	apiCreds := creds{Token: *apiToken}
-
-	opts := []grpc.DialOption{
-		grpc.WithBlock(),
-		grpc.WithPerRPCCredentials(apiCreds),
-	}
-
-	if *grpcInsecure {
-		opts = append(opts, grpc.WithInsecure())
-	} else {
-		creds := credentials.NewTLS(&tls.Config{ServerName: grpcApiHost(*grpcApiServerAddr)})
-		opts = append(opts, grpc.WithTransportCredentials(creds))
-	}
-
-	conn, err := grpc.DialContext(ctx, *grpcApiServerAddr, opts...)
+	conn, err := dialAPIServer(ctx, *grpcApiServerAddr, *grpcInsecure, *apiToken)
 	if err != nil {
 		return fmt.Errorf("dialing GRPC server %s: %w", *grpcApiServerAddr, err)
 	}
@@ -128,58 +118,17 @@ func run(args []string, stdout io.Writer) error {
 		log.Fatalf("Cannot create checks updater: %s", err)
 	}
 
-	go func() {
-		if err := checksUpdater.Run(ctx); err != nil {
-			logger.Printf("E: while running checks updater: %s", err)
-			cancel()
-		}
-	}()
+	g.Go(func() error {
+		return checksUpdater.Run(ctx)
+	})
 
 	publisher := pusher.NewPublisher(conn, publishCh, logger)
 
-	go func() {
-		if err := publisher.Run(ctx); err != nil {
-			// we should never see this, if we are here
-			// something bad happened
-			logger.Printf("E: while running publisher: %s", err)
-			cancel()
-		}
-	}()
+	g.Go(func() error {
+		return publisher.Run(ctx)
+	})
 
-	<-ctx.Done()
-
-	timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer timeoutCancel()
-
-	// we probably cannot do anything meaningful with this error
-	_ = httpServer.Shutdown(timeoutCtx)
-
-	return exitError
-}
-
-func grpcApiHost(addr string) string {
-	colonPos := strings.LastIndex(addr, ":")
-	if colonPos == -1 {
-		colonPos = len(addr)
-	}
-	hostname := addr[:colonPos]
-	return hostname
-}
-
-type creds struct {
-	Token string
-}
-
-func (c creds) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
-	return map[string]string{
-		"authorization": "Bearer " + c.Token,
-	}, nil
-}
-
-func (c creds) RequireTransportSecurity() bool {
-	log.Printf("RequireTransportSecurity")
-	// XXX(mem): this is true
-	return false
+	return g.Wait()
 }
 
 func main() {
@@ -189,67 +138,18 @@ func main() {
 	}
 }
 
-type httpConfig struct {
-	listenAddr   string
-	logger       *log.Logger
-	readTimeout  time.Duration
-	writeTimeout time.Duration
-	idleTimeout  time.Duration
-}
-
-func signalHandler(ctx context.Context, cancel context.CancelFunc, logger *log.Logger) {
+func signalHandler(ctx context.Context, logger *log.Logger) error {
 	sigCh := make(chan os.Signal, 1)
 
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
 	select {
 	case sig := <-sigCh:
-		exitError = fmt.Errorf("Got signal %s", sig)
 		logger.Printf("Received signal %s. Shutting down.", sig)
+		return fmt.Errorf("Got signal %s", sig)
 
 	case <-ctx.Done():
 		logger.Printf("Shutting down...")
+		return nil
 	}
-
-	cancel()
-}
-
-func defaultHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-			return
-		}
-
-		w.WriteHeader(http.StatusOK)
-
-		fmt.Fprintln(w, "hello, world!")
-	})
-}
-
-func newHttpServer(ctx context.Context, cfg httpConfig) *http.Server {
-	router := http.NewServeMux()
-	router.Handle("/", defaultHandler())
-	router.Handle("/metrics", promhttp.Handler())
-
-	return &http.Server{
-		Addr:         cfg.listenAddr,
-		Handler:      router,
-		ErrorLog:     cfg.logger,
-		ReadTimeout:  cfg.readTimeout,
-		WriteTimeout: cfg.writeTimeout,
-		IdleTimeout:  cfg.idleTimeout,
-		BaseContext:  func(net.Listener) context.Context { return ctx },
-	}
-}
-
-func runHttpServer(l net.Listener, server *http.Server) error {
-	server.ErrorLog.Printf("Starting HTTP server on %s...", server.Addr)
-
-	err := server.Serve(l)
-	if err != nil && err != http.ErrServerClosed {
-		return fmt.Errorf("could not serve HTTP on %s: %w", server.Addr, err)
-	}
-
-	return nil
 }
