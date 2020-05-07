@@ -118,7 +118,7 @@ func run(args []string, stdout io.Writer) error {
 	}
 	defer conn.Close()
 
-	checksUpdater, err := checks.NewUpdater(conn, *bbeConfigFilename, blackboxExporterURL, logger, publishCh)
+	checksUpdater, err := checks.NewUpdater(conn, *bbeConfigFilename, blackboxExporterURL, logger, publishCh, promRegisterer)
 	if err != nil {
 		log.Fatalf("Cannot create checks updater: %s", err)
 	}
