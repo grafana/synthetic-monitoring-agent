@@ -193,7 +193,10 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		bbeModule.DNS.QueryName = check.Settings.Dns.Name
 		bbeModule.DNS.QueryType = check.Settings.Dns.RecordType.String()
 		bbeModule.DNS.SourceIPAddress = check.Settings.Dns.SourceIpAddress
-		bbeModule.DNS.TransportProtocol = check.Settings.Dns.Protocol.String()
+		// In the protobuffer definition the protocol is either
+		// "TCP" or "UDP", but blackbox-exporter wants "tcp" or
+		// "udp".
+		bbeModule.DNS.TransportProtocol = strings.ToLower(check.Settings.Dns.Protocol.String())
 
 		bbeModule.DNS.ValidRcodes = check.Settings.Dns.ValidRCodes
 
