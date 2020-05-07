@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/worldping-api/pkg/pb/worldping"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/scraper"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -32,13 +33,16 @@ var (
 // running on that probe and it manages the configuration for
 // blackbox-exporter that corresponds to the collection of scrapers.
 type Updater struct {
-	bbeInfo       bbeInfo
-	api           apiInfo
-	logger        logger
-	publishCh     chan<- pusher.Payload
-	probe         *worldping.Probe
-	scrapersMutex sync.Mutex
-	scrapers      map[int64]*scraper.Scraper
+	bbeInfo             bbeInfo
+	api                 apiInfo
+	logger              logger
+	publishCh           chan<- pusher.Payload
+	probe               *worldping.Probe
+	scrapersMutex       sync.Mutex
+	scrapers            map[int64]*scraper.Scraper
+	changesCounter      *prometheus.CounterVec
+	changeErrorsCounter *prometheus.CounterVec
+	runningScrapers     *prometheus.GaugeVec
 }
 
 // bbeInfo represents the information necessary to communicate with
@@ -60,7 +64,7 @@ type logger interface {
 type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
-func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- pusher.Payload) (*Updater, error) {
+func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- pusher.Payload, promRegisterer prometheus.Registerer) (*Updater, error) {
 	if blackboxExporterURL == nil {
 		return nil, fmt.Errorf("invalid blackbox-exporter URL")
 	}
@@ -75,6 +79,45 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 		return nil, err
 	}
 
+	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "bbe_sidecar",
+		Subsystem: "updater",
+		Name:      "changes_total",
+		Help:      "number of changes processed",
+	}, []string{
+		"type",
+	})
+
+	if err := promRegisterer.Register(changesCounter); err != nil {
+		return nil, err
+	}
+
+	changeErrorsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "bbe_sidecar",
+		Subsystem: "updater",
+		Name:      "change_errors_total",
+		Help:      "number of errors during change processing",
+	}, []string{
+		"type",
+	})
+
+	if err := promRegisterer.Register(changeErrorsCounter); err != nil {
+		return nil, err
+	}
+
+	runningScrapers := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "bbe_sidecar",
+		Subsystem: "updater",
+		Name:      "scrapers_total",
+		Help:      "running scrapers",
+	}, []string{
+		"type",
+	})
+
+	if err := promRegisterer.Register(runningScrapers); err != nil {
+		return nil, err
+	}
+
 	return &Updater{
 		api: apiInfo{
 			conn: conn,
@@ -84,9 +127,12 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 			probeURL:       blackboxExporterProbeURL,
 			reloadURL:      blackboxExporterReloadURL.String(),
 		},
-		logger:    logger,
-		publishCh: publishCh,
-		scrapers:  make(map[int64]*scraper.Scraper),
+		logger:              logger,
+		publishCh:           publishCh,
+		scrapers:            make(map[int64]*scraper.Scraper),
+		changesCounter:      changesCounter,
+		changeErrorsCounter: changeErrorsCounter,
+		runningScrapers:     runningScrapers,
 	}, nil
 }
 
@@ -194,17 +240,23 @@ func (c *Updater) loop(ctx context.Context) error {
 
 				switch change.Operation {
 				case worldping.CheckOperation_CHECK_ADD:
+					c.changesCounter.WithLabelValues("add").Inc()
 					if err := c.handleCheckAdd(ctx, change.Check); err != nil {
+						c.changeErrorsCounter.WithLabelValues("add").Inc()
 						c.logger.Printf("handling check add: %s", err)
 					}
 
 				case worldping.CheckOperation_CHECK_UPDATE:
+					c.changesCounter.WithLabelValues("update").Inc()
 					if err := c.handleCheckUpdate(ctx, change.Check); err != nil {
+						c.changeErrorsCounter.WithLabelValues("update").Inc()
 						c.logger.Printf("handling check update: %s", err)
 					}
 
 				case worldping.CheckOperation_CHECK_DELETE:
+					c.changesCounter.WithLabelValues("delete").Inc()
 					if err := c.handleCheckDelete(ctx, change.Check); err != nil {
+						c.changeErrorsCounter.WithLabelValues("delete").Inc()
 						c.logger.Printf("handling check delete: %s", err)
 					}
 				}
@@ -254,6 +306,8 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) 
 	scraper.Stop()
 	delete(c.scrapers, check.Id)
 
+	c.runningScrapers.WithLabelValues(getCheckType(&check)).Dec()
+
 	return c.addAndStartScraper(ctx, check)
 }
 
@@ -270,6 +324,8 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) 
 	scraper.Stop()
 
 	delete(c.scrapers, check.Id)
+
+	c.runningScrapers.WithLabelValues(getCheckType(&check)).Dec()
 
 	return nil
 }
@@ -299,6 +355,8 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check)
 	}
 
 	go scraper.Run(ctx)
+
+	c.runningScrapers.WithLabelValues(getCheckType(&check)).Inc()
 
 	return nil
 }
@@ -352,4 +410,19 @@ func (bbe *bbeInfo) updateConfig(scrapers map[int64]*scraper.Scraper) error {
 	}
 
 	return nil
+}
+
+func getCheckType(check *worldping.Check) string {
+	switch {
+	case check.Settings.Dns != nil:
+		return "dns"
+
+	case check.Settings.Http != nil:
+		return "http"
+
+	case check.Settings.Ping != nil:
+		return "ping"
+	}
+
+	panic("unknown check type")
 }
