@@ -70,11 +70,16 @@ func run(args []string, stdout io.Writer) error {
 
 	logger.Printf("Starting %s (%s, %s, %s)", progname, version, commit, buildstamp)
 
-	if err := registerMetrics(prometheus.DefaultRegisterer); err != nil {
+	promRegisterer := prometheus.NewRegistry()
+
+	if err := registerMetrics(promRegisterer); err != nil {
 		return err
 	}
 
-	router := newRouter()
+	router := NewMux(MuxOpts{
+		Logger:         logger,
+		PromRegisterer: promRegisterer,
+	})
 
 	httpConfig := http.Config{
 		ListenAddr:   *httpListenAddr,
