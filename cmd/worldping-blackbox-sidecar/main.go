@@ -127,7 +127,7 @@ func run(args []string, stdout io.Writer) error {
 		return checksUpdater.Run(ctx)
 	})
 
-	publisher := pusher.NewPublisher(conn, publishCh, logger)
+	publisher := pusher.NewPublisher(conn, publishCh, logger, promRegisterer)
 
 	g.Go(func() error {
 		return publisher.Run(ctx)

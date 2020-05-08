@@ -14,6 +14,7 @@ import (
 	"github.com/grafana/worldping-api/pkg/pb/worldping"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/loki"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/prom"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"google.golang.org/grpc"
 )
@@ -47,14 +48,53 @@ type Publisher struct {
 	publishCh     <-chan Payload
 	clientsMutex  sync.Mutex
 	clients       map[int64]*remoteTarget
+	pushCounter   *prometheus.CounterVec
+	errorCounter  *prometheus.CounterVec
+	bytesOut      *prometheus.CounterVec
 }
 
-func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger logger) *Publisher {
+func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger logger, promRegisterer prometheus.Registerer) *Publisher {
+	pushCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "worldping_bbe_sidecar",
+			Subsystem: "publisher",
+			Name:      "push_total",
+			Help:      "push events",
+		},
+		[]string{"type", "tenantID"})
+
+	promRegisterer.MustRegister(pushCounter)
+
+	errorCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "worldping_bbe_sidecar",
+			Subsystem: "publisher",
+			Name:      "push_errors_total",
+			Help:      "push errors",
+		},
+		[]string{"type", "tenantID"})
+
+	promRegisterer.MustRegister(errorCounter)
+
+	bytesOut := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "worldping_bbe_sidecar",
+			Subsystem: "publisher",
+			Name:      "push_bytes",
+			Help:      "total number of bytes pushed",
+		},
+		[]string{"target", "tenantID"})
+
+	promRegisterer.MustRegister(bytesOut)
+
 	return &Publisher{
 		tenantsClient: worldping.NewTenantsClient(conn),
 		publishCh:     publishCh,
 		clients:       make(map[int64]*remoteTarget),
 		logger:        logger,
+		pushCounter:   pushCounter,
+		errorCounter:  errorCounter,
+		bytesOut:      bytesOut,
 	}
 }
 
@@ -80,20 +120,33 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 		logger = p.logger
 	}
 
-	client, err := p.getClient(ctx, payload.Tenant())
+	tenantID := payload.Tenant()
+	tenantStr := strconv.FormatInt(tenantID, 10)
+
+	client, err := p.getClient(ctx, tenantID)
 	if err != nil {
-		logger.Printf(`action="get clients" tenant=%d err="%s"`, payload.Tenant(), err.Error())
+		logger.Printf(`action="get clients" tenant=%d err="%s"`, tenantID, err.Error())
+		p.errorCounter.WithLabelValues("client", tenantStr).Inc()
 		return
 	}
+
 	if len(payload.Streams()) > 0 {
-		if err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
-			logger.Printf(`action="publish events" tenant=%d err="%s"`, payload.Tenant(), err.Error())
+		if n, err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
+			logger.Printf(`action="publish events" tenant=%d err="%s"`, tenantID, err.Error())
+			p.errorCounter.WithLabelValues("logs", tenantStr).Inc()
+		} else {
+			p.pushCounter.WithLabelValues("logs", tenantStr).Inc()
+			p.bytesOut.WithLabelValues("logs", tenantStr).Add(float64(n))
 		}
 	}
 
 	if len(payload.Metrics()) > 0 {
-		if err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
-			logger.Printf(`action="publish metrics" tenant=%d err="%s"`, payload.Tenant(), err.Error())
+		if n, err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
+			logger.Printf(`action="publish metrics" tenant=%d err="%s"`, tenantID, err.Error())
+			p.errorCounter.WithLabelValues("metrics", tenantStr).Inc()
+		} else {
+			p.pushCounter.WithLabelValues("metrics", tenantStr).Inc()
+			p.bytesOut.WithLabelValues("metrics", tenantStr).Add(float64(n))
 		}
 	}
 }
@@ -102,7 +155,7 @@ type logger interface {
 	Printf(format string, v ...interface{})
 }
 
-func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams []*logproto.Stream) error {
+func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams []*logproto.Stream) (int, error) {
 	buf := bufPool.Get().(*[]byte)
 	defer bufPool.Put(buf)
 
@@ -111,13 +164,13 @@ func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams
 
 	if err := loki.SendStreamsWithBackoff(ctx, client, streams, buf); err != nil {
 		p.logger.Printf("W: error while sending events: %s", err)
-		return fmt.Errorf("sending events: %w", err)
+		return 0, fmt.Errorf("sending events: %w", err)
 	}
 
-	return nil
+	return len(*buf), nil
 }
 
-func (p *Publisher) pushMetrics(ctx context.Context, client *prom.Client, metrics []prompb.TimeSeries) error {
+func (p *Publisher) pushMetrics(ctx context.Context, client *prom.Client, metrics []prompb.TimeSeries) (int, error) {
 	buf := bufPool.Get().(*[]byte)
 	defer bufPool.Put(buf)
 
@@ -126,10 +179,10 @@ func (p *Publisher) pushMetrics(ctx context.Context, client *prom.Client, metric
 
 	if err := prom.SendSamplesWithBackoff(ctx, client, metrics, buf); err != nil {
 		p.logger.Printf("W: error while sending timeseries: %s", err)
-		return fmt.Errorf("sending timeseries: %w", err)
+		return 0, fmt.Errorf("sending timeseries: %w", err)
 	}
 
-	return nil
+	return len(*buf), nil
 }
 
 func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarget, error) {
