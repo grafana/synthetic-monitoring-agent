@@ -86,7 +86,7 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 		Namespace: "worldping_bbe_sidecar",
 		Subsystem: "updater",
 		Name:      "changes_total",
-		Help:      "number of changes processed",
+		Help:      "Total number of changes processed.",
 	}, []string{
 		"type",
 	})
@@ -99,7 +99,7 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 		Namespace: "worldping_bbe_sidecar",
 		Subsystem: "updater",
 		Name:      "change_errors_total",
-		Help:      "number of errors during change processing",
+		Help:      "Total number of errors during change processing.",
 	}, []string{
 		"type",
 	})
@@ -112,7 +112,7 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 		Namespace: "worldping_bbe_sidecar",
 		Subsystem: "updater",
 		Name:      "scrapers_total",
-		Help:      "running scrapers",
+		Help:      "Total number of running scrapers.",
 	}, []string{
 		"type",
 	})
