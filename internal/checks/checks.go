@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -43,6 +44,8 @@ type Updater struct {
 	changesCounter      *prometheus.CounterVec
 	changeErrorsCounter *prometheus.CounterVec
 	runningScrapers     *prometheus.GaugeVec
+	scrapesCounter      *prometheus.CounterVec
+	scrapeErrorCounter  *prometheus.CounterVec
 }
 
 // bbeInfo represents the information necessary to communicate with
@@ -80,7 +83,7 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 	}
 
 	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "bbe_sidecar",
+		Namespace: "worldping_bbe_sidecar",
 		Subsystem: "updater",
 		Name:      "changes_total",
 		Help:      "number of changes processed",
@@ -93,7 +96,7 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 	}
 
 	changeErrorsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "bbe_sidecar",
+		Namespace: "worldping_bbe_sidecar",
 		Subsystem: "updater",
 		Name:      "change_errors_total",
 		Help:      "number of errors during change processing",
@@ -106,7 +109,7 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 	}
 
 	runningScrapers := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "bbe_sidecar",
+		Namespace: "worldping_bbe_sidecar",
 		Subsystem: "updater",
 		Name:      "scrapers_total",
 		Help:      "running scrapers",
@@ -115,6 +118,35 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 	})
 
 	if err := promRegisterer.Register(runningScrapers); err != nil {
+		return nil, err
+	}
+
+	scrapesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "worldping_bbe_sidecar",
+		Subsystem: "scraper",
+		Name:      "operations_total",
+		Help:      "Total number of scrape operations performed.",
+	}, []string{
+		"check_id",
+		"probe",
+	})
+
+	if err := promRegisterer.Register(scrapesCounter); err != nil {
+		return nil, err
+	}
+
+	scrapeErrorCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "worldping_bbe_sidecar",
+		Subsystem: "scraper",
+		Name:      "errors_total",
+		Help:      "Total number of scraper errors.",
+	}, []string{
+		"check_id",
+		"probe",
+		"type",
+	})
+
+	if err := promRegisterer.Register(scrapeErrorCounter); err != nil {
 		return nil, err
 	}
 
@@ -133,6 +165,8 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 		changesCounter:      changesCounter,
 		changeErrorsCounter: changeErrorsCounter,
 		runningScrapers:     runningScrapers,
+		scrapesCounter:      scrapesCounter,
+		scrapeErrorCounter:  scrapeErrorCounter,
 	}, nil
 }
 
@@ -335,7 +369,20 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) 
 //
 // This MUST be called with the scrapersMutex held.
 func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check) error {
-	scraper, err := scraper.New(check, c.publishCh, *c.probe, *c.bbeInfo.probeURL, c.logger)
+	scrapeCounter := c.scrapesCounter.With(prometheus.Labels{
+		"check_id": strconv.FormatInt(check.Id, 10),
+		"probe":    c.probe.Name,
+	})
+
+	scrapeErrorCounter, err := c.scrapeErrorCounter.CurryWith(prometheus.Labels{
+		"check_id": strconv.FormatInt(check.Id, 10),
+		"probe":    c.probe.Name,
+	})
+	if err != nil {
+		return err
+	}
+
+	scraper, err := scraper.New(check, c.publishCh, *c.probe, *c.bbeInfo.probeURL, c.logger, scrapeCounter, scrapeErrorCounter)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}

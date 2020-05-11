@@ -21,6 +21,7 @@ import (
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
 	"github.com/mmcloughlin/geohash"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/prometheus/prompb"
@@ -32,16 +33,18 @@ var (
 )
 
 type Scraper struct {
-	publishCh  chan<- pusher.Payload
-	checkName  string
-	provider   url.URL // provider is the BBE URL
-	endpoint   string  // endpoint is the thing to be checked (hostname, URL, ...)
-	logger     logger
-	check      worldping.Check
-	probe      worldping.Probe
-	bbeModule  *bbeconfig.Module
-	moduleName string
-	stop       chan struct{}
+	publishCh     chan<- pusher.Payload
+	checkName     string
+	provider      url.URL // provider is the BBE URL
+	endpoint      string  // endpoint is the thing to be checked (hostname, URL, ...)
+	logger        logger
+	check         worldping.Check
+	probe         worldping.Probe
+	bbeModule     *bbeconfig.Module
+	moduleName    string
+	stop          chan struct{}
+	scrapeCounter prometheus.Counter
+	errorCounter  *prometheus.CounterVec
 }
 
 type logger interface {
@@ -69,7 +72,7 @@ func (d *probeData) Tenant() int64 {
 	return d.tenantId
 }
 
-func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, probeURL url.URL, logger logger) (*Scraper, error) {
+func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, probeURL url.URL, logger logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
 	var (
 		target     string
 		endpoint   string
@@ -226,16 +229,18 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 	probeURL.RawQuery = q.Encode()
 
 	return &Scraper{
-		publishCh:  publishCh,
-		checkName:  checkName,
-		provider:   probeURL,
-		endpoint:   endpoint,
-		logger:     logger,
-		check:      check,
-		probe:      probe,
-		bbeModule:  &bbeModule,
-		moduleName: moduleName,
-		stop:       make(chan struct{}),
+		publishCh:     publishCh,
+		checkName:     checkName,
+		provider:      probeURL,
+		endpoint:      endpoint,
+		logger:        logger,
+		check:         check,
+		probe:         probe,
+		bbeModule:     &bbeModule,
+		moduleName:    moduleName,
+		stop:          make(chan struct{}),
+		scrapeCounter: scrapeCounter,
+		errorCounter:  errorCounter,
 	}, nil
 }
 
@@ -289,16 +294,20 @@ func (s *Scraper) Run(ctx context.Context) {
 	var payload *probeData
 
 	scrape := func(ctx context.Context, t time.Time) {
+		s.scrapeCounter.Inc()
+
 		var err error
 		payload, err = s.collectData(ctx, t)
 
 		switch {
 		case errors.Is(err, errCheckFailed):
+			s.errorCounter.WithLabelValues("check").Inc()
 			sm.fail(func() {
 				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
 			})
 
 		case err != nil:
+			s.errorCounter.WithLabelValues("collector").Inc()
 			s.logger.Printf(`msg="error collecting data" probe=%s endpoint=%s provider=%s err="%s"`, s.probe.Name, s.endpoint, s.provider.String(), err)
 			return
 
