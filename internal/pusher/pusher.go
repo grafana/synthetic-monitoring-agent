@@ -59,7 +59,7 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger logger
 			Namespace: "worldping_bbe_sidecar",
 			Subsystem: "publisher",
 			Name:      "push_total",
-			Help:      "push events",
+			Help:      "Total number of push events.",
 		},
 		[]string{"type", "tenantID"})
 
@@ -70,7 +70,7 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger logger
 			Namespace: "worldping_bbe_sidecar",
 			Subsystem: "publisher",
 			Name:      "push_errors_total",
-			Help:      "push errors",
+			Help:      "Total number of push errors.",
 		},
 		[]string{"type", "tenantID"})
 
@@ -81,7 +81,7 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger logger
 			Namespace: "worldping_bbe_sidecar",
 			Subsystem: "publisher",
 			Name:      "push_bytes",
-			Help:      "total number of bytes pushed",
+			Help:      "Total number of bytes pushed.",
 		},
 		[]string{"target", "tenantID"})
 
