@@ -25,6 +25,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/prometheus/prompb"
+	"github.com/rs/zerolog"
 )
 
 var (
@@ -43,7 +44,7 @@ type Scraper struct {
 	checkName     string
 	provider      url.URL // provider is the BBE URL
 	endpoint      string  // endpoint is the thing to be checked (hostname, URL, ...)
-	logger        logger
+	logger        zerolog.Logger
 	check         worldping.Check
 	probe         worldping.Probe
 	bbeModule     *bbeconfig.Module
@@ -51,10 +52,6 @@ type Scraper struct {
 	stop          chan struct{}
 	scrapeCounter prometheus.Counter
 	errorCounter  *prometheus.CounterVec
-}
-
-type logger interface {
-	Printf(format string, v ...interface{})
 }
 
 type TimeSeries = []prompb.TimeSeries
@@ -78,7 +75,7 @@ func (d *probeData) Tenant() int64 {
 	return d.tenantId
 }
 
-func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, probeURL url.URL, logger logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
+func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, probeURL url.URL, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
 	var (
 		target     string
 		endpoint   string
@@ -237,6 +234,14 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 	q.Set("module", moduleName)
 	probeURL.RawQuery = q.Encode()
 
+	logger = logger.With().
+		Int64("check_id", check.Id).
+		Str("probe", probe.Name).
+		Str("endpoint", endpoint).
+		Str("check", checkName).
+		Str("provider", probeURL.String()).
+		Logger()
+
 	return &Scraper{
 		publishCh:     publishCh,
 		checkName:     checkName,
@@ -292,7 +297,7 @@ func (sm checkStateMachine) isFailing() bool {
 }
 
 func (s *Scraper) Run(ctx context.Context) {
-	s.logger.Printf(`msg="starting scraper" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
+	s.logger.Info().Msg("starting scraper")
 
 	// TODO(mem): keep count of the number of successive errors and
 	// collect logs if threshold is reached.
@@ -312,17 +317,17 @@ func (s *Scraper) Run(ctx context.Context) {
 		case errors.Is(err, errCheckFailed):
 			s.errorCounter.WithLabelValues("check").Inc()
 			sm.fail(func() {
-				s.logger.Printf(`msg="check entered FAIL state" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
+				s.logger.Info().Msg("check entered FAIL state")
 			})
 
 		case err != nil:
 			s.errorCounter.WithLabelValues("collector").Inc()
-			s.logger.Printf(`msg="error collecting data" probe=%s endpoint=%s provider=%s err="%s"`, s.probe.Name, s.endpoint, s.provider.String(), err)
+			s.logger.Error().Err(err).Msg("error collecting data")
 			return
 
 		default:
 			sm.pass(func() {
-				s.logger.Printf(`msg="check entered PASS state" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
+				s.logger.Info().Msg("check entered PASS state")
 			})
 		}
 
@@ -357,11 +362,11 @@ func (s *Scraper) Run(ctx context.Context) {
 
 	tickWithOffset(ctx, s.stop, scrape, cleanup, s.check.Offset, s.check.Frequency)
 
-	s.logger.Printf(`msg="scraper stopped" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
+	s.logger.Info().Msg("scraper stopped")
 }
 
 func (s *Scraper) Stop() {
-	s.logger.Printf(`msg="stopping scraper" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
+	s.logger.Info().Msg("stopping scraper")
 	close(s.stop)
 }
 
@@ -570,7 +575,7 @@ RECORD:
 					// We should never hit this as the timestamp string in the log should be valid.
 					// Without a timestamp we cannot do anything. And we cannot use something like
 					// time.Now() because that would mess up other entries
-					s.logger.Printf(`Invalid timestamp "%s" scanning logs: %s:`, string(value), err)
+					s.logger.Warn().Err(err).Bytes("value", value).Msg("invalid timestamp scanning logs")
 					continue RECORD
 				}
 
@@ -584,14 +589,14 @@ RECORD:
 			default:
 				if err := enc.EncodeKeyval(key, value); err != nil {
 					// We should never hit this because all the entries are valid.
-					s.logger.Printf(`Invalid entry "%s: %s" scanning logs: %s:`, string(key), string(value), err)
+					s.logger.Warn().Err(err).Bytes("key", key).Bytes("value", value).Msg("invalid entry scanning logs")
 					continue RECORD
 				}
 			}
 		}
 
 		if err := enc.EndRecord(); err != nil {
-			s.logger.Printf(`Error reencoding logs: %s:`, err)
+			s.logger.Warn().Err(err).Msg("encoding logs")
 		}
 
 		// this is creating one stream per log line because the labels might have to change between lines (level
@@ -608,7 +613,7 @@ RECORD:
 	}
 
 	if err := dec.Err(); err != nil {
-		s.logger.Printf("error decoding logs: %s", err)
+		s.logger.Error().Err(err).Msg("decoding logs")
 	}
 
 	return streams
