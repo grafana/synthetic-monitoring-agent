@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/worldping-blackbox-sidecar/pkg/pb/worldping"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
+	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -36,7 +37,7 @@ var (
 type Updater struct {
 	bbeInfo             bbeInfo
 	api                 apiInfo
-	logger              logger
+	logger              zerolog.Logger
 	publishCh           chan<- pusher.Payload
 	probe               *worldping.Probe
 	scrapersMutex       sync.Mutex
@@ -60,14 +61,10 @@ type apiInfo struct {
 	conn *grpc.ClientConn
 }
 
-type logger interface {
-	Printf(format string, v ...interface{})
-}
-
 type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
-func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporterURL *url.URL, logger logger, publishCh chan<- pusher.Payload, promRegisterer prometheus.Registerer) (*Updater, error) {
+func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporterURL *url.URL, logger zerolog.Logger, publishCh chan<- pusher.Payload, promRegisterer prometheus.Registerer) (*Updater, error) {
 	if blackboxExporterURL == nil {
 		return nil, fmt.Errorf("invalid blackbox-exporter URL")
 	}
@@ -195,7 +192,7 @@ func (c *Updater) Run(ctx context.Context) error {
 		default:
 			// TODO(mem): this might be a transient error (e.g. bad connection). We need to add a backoff
 			// here.
-			c.logger.Printf("while handling check changes: %s", err)
+			c.logger.Err(err).Msg("handling check changes")
 			time.Sleep(time.Second * 2)
 			continue
 		}
@@ -204,13 +201,13 @@ func (c *Updater) Run(ctx context.Context) error {
 }
 
 func (c *Updater) loop(ctx context.Context) error {
-	c.logger.Printf("Fetching check configuration from worldping-api")
+	c.logger.Info().Msg("fetching check configuration from worldping-api")
 
 	client := worldping.NewChecksClient(c.api.conn)
 
 	grpcErrorHandler := func(action string, err error) error {
 		status, ok := status.FromError(err)
-		c.logger.Printf("updater error: %#v message: %q code: %d", err, status.Message(), status.Code())
+		c.logger.Error().Err(err).Uint32("code", uint32(status.Code())).Msg(status.Message())
 
 		switch {
 		case !ok:
@@ -250,7 +247,7 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	c.probe = &result.Probe
 
-	c.logger.Printf("registered probe (%d, %s) with worldping-api", c.probe.Id, c.probe.Name)
+	c.logger.Info().Int64("probe id", c.probe.Id).Str("probe name", c.probe.Name).Msg("registered probe with worldping-api")
 
 	cc, err := client.GetChanges(ctx, &worldping.Void{})
 	if err != nil {
@@ -270,33 +267,33 @@ func (c *Updater) loop(ctx context.Context) error {
 		default:
 			switch change, err := cc.Recv(); err {
 			case nil:
-				c.logger.Printf("Got change: %#v", change)
+				c.logger.Debug().Interface("change", change).Msg("got change")
 
 				switch change.Operation {
 				case worldping.CheckOperation_CHECK_ADD:
 					c.changesCounter.WithLabelValues("add").Inc()
 					if err := c.handleCheckAdd(ctx, change.Check); err != nil {
 						c.changeErrorsCounter.WithLabelValues("add").Inc()
-						c.logger.Printf("handling check add: %s", err)
+						c.logger.Error().Err(err).Msg("handling check add")
 					}
 
 				case worldping.CheckOperation_CHECK_UPDATE:
 					c.changesCounter.WithLabelValues("update").Inc()
 					if err := c.handleCheckUpdate(ctx, change.Check); err != nil {
 						c.changeErrorsCounter.WithLabelValues("update").Inc()
-						c.logger.Printf("handling check update: %s", err)
+						c.logger.Error().Err(err).Msg("handling check update")
 					}
 
 				case worldping.CheckOperation_CHECK_DELETE:
 					c.changesCounter.WithLabelValues("delete").Inc()
 					if err := c.handleCheckDelete(ctx, change.Check); err != nil {
 						c.changeErrorsCounter.WithLabelValues("delete").Inc()
-						c.logger.Printf("handling check delete: %s", err)
+						c.logger.Error().Err(err).Msg("handling check delete")
 					}
 				}
 
 			case io.EOF:
-				c.logger.Printf("No more messages?")
+				c.logger.Warn().Msg("no more messages?")
 				// XXX(mem): what happened here? The
 				// other end told us there are no more
 				// changes. Stop? Is it restarting?
@@ -330,7 +327,7 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) 
 
 	scraper, found := c.scrapers[check.Id]
 	if !found {
-		c.logger.Printf("got an update request for an unknown check: %#v", check)
+		c.logger.Warn().Int64("check_id", check.Id).Msg("update request for an unknown check")
 		return nil
 	}
 
@@ -352,7 +349,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) 
 
 	scraper, found := c.scrapers[check.Id]
 	if !found {
-		c.logger.Printf("got a delete request for an unknown check: %#v", check)
+		c.logger.Warn().Int64("check_id", check.Id).Msg("delete request for an unknown check")
 		return nil
 	}
 
@@ -400,7 +397,7 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check)
 	// timeout?
 	if err := c.bbeInfo.updateConfig(c.scrapers); err != nil {
 		// XXX(mem): bail out?
-		c.logger.Printf("updating blackbox-exporter configuration: %s", err)
+		c.logger.Error().Err(err).Int64("check_id", check.Id).Msg("updating blackbox-exporter configuration")
 	}
 
 	go scraper.Run(ctx)

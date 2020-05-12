@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/url"
@@ -19,6 +18,7 @@ import (
 	"github.com/grafana/worldping-blackbox-sidecar/internal/http"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -55,20 +55,22 @@ func run(args []string, stdout io.Writer) error {
 
 	g, ctx := errgroup.WithContext(baseCtx)
 
-	loggerWriter := ioutil.Discard
+	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
 	if *verbose {
-		loggerWriter = stdout
+		// setting this to debug mimics previous behavior of
+		// verbose enabling all logs
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
-	progname := filepath.Base(args[0])
+	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
 
-	logger := log.New(loggerWriter, progname+": ", log.LstdFlags|log.Lmicroseconds)
+	zl := zerolog.New(stdout).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
 
 	g.Go(func() error {
-		return signalHandler(ctx, logger)
+		return signalHandler(ctx, zl.With().Str("subsystem", "signal handler").Logger())
 	})
 
-	logger.Printf("Starting %s (%s, %s, %s)", progname, version, commit, buildstamp)
+	zl.Info().Str("version", version).Str("commit", commit).Str("buildstamp", buildstamp).Msg("starting")
 
 	promRegisterer := prometheus.NewRegistry()
 
@@ -77,13 +79,13 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	router := NewMux(MuxOpts{
-		Logger:         logger,
+		Logger:         zl.With().Str("subsystem", "mux").Logger(),
 		PromRegisterer: promRegisterer,
 	})
 
 	httpConfig := http.Config{
 		ListenAddr:   *httpListenAddr,
-		Logger:       logger,
+		Logger:       zl.With().Str("subsystem", "http").Logger(),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  15 * time.Second,
@@ -118,7 +120,7 @@ func run(args []string, stdout io.Writer) error {
 	}
 	defer conn.Close()
 
-	checksUpdater, err := checks.NewUpdater(conn, *bbeConfigFilename, blackboxExporterURL, logger, publishCh, promRegisterer)
+	checksUpdater, err := checks.NewUpdater(conn, *bbeConfigFilename, blackboxExporterURL, zl.With().Str("subsystem", "updater").Logger(), publishCh, promRegisterer)
 	if err != nil {
 		log.Fatalf("Cannot create checks updater: %s", err)
 	}
@@ -127,7 +129,7 @@ func run(args []string, stdout io.Writer) error {
 		return checksUpdater.Run(ctx)
 	})
 
-	publisher := pusher.NewPublisher(conn, publishCh, logger, promRegisterer)
+	publisher := pusher.NewPublisher(conn, publishCh, zl.With().Str("subsystem", "publisher").Logger(), promRegisterer)
 
 	g.Go(func() error {
 		return publisher.Run(ctx)
@@ -143,18 +145,18 @@ func main() {
 	}
 }
 
-func signalHandler(ctx context.Context, logger *log.Logger) error {
+func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 	sigCh := make(chan os.Signal, 1)
 
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 
 	select {
 	case sig := <-sigCh:
-		logger.Printf("Received signal %s. Shutting down.", sig)
+		logger.Info().Str("signal", sig.String()).Msg("shutting down")
 		return fmt.Errorf("Got signal %s", sig)
 
 	case <-ctx.Done():
-		logger.Printf("Shutting down...")
+		logger.Info().Msg("shutting down")
 		return nil
 	}
 }

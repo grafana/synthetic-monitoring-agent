@@ -2,13 +2,13 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/rs/zerolog"
 )
 
 type Mux struct {
@@ -17,7 +17,7 @@ type Mux struct {
 }
 
 type MuxOpts struct {
-	Logger         *log.Logger
+	Logger         zerolog.Logger
 	PromRegisterer interface {
 		prometheus.Registerer
 		prometheus.Gatherer

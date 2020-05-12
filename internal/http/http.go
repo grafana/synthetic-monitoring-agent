@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/rs/zerolog"
 )
 
 type server struct {
@@ -14,11 +16,13 @@ type server struct {
 }
 
 func NewServer(ctx context.Context, handler http.Handler, cfg Config) *server {
+	stdlog := log.New(cfg.Logger, "", 0)
+
 	return &server{
 		srv: &http.Server{
 			Addr:         cfg.ListenAddr,
 			Handler:      handler,
-			ErrorLog:     cfg.Logger,
+			ErrorLog:     stdlog,
 			ReadTimeout:  cfg.ReadTimeout,
 			WriteTimeout: cfg.WriteTimeout,
 			IdleTimeout:  cfg.IdleTimeout,
@@ -48,7 +52,7 @@ func (s *server) Shutdown(ctx context.Context) error {
 
 type Config struct {
 	ListenAddr   string
-	Logger       *log.Logger
+	Logger       zerolog.Logger
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
