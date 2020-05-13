@@ -338,9 +338,10 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) 
 	// down, start it again.
 
 	scraper.Stop()
+	checkType := scraper.CheckType()
 	delete(c.scrapers, check.Id)
 
-	c.runningScrapers.WithLabelValues(getCheckType(&check)).Dec()
+	c.runningScrapers.WithLabelValues(checkType).Dec()
 
 	return c.addAndStartScraper(ctx, check)
 }
@@ -356,10 +357,11 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) 
 	}
 
 	scraper.Stop()
+	checkType := scraper.CheckType()
 
 	delete(c.scrapers, check.Id)
 
-	c.runningScrapers.WithLabelValues(getCheckType(&check)).Dec()
+	c.runningScrapers.WithLabelValues(checkType).Dec()
 
 	return nil
 }
@@ -403,7 +405,7 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check)
 
 	go scraper.Run(ctx)
 
-	c.runningScrapers.WithLabelValues(getCheckType(&check)).Inc()
+	c.runningScrapers.WithLabelValues(scraper.CheckType()).Inc()
 
 	return nil
 }
@@ -457,19 +459,4 @@ func (bbe *bbeInfo) updateConfig(scrapers map[int64]*scraper.Scraper) error {
 	}
 
 	return nil
-}
-
-func getCheckType(check *worldping.Check) string {
-	switch {
-	case check.Settings.Dns != nil:
-		return "dns"
-
-	case check.Settings.Http != nil:
-		return "http"
-
-	case check.Settings.Ping != nil:
-		return "ping"
-	}
-
-	panic("unknown check type")
 }

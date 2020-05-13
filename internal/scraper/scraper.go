@@ -32,6 +32,12 @@ var (
 	staleMarker float64 = math.Float64frombits(staleNaN)
 )
 
+const (
+	ScraperTypeDNS  = "dns"
+	ScraperTypeHTTP = "http"
+	ScraperTypePing = "ping"
+)
+
 type Scraper struct {
 	publishCh     chan<- pusher.Payload
 	checkName     string
@@ -357,6 +363,26 @@ func (s *Scraper) Run(ctx context.Context) {
 func (s *Scraper) Stop() {
 	s.logger.Printf(`msg="stopping scraper" probe=%s endpoint=%s provider=%s`, s.probe.Name, s.endpoint, s.provider.String())
 	close(s.stop)
+}
+
+func (s Scraper) CheckType() string {
+	// XXX(mem): this shouldn't be here, it should be in
+	// worldping.Check
+
+	switch {
+	case s.check.Settings.Dns != nil:
+		return ScraperTypeDNS
+
+	case s.check.Settings.Http != nil:
+		return ScraperTypeHTTP
+
+	case s.check.Settings.Ping != nil:
+		return ScraperTypePing
+	}
+
+	// we need this to make sure that adding a check type does not
+	// go unnoticed in here
+	panic("unknown check type")
 }
 
 func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Context, time.Time), cleanup func(context.Context, time.Time), offset, period int64) {
