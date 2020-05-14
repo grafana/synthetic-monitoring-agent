@@ -28,6 +28,7 @@ func run(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet(args[0], flag.ExitOnError)
 
 	var (
+		debug               = flags.Bool("debug", false, "debug output (enables verbose)")
 		verbose             = flags.Bool("verbose", false, "verbose logging")
 		bbeConfigFilename   = flags.String("blackbox-exporter-config", "worldping.yaml", "filename for blackbox exporter configuration")
 		blackboxExporterStr = flags.String("blackbox-exporter-url", "http://localhost:9115/", "base URL for blackbox exporter")
@@ -55,16 +56,22 @@ func run(args []string, stdout io.Writer) error {
 
 	g, ctx := errgroup.WithContext(baseCtx)
 
-	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
-	if *verbose {
-		// setting this to debug mimics previous behavior of
-		// verbose enabling all logs
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	}
-
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
 
 	zl := zerolog.New(stdout).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
+
+	switch {
+	case *debug:
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		zl = zl.With().Caller().Logger()
+		*verbose = true
+
+	case *verbose:
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
+
+	default:
+		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+	}
 
 	g.Go(func() error {
 		return signalHandler(ctx, zl.With().Str("subsystem", "signal handler").Logger())
