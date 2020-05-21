@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/grafana/worldping-api/pkg/pb/worldping"
+	"github.com/grafana/worldping-blackbox-sidecar/pkg/pb/worldping"
 )
 
 type checkType int
@@ -61,21 +61,24 @@ func read() {
 }
 
 func write(checkType checkType) {
-	var settings worldping.CheckSettings
+	var (
+		settings worldping.CheckSettings
+		target   string
+	)
 
 	switch checkType {
 	case CHECK_PING:
+		target = "grafana.com"
 		settings = worldping.CheckSettings{
 			Ping: &worldping.PingSettings{
-				Hostname:  "grafana.com",
 				IpVersion: worldping.IpVersion_V4,
 			},
 		}
 
 	case CHECK_HTTP:
+		target = "https://grafana.com/"
 		settings = worldping.CheckSettings{
 			Http: &worldping.HttpSettings{
-				Url:          "https://grafana.com/",
 				Method:       worldping.HttpMethod_GET,
 				IpVersion:    worldping.IpVersion_V4,
 				FailIfNotSSL: true,
@@ -83,9 +86,9 @@ func write(checkType checkType) {
 		}
 
 	case CHECK_DNS:
+		target = "grafana.com"
 		settings = worldping.CheckSettings{
 			Dns: &worldping.DnsSettings{
-				Name:       "grafana.com",
 				RecordType: worldping.DnsRecordType_A,
 				Server:     "8.8.4.4",
 				IpVersion:  worldping.IpVersion_V4,
@@ -103,6 +106,7 @@ func write(checkType checkType) {
 		Timeout:   2500,
 		Enabled:   true,
 		Labels:    []worldping.Label{{Name: "environment", Value: "production"}},
+		Target:    target,
 		Settings:  settings,
 	}
 
