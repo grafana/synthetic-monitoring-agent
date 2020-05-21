@@ -17,8 +17,8 @@ import (
 
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/loki/pkg/logproto"
-	"github.com/grafana/worldping-api/pkg/pb/worldping"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
+	"github.com/grafana/worldping-blackbox-sidecar/pkg/pb/worldping"
 	"github.com/mmcloughlin/geohash"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
@@ -58,7 +58,7 @@ type logger interface {
 }
 
 type TimeSeries = []prompb.TimeSeries
-type Streams = []*logproto.Stream
+type Streams = []logproto.Stream
 
 type probeData struct {
 	tenantId int64
@@ -123,7 +123,7 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.ICMP.IPProtocol, check.Id)
 
-		target = check.Settings.Ping.Hostname
+		target = check.Target
 		endpoint = target
 	} else if check.Settings.Http != nil {
 		bbeModule.Prober = "http"
@@ -187,7 +187,7 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.HTTP.IPProtocol, check.Id)
 
-		target = check.Settings.Http.Url
+		target = check.Target
 		endpoint = target
 	} else if check.Settings.Dns != nil {
 		bbeModule.Prober = "dns"
@@ -199,7 +199,7 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		// need to pass the query (e.g. www.grafana.com) as part
 		// of the configuration and the server as the target
 		// parameter.
-		bbeModule.DNS.QueryName = check.Settings.Dns.Name
+		bbeModule.DNS.QueryName = check.Target
 		bbeModule.DNS.QueryType = check.Settings.Dns.RecordType.String()
 		bbeModule.DNS.SourceIPAddress = check.Settings.Dns.SourceIpAddress
 		// In the protobuffer definition the protocol is either
@@ -227,7 +227,7 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.DNS.IPProtocol, check.Id)
 
 		target = check.Settings.Dns.Server
-		endpoint = check.Settings.Dns.Name
+		endpoint = check.Target
 	} else {
 		return nil, fmt.Errorf("unsupported change")
 	}
@@ -480,7 +480,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	sharedLabels := []labelPair{
 		{name: "check_id", value: strconv.FormatInt(s.check.Id, 10)},
 		{name: "probe", value: s.probe.Name},
-		{name: "config_version", value: strconv.FormatInt(s.check.Modified, 10)},
+		{name: "config_version", value: strconv.FormatInt(int64(s.check.Modified*1000000000), 10)},
 	}
 
 	checkInfoLabels := []labelPair{
@@ -596,7 +596,7 @@ RECORD:
 
 		// this is creating one stream per log line because the labels might have to change between lines (level
 		// is not going to be the same).
-		streams = append(streams, &logproto.Stream{
+		streams = append(streams, logproto.Stream{
 			Labels: fmtLabels(labels),
 			Entries: []logproto.Entry{
 				{

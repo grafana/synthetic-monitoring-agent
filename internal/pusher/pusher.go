@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/grafana/loki/pkg/logproto"
-	"github.com/grafana/worldping-api/pkg/pb/worldping"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/loki"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/prom"
+	"github.com/grafana/worldping-blackbox-sidecar/pkg/pb/worldping"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"google.golang.org/grpc"
@@ -39,7 +39,7 @@ type remoteTarget struct {
 type Payload interface {
 	Tenant() int64
 	Metrics() []prompb.TimeSeries
-	Streams() []*logproto.Stream
+	Streams() []logproto.Stream
 }
 
 type Publisher struct {
@@ -155,7 +155,7 @@ type logger interface {
 	Printf(format string, v ...interface{})
 }
 
-func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams []*logproto.Stream) (int, error) {
+func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams []logproto.Stream) (int, error) {
 	buf := bufPool.Get().(*[]byte)
 	defer bufPool.Put(buf)
 
