@@ -43,7 +43,6 @@ type Scraper struct {
 	publishCh     chan<- pusher.Payload
 	checkName     string
 	provider      url.URL // provider is the BBE URL
-	endpoint      string  // endpoint is the thing to be checked (hostname, URL, ...)
 	logger        zerolog.Logger
 	check         worldping.Check
 	probe         worldping.Probe
@@ -78,7 +77,6 @@ func (d *probeData) Tenant() int64 {
 func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, probeURL url.URL, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
 	var (
 		target     string
-		endpoint   string
 		checkName  string
 		moduleName string
 		bbeModule  bbeconfig.Module
@@ -121,7 +119,6 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.ICMP.IPProtocol, check.Id)
 
 		target = check.Target
-		endpoint = target
 	} else if check.Settings.Http != nil {
 		bbeModule.Prober = "http"
 		checkName = "http"
@@ -185,7 +182,6 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.HTTP.IPProtocol, check.Id)
 
 		target = check.Target
-		endpoint = target
 	} else if check.Settings.Dns != nil {
 		bbeModule.Prober = "dns"
 		checkName = "dns"
@@ -224,7 +220,6 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.DNS.IPProtocol, check.Id)
 
 		target = check.Settings.Dns.Server
-		endpoint = check.Target
 	} else {
 		return nil, fmt.Errorf("unsupported change")
 	}
@@ -237,16 +232,16 @@ func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping
 	logger = logger.With().
 		Int64("check_id", check.Id).
 		Str("probe", probe.Name).
-		Str("endpoint", endpoint).
 		Str("check", checkName).
 		Str("provider", probeURL.String()).
+		Str("target", check.Target).
+		Str("job", check.Job).
 		Logger()
 
 	return &Scraper{
 		publishCh:     publishCh,
 		checkName:     checkName,
 		provider:      probeURL,
-		endpoint:      endpoint,
 		logger:        logger,
 		check:         check,
 		probe:         probe,
@@ -454,17 +449,17 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// this is needed in order to obtain the logs alongside the metrics
 	q.Add("debug", "true")
 	u.RawQuery = q.Encode()
-	target := u.String()
+	address := u.String()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", address, nil)
 	if err != nil {
-		err = fmt.Errorf(`msg="creating new request" probe=%s endpoint=%s target=%s err="%w"`, s.probe.Name, s.endpoint, target, err)
+		err = fmt.Errorf(`msg="creating new request" probe=%s target=%s job=%s address=%s err="%w"`, s.probe.Name, s.check.Target, s.check.Job, address, err)
 		return nil, err
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		err = fmt.Errorf(`msg="requesting data from" probe=%s endpoint=%s target=%s err="%w"`, s.probe.Name, s.endpoint, target, err)
+		err = fmt.Errorf(`msg="requesting data from" probe=%s target=%s job=%s address=%s err="%w"`, s.probe.Name, s.check.Target, s.check.Job, address, err)
 		return nil, err
 	}
 
@@ -476,21 +471,21 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	metrics, logs, err := extractMetricsAndLogs(resp.Body)
 	if err != nil {
-		err = fmt.Errorf(`msg="extracting data from blackbox-exporter" probe=%s endpoint=%s target=%s err="%w"`, s.probe.Name, s.endpoint, target, err)
+		err = fmt.Errorf(`msg="extracting data from blackbox-exporter" probe=%s target=%s job=%s address=%s err="%w"`, s.probe.Name, s.check.Target, s.check.Job, address, err)
 		return nil, err
 	}
 
 	// TODO(mem): this is constant for the scraper, move this
 	// outside this function?
 	sharedLabels := []labelPair{
-		{name: "check_id", value: strconv.FormatInt(s.check.Id, 10)},
 		{name: "probe", value: s.probe.Name},
 		{name: "config_version", value: strconv.FormatInt(int64(s.check.Modified*1000000000), 10)},
+		{name: "instance", value: s.check.Target},
+		{name: "job", value: s.check.Job},
 	}
 
 	checkInfoLabels := []labelPair{
 		{name: "check_name", value: s.checkName},
-		{name: "endpoint", value: s.endpoint},
 		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
 		{name: "latitude", value: strconv.FormatFloat(float64(s.probe.Latitude), 'f', 6, 32)},
 		{name: "longitude", value: strconv.FormatFloat(float64(s.probe.Longitude), 'f', 6, 32)},
@@ -653,7 +648,7 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 			for _, m := range mf.GetMetric() {
 				if isProbeSuccess && m.GetGauge().GetValue() == 0 {
 					// return an error to the caller, signalling that the check failed.
-					checkErr = fmt.Errorf(`msg="check failed" check_name=%s probe=%s endpoint=%s err="%w"`, s.checkName, s.probe.Name, s.endpoint, errCheckFailed)
+					checkErr = fmt.Errorf(`msg="check failed" check_name=%s probe=%s target=%s job=%s err="%w"`, s.checkName, s.probe.Name, s.check.Target, s.check.Job, errCheckFailed)
 				}
 
 				ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
@@ -663,7 +658,7 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 			return ts, checkErr
 
 		default:
-			return nil, fmt.Errorf(`msg="decoding results from blackbox-exporter" probe=%s endpoint=%s err="%w"`, s.probe.Name, s.endpoint, err)
+			return nil, fmt.Errorf(`msg="decoding results from blackbox-exporter" probe=%s target=%s job=%s err="%w"`, s.probe.Name, s.check.Target, s.check.Job, err)
 		}
 	}
 }
