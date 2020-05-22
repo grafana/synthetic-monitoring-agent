@@ -33,7 +33,7 @@ service Checks {
 
 	// GetChanges returns a list of check operations, specifying
 	// whether to add, update or delete checks.
-	rpc GetChanges(Void) returns (stream CheckChange) {};
+	rpc GetChanges(Void) returns (stream CheckChanges) {};
 }
 
 // Void is an empty message used by RPC methods that don't take
@@ -106,6 +106,16 @@ enum CheckOperation {
 message CheckChange {
 	CheckOperation operation = 1;
 	Check          check     = 2 [(gogoproto.nullable) = false];
+}
+
+// CheckChanges represents a series of check changes.
+//
+// This exists in order to support the initialization phase of the
+// probe's connection: when a probe connects, it will get a sequence of
+// changes describing all the checks associated to that probe. After
+// that, it will get one change (add, delete, update) at a time.
+message CheckChanges {
+	repeated CheckChange changes = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "changes"];
 }
 
 message Label {
