@@ -265,30 +265,32 @@ func (c *Updater) loop(ctx context.Context) error {
 			return nil
 
 		default:
-			switch change, err := cc.Recv(); err {
+			switch msg, err := cc.Recv(); err {
 			case nil:
-				c.logger.Debug().Interface("change", change).Msg("got change")
+				for _, change := range msg.Changes {
+					c.logger.Debug().Interface("change", change).Msg("got change")
 
-				switch change.Operation {
-				case worldping.CheckOperation_CHECK_ADD:
-					c.changesCounter.WithLabelValues("add").Inc()
-					if err := c.handleCheckAdd(ctx, change.Check); err != nil {
-						c.changeErrorsCounter.WithLabelValues("add").Inc()
-						c.logger.Error().Err(err).Msg("handling check add")
-					}
+					switch change.Operation {
+					case worldping.CheckOperation_CHECK_ADD:
+						c.changesCounter.WithLabelValues("add").Inc()
+						if err := c.handleCheckAdd(ctx, change.Check); err != nil {
+							c.changeErrorsCounter.WithLabelValues("add").Inc()
+							c.logger.Error().Err(err).Msg("handling check add")
+						}
 
-				case worldping.CheckOperation_CHECK_UPDATE:
-					c.changesCounter.WithLabelValues("update").Inc()
-					if err := c.handleCheckUpdate(ctx, change.Check); err != nil {
-						c.changeErrorsCounter.WithLabelValues("update").Inc()
-						c.logger.Error().Err(err).Msg("handling check update")
-					}
+					case worldping.CheckOperation_CHECK_UPDATE:
+						c.changesCounter.WithLabelValues("update").Inc()
+						if err := c.handleCheckUpdate(ctx, change.Check); err != nil {
+							c.changeErrorsCounter.WithLabelValues("update").Inc()
+							c.logger.Error().Err(err).Msg("handling check update")
+						}
 
-				case worldping.CheckOperation_CHECK_DELETE:
-					c.changesCounter.WithLabelValues("delete").Inc()
-					if err := c.handleCheckDelete(ctx, change.Check); err != nil {
-						c.changeErrorsCounter.WithLabelValues("delete").Inc()
-						c.logger.Error().Err(err).Msg("handling check delete")
+					case worldping.CheckOperation_CHECK_DELETE:
+						c.changesCounter.WithLabelValues("delete").Inc()
+						if err := c.handleCheckDelete(ctx, change.Check); err != nil {
+							c.changeErrorsCounter.WithLabelValues("delete").Inc()
+							c.logger.Error().Err(err).Msg("handling check delete")
+						}
 					}
 				}
 
