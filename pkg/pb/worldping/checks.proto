@@ -138,6 +138,7 @@ message CheckSettings {
 	PingSettings ping = 1 [(gogoproto.jsontag) = "ping,omitempty"];
 	HttpSettings http = 2 [(gogoproto.jsontag) = "http,omitempty"];
 	DnsSettings  dns  = 3 [(gogoproto.jsontag) = "dns,omitempty"];
+	TcpSettings  tcp  = 4 [(gogoproto.jsontag) = "tcp,omitempty"];
 }
 
 // PingSettings provides the settings for a ping check.
@@ -164,22 +165,29 @@ enum HttpMethod {
 
 // HttpSettings provides the settings for a HTTP check.
 message HttpSettings {
+	IpVersion             ipVersion                    = 1  [(gogoproto.jsontag) = "ipVersion"];
 	HttpMethod            method                       = 2  [(gogoproto.jsontag) = "method"];
 	repeated string       headers                      = 3  [(gogoproto.jsontag) = "headers,omitempty"];
 	string                body                         = 4  [(gogoproto.jsontag) = "body,omitempty"];
-	IpVersion             ipVersion                    = 5  [(gogoproto.jsontag) = "ipVersion"];
-	bool                  noFollowRedirects            = 6  [(gogoproto.jsontag) = "noFollowRedirects"];
+	bool                  noFollowRedirects            = 5  [(gogoproto.jsontag) = "noFollowRedirects"];
+
+	// client config
+
+	TLSConfig             tlsConfig                    = 6  [(gogoproto.jsontag) = "tlsConfig,omitempty"];
+	BasicAuth             basicAuth                    = 7  [(gogoproto.jsontag) = "basicAuth,omitempty"];
+	string                bearerToken                  = 8  [(gogoproto.jsontag) = "bearerToken,omitempty"];
+	string                proxyURL                     = 9  [(gogoproto.jsontag) = "proxyURL,omitempty"];
 
 	// validations
 
-	bool                  failIfSSL                    = 7  [(gogoproto.jsontag) = "failIfSSL"];
-	bool                  failIfNotSSL                 = 8  [(gogoproto.jsontag) = "failIfNotSSL"];
-	repeated int32        validStatusCodes             = 9  [(gogoproto.jsontag) = "validStatusCodes,omitempty"];
-	repeated string       validHTTPVersions            = 10 [(gogoproto.jsontag) = "validHTTPVersions,omitempty"];
-	repeated string       failIfBodyMatchesRegexp      = 11 [(gogoproto.jsontag) = "failIfBodyMatchesRegexp,omitempty"];
-	repeated string       failIfBodyNotMatchesRegexp   = 12 [(gogoproto.jsontag) = "failIfBodyNotMatchesRegexp,omitempty"];
-	repeated HeaderMatch  failIfHeaderMatchesRegexp    = 13 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "failIfHeaderMatchesRegexp,omitempty"];
-	repeated HeaderMatch  failIfHeaderNotMatchesRegexp = 14 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "failIfHeaderNotMatchesRegexp,omitempty"];
+	bool                  failIfSSL                    = 20 [(gogoproto.jsontag) = "failIfSSL"];
+	bool                  failIfNotSSL                 = 21 [(gogoproto.jsontag) = "failIfNotSSL"];
+	repeated int32        validStatusCodes             = 22 [(gogoproto.jsontag) = "validStatusCodes,omitempty"];
+	repeated string       validHTTPVersions            = 23 [(gogoproto.jsontag) = "validHTTPVersions,omitempty"];
+	repeated string       failIfBodyMatchesRegexp      = 24 [(gogoproto.jsontag) = "failIfBodyMatchesRegexp,omitempty"];
+	repeated string       failIfBodyNotMatchesRegexp   = 25 [(gogoproto.jsontag) = "failIfBodyNotMatchesRegexp,omitempty"];
+	repeated HeaderMatch  failIfHeaderMatchesRegexp    = 26 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "failIfHeaderMatchesRegexp,omitempty"];
+	repeated HeaderMatch  failIfHeaderNotMatchesRegexp = 27 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "failIfHeaderNotMatchesRegexp,omitempty"];
 }
 
 message HeaderMatch {
@@ -232,8 +240,38 @@ message DnsSettings {
 	DNSRRValidator   validateAdditional = 11 [(gogoproto.jsontag) = "validateAditionalRRS,omitempty"];
 }
 
+// TcpSettings provides the settings for a TCP check.
+//
+// "ipVersion" is the IP version to use in the IP layer.
+message TcpSettings {
+	IpVersion                 ipVersion       = 1 [(gogoproto.jsontag) = "ipVersion"];
+	string                    sourceIpAddress = 2 [(gogoproto.jsontag) = "sourceIpAddress,omitempty"];
+	bool                      tls             = 3 [(gogoproto.jsontag) = "tls,omitempty"];
+	TLSConfig                 tlsConfig       = 4 [(gogoproto.jsontag) = "tlsConfig,omitempty"];
+	repeated TCPQueryResponse queryResponse   = 5 [(gogoproto.jsontag) = "queryResponse,omitempty", (gogoproto.nullable) = false];
+}
+
+message TCPQueryResponse {
+	bytes send     = 1 [(gogoproto.jsontag) = "send"];
+	bytes expect   = 2 [(gogoproto.jsontag) = "expect"];
+	bool  startTLS = 3 [(gogoproto.jsontag) = "startTLS,omitempty"];
+}
+
 enum IpVersion {
 	Any = 0;
 	V4  = 1;
 	V6  = 2;
+}
+
+message TLSConfig {
+	bool   insecureSkipVerify = 1 [(gogoproto.jsontag) = "insecureSkipVerify,omitempty"];
+	bytes  CACert             = 2 [(gogoproto.jsontag) = "caCert,omitempty"];
+	bytes  clientCert         = 3 [(gogoproto.jsontag) = "clientCert,omitempty"];
+	bytes  clientKey          = 4 [(gogoproto.jsontag) = "clientKey,omitempty"];
+	string serverName         = 5 [(gogoproto.jsontag) = "serverName,omitempty"];
+}
+
+message BasicAuth {
+	string username = 1 [(gogoproto.jsontag) = "username,omitempty"];
+	string password = 2 [(gogoproto.jsontag) = "password,omitempty"];
 }

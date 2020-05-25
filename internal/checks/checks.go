@@ -381,7 +381,7 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check)
 		return err
 	}
 
-	scraper, err := scraper.New(check, c.publishCh, *c.probe, *c.bbeInfo.probeURL, c.logger, scrapeCounter, scrapeErrorCounter)
+	scraper, err := scraper.New(ctx, check, c.publishCh, *c.probe, *c.bbeInfo.probeURL, c.logger, scrapeCounter, scrapeErrorCounter)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}
