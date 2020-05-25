@@ -74,6 +74,10 @@ func (c *Check) Validate() error {
 		settingsCount++
 	}
 
+	if c.Settings.Tcp != nil {
+		settingsCount++
+	}
+
 	if settingsCount != 1 {
 		return ErrInvalidCheckSettings
 	}
@@ -103,6 +107,10 @@ func (s *DnsSettings) Validate() error {
 		return ErrInvalidDnsPort
 	}
 
+	return nil
+}
+
+func (s *TcpSettings) Validate() error {
 	return nil
 }
 

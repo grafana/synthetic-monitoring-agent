@@ -11,6 +11,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ import (
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
+	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -41,6 +43,7 @@ const (
 
 type Scraper struct {
 	publishCh     chan<- pusher.Payload
+	cancel        context.CancelFunc
 	checkName     string
 	provider      url.URL // provider is the BBE URL
 	logger        zerolog.Logger
@@ -74,175 +77,37 @@ func (d *probeData) Tenant() int64 {
 	return d.tenantId
 }
 
-func New(check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, probeURL url.URL, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
-	var (
-		target     string
-		checkName  string
-		moduleName string
-		bbeModule  bbeconfig.Module
-	)
+func New(ctx context.Context, check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, probeURL url.URL, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
+	logger = logger.With().
+		Int64("check_id", check.Id).
+		Str("probe", probe.Name).
+		Str("provider", probeURL.String()).
+		Str("target", check.Target).
+		Str("job", check.Job).
+		Logger()
+
+	sctx, cancel := context.WithCancel(ctx)
+	checkName, bbeModule, target, err := mapSettings(sctx, logger, check.Target, check.Settings)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	moduleName := fmt.Sprintf("check_%d", check.Id)
 
 	bbeModule.Timeout = time.Duration(check.Timeout) * time.Millisecond
-
-	ipVersionToIpProtocol := func(v worldping.IpVersion) (string, bool) {
-		switch v {
-		case worldping.IpVersion_V4:
-			// preferred_ip_protocol = ip4
-			// ip_protocol_fallback = false
-			return "ip4", false
-		case worldping.IpVersion_V6:
-			// preferred_ip_protocol = ip6
-			// ip_protocol_fallback = false
-			return "ip6", false
-		case worldping.IpVersion_Any:
-			// preferred_ip_protocol = ip6
-			// ip_protocol_fallback = true
-			return "ip6", true
-		}
-
-		return "", false
-	}
-
-	// Map the change to a blackbox exporter module
-	if check.Settings.Ping != nil {
-		bbeModule.Prober = "icmp"
-		checkName = "ping"
-
-		bbeModule.ICMP.IPProtocol, bbeModule.ICMP.IPProtocolFallback = ipVersionToIpProtocol(check.Settings.Ping.IpVersion)
-
-		bbeModule.ICMP.SourceIPAddress = check.Settings.Ping.SourceIpAddress
-
-		bbeModule.ICMP.PayloadSize = int(check.Settings.Ping.PayloadSize)
-
-		bbeModule.ICMP.DontFragment = check.Settings.Ping.DontFragment
-
-		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.ICMP.IPProtocol, check.Id)
-
-		target = check.Target
-	} else if check.Settings.Http != nil {
-		bbeModule.Prober = "http"
-		checkName = "http"
-
-		bbeModule.HTTP.IPProtocol, bbeModule.HTTP.IPProtocolFallback = ipVersionToIpProtocol(check.Settings.Http.IpVersion)
-
-		bbeModule.HTTP.Body = check.Settings.Http.Body
-
-		bbeModule.HTTP.Method = check.Settings.Http.Method.String()
-
-		bbeModule.HTTP.FailIfSSL = check.Settings.Http.FailIfSSL
-
-		bbeModule.HTTP.FailIfNotSSL = check.Settings.Http.FailIfNotSSL
-
-		bbeModule.HTTP.NoFollowRedirects = check.Settings.Http.NoFollowRedirects
-
-		if len(check.Settings.Http.Headers) > 0 {
-			bbeModule.HTTP.Headers = make(map[string]string)
-		}
-		for _, header := range check.Settings.Http.Headers {
-			parts := strings.SplitN(header, ":", 2)
-			var value string
-			if len(parts) == 2 {
-				value = strings.TrimLeft(parts[1], " ")
-			}
-			bbeModule.HTTP.Headers[parts[0]] = value
-		}
-
-		bbeModule.HTTP.ValidStatusCodes = make([]int, 0, len(check.Settings.Http.ValidStatusCodes))
-		for _, code := range check.Settings.Http.ValidStatusCodes {
-			bbeModule.HTTP.ValidStatusCodes = append(bbeModule.HTTP.ValidStatusCodes, int(code))
-		}
-
-		bbeModule.HTTP.ValidHTTPVersions = make([]string, len(check.Settings.Http.ValidHTTPVersions))
-		copy(bbeModule.HTTP.ValidHTTPVersions, check.Settings.Http.ValidHTTPVersions)
-
-		bbeModule.HTTP.FailIfBodyMatchesRegexp = make([]string, len(check.Settings.Http.FailIfBodyMatchesRegexp))
-		copy(bbeModule.HTTP.FailIfBodyMatchesRegexp, check.Settings.Http.FailIfBodyMatchesRegexp)
-
-		bbeModule.HTTP.FailIfBodyNotMatchesRegexp = make([]string, len(check.Settings.Http.FailIfBodyNotMatchesRegexp))
-		copy(bbeModule.HTTP.FailIfBodyNotMatchesRegexp, check.Settings.Http.FailIfBodyNotMatchesRegexp)
-
-		bbeModule.HTTP.FailIfHeaderMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(check.Settings.Http.FailIfHeaderMatchesRegexp))
-		for _, m := range check.Settings.Http.FailIfHeaderMatchesRegexp {
-			bbeModule.HTTP.FailIfHeaderMatchesRegexp = append(bbeModule.HTTP.FailIfHeaderMatchesRegexp, bbeconfig.HeaderMatch{
-				Header:       m.Header,
-				Regexp:       m.Regexp,
-				AllowMissing: m.AllowMissing,
-			})
-		}
-
-		bbeModule.HTTP.FailIfHeaderNotMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(check.Settings.Http.FailIfHeaderNotMatchesRegexp))
-		for _, m := range check.Settings.Http.FailIfHeaderNotMatchesRegexp {
-			bbeModule.HTTP.FailIfHeaderNotMatchesRegexp = append(bbeModule.HTTP.FailIfHeaderNotMatchesRegexp, bbeconfig.HeaderMatch{
-				Header:       m.Header,
-				Regexp:       m.Regexp,
-				AllowMissing: m.AllowMissing,
-			})
-		}
-
-		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.HTTP.IPProtocol, check.Id)
-
-		target = check.Target
-	} else if check.Settings.Dns != nil {
-		bbeModule.Prober = "dns"
-		checkName = "dns"
-
-		bbeModule.DNS.IPProtocol, bbeModule.DNS.IPProtocolFallback = ipVersionToIpProtocol(check.Settings.Dns.IpVersion)
-
-		// BBE dns_probe actually tests the DNS server, so we
-		// need to pass the query (e.g. www.grafana.com) as part
-		// of the configuration and the server as the target
-		// parameter.
-		bbeModule.DNS.QueryName = check.Target
-		bbeModule.DNS.QueryType = check.Settings.Dns.RecordType.String()
-		bbeModule.DNS.SourceIPAddress = check.Settings.Dns.SourceIpAddress
-		// In the protobuffer definition the protocol is either
-		// "TCP" or "UDP", but blackbox-exporter wants "tcp" or
-		// "udp".
-		bbeModule.DNS.TransportProtocol = strings.ToLower(check.Settings.Dns.Protocol.String())
-
-		bbeModule.DNS.ValidRcodes = check.Settings.Dns.ValidRCodes
-
-		if check.Settings.Dns.ValidateAnswer != nil {
-			bbeModule.DNS.ValidateAnswer.FailIfMatchesRegexp = check.Settings.Dns.ValidateAnswer.FailIfMatchesRegexp
-			bbeModule.DNS.ValidateAnswer.FailIfNotMatchesRegexp = check.Settings.Dns.ValidateAnswer.FailIfNotMatchesRegexp
-		}
-
-		if check.Settings.Dns.ValidateAuthority != nil {
-			bbeModule.DNS.ValidateAuthority.FailIfMatchesRegexp = check.Settings.Dns.ValidateAuthority.FailIfMatchesRegexp
-			bbeModule.DNS.ValidateAuthority.FailIfNotMatchesRegexp = check.Settings.Dns.ValidateAuthority.FailIfNotMatchesRegexp
-		}
-
-		if check.Settings.Dns.ValidateAdditional != nil {
-			bbeModule.DNS.ValidateAdditional.FailIfMatchesRegexp = check.Settings.Dns.ValidateAdditional.FailIfMatchesRegexp
-			bbeModule.DNS.ValidateAdditional.FailIfNotMatchesRegexp = check.Settings.Dns.ValidateAdditional.FailIfNotMatchesRegexp
-		}
-
-		moduleName = fmt.Sprintf("%s_%s_%d", bbeModule.Prober, bbeModule.DNS.IPProtocol, check.Id)
-
-		target = check.Settings.Dns.Server
-	} else {
-		return nil, fmt.Errorf("unsupported change")
-	}
 
 	q := probeURL.Query()
 	q.Set("target", target)
 	q.Set("module", moduleName)
 	probeURL.RawQuery = q.Encode()
 
-	logger = logger.With().
-		Int64("check_id", check.Id).
-		Str("probe", probe.Name).
-		Str("check", checkName).
-		Str("provider", probeURL.String()).
-		Str("target", check.Target).
-		Str("job", check.Job).
-		Logger()
-
 	return &Scraper{
 		publishCh:     publishCh,
+		cancel:        cancel,
 		checkName:     checkName,
 		provider:      probeURL,
-		logger:        logger,
+		logger:        logger.With().Str("check", checkName).Logger(),
 		check:         check,
 		probe:         probe,
 		bbeModule:     &bbeModule,
@@ -356,6 +221,8 @@ func (s *Scraper) Run(ctx context.Context) {
 	}
 
 	tickWithOffset(ctx, s.stop, scrape, cleanup, s.check.Offset, s.check.Frequency)
+
+	s.cancel()
 
 	s.logger.Info().Msg("scraper stopped")
 }
@@ -864,4 +731,270 @@ func fmtLabels(labels []labelPair) string {
 	_, _ = s.WriteRune('}')
 
 	return s.String()
+}
+
+func mapSettings(ctx context.Context, logger zerolog.Logger, target string, settings worldping.CheckSettings) (string, bbeconfig.Module, string, error) {
+	// Map the change to a blackbox exporter module
+	switch {
+	case settings.Ping != nil:
+		return "ping", pingSettingsToBBEModule(settings.Ping), target, nil
+
+	case settings.Http != nil:
+		m, err := httpSettingsToBBEModule(ctx, logger, settings.Http)
+		return "http", m, target, err
+
+	case settings.Dns != nil:
+		return "dns", dnsSettingsToBBEModule(ctx, settings.Dns, target), settings.Dns.Server, nil
+
+	case settings.Tcp != nil:
+		m, err := tcpSettingsToBBEModule(ctx, logger, settings.Tcp)
+		return "tcp", m, target, err
+
+	default:
+		return "", bbeconfig.Module{}, "", fmt.Errorf("unsupported change")
+	}
+}
+
+func ipVersionToIpProtocol(v worldping.IpVersion) (string, bool) {
+	switch v {
+	case worldping.IpVersion_V4:
+		// preferred_ip_protocol = ip4
+		// ip_protocol_fallback = false
+		return "ip4", false
+	case worldping.IpVersion_V6:
+		// preferred_ip_protocol = ip6
+		// ip_protocol_fallback = false
+		return "ip6", false
+	case worldping.IpVersion_Any:
+		// preferred_ip_protocol = ip6
+		// ip_protocol_fallback = true
+		return "ip6", true
+	}
+
+	return "", false
+}
+
+func pingSettingsToBBEModule(settings *worldping.PingSettings) bbeconfig.Module {
+	var m bbeconfig.Module
+
+	m.Prober = "icmp"
+
+	m.ICMP.IPProtocol, m.ICMP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
+
+	m.ICMP.SourceIPAddress = settings.SourceIpAddress
+
+	m.ICMP.PayloadSize = int(settings.PayloadSize)
+
+	m.ICMP.DontFragment = settings.DontFragment
+
+	return m
+}
+
+func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *worldping.HttpSettings) (bbeconfig.Module, error) {
+	var m bbeconfig.Module
+
+	m.Prober = "http"
+
+	m.HTTP.IPProtocol, m.HTTP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
+
+	m.HTTP.Body = settings.Body
+
+	m.HTTP.Method = settings.Method.String()
+
+	m.HTTP.FailIfSSL = settings.FailIfSSL
+
+	m.HTTP.FailIfNotSSL = settings.FailIfNotSSL
+
+	m.HTTP.NoFollowRedirects = settings.NoFollowRedirects
+
+	if len(settings.Headers) > 0 {
+		m.HTTP.Headers = make(map[string]string)
+	}
+	for _, header := range settings.Headers {
+		parts := strings.SplitN(header, ":", 2)
+		var value string
+		if len(parts) == 2 {
+			value = strings.TrimLeft(parts[1], " ")
+		}
+		m.HTTP.Headers[parts[0]] = value
+	}
+
+	m.HTTP.ValidStatusCodes = make([]int, 0, len(settings.ValidStatusCodes))
+	for _, code := range settings.ValidStatusCodes {
+		m.HTTP.ValidStatusCodes = append(m.HTTP.ValidStatusCodes, int(code))
+	}
+
+	m.HTTP.ValidHTTPVersions = make([]string, len(settings.ValidHTTPVersions))
+	copy(m.HTTP.ValidHTTPVersions, settings.ValidHTTPVersions)
+
+	m.HTTP.FailIfBodyMatchesRegexp = make([]string, len(settings.FailIfBodyMatchesRegexp))
+	copy(m.HTTP.FailIfBodyMatchesRegexp, settings.FailIfBodyMatchesRegexp)
+
+	m.HTTP.FailIfBodyNotMatchesRegexp = make([]string, len(settings.FailIfBodyNotMatchesRegexp))
+	copy(m.HTTP.FailIfBodyNotMatchesRegexp, settings.FailIfBodyNotMatchesRegexp)
+
+	m.HTTP.FailIfHeaderMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(settings.FailIfHeaderMatchesRegexp))
+	for _, match := range settings.FailIfHeaderMatchesRegexp {
+		m.HTTP.FailIfHeaderMatchesRegexp = append(m.HTTP.FailIfHeaderMatchesRegexp, bbeconfig.HeaderMatch{
+			Header:       match.Header,
+			Regexp:       match.Regexp,
+			AllowMissing: match.AllowMissing,
+		})
+	}
+
+	m.HTTP.FailIfHeaderNotMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(settings.FailIfHeaderNotMatchesRegexp))
+	for _, match := range settings.FailIfHeaderNotMatchesRegexp {
+		m.HTTP.FailIfHeaderNotMatchesRegexp = append(m.HTTP.FailIfHeaderNotMatchesRegexp, bbeconfig.HeaderMatch{
+			Header:       match.Header,
+			Regexp:       match.Regexp,
+			AllowMissing: match.AllowMissing,
+		})
+	}
+
+	if settings.TlsConfig != nil {
+		var err error
+		m.HTTP.HTTPClientConfig.TLSConfig, err = worldpingTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
+		if err != nil {
+			return m, err
+		}
+	}
+
+	return m, nil
+}
+
+func dnsSettingsToBBEModule(ctx context.Context, settings *worldping.DnsSettings, target string) bbeconfig.Module {
+	var m bbeconfig.Module
+
+	m.Prober = "dns"
+	m.DNS.IPProtocol, m.DNS.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
+
+	// BBE dns_probe actually tests the DNS server, so we
+	// need to pass the query (e.g. www.grafana.com) as part
+	// of the configuration and the server as the target
+	// parameter.
+	m.DNS.QueryName = target
+	m.DNS.QueryType = settings.RecordType.String()
+	m.DNS.SourceIPAddress = settings.SourceIpAddress
+	// In the protobuffer definition the protocol is either
+	// "TCP" or "UDP", but blackbox-exporter wants "tcp" or
+	// "udp".
+	m.DNS.TransportProtocol = strings.ToLower(settings.Protocol.String())
+
+	m.DNS.ValidRcodes = settings.ValidRCodes
+
+	if settings.ValidateAnswer != nil {
+		m.DNS.ValidateAnswer.FailIfMatchesRegexp = settings.ValidateAnswer.FailIfMatchesRegexp
+		m.DNS.ValidateAnswer.FailIfNotMatchesRegexp = settings.ValidateAnswer.FailIfNotMatchesRegexp
+	}
+
+	if settings.ValidateAuthority != nil {
+		m.DNS.ValidateAuthority.FailIfMatchesRegexp = settings.ValidateAuthority.FailIfMatchesRegexp
+		m.DNS.ValidateAuthority.FailIfNotMatchesRegexp = settings.ValidateAuthority.FailIfNotMatchesRegexp
+	}
+
+	if settings.ValidateAdditional != nil {
+		m.DNS.ValidateAdditional.FailIfMatchesRegexp = settings.ValidateAdditional.FailIfMatchesRegexp
+		m.DNS.ValidateAdditional.FailIfNotMatchesRegexp = settings.ValidateAdditional.FailIfNotMatchesRegexp
+	}
+
+	return m
+}
+
+func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *worldping.TcpSettings) (bbeconfig.Module, error) {
+	var m bbeconfig.Module
+
+	m.Prober = "tcp"
+	m.TCP.IPProtocol, m.TCP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
+
+	m.TCP.SourceIPAddress = settings.SourceIpAddress
+
+	m.TCP.TLS = settings.Tls
+
+	m.TCP.QueryResponse = make([]bbeconfig.QueryResponse, len(settings.QueryResponse))
+
+	for _, qr := range settings.QueryResponse {
+		m.TCP.QueryResponse = append(m.TCP.QueryResponse, bbeconfig.QueryResponse{
+			Expect: string(qr.Expect),
+			Send:   string(qr.Send),
+		})
+	}
+
+	if settings.TlsConfig != nil {
+		var err error
+		m.TCP.TLSConfig, err = worldpingTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
+		if err != nil {
+			return m, err
+		}
+	}
+
+	return m, nil
+}
+
+func worldpingTLSConfigToBBE(ctx context.Context, logger zerolog.Logger, tlsConfig *worldping.TLSConfig) (promconfig.TLSConfig, error) {
+	c := promconfig.TLSConfig{
+		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
+		ServerName:         tlsConfig.ServerName,
+	}
+
+	if len(tlsConfig.CACert) > 0 {
+		fn, err := newDataProvider(ctx, logger, "ca_cert", tlsConfig.CACert)
+		if err != nil {
+			return promconfig.TLSConfig{}, err
+		}
+		c.CAFile = fn
+	}
+
+	if len(tlsConfig.ClientCert) > 0 {
+		fn, err := newDataProvider(ctx, logger, "client_cert", tlsConfig.CACert)
+		if err != nil {
+			return promconfig.TLSConfig{}, err
+		}
+		c.CertFile = fn
+	}
+
+	if len(tlsConfig.ClientKey) > 0 {
+		fn, err := newDataProvider(ctx, logger, "client_key", tlsConfig.CACert)
+		if err != nil {
+			return promconfig.TLSConfig{}, err
+		}
+		c.KeyFile = fn
+	}
+
+	return c, nil
+}
+
+// newDataProvider creates a filesystem object that provides the
+// specified data as often as needed. It returns the name under which
+// the data can be accessed.
+//
+// It does NOT try to make guarantees about partial reads. If the reader
+// goes away before reaching the end of the data, the next time the
+// reader shows up, the writer might continue from the previous
+// prosition.
+func newDataProvider(ctx context.Context, logger zerolog.Logger, basename string, data []byte) (string, error) {
+	fh, err := ioutil.TempFile("", basename+".")
+	if err != nil {
+		logger.Error().Err(err).Str("basename", basename).Msg("creating temporary file")
+		return "", fmt.Errorf("creating temporary file: %w", err)
+	}
+	defer fh.Close()
+
+	fn := fh.Name()
+
+	if n, err := fh.Write(data); err != nil {
+		logger.Error().Err(err).Str("filename", fn).Int("bytes", n).Int("data", len(data)).Msg("writing temporary file")
+		return "", fmt.Errorf("writing temporary file for %s: %w", basename, err)
+	}
+
+	// play nice and make sure this file gets deleted once the
+	// context is cancelled, which could be when the program is
+	// shutting down or when the scraper stops.
+	go func() {
+		<-ctx.Done()
+		if err := os.Remove(fn); err != nil {
+			logger.Error().Err(err).Str("filename", fn).Msg("removing temporary file")
+		}
+	}()
+
+	return fn, nil
 }
