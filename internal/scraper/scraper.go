@@ -26,6 +26,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 )
@@ -54,6 +55,8 @@ type Scraper struct {
 	stop          chan struct{}
 	scrapeCounter prometheus.Counter
 	errorCounter  *prometheus.CounterVec
+	summaries     map[uint64]prometheus.Summary
+	histograms    map[uint64]prometheus.Histogram
 }
 
 type TimeSeries = []prompb.TimeSeries
@@ -115,10 +118,15 @@ func New(ctx context.Context, check worldping.Check, publishCh chan<- pusher.Pay
 		stop:          make(chan struct{}),
 		scrapeCounter: scrapeCounter,
 		errorCounter:  errorCounter,
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
 	}, nil
 }
 
-var errCheckFailed = errors.New("probe failed")
+var (
+	errCheckFailed       = errors.New("probe failed")
+	errUnsupportedMetric = errors.New("unsupported metric type")
+)
 
 type checkStateMachine struct {
 	passes    int
@@ -510,22 +518,43 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 			// got metrics
 			mName := mf.GetName()
 			mType := mf.GetType()
-			isProbeSuccess := mName == "probe_success" && mType == dto.MetricType_GAUGE
 
 			for _, m := range mf.GetMetric() {
-				if isProbeSuccess && m.GetGauge().GetValue() == 0 {
-					// return an error to the caller, signalling that the check failed.
-					checkErr = fmt.Errorf(`msg="check failed" check_name=%s probe=%s target=%s job=%s err="%w"`, s.checkName, s.probe.Name, s.check.Target, s.check.Job, errCheckFailed)
-				}
-
 				ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
+
+				switch {
+				case mName == "probe_success" && mType == dto.MetricType_GAUGE:
+					if m.GetGauge().GetValue() == 0 {
+						// return an error to the caller, signalling that the check failed.
+						s.logger.Info().Err(errCheckFailed).Msg("check failed")
+						checkErr = errCheckFailed
+					}
+
+					// derive a summary from this metric
+					dName, dm, err := updateSummaryFromMetric(mName, m, s.summaries)
+					if err != nil {
+						s.logger.Warn().Err(err).Str("name", mName).Interface("metric", m).Msg("updating summary from metric")
+					} else {
+						ts = appendDtoToTimeseries(ts, t, dName, metricLabels, dto.MetricType_SUMMARY, dm)
+					}
+
+				case mType == dto.MetricType_GAUGE && strings.HasSuffix(mName, "_seconds"):
+					// derive a histogram from this metric
+					dName, dm, err := updateHistogramFromMetric(mName, m, s.histograms)
+					if err != nil {
+						s.logger.Warn().Err(err).Str("name", mName).Interface("metric", m).Msg("updating histogram from metric")
+					} else {
+						ts = appendDtoToTimeseries(ts, t, dName, metricLabels, dto.MetricType_HISTOGRAM, dm)
+					}
+				}
 			}
 
 		case io.EOF:
 			return ts, checkErr
 
 		default:
-			return nil, fmt.Errorf(`msg="decoding results from blackbox-exporter" probe=%s target=%s job=%s err="%w"`, s.probe.Name, s.check.Target, s.check.Job, err)
+			s.logger.Error().Err(err).Msg("decoding results from blackbox-exporter")
+			return nil, err
 		}
 	}
 }
@@ -571,26 +600,24 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 
 	case dto.MetricType_SUMMARY:
 		if s := metric.GetSummary(); s != nil {
-			if q := s.GetQuantile(); q != nil {
-				sLabels := make([]prompb.Label, len(labels))
-				copy(sLabels, labels)
+			sLabels := make([]prompb.Label, len(labels))
+			copy(sLabels, labels)
 
-				sLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_sum"}
-				ts = append(ts, makeTimeseries(t, s.GetSampleSum(), sLabels...))
+			sLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_sum"}
+			ts = append(ts, makeTimeseries(t, s.GetSampleSum(), sLabels...))
 
-				sLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_count"}
-				ts = append(ts, makeTimeseries(t, float64(s.GetSampleCount()), sLabels...))
+			sLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_count"}
+			ts = append(ts, makeTimeseries(t, float64(s.GetSampleCount()), sLabels...))
 
-				sLabels = make([]prompb.Label, len(labels)+1)
-				copy(sLabels, labels)
+			sLabels = make([]prompb.Label, len(labels)+1)
+			copy(sLabels, labels)
 
-				for _, v := range q {
-					sLabels[len(sLabels)-1] = prompb.Label{
-						Name:  "quantile",
-						Value: strconv.FormatFloat(v.GetQuantile(), 'G', -1, 64),
-					}
-					ts = append(ts, makeTimeseries(t, v.GetValue(), sLabels...))
+			for _, v := range s.GetQuantile() {
+				sLabels[len(sLabels)-1] = prompb.Label{
+					Name:  "quantile",
+					Value: strconv.FormatFloat(v.GetQuantile(), 'G', -1, 64),
 				}
+				ts = append(ts, makeTimeseries(t, v.GetValue(), sLabels...))
 			}
 		}
 
@@ -609,6 +636,7 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 				hLabels = make([]prompb.Label, len(labels)+1)
 				copy(hLabels, labels)
 
+				hLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_bucket"}
 				for _, v := range b {
 					hLabels[len(hLabels)-1] = prompb.Label{
 						Name:  "le",
@@ -997,4 +1025,116 @@ func newDataProvider(ctx context.Context, logger zerolog.Logger, basename string
 	}()
 
 	return fn, nil
+}
+
+func updateSummaryFromMetric(mName string, m *dto.Metric, summaries map[uint64]prometheus.Summary) (string, *dto.Metric, error) {
+	var value float64
+
+	switch {
+	case m.GetCounter() != nil:
+		value = m.GetCounter().GetValue()
+
+	case m.GetGauge() != nil:
+		value = m.GetGauge().GetValue()
+
+	default:
+		return "", nil, errUnsupportedMetric
+	}
+
+	mHash := hashMetricNameAndLabels(mName, m.GetLabel())
+
+	s, found := summaries[mHash]
+	if !found {
+		s = prometheus.NewSummary(prometheus.SummaryOpts{
+			// since we are not specifying objectives,
+			// reusing the name causes only two metrics to
+			// be added: name_sum and name_count; if we were
+			// to specify objectives here, the same metric
+			// name would be used, adding labels to specify
+			// the quantiles ("le") and we should transform
+			// the metric's name.
+			Name:        mName,
+			ConstLabels: getLabels(m),
+		})
+		summaries[mHash] = s
+	}
+
+	s.Observe(value)
+
+	dm := new(dto.Metric)
+
+	if err := s.Write(dm); err != nil {
+		return "", nil, err
+	}
+
+	return mName, dm, nil
+}
+
+func updateHistogramFromMetric(mName string, m *dto.Metric, histograms map[uint64]prometheus.Histogram) (string, *dto.Metric, error) {
+	var value float64
+
+	switch {
+	case m.GetCounter() != nil:
+		value = m.GetCounter().GetValue()
+
+	case m.GetGauge() != nil:
+		value = m.GetGauge().GetValue()
+
+	default:
+		return "", nil, errUnsupportedMetric
+	}
+
+	mHash := hashMetricNameAndLabels(mName, m.GetLabel())
+
+	s, found := histograms[mHash]
+	if !found {
+		s = prometheus.NewHistogram(prometheus.HistogramOpts{
+			// reusing the name causes three metrics to be
+			// added: name_sum, name_count and name_bucket.
+			// The original name is never published as part
+			// of the histogram, so it's safe to leave the
+			// original name unmodified.
+			Name:        mName,
+			ConstLabels: getLabels(m),
+			Buckets:     prometheus.DefBuckets,
+		})
+		histograms[mHash] = s
+	}
+
+	s.Observe(value)
+
+	dm := new(dto.Metric)
+
+	if err := s.Write(dm); err != nil {
+		return "", nil, err
+	}
+
+	return mName, dm, nil
+}
+
+func hashMetricNameAndLabels(name string, dtoLabels []*dto.LabelPair) uint64 {
+	ls := model.LabelSet{
+		model.MetricNameLabel: model.LabelValue(name),
+	}
+
+	for _, label := range dtoLabels {
+		ls[model.LabelName(label.GetName())] = model.LabelValue(label.GetValue())
+	}
+
+	return uint64(ls.Fingerprint())
+
+}
+
+func getLabels(m *dto.Metric) map[string]string {
+	if len(m.GetLabel()) == 0 {
+		return nil
+	}
+
+	labels := make(map[string]string)
+
+	for _, label := range m.GetLabel() {
+		labels[label.GetName()] = label.GetValue()
+	}
+
+	return labels
 }
