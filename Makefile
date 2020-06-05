@@ -124,6 +124,17 @@ lint-go: go-vet golangci-lint gosec ## Run all Go code checks.
 .PHONY: lint
 lint: lint-go ## Run all code checks.
 
+##@ Packaging
+.PHONY: package
+package: build ## Build Debian and RPM packages.
+	$(S) echo "Building Debian and RPM packages..."		
+	$(S) sh scripts/package/package.sh
+
+.PHONY: publish-packages
+publish-packages: package ## Publish Debian and RPM packages to the worldping repository.
+	$(S) echo "Publishing Debian and RPM packages...."
+	$(S) sh scripts/package/publish.sh
+	
 ##@ Helpers
 
 .PHONY: clean
@@ -131,6 +142,7 @@ clean: ## Clean up intermediate build artifacts.
 	$(S) echo "Cleaning intermediate build artifacts..."
 	$(V) rm -rf node_modules
 	$(V) rm -rf public/build
+	$(V) rm -rf dist/build
 
 .PHONY: distclean
 distclean: clean ## Clean up all build artifacts.

@@ -1,0 +1,12 @@
+[Unit]
+Description=Grafana worldPing Blackbox Exporter Sidecar Service
+ 
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/worldping-blackbox-sidecar "-config=???"
+Restart=always
+
+[Install]
+WantedBy=network-online.target
