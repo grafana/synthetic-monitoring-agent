@@ -40,6 +40,7 @@ const (
 	ScraperTypeDNS  = "dns"
 	ScraperTypeHTTP = "http"
 	ScraperTypePing = "ping"
+	ScraperTypeTcp  = "tcp"
 )
 
 type Scraper struct {
@@ -253,6 +254,9 @@ func (s Scraper) CheckType() string {
 
 	case s.check.Settings.Ping != nil:
 		return ScraperTypePing
+
+	case s.check.Settings.Tcp != nil:
+		return ScraperTypeTcp
 	}
 
 	// we need this to make sure that adding a check type does not
