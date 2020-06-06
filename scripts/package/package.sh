@@ -40,36 +40,43 @@ mkdir -p ${BUILD}/etc/worldping
 mkdir -p ${BUILD}/usr/share/doc
 mkdir -p ${BUILD}/etc/prometheus
 mkdir -p ${BUILD}/etc/default
-cp -r ${BB_EXPORTER_DIR}/usr ${BUILD}/usr
-cp -r ${BB_EXPORTER_DIR}/lib ${BUILD}/lib
-cp -r ${BB_EXPORTER_DIR}/etc/prometheus ${BUILD}/etc/prometheus
-cp -r ${BB_EXPORTER_DIR}/etc/default ${BUILD}/etc/default
+cp -r ${BB_EXPORTER_DIR}/usr/* ${BUILD}/usr
+cp -r ${BB_EXPORTER_DIR}/lib/* ${BUILD}/lib
+cp -r ${BB_EXPORTER_DIR}/etc/prometheus/* ${BUILD}/etc/prometheus
+cp -r ${BB_EXPORTER_DIR}/etc/default/* ${BUILD}/etc/default
 
 cp ${BUILD_ROOT}/../worldping-blackbox-sidecar ${BUILD}/usr/bin/
 
 fpm -s dir -t deb \
-  -v ${VERSION} -n worldping-blackbox-sidecar -a ${ARCH} --description "Raintank probe monitoring agent" \
+  -v ${VERSION} -n worldping-blackbox-sidecar -a ${ARCH} --description "worldPing blackbox_exporter sidecar agent" \
   --deb-systemd ${BASE}/config/systemd/worldping-blackbox-sidecar.service \
   -m "$CONTACT" --vendor "$VENDOR" --license "$LICENSE" \
   -C ${BUILD} -p ${PACKAGE_NAME} .
 
 
 ## CentOS 7
-#BUILD=${BUILD_ROOT}/systemd-centos7
-#
-#mkdir -p ${BUILD}/usr/bin
-#mkdir -p ${BUILD}/lib/systemd/system/
-#mkdir -p ${BUILD}/etc/worldping
-#
-##cp ${BASE}/config/probe.ini ${BUILD}/etc/worldping/
-#cp ${BUILD_ROOT}/worldping-blackbox-sidecar ${BUILD}/usr/bin/
-#cp ${BASE}/config/systemd/worldping-blackbox-sidecar.service $BUILD/lib/systemd/system
-#
-#PACKAGE_NAME="${BUILD}/worldping-blackbox-sidecar-${VERSION}.el7.${ARCH}.rpm"
-#
-#fpm -s dir -t rpm \
-#  -v ${VERSION} -n worldping-blackbox-sidecar -a ${ARCH} --description "Raintank probe monitoring agent" \
-#  --config-files /etc/worldping/ \
-#  -m "$CONTACT" --vendor "$VENDOR" --license "$LICENSE" \
-#  -C ${BUILD} -p ${PACKAGE_NAME} .
+BUILD=${BUILD_ROOT}/systemd-centos7
+
+mkdir -p ${BUILD}/usr/bin
+mkdir -p ${BUILD}/lib/systemd/system/
+mkdir -p ${BUILD}/etc/worldping
+
+## Copy the blackbox_exporter files in
+mkdir -p ${BUILD}/etc/prometheus
+mkdir -p ${BUILD}/etc/default
+cp -r ${BB_EXPORTER_DIR}/usr/* ${BUILD}/usr
+cp -r ${BB_EXPORTER_DIR}/lib/* ${BUILD}/lib
+cp -r ${BB_EXPORTER_DIR}/etc/prometheus/* ${BUILD}/etc/prometheus
+cp -r ${BB_EXPORTER_DIR}/etc/default/* ${BUILD}/etc/default
+
+cp ${BUILD_ROOT}/../worldping-blackbox-sidecar ${BUILD}/usr/bin/
+cp ${BASE}/config/systemd/worldping-blackbox-sidecar.service $BUILD/lib/systemd/system
+
+PACKAGE_NAME="${BUILD}/worldping-blackbox-sidecar-${VERSION}.el7.${ARCH}.rpm"
+
+fpm -s dir -t rpm \
+  -v ${VERSION} -n worldping-blackbox-sidecar -a ${ARCH} --description "worldPing blackbox_exporter sidecar agent" \
+  --config-files /etc/worldping/ \
+  -m "$CONTACT" --vendor "$VENDOR" --license "$LICENSE" \
+  -C ${BUILD} -p ${PACKAGE_NAME} .
 
