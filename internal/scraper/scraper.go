@@ -363,41 +363,22 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		{name: "job", value: s.check.Job},
 	}
 
-	checkInfoLabels := []labelPair{
-		{name: "check_name", value: s.checkName},
-		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
-		{name: "latitude", value: strconv.FormatFloat(float64(s.probe.Latitude), 'f', 6, 32)},
-		{name: "longitude", value: strconv.FormatFloat(float64(s.probe.Longitude), 'f', 6, 32)},
-	}
-
-	for _, l := range s.check.Labels {
-		checkInfoLabels = append(checkInfoLabels, labelPair{name: "label_" + l.Name, value: l.Value})
-	}
-
-	for _, l := range s.probe.Labels {
-		checkInfoLabels = append(checkInfoLabels, labelPair{name: "label_" + l.Name, value: l.Value})
-	}
-	// add geohash label
-	h := geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))
-	checkInfoLabels = append(checkInfoLabels, labelPair{name: "geohash", value: h})
+	checkInfoLabels := s.buildCheckInfoLabels()
 
 	// timeseries need to differentiate between base labels and
 	// check info labels in order to be able to apply the later only
 	// to the worldping_check_info metric
 	ts, err := s.extractTimeseries(t, metrics, sharedLabels, checkInfoLabels)
 
-	// apply a probe_success label to streams to help identify log
-	// lines which belong to failures
-	successLabel := labelPair{name: "probe_success"}
+	successValue := "1"
 
 	switch {
 	case err == nil:
-		// OK
-		successLabel.value = "1"
+		// OK, value already set
 
 	case errors.Is(err, errCheckFailed):
 		// probe failed
-		successLabel.value = "0"
+		successValue = "0"
 
 	default:
 		// something else failed
@@ -406,11 +387,9 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	allLabels := append(sharedLabels, checkInfoLabels...)
 
-	// apply a source label to streams to help identify log
-	// lines which belong to worldping
-	sourceLabel := labelPair{name: "source", value: "worldping"}
-
-	allLabels = append(allLabels, successLabel, sourceLabel)
+	allLabels = append(allLabels,
+		labelPair{name: "probe_success", value: successValue}, // identify log lines that are failures
+		labelPair{name: "source", value: "worldping"})         // identify log lines that belong to worldping
 
 	// streams need to have all the labels applied to them because
 	// loki does not support joins
@@ -561,6 +540,39 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 			return nil, err
 		}
 	}
+}
+
+func (s Scraper) buildCheckInfoLabels() []labelPair {
+	labels := []labelPair{
+		{name: "check_name", value: s.checkName},
+		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
+		{name: "latitude", value: strconv.FormatFloat(float64(s.probe.Latitude), 'f', 6, 32)},
+		{name: "longitude", value: strconv.FormatFloat(float64(s.probe.Longitude), 'f', 6, 32)},
+		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
+	}
+
+	seen := make(map[string]struct{})
+
+	// add check labels
+	for _, l := range s.check.Labels {
+		seen[l.Name] = struct{}{}
+
+		labels = append(labels,
+			labelPair{name: "label_" + l.Name, value: l.Value})
+	}
+
+	// add probe labels
+	for _, l := range s.probe.Labels {
+		if _, found := seen[l.Name]; found {
+			// checks can override probe labels
+			continue
+		}
+
+		labels = append(labels,
+			labelPair{name: "label_" + l.Name, value: l.Value})
+	}
+
+	return labels
 }
 
 func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.TimeSeries {
