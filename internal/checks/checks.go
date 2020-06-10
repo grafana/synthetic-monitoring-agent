@@ -309,6 +309,10 @@ func (c *Updater) loop(ctx context.Context) error {
 }
 
 func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) error {
+	if err := check.Validate(); err != nil {
+		return fmt.Errorf("invalid check: %w", err)
+	}
+
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
@@ -324,6 +328,10 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) err
 }
 
 func (c *Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) error {
+	if err := check.Validate(); err != nil {
+		return fmt.Errorf("invalid check: %w", err)
+	}
+
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
