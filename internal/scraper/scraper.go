@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"io/ioutil"
 	"math"
@@ -325,8 +326,19 @@ func (s *Scraper) GetModuleConfig() interface{} {
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
 	u := s.provider
 	q := u.Query()
+
 	// this is needed in order to obtain the logs alongside the metrics
 	q.Add("debug", "true")
+
+	// XXX(mem): at this point, we shouldn't care about the check
+	// type, as we have already set everything up to just hit BBE,
+	// but this is special-casing HTTP because we need to modify the
+	// target to append a cache-busting parameter that includes the
+	// current timestamp.
+	if s.CheckType() == ScraperTypeHTTP && s.check.Settings.Http.CacheBustingQueryParamName != "" {
+		q.Set("target", addCacheBustParam(s.check.Target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name))
+	}
+
 	u.RawQuery = q.Encode()
 	address := u.String()
 
@@ -1153,4 +1165,21 @@ func getLabels(m *dto.Metric) map[string]string {
 	}
 
 	return labels
+}
+
+func addCacheBustParam(target, paramName, salt string) string {
+	// we already know this URL is valid
+	u, _ := url.Parse(target)
+	q := u.Query()
+	value := hashString(salt, strconv.FormatInt(time.Now().UnixNano(), 10))
+	q.Set(paramName, value)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func hashString(salt, str string) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(salt))
+	_, _ = h.Write([]byte(str))
+	return strconv.FormatUint(h.Sum64(), 16)
 }
