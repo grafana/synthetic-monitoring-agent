@@ -18,14 +18,20 @@ package worldping
 
 import (
 	"errors"
+	fmt "fmt"
+	"net/url"
 	"strconv"
 	"strings"
 )
 
 var (
-	ErrInvalidCheckProbes = errors.New("invalid check probes")
-	ErrInvalidCheckTarget = errors.New("invalid check target")
-	ErrInvalidCheckJob    = errors.New("invalid check job")
+	ErrInvalidCheckProbes            = errors.New("invalid check probes")
+	ErrInvalidCheckTarget            = errors.New("invalid check target")
+	ErrInvalidCheckJob               = errors.New("invalid check job")
+	ErrInvalidCheckFrequency         = errors.New("invalid check frequency")
+	ErrInvalidCheckLabelName         = errors.New("invalid check label name")
+	ErrInvalidCheckReservedLabelName = errors.New("invalid check, reserved label name")
+	ErrInvalidCheckLabelValue        = errors.New("invalid check label value")
 
 	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
@@ -47,7 +53,12 @@ var (
 	ErrInvalidIpVersionString = errors.New("invalid ip version string")
 	ErrInvalidIpVersionValue  = errors.New("invalid ip version value")
 
-	ErrInvalidProbe = errors.New("invalid probe")
+	ErrInvalidProbeName              = errors.New("invalid probe name")
+	ErrInvalidProbeReservedLabelName = errors.New("invalid probe, reserved label name")
+	ErrInvalidProbeLabelName         = errors.New("invalid probe label name")
+	ErrInvalidProbeLabelValue        = errors.New("invalid probe, reserved label name")
+	ErrInvalidProbeLatitude          = errors.New("invalid probe latitude")
+	ErrInvalidProbeLongitude         = errors.New("invalid probe longitude")
 )
 
 func (c *Check) Validate() error {
@@ -60,22 +71,69 @@ func (c *Check) Validate() error {
 	if len(c.Job) == 0 {
 		return ErrInvalidCheckJob
 	}
+
+	// frequency must be in [1, 120] seconds
+	if c.Frequency < 1*1000 || c.Frequency > 120*1000 {
+		return ErrInvalidCheckFrequency
+	}
+
+	// timeout must be in [1, 10] seconds
+	if c.Timeout < 1*1000 || c.Timeout > 10*1000 {
+		return ErrInvalidCheckFrequency
+	}
+
+	for _, label := range c.Labels {
+		switch label.Name {
+		case "instance", "job", "probe", "config_version", "check_name":
+			return fmt.Errorf("%w: %s", ErrInvalidCheckReservedLabelName, label.Name)
+
+		case "":
+			return ErrInvalidCheckLabelName
+		}
+
+		if len(label.Value) == 0 || len(label.Value) > 32 {
+			return ErrInvalidCheckLabelValue
+		}
+	}
+
 	settingsCount := 0
 
 	if c.Settings.Ping != nil {
 		settingsCount++
+
+		if err := c.Settings.Ping.Validate(); err != nil {
+			return err
+		}
 	}
 
 	if c.Settings.Http != nil {
 		settingsCount++
+
+		if target, err := url.Parse(c.Target); err != nil {
+			return ErrInvalidHttpUrl
+		} else if !(target.Scheme == "http" || target.Scheme == "https") {
+			return ErrInvalidHttpUrl
+		}
+
+		if err := c.Settings.Http.Validate(); err != nil {
+			return err
+		}
 	}
 
 	if c.Settings.Dns != nil {
 		settingsCount++
+
+		if err := c.Settings.Dns.Validate(); err != nil {
+			return err
+		}
 	}
 
 	if c.Settings.Tcp != nil {
 		settingsCount++
+
+		if err := c.Settings.Tcp.Validate(); err != nil {
+			return err
+		}
 	}
 
 	if settingsCount != 1 {
@@ -94,7 +152,6 @@ func (s *PingSettings) Validate() error {
 }
 
 func (s *HttpSettings) Validate() error {
-
 	return nil
 }
 
@@ -116,7 +173,29 @@ func (s *TcpSettings) Validate() error {
 
 func (p *Probe) Validate() error {
 	if p.Name == "" {
-		return ErrInvalidProbe
+		return ErrInvalidProbeName
+	}
+
+	for _, label := range p.Labels {
+		switch label.Name {
+		case "instance", "job", "probe", "config_version", "check_name":
+			return fmt.Errorf("%w: %s", ErrInvalidProbeReservedLabelName, label.Name)
+
+		case "":
+			return ErrInvalidProbeLabelName
+		}
+
+		if len(label.Value) == 0 || len(label.Value) > 32 {
+			return ErrInvalidProbeLabelValue
+		}
+	}
+
+	if p.Latitude < -90 || p.Latitude > 90 {
+		return ErrInvalidProbeLatitude
+	}
+
+	if p.Longitude < -180 || p.Longitude > 180 {
+		return ErrInvalidProbeLongitude
 	}
 
 	return nil
