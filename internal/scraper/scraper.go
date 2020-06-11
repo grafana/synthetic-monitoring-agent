@@ -335,6 +335,12 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// but this is special-casing HTTP because we need to modify the
 	// target to append a cache-busting parameter that includes the
 	// current timestamp.
+	//
+	// This parameter IS NOT part of the target specified by the
+	// user because it needs to change every time the check runs,
+	// and it IS NOT part of s.check.Target because that would cause
+	// it to end up in the instance label that is added to every
+	// metric (see below).
 	if s.CheckType() == ScraperTypeHTTP && s.check.Settings.Http.CacheBustingQueryParamName != "" {
 		q.Set("target", addCacheBustParam(s.check.Target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name))
 	}
