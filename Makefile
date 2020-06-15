@@ -142,7 +142,6 @@ clean: ## Clean up intermediate build artifacts.
 	$(S) echo "Cleaning intermediate build artifacts..."
 	$(V) rm -rf node_modules
 	$(V) rm -rf public/build
-	$(V) rm -rf dist/build
 	$(V) rm -rf dist/publish
 
 .PHONY: distclean
