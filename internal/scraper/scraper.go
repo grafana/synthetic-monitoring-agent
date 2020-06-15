@@ -1,32 +1,31 @@
 package scraper
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"hash/fnv"
-	"io"
 	"io/ioutil"
 	"math"
-	"net/http"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	kitlog "github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
 	"github.com/grafana/worldping-blackbox-sidecar/pkg/pb/worldping"
 	"github.com/mmcloughlin/geohash"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
+	"github.com/prometheus/blackbox_exporter/prober"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	promconfig "github.com/prometheus/common/config"
-	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -35,6 +34,13 @@ import (
 var (
 	staleNaN    uint64  = 0x7ff0000000000002
 	staleMarker float64 = math.Float64frombits(staleNaN)
+
+	Probers = map[string]prober.ProbeFn{
+		"http": prober.ProbeHTTP,
+		"tcp":  prober.ProbeTCP,
+		"icmp": prober.ProbeICMP,
+		"dns":  prober.ProbeDNS,
+	}
 )
 
 const (
@@ -48,12 +54,11 @@ type Scraper struct {
 	publishCh     chan<- pusher.Payload
 	cancel        context.CancelFunc
 	checkName     string
-	provider      url.URL // provider is the BBE URL
+	target        string
 	logger        zerolog.Logger
 	check         worldping.Check
 	probe         worldping.Probe
 	bbeModule     *bbeconfig.Module
-	moduleName    string
 	stop          chan struct{}
 	scrapeCounter prometheus.Counter
 	errorCounter  *prometheus.CounterVec
@@ -82,11 +87,10 @@ func (d *probeData) Tenant() int64 {
 	return d.tenantId
 }
 
-func New(ctx context.Context, check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, probeURL url.URL, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
+func New(ctx context.Context, check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
 	logger = logger.With().
 		Int64("check_id", check.Id).
 		Str("probe", probe.Name).
-		Str("provider", probeURL.String()).
 		Str("target", check.Target).
 		Str("job", check.Job).
 		Logger()
@@ -98,25 +102,17 @@ func New(ctx context.Context, check worldping.Check, publishCh chan<- pusher.Pay
 		return nil, err
 	}
 
-	moduleName := fmt.Sprintf("check_%d", check.Id)
-
 	bbeModule.Timeout = time.Duration(check.Timeout) * time.Millisecond
-
-	q := probeURL.Query()
-	q.Set("target", target)
-	q.Set("module", moduleName)
-	probeURL.RawQuery = q.Encode()
 
 	return &Scraper{
 		publishCh:     publishCh,
 		cancel:        cancel,
 		checkName:     checkName,
-		provider:      probeURL,
+		target:        target,
 		logger:        logger.With().Str("check", checkName).Logger(),
 		check:         check,
 		probe:         probe,
 		bbeModule:     &bbeModule,
-		moduleName:    moduleName,
 		stop:          make(chan struct{}),
 		scrapeCounter: scrapeCounter,
 		errorCounter:  errorCounter,
@@ -319,24 +315,18 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 	}
 }
 
-func (s *Scraper) GetModuleName() string {
-	return s.moduleName
-}
-
 func (s *Scraper) GetModuleConfig() interface{} {
 	return s.bbeModule
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
-	u := s.provider
-	q := u.Query()
+	prober, ok := Probers[s.bbeModule.Prober]
+	if !ok {
+		return nil, fmt.Errorf("Unknown prober %q", s.bbeModule.Prober)
+	}
+	target := s.target
 
-	// this is needed in order to obtain the logs alongside the metrics
-	q.Add("debug", "true")
-
-	// XXX(mem): at this point, we shouldn't care about the check
-	// type, as we have already set everything up to just hit BBE,
-	// but this is special-casing HTTP because we need to modify the
+	// This is special-casing HTTP because we need to modify the
 	// target to append a cache-busting parameter that includes the
 	// current timestamp.
 	//
@@ -346,33 +336,45 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// it to end up in the instance label that is added to every
 	// metric (see below).
 	if s.CheckType() == ScraperTypeHTTP && s.check.Settings.Http.CacheBustingQueryParamName != "" {
-		q.Set("target", addCacheBustParam(s.check.Target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name))
+		target = addCacheBustParam(s.target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name)
 	}
 
-	u.RawQuery = q.Encode()
-	address := u.String()
+	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_success",
+		Help: "Displays whether or not the probe was a success",
+	})
+	probeDurationGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_duration_seconds",
+		Help: "Returns how long the probe took to complete in seconds",
+	})
 
-	req, err := http.NewRequestWithContext(ctx, "GET", address, nil)
-	if err != nil {
-		err = fmt.Errorf(`msg="creating new request" probe=%s target=%s job=%s address=%s err="%w"`, s.probe.Name, s.check.Target, s.check.Job, address, err)
-		return nil, err
+	// set up logger to capture check logs
+	logs := bytes.Buffer{}
+	bl := kitlog.NewLogfmtLogger(&logs)
+	sl := kitlog.With(bl, "ts", kitlog.DefaultTimestampUTC, "target", target)
+
+	_ = level.Info(sl).Log("msg", "Beginning check", "type", s.bbeModule.Prober, "timeout_seconds", s.bbeModule.Timeout.Seconds())
+
+	start := time.Now()
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(probeSuccessGauge)
+	registry.MustRegister(probeDurationGauge)
+
+	checkCtx, cancel := context.WithTimeout(ctx, s.bbeModule.Timeout)
+	defer cancel()
+
+	success := prober(checkCtx, target, *s.bbeModule, registry, sl)
+	duration := time.Since(start).Seconds()
+	probeDurationGauge.Set(duration)
+	if success {
+		probeSuccessGauge.Set(1)
+		_ = level.Info(sl).Log("msg", "Check succeeded", "duration_seconds", duration)
+	} else {
+		_ = level.Error(sl).Log("msg", "Check failed", "duration_seconds", duration)
 	}
-
-	resp, err := http.DefaultClient.Do(req)
+	mfs, err := registry.Gather()
 	if err != nil {
-		err = fmt.Errorf(`msg="requesting data from" probe=%s target=%s job=%s address=%s err="%w"`, s.probe.Name, s.check.Target, s.check.Job, address, err)
-		return nil, err
-	}
-
-	defer func() {
-		// drain body
-		_, _ = io.Copy(ioutil.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
-
-	metrics, logs, err := extractMetricsAndLogs(resp.Body)
-	if err != nil {
-		err = fmt.Errorf(`msg="extracting data from blackbox-exporter" probe=%s target=%s job=%s address=%s err="%w"`, s.probe.Name, s.check.Target, s.check.Job, address, err)
+		err = fmt.Errorf(`msg="extracting data from blackbox-exporter" probe=%s target=%s job=%s err="%w"`, s.probe.Name, s.check.Target, s.check.Job, err)
 		return nil, err
 	}
 
@@ -390,7 +392,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// timeseries need to differentiate between base labels and
 	// check info labels in order to be able to apply the later only
 	// to the worldping_check_info metric
-	ts, err := s.extractTimeseries(t, metrics, metricLabels, checkInfoLabels)
+	ts, err := s.extractTimeseries(t, mfs, metricLabels, checkInfoLabels)
 
 	successValue := "1"
 
@@ -422,7 +424,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	// streams need to have all the labels applied to them because
 	// loki does not support joins
-	streams := s.extractLogs(t, logs, logLabels)
+	streams := s.extractLogs(t, logs.Bytes(), logLabels)
 
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, err
 }
@@ -460,9 +462,6 @@ RECORD:
 					continue RECORD
 				}
 
-			case "caller", "module":
-				// skip
-
 			default:
 				if err := enc.EncodeKeyval(key, value); err != nil {
 					// We should never hit this because all the entries are valid.
@@ -493,18 +492,7 @@ RECORD:
 	}
 }
 
-func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, checkInfoLabels []labelPair) (TimeSeries, error) {
-	// XXX(mem): the following is needed in order to derive the
-	// correct format from the response headers, but since we are
-	// passing debug=true, we loose access to that.
-	//
-	// format := expfmt.ResponseFormat(resp.Header)
-	//
-	// Instead hard-code the format to be plain text.
-	format := expfmt.FmtText
-
-	dec := expfmt.NewDecoder(bytes.NewReader(metrics), format)
-
+func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels, checkInfoLabels []labelPair) (TimeSeries, error) {
 	metricLabels := make([]prompb.Label, 0, len(sharedLabels))
 	for _, label := range sharedLabels {
 		metricLabels = append(metricLabels, prompb.Label{Name: label.name, Value: label.value})
@@ -514,53 +502,42 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 
 	ts := []prompb.TimeSeries{checkInfoMetric}
 	var checkErr error
-	for {
-		var mf dto.MetricFamily
+	for _, mf := range metrics {
+		// got metrics
+		mName := mf.GetName()
+		mType := mf.GetType()
 
-		switch err := dec.Decode(&mf); err {
-		case nil:
-			// got metrics
-			mName := mf.GetName()
-			mType := mf.GetType()
+		for _, m := range mf.GetMetric() {
+			ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
 
-			for _, m := range mf.GetMetric() {
-				ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
+			switch {
+			case mName == "probe_success" && mType == dto.MetricType_GAUGE:
+				if m.GetGauge().GetValue() == 0 {
+					// return an error to the caller, signalling that the check failed.
+					s.logger.Info().Err(errCheckFailed).Msg("check failed")
+					checkErr = errCheckFailed
+				}
 
-				switch {
-				case mName == "probe_success" && mType == dto.MetricType_GAUGE:
-					if m.GetGauge().GetValue() == 0 {
-						// return an error to the caller, signalling that the check failed.
-						s.logger.Info().Err(errCheckFailed).Msg("check failed")
-						checkErr = errCheckFailed
-					}
+				// derive a summary from this metric
+				dName, dm, err := updateSummaryFromMetric(mName, m, s.summaries)
+				if err != nil {
+					s.logger.Warn().Err(err).Str("name", mName).Interface("metric", m).Msg("updating summary from metric")
+				} else {
+					ts = appendDtoToTimeseries(ts, t, dName, metricLabels, dto.MetricType_SUMMARY, dm)
+				}
 
-					// derive a summary from this metric
-					dName, dm, err := updateSummaryFromMetric(mName, m, s.summaries)
-					if err != nil {
-						s.logger.Warn().Err(err).Str("name", mName).Interface("metric", m).Msg("updating summary from metric")
-					} else {
-						ts = appendDtoToTimeseries(ts, t, dName, metricLabels, dto.MetricType_SUMMARY, dm)
-					}
-
-				case mType == dto.MetricType_GAUGE && strings.HasSuffix(mName, "_seconds"):
-					// derive a histogram from this metric
-					dName, dm, err := updateHistogramFromMetric(mName, m, s.histograms)
-					if err != nil {
-						s.logger.Warn().Err(err).Str("name", mName).Interface("metric", m).Msg("updating histogram from metric")
-					} else {
-						ts = appendDtoToTimeseries(ts, t, dName, metricLabels, dto.MetricType_HISTOGRAM, dm)
-					}
+			case mType == dto.MetricType_GAUGE && strings.HasSuffix(mName, "_seconds"):
+				// derive a histogram from this metric
+				dName, dm, err := updateHistogramFromMetric(mName, m, s.histograms)
+				if err != nil {
+					s.logger.Warn().Err(err).Str("name", mName).Interface("metric", m).Msg("updating histogram from metric")
+				} else {
+					ts = appendDtoToTimeseries(ts, t, dName, metricLabels, dto.MetricType_HISTOGRAM, dm)
 				}
 			}
-
-		case io.EOF:
-			return ts, checkErr
-
-		default:
-			s.logger.Error().Err(err).Msg("decoding results from blackbox-exporter")
-			return nil, err
 		}
 	}
+	return ts, checkErr
 }
 
 func (s Scraper) buildCheckInfoLabels() []labelPair {
@@ -706,68 +683,6 @@ func makeCheckInfoMetrics(t time.Time, sharedLabels, checkInfoLabels []labelPair
 	}
 
 	return makeTimeseries(t, 1, labels...)
-}
-
-func extractMetricsAndLogs(r io.Reader) ([]byte, []byte, error) {
-	type extractorState int
-
-	const (
-		stateLookingForHeader extractorState = iota
-		stateInLogs
-		stateInMetrics
-	)
-
-	var (
-		state   extractorState
-		metrics bytes.Buffer
-		logs    bytes.Buffer
-		cur     *bytes.Buffer
-	)
-
-	s := bufio.NewScanner(r)
-
-SCAN:
-	for s.Scan() {
-		switch state {
-		case stateLookingForHeader:
-			switch text := s.Text(); text {
-			case "Logs for the probe:":
-				state = stateInLogs
-				cur = &logs
-
-			case "Metrics that would have been returned:":
-				state = stateInMetrics
-				cur = &metrics
-			}
-
-		case stateInLogs, stateInMetrics:
-			// first blank line ends the data and goes back
-			// to searching for the next header
-			if s.Text() == "" {
-				// we break out early if we have both
-				// logs and metrics
-				if logs.Len() > 0 && metrics.Len() > 0 {
-					break SCAN
-				}
-				state = stateLookingForHeader
-				continue
-			}
-
-			if _, err := cur.Write(s.Bytes()); err != nil {
-				return nil, nil, err
-			}
-
-			if _, err := cur.WriteRune('\n'); err != nil {
-				return nil, nil, err
-			}
-		}
-	}
-
-	if err := s.Err(); err != nil {
-		return nil, nil, err
-	}
-
-	return metrics.Bytes(), logs.Bytes(), nil
 }
 
 type labelPair struct {

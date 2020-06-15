@@ -3,6 +3,7 @@ module github.com/grafana/worldping-blackbox-sidecar
 go 1.13
 
 require (
+	github.com/go-kit/kit v0.10.0
 	github.com/go-logfmt/logfmt v0.5.0
 	github.com/gogo/googleapis v1.3.2
 	github.com/gogo/protobuf v1.3.1

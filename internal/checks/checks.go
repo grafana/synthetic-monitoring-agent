@@ -5,10 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net/http"
-	"net/url"
-	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -23,7 +19,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -35,7 +30,6 @@ var (
 // running on that probe and it manages the configuration for
 // blackbox-exporter that corresponds to the collection of scrapers.
 type Updater struct {
-	bbeInfo             bbeInfo
 	api                 apiInfo
 	logger              zerolog.Logger
 	publishCh           chan<- pusher.Payload
@@ -49,14 +43,6 @@ type Updater struct {
 	scrapeErrorCounter  *prometheus.CounterVec
 }
 
-// bbeInfo represents the information necessary to communicate with
-// blackbox-exporter
-type bbeInfo struct {
-	configFilename string
-	reloadURL      string
-	probeURL       *url.URL
-}
-
 type apiInfo struct {
 	conn *grpc.ClientConn
 }
@@ -64,20 +50,7 @@ type apiInfo struct {
 type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
-func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporterURL *url.URL, logger zerolog.Logger, publishCh chan<- pusher.Payload, promRegisterer prometheus.Registerer) (*Updater, error) {
-	if blackboxExporterURL == nil {
-		return nil, fmt.Errorf("invalid blackbox-exporter URL")
-	}
-
-	blackboxExporterProbeURL, err := blackboxExporterURL.Parse("probe")
-	if err != nil {
-		return nil, err
-	}
-
-	blackboxExporterReloadURL, err := blackboxExporterURL.Parse("-/reload")
-	if err != nil {
-		return nil, err
-	}
+func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- pusher.Payload, promRegisterer prometheus.Registerer) (*Updater, error) {
 
 	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "worldping_bbe_sidecar",
@@ -150,11 +123,6 @@ func NewUpdater(conn *grpc.ClientConn, bbeConfigFilename string, blackboxExporte
 	return &Updater{
 		api: apiInfo{
 			conn: conn,
-		},
-		bbeInfo: bbeInfo{
-			configFilename: bbeConfigFilename,
-			probeURL:       blackboxExporterProbeURL,
-			reloadURL:      blackboxExporterReloadURL.String(),
 		},
 		logger:              logger,
 		publishCh:           publishCh,
@@ -347,7 +315,7 @@ func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check worldping
 	scraper, found := c.scrapers[check.Id]
 	if !found {
 		c.logger.Warn().Int64("check_id", check.Id).Msg("update request for an unknown check")
-		return nil
+		return c.addAndStartScraperWithLock(ctx, check)
 	}
 
 	// this is the lazy way to update the scraper: tear everything
@@ -531,79 +499,16 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check worldpin
 		return err
 	}
 
-	scraper, err := scraper.New(ctx, check, c.publishCh, *c.probe, *c.bbeInfo.probeURL, c.logger, scrapeCounter, scrapeErrorCounter)
+	scraper, err := scraper.New(ctx, check, c.publishCh, *c.probe, c.logger, scrapeCounter, scrapeErrorCounter)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}
 
 	c.scrapers[check.Id] = scraper
 
-	// XXX(mem): this needs to be rate-limited somehow, it doesn't
-	// make sense to post 600 reload requests in a second. The trick
-	// is that the scraper cannot run until the configuration has
-	// been updated.
-	//
-	// Possibly delay starting the scraper using a list and a
-	// timeout?
-	if err := c.bbeInfo.updateConfig(c.scrapers); err != nil {
-		// XXX(mem): bail out?
-		c.logger.Error().Err(err).Int64("check_id", check.Id).Msg("updating blackbox-exporter configuration")
-	}
-
 	go scraper.Run(ctx)
 
 	c.runningScrapers.WithLabelValues(scraper.CheckType()).Inc()
-
-	return nil
-}
-
-func (bbe *bbeInfo) updateConfig(scrapers map[int64]*scraper.Scraper) error {
-	var config struct {
-		Modules map[string]interface{} `yaml:"modules"`
-	}
-
-	config.Modules = make(map[string]interface{})
-
-	for _, scraper := range scrapers {
-		moduleName := scraper.GetModuleName()
-		config.Modules[moduleName] = scraper.GetModuleConfig()
-	}
-
-	b, err := yaml.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("cannot marshal to YAML: %w", err)
-	}
-
-	fh, err := os.Create(bbe.configFilename)
-	if err != nil {
-		return fmt.Errorf("cannot create blackbox-exporter configuration file %s: %w", bbe.configFilename, err)
-	}
-	defer fh.Close()
-
-	n, err := fh.Write(b)
-	if err != nil {
-		return fmt.Errorf("failed to write blackbox-exporter configuration file %s, wrote %d bytes: %w", bbe.configFilename, n, err)
-	}
-
-	req, err := http.NewRequestWithContext(context.TODO(), "POST", bbe.reloadURL, nil)
-	if err != nil {
-		return fmt.Errorf("creating new request: %w", err)
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("posting configuration reload request : %w", err)
-	}
-
-	defer func() {
-		// drain body
-		_, _ = io.Copy(ioutil.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected response posting configuration reload request : %s", resp.Status)
-	}
 
 	return nil
 }
