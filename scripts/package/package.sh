@@ -1,10 +1,19 @@
 #!/bin/bash
+
+# Script to package the worldping-blackbox-sidecar and the prometheus 
+# blackbox-exporter together.
+
 set -x
 BASE=$(dirname $0)
 CODE_DIR=$(readlink -e "$BASE/../../")
 
-sudo apt-get install rpm
+# Install fpm if needed
+if [ ! -x "$(which fpm)" ] ; then
+  sudo apt-get install -y ruby ruby-dev rubygems build-essential
+  gem install --no-document fpm
+fi
 
+BUILD_OUTPUT=${CODE_DIR}/dist
 BUILD_ROOT=$CODE_DIR/dist/build
 mkdir -p $(BUILD_ROOT)
 
@@ -19,37 +28,46 @@ LICENSE="Apache2.0"
 ## ubuntu 16.04, 18.04, Debian 8
 
 ## download the blackbox-exporter deb package if not present
-BB_EXPORTER_URL=http://ftp.us.debian.org/debian/pool/main/p/prometheus-blackbox-exporter/
-BB_EXPORTER_FILE=prometheus-blackbox-exporter_0.16.0+ds-1_amd64.deb
-BB_EXPORTER_FILE_PATH=${BUILD_ROOT}/${BB_EXPORTER_FILE}
-BB_EXPORTER_DIR=${BUILD_ROOT}/deb_bb_exporter_files
+BB_EXPORTER_URL=https://github.com/prometheus/blackbox_exporter/releases/download/v0.16.0/
+BB_EXPORTER_TGZ=blackbox_exporter-0.16.0.linux-amd64.tar.gz
+BB_EXPORTER_TGZ_PATH=${BUILD_ROOT}/${BB_EXPORTER_TGZ}
+BB_EXPORTER_DIR=${BUILD_ROOT}/bb_exporter_files
 mkdir -p ${BB_EXPORTER_DIR}
-if [ ! -f ${BB_EXPORTER_FILE_PATH} ]; then
-    curl -o ${BB_EXPORTER_FILE_PATH} ${BB_EXPORTER_URL}${BB_EXPORTER_FILE}
+if [ ! -f ${BB_EXPORTER_TGZ_PATH} ]; then
+    wget -O ${BB_EXPORTER_TGZ_PATH} ${BB_EXPORTER_URL}${BB_EXPORTER_TGZ}
 fi 
-dpkg-deb -R ${BB_EXPORTER_FILE_PATH} ${BB_EXPORTER_DIR}
+
+# Extract to a temp directory without folders
+tar xzf ${BB_EXPORTER_TGZ_PATH} -C ${BB_EXPORTER_DIR} --strip-components=1
+
 
 ## Setup for the package name
 BUILD=${BUILD_ROOT}/systemd
+CONFIG_DIR=$BASE/config/systemd
 PACKAGE_NAME="${BUILD}/worldping-blackbox-sidecar-${VERSION}_${ARCH}.deb"
-mkdir -p ${BUILD}/usr/bin
-mkdir -p ${BUILD}/lib/systemd/system/
-mkdir -p ${BUILD}/etc/worldping
 
-## Copy the blackbox_exporter files in
-mkdir -p ${BUILD}/usr/share/doc
-mkdir -p ${BUILD}/etc/prometheus
-mkdir -p ${BUILD}/etc/default
-cp -r ${BB_EXPORTER_DIR}/usr/* ${BUILD}/usr
-cp -r ${BB_EXPORTER_DIR}/lib/* ${BUILD}/lib
-cp -r ${BB_EXPORTER_DIR}/etc/prometheus/* ${BUILD}/etc/prometheus
-cp -r ${BB_EXPORTER_DIR}/etc/default/* ${BUILD}/etc/default
+# Copy config files in
+copy_files_into_pkg () {
+  # Setup dirs
+  mkdir -p ${BUILD}/usr/bin
+  mkdir -p ${BUILD}/lib/systemd/system/
+  mkdir -p ${BUILD}/etc/worldping
 
-cp ${BUILD_ROOT}/../worldping-blackbox-sidecar ${BUILD}/usr/bin/
+  # Copy the blackbox_exporter files in
+  cp ${BB_EXPORTER_DIR}/blackbox_exporter ${BUILD}/usr/bin
+  cp ${BUILD_OUTPUT}/worldping-blackbox-sidecar ${BUILD}/usr/bin/
+
+  # Copy config files in
+  cp ${CONFIG_DIR}/worldping.conf ${BUILD}/etc/worldping
+  cp ${CONFIG_DIR}/blackbox.yml ${BUILD}/etc/worldping
+  cp ${CONFIG_DIR}/worldping-blackbox-exporter.service ${BUILD}/lib/systemd/system
+  cp ${CONFIG_DIR}/worldping-blackbox-sidecar.service ${BUILD}/lib/systemd/system
+}
+copy_files_into_pkg
 
 fpm -s dir -t deb \
   -v ${VERSION} -n worldping-blackbox-sidecar -a ${ARCH} --description "worldPing blackbox_exporter sidecar agent" \
-  --deb-systemd ${BASE}/config/systemd/worldping-blackbox-sidecar.service \
+  --deb-systemd ${CONFIG_DIR}/worldping-blackbox-sidecar.service \
   -m "$CONTACT" --vendor "$VENDOR" --license "$LICENSE" \
   -C ${BUILD} -p ${PACKAGE_NAME} .
 
@@ -57,20 +75,13 @@ fpm -s dir -t deb \
 ## CentOS 7
 BUILD=${BUILD_ROOT}/systemd-centos7
 
-mkdir -p ${BUILD}/usr/bin
-mkdir -p ${BUILD}/lib/systemd/system/
-mkdir -p ${BUILD}/etc/worldping
+sudo apt-get install -y rpm
 
-## Copy the blackbox_exporter files in
-mkdir -p ${BUILD}/etc/prometheus
-mkdir -p ${BUILD}/etc/default
-cp -r ${BB_EXPORTER_DIR}/usr/* ${BUILD}/usr
-cp -r ${BB_EXPORTER_DIR}/lib/* ${BUILD}/lib
-cp -r ${BB_EXPORTER_DIR}/etc/prometheus/* ${BUILD}/etc/prometheus
-cp -r ${BB_EXPORTER_DIR}/etc/default/* ${BUILD}/etc/default
+# Setup configs
+copy_files_into_pkg
 
+cp ${BB_EXPORTER_DIR}/blackbox_exporter ${BUILD}/usr/bin
 cp ${BUILD_ROOT}/../worldping-blackbox-sidecar ${BUILD}/usr/bin/
-cp ${BASE}/config/systemd/worldping-blackbox-sidecar.service $BUILD/lib/systemd/system
 
 PACKAGE_NAME="${BUILD}/worldping-blackbox-sidecar-${VERSION}.el7.${ARCH}.rpm"
 

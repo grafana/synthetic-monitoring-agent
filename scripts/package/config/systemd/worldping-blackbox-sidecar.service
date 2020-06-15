@@ -5,10 +5,12 @@ Description=Grafana worldPing Blackbox Exporter Sidecar Service
 Type=simple
 User=root
 Group=root
-EnvironmentFile=/etc/worldping.conf
-ExecStart=/usr/bin/worldping-blackbox-sidecar --api-token $API_TOKEN --api-server-address=worldping-grpc-dev.grafana.net:443 --blackbox-exporter-config /etc/prometheus/blackbox.yml
+EnvironmentFile=/etc/worldping/worldping.conf
+ExecStart=/usr/bin/worldping-blackbox-sidecar --api-token $API_TOKEN --api-server-address=worldping-grpc-dev.grafana.net:443 --blackbox-exporter-config /etc/worldping/blackbox.yml
 Restart=always
-Requires=prometheus-blackbox-exporter.service
+
+[Unit]
+Requires=worldping-blackbox-exporter.service
 
 [Install]
 WantedBy=network-online.target

@@ -1,17 +1,18 @@
 #!/bin/bash
+#
+# Publish the artifacts from package.sh to GCS.
+#
 set -x
 BASE=$(dirname $0)
 CODE_DIR=$(readlink -e "$BASE/../../")
 BUILD_DEB_DIR=${CODE_DIR}/dist/build/systemd
 BUILD_RMP_DIR=${CODE_DIR}/dist/build/systemd-centos7
 
-#TODO: Put this back if needed for rpm
-#sudo apt-get install rpm
-
+# Setup directories 
 PUBLISH_ROOT=${CODE_DIR}/dist/publish
 mkdir -p ${PUBLISH_ROOT}
 APTLY_REPO=${PUBLISH_ROOT}/deb/repo
-mkdir -p ${REPO_DIR}
+mkdir -p ${APTLY_REPO}
 APTLY_DIR=${PUBLISH_ROOT}/deb
 mkdir -p ${APTLY_DIR}
 APTLY_DB=${PUBLISH_ROOT}/deb/db
@@ -28,11 +29,16 @@ REPO_BUCKET=wp-testing-repo
 
 APTLY_CONF_FILE=${PUBLISH_ROOT}/aptly.conf
 
-# Will need the GPG keys imported (remove public if not needed)
-GPG_PUB_KEY_FILE=${BASE}/pub.key
+# UNCOMMENT to use test GPG keys
+#source ${BASE}/gpg-test-vars.sh
+if [ -z "${GPG_PRIV_KEY}" ] || [ -z "${GPG_KEY_PASSWORD}" ] ; then
+    echo "Error: GPG_PRIV_KEY and GPG_KEY_PASSWORD not set."
+    exit 1
+fi
+
+# Import GPG keys 
 GPG_PRIV_KEY_FILE=${BASE}/priv.key
 GPG_PASSPHRASE_FILE=${BASE}/passphrase
-echo $GPG_PUB_KEY | base64 -d > ${GPG_PUB_KEY_FILE}
 echo $GPG_PRIV_KEY | base64 -d > ${GPG_PRIV_KEY_FILE}
 echo $GPG_KEY_PASSWORD > ${GPG_PASSPHRASE_FILE}
 gpg --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FILE}
@@ -79,7 +85,7 @@ cat << EOF > ${APTLY_CONF_FILE}
 EOF
 
 # Pull deb database
-gsutil -m rsync -r -d gs://${APTLY_DB_BUCKET} ${APTLY_DIR} 
+gsutil -m rsync -r gs://${APTLY_DB_BUCKET} ${APTLY_DIR} 
 
 # Copy packages to the repo
 cp ${BUILD_DEB_DIR}/*.deb ${APTLY_STAGE}
@@ -96,20 +102,14 @@ gsutil -m rsync -r ${APTLY_POOL} gs://${REPO_BUCKET}/deb/pool
 gsutil -m rsync -r ${APTLY_REPO}/worldping gs://${REPO_BUCKET}/deb
 
 
-### RPM
+### TODO: RPM
+#sudo apt-get install -y rpm
 
-# Pull rpm database
-
-# Add packages to rpm repo
-
-# Push packages to rpm repo
-# Push rpm database
 
 
 # Done for some reason, cleanup and exit
-function cleanup () {
+cleanup () {
 	# cleanup passphrase and key files
-	rm ${GPG_PUB_KEY_FILE}
 	rm ${GPG_PRIV_KEY_FILE}
 	rm ${GPG_PASSPHRASE_FILE}
 

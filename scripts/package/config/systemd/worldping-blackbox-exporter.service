@@ -1,0 +1,14 @@
+[Unit]
+Description=Blackbox exporter for Prometheus
+Documentation=https://prometheus.io/docs/introduction/overview/
+
+[Service]
+Restart=always
+User=root
+Group=root
+EnvironmentFile=/etc/worldping/blackbox.yml
+ExecStart=/usr/bin/blackbox_exporter --config.file /etc/worldping/blackbox.yml
+ExecReload=/bin/kill -HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target

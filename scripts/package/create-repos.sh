@@ -1,21 +1,17 @@
 #!/bin/bash
 #
-# This is NOT a script that should be used often and only when starting a repo from scratch.
+# WARNING: This is NOT a script that should be used often and only when starting 
+# repos from scratch. Sync with GCS has been commented out to keep from inadvertently
+# overwriting production repos.
 #
-
 set -x
 BASE=$(dirname $0)
 CODE_DIR=$(readlink -e "$BASE/../../")
-echo "Base: $BASE"
-echo "Coe: $CODE_DIR"
-
-#TODO: Put this back for RPM
-#sudo apt-get install rpm
 
 PUBLISH_ROOT=${CODE_DIR}/dist/publish
 mkdir -p ${PUBLISH_ROOT}
 APTLY_DIR=${PUBLISH_ROOT}/deb
-mkdir -p ${APTLY_DB}
+mkdir -p ${APTLY_DIR}
 APTLY_DB=${PUBLISH_ROOT}/deb/db
 mkdir -p ${APTLY_DB}
 APTLY_REPO=${PUBLISH_ROOT}/deb/repo
@@ -28,7 +24,14 @@ ARCH="$(uname -m)"
 
 APTLY_CONF_FILE=${PUBLISH_ROOT}/aptly.conf
 
-# Will need the GPG keys imported
+# UNCOMMENT to use test GPG keys
+#source ${BASE}/gpg-test-vars.sh
+if [ -z "${GPG_PRIV_KEY}" ] || [ -z "${GPG_KEY_PASSWORD}" ] ; then
+    echo "Error: GPG_PRIV_KEY and GPG_KEY_PASSWORD not set."
+    exit 1
+fi
+
+# Import GPG keys
 GPG_PRIV_KEY_FILE=${BASE}/priv.key
 GPG_PASSPHRASE_FILE=${BASE}/passphrase
 echo $GPG_PRIV_KEY | base64 -d > ${GPG_PRIV_KEY_FILE}
@@ -82,9 +85,12 @@ aptly -config=${APTLY_CONF_FILE} repo create -distribution="stable" worldping
 # Publish blank repo
 aptly -config=${APTLY_CONF_FILE} publish repo -batch -passphrase-file=./scripts/package/passphrase -force-overwrite worldping filesystem:repo:worldping
 
+# UNCOMMENT: Commented out to keep from inadvertently overwriting the published
+# repo. Uncomment if a new repo really needs to be sync'd.
 # Sync to GCS
-gsutil -m rsync -r ${APTLY_DIR} gs://${APTLY_DB_BUCKET}
+#gsutil -m rsync -r ${APTLY_DIR} gs://${APTLY_DB_BUCKET}
 
 
 #TODO: RPM Repo creation
+#sudo apt-get install -y rpm
 

@@ -1,0 +1,34 @@
+# Setup container to publish worldping-blackbox-sidecar packages to GCS
+FROM cimg/go:1.14 
+USER root
+
+# Setup required packages
+RUN apt-get update && \
+    apt-get install -y aptly && \
+    apt-get install -y rpm && \
+    apt-get install -y ruby ruby-dev rubygems build-essential && \
+    gem install --no-document fpm
+
+# Download gcloud package
+RUN curl https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz > /tmp/google-cloud-sdk.tar.gz
+
+# Install the gcloud package
+RUN mkdir -p /usr/local/gcloud && \
+    tar -C /usr/local/gcloud -xvf /tmp/google-cloud-sdk.tar.gz && \
+    /usr/local/gcloud/google-cloud-sdk/install.sh
+
+# Add gcloud to the path
+ENV PATH $PATH:/usr/local/gcloud/google-cloud-sdk/bin
+
+# Service account .json file should be in this directory before running.
+COPY ./key-file.json /worldping/key-file.json
+RUN gcloud auth activate-service-account --key-file=/worldping/key-file.json
+
+COPY ./ /worldping/
+
+WORKDIR /worldping
+
+
+# NOTE: The following environment variables must be passed to the container at runtime in some way:
+# GPG_PRIV_KEY="base64 encoded private key"
+# GPG_KEY_PASSWORD="base64 encoded passphrase"

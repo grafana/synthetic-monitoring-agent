@@ -9,9 +9,8 @@ sudo apt-get install -y apt-transport-https
 sudo apt-get install -y software-properties-common wget
 
 # Add worldping test repo to apt
-sudo add-apt-repository "deb https://wp-testing-repo.storage.googleapis.com/deb stable main"
-
 wget -q -O - https://wp-testing-repo.storage.googleapis.com/gpg.key | sudo apt-key add -
+sudo add-apt-repository "deb https://wp-testing-repo.storage.googleapis.com/deb stable main"
 
 # Try installing
 sudo apt-get install worldping-blackbox-sidecar
