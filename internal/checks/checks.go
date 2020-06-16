@@ -29,6 +29,7 @@ import (
 var (
 	errNotAuthorized    = errors.New("probe not authorized")
 	errTransportClosing = errors.New("transport closing")
+	errProbeRestart     = errors.New("probe restart")
 )
 
 // Updater represents a probe along with the collection of scrapers
@@ -217,6 +218,10 @@ func (c *Updater) loop(ctx context.Context) error {
 			// either we were told to shut down
 			return context.Canceled
 
+		case status.Code() == codes.Aborted:
+			// we are abusing aborted to mean "restart"
+			return errProbeRestart
+
 		case status.Message() == "transport is closing":
 			// the other end is shutting down
 			return errTransportClosing
@@ -247,21 +252,24 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	c.probe = &result.Probe
 
-	c.logger.Info().Int64("probe id", c.probe.Id).Str("probe name", c.probe.Name).Msg("registered probe with worldping-api")
+	c.logger.Info().Interface("probe", c.probe).Msg("registered probe with worldping-api")
 
 	cc, err := client.GetChanges(ctx, &worldping.Void{})
 	if err != nil {
 		return grpcErrorHandler("requesting changes from worldping-api", err)
 	}
 
-	// XXX(mem): possibly create a new context here that gets
-	// cancelled when this function returns, so that the scrapers
-	// are stopped; they should also be removed from the map of
-	// running scrapers.
+	scraperCtx, cancel := context.WithCancel(cc.Context())
+	defer func() {
+		// cancel the context, in case there are operations in progress
+		cancel()
+		// and stop the scrapers
+		c.stopAllScrapers()
+	}()
 
 	for {
 		select {
-		case <-cc.Context().Done():
+		case <-scraperCtx.Done():
 			return nil
 
 		default:
@@ -273,21 +281,21 @@ func (c *Updater) loop(ctx context.Context) error {
 					switch change.Operation {
 					case worldping.CheckOperation_CHECK_ADD:
 						c.changesCounter.WithLabelValues("add").Inc()
-						if err := c.handleCheckAdd(ctx, change.Check); err != nil {
+						if err := c.handleCheckAdd(scraperCtx, change.Check); err != nil {
 							c.changeErrorsCounter.WithLabelValues("add").Inc()
 							c.logger.Error().Err(err).Msg("handling check add")
 						}
 
 					case worldping.CheckOperation_CHECK_UPDATE:
 						c.changesCounter.WithLabelValues("update").Inc()
-						if err := c.handleCheckUpdate(ctx, change.Check); err != nil {
+						if err := c.handleCheckUpdate(scraperCtx, change.Check); err != nil {
 							c.changeErrorsCounter.WithLabelValues("update").Inc()
 							c.logger.Error().Err(err).Msg("handling check update")
 						}
 
 					case worldping.CheckOperation_CHECK_DELETE:
 						c.changesCounter.WithLabelValues("delete").Inc()
-						if err := c.handleCheckDelete(ctx, change.Check); err != nil {
+						if err := c.handleCheckDelete(scraperCtx, change.Check); err != nil {
 							c.changeErrorsCounter.WithLabelValues("delete").Inc()
 							c.logger.Error().Err(err).Msg("handling check delete")
 						}
@@ -415,6 +423,22 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check worldping.Check)
 	c.runningScrapers.WithLabelValues(scraper.CheckType()).Inc()
 
 	return nil
+}
+
+// stopAllScrapers sends the stop signal to all running scrapers and
+// performs the necessary clean up.
+func (c *Updater) stopAllScrapers() {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+
+	for checkID, scraper := range c.scrapers {
+		scraper.Stop()
+		checkType := scraper.CheckType()
+
+		delete(c.scrapers, checkID)
+
+		c.runningScrapers.WithLabelValues(checkType).Dec()
+	}
 }
 
 func (bbe *bbeInfo) updateConfig(scrapers map[int64]*scraper.Scraper) error {

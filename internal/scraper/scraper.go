@@ -211,6 +211,8 @@ func (s *Scraper) Run(ctx context.Context) {
 			return
 		}
 
+		s.logger.Debug().Msg("marking metrics as stale")
+
 		staleSample := prompb.Sample{
 			Timestamp: t.UnixNano()/1e6 + 1, // ms
 			Value:     staleMarker,
@@ -239,7 +241,10 @@ func (s *Scraper) Run(ctx context.Context) {
 
 func (s *Scraper) Stop() {
 	s.logger.Info().Msg("stopping scraper")
-	close(s.stop)
+	if s.stop != nil {
+		close(s.stop)
+		s.stop = nil
+	}
 }
 
 func (s Scraper) CheckType() string {
