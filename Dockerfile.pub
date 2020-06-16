@@ -4,10 +4,17 @@ USER root
 
 # Setup required packages
 RUN apt-get update && \
-    apt-get install -y aptly && \
+    apt-get install -y gnupg2 && \
     apt-get install -y rpm && \
     apt-get install -y ruby ruby-dev rubygems build-essential && \
     gem install --no-document fpm
+
+# Install newest version of aptly. If fails retrieving key, retry the build.
+RUN apt-key adv --keyserver pool.sks-keyservers.net --recv-keys ED75B5A4483DA07C
+RUN wget -qO - https://www.aptly.info/pubkey.txt | apt-key add -
+RUN add-apt-repository "deb http://repo.aptly.info/ squeeze main"
+RUN apt-get update && \
+    apt-get install aptly
 
 # Download gcloud package
 RUN curl https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz > /tmp/google-cloud-sdk.tar.gz

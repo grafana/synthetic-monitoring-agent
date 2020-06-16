@@ -49,6 +49,7 @@ gpg --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FIL
 if [ ! -x "$(which aptly)" ] ; then
   sudo apt-key adv --keyserver pool.sks-keyservers.net --recv-keys ED75B5A4483DA07C
   wget -qO - https://www.aptly.info/pubkey.txt | sudo apt-key add -
+  sudo add-apt-repository "deb http://repo.aptly.info/ squeeze main"
   sudo apt-get update
   sudo apt-get install aptly
 fi
@@ -67,7 +68,7 @@ cat << EOF > ${APTLY_CONF_FILE}
   "dependencyVerboseResolve": false,
   "gpgDisableSign": false,
   "gpgDisableVerify": false,
-  "gpgProvider": "gpg",
+  "gpgProvider": "gpg2",
   "downloadSourcePackages": false,
   "skipLegacyPool": true,
   "ppaDistributorID": "ubuntu",
