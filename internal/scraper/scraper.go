@@ -921,6 +921,23 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 		}
 	}
 
+	m.HTTP.HTTPClientConfig.BearerToken = promconfig.Secret(settings.BearerToken)
+
+	if settings.BasicAuth != nil {
+		m.HTTP.HTTPClientConfig.BasicAuth = &promconfig.BasicAuth{
+			Username: settings.BasicAuth.Username,
+			Password: promconfig.Secret(settings.BasicAuth.Password),
+		}
+	}
+
+	if settings.ProxyURL != "" {
+		var err error
+		m.HTTP.HTTPClientConfig.ProxyURL.URL, err = url.Parse(settings.ProxyURL)
+		if err != nil {
+			return m, fmt.Errorf("parsing proxy URL: %w", err)
+		}
+	}
+
 	return m, nil
 }
 
