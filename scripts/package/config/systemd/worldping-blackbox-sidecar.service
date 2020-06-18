@@ -6,7 +6,7 @@ Type=simple
 User=root
 Group=root
 EnvironmentFile=/etc/worldping/worldping.conf
-ExecStart=/usr/bin/worldping-blackbox-sidecar --api-token $API_TOKEN --api-server-address=worldping-grpc-dev.grafana.net:443 --blackbox-exporter-config /etc/worldping/blackbox.yml
+ExecStart=/usr/bin/worldping-blackbox-sidecar --api-token ${API_TOKEN} --api-server-address ${API_SERVER} --blackbox-exporter-config /etc/worldping/blackbox.yml
 Restart=always
 
 [Unit]
