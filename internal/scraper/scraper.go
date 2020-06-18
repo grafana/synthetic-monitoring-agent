@@ -374,7 +374,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	// TODO(mem): this is constant for the scraper, move this
 	// outside this function?
-	sharedLabels := []labelPair{
+	metricLabels := []labelPair{
 		{name: "probe", value: s.probe.Name},
 		{name: "config_version", value: strconv.FormatInt(int64(s.check.Modified*1000000000), 10)},
 		{name: "instance", value: s.check.Target},
@@ -386,7 +386,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// timeseries need to differentiate between base labels and
 	// check info labels in order to be able to apply the later only
 	// to the worldping_check_info metric
-	ts, err := s.extractTimeseries(t, metrics, sharedLabels, checkInfoLabels)
+	ts, err := s.extractTimeseries(t, metrics, metricLabels, checkInfoLabels)
 
 	successValue := "1"
 
@@ -403,15 +403,23 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		return nil, err
 	}
 
-	allLabels := append(sharedLabels, checkInfoLabels...)
-
-	allLabels = append(allLabels,
-		labelPair{name: "probe_success", value: successValue}, // identify log lines that are failures
-		labelPair{name: "source", value: "worldping"})         // identify log lines that belong to worldping
+	// GrafanaCloud loki limits log entries to 15 labels.
+	// The 'level' of the log message is extracted as a label, plus these 6,
+	// leaves us with 3 labels for probes and 4 labels for checks.
+	logLabels := []labelPair{
+		{name: "probe", value: s.probe.Name},
+		{name: "region", value: s.probe.Region},
+		{name: "instance", value: s.check.Target},
+		{name: "job", value: s.check.Job},
+		{name: "check_name", value: s.checkName},
+		{name: "probe_success", value: successValue}, // identify log lines that are failures
+		{name: "source", value: "worldping"},         // identify log lines that belong to worldping
+	}
+	logLabels = append(logLabels, s.buildUserLabels()...)
 
 	// streams need to have all the labels applied to them because
 	// loki does not support joins
-	streams := s.extractLogs(t, logs, allLabels)
+	streams := s.extractLogs(t, logs, logLabels)
 
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, err
 }
@@ -563,12 +571,16 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 func (s Scraper) buildCheckInfoLabels() []labelPair {
 	labels := []labelPair{
 		{name: "check_name", value: s.checkName},
+		{name: "region", value: s.probe.Region},
 		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
-		{name: "latitude", value: strconv.FormatFloat(float64(s.probe.Latitude), 'f', 6, 32)},
-		{name: "longitude", value: strconv.FormatFloat(float64(s.probe.Longitude), 'f', 6, 32)},
 		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
 	}
+	labels = append(labels, s.buildUserLabels()...)
+	return labels
+}
 
+func (s Scraper) buildUserLabels() []labelPair {
+	labels := []labelPair{}
 	seen := make(map[string]struct{})
 
 	// add check labels

@@ -68,6 +68,7 @@ message Probe {
 	float          latitude  = 4 [(gogoproto.jsontag) = "latitude"];                             // latitude of the probe
 	float          longitude = 5 [(gogoproto.jsontag) = "longitude"];                            // longitude of the probe
 	repeated Label labels    = 6 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "labels"]; // probe-specific labels applied to all metrics and events
+	string         region    = 7 [(gogoproto.jsontag) = "region"];                               // region of the probe, such as AMER, EMEA, APAC
 }
 
 service Tenants {
