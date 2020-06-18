@@ -1,4 +1,13 @@
 # Setup container to publish worldping-blackbox-sidecar packages to GCS
+#
+# Usage to run the container:
+# 1. Set GPG environment variables:
+#    - GPG_PRIV_KEY="base64 encoded private key"
+#    - GPG_KEY_PASSWORD="base64 encoded passphrase"
+# 2. Mount a volume to '/keys' containing a gcs-key.json credentials file
+#    for a service account that can write to GCS buckets. This can be 
+#    pulled from vault at secret/data/worldping/gcp-wp-publish-grafanalabs-global
+#
 FROM cimg/go:1.14 
 USER root
 
@@ -27,15 +36,9 @@ RUN mkdir -p /usr/local/gcloud && \
 # Add gcloud to the path
 ENV PATH $PATH:/usr/local/gcloud/google-cloud-sdk/bin
 
-# Service account .json file should be in this directory before running.
-COPY ./key-file.json /worldping/key-file.json
-RUN gcloud auth activate-service-account --key-file=/worldping/key-file.json
-
+# Copy in all of the source from current directory
 COPY ./ /worldping/
 
 WORKDIR /worldping
 
 
-# NOTE: The following environment variables must be passed to the container at runtime in some way:
-# GPG_PRIV_KEY="base64 encoded private key"
-# GPG_KEY_PASSWORD="base64 encoded passphrase"

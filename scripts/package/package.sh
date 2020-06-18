@@ -18,8 +18,7 @@ BUILD_ROOT=$CODE_DIR/dist/build
 mkdir -p $(BUILD_ROOT)
 
 ARCH="$(uname -m)"
-#TODO: Once a version is tagged, remove 0.0.9
-VERSION=0.0.9-$(git describe --long --always)
+VERSION=$(git describe --long --always)
 CONTACT="Grafana Labs <hello@grafana.com>"
 VENDOR="grafana.com"
 LICENSE="Apache2.0"
@@ -45,6 +44,7 @@ tar xzf ${BB_EXPORTER_TGZ_PATH} -C ${BB_EXPORTER_DIR} --strip-components=1
 BUILD=${BUILD_ROOT}/systemd
 CONFIG_DIR=$BASE/config/systemd
 PACKAGE_NAME="${BUILD}/worldping-blackbox-sidecar-${VERSION}_${ARCH}.deb"
+rm ${PACKAGE_NAME}
 
 # Copy config files in
 copy_files_into_pkg () {
@@ -84,6 +84,7 @@ cp ${BB_EXPORTER_DIR}/blackbox_exporter ${BUILD}/usr/bin
 cp ${BUILD_ROOT}/../worldping-blackbox-sidecar ${BUILD}/usr/bin/
 
 PACKAGE_NAME="${BUILD}/worldping-blackbox-sidecar-${VERSION}.el7.${ARCH}.rpm"
+rm ${PACKAGE_NAME}
 
 fpm -s dir -t rpm \
   -v ${VERSION} -n worldping-blackbox-sidecar -a ${ARCH} --description "worldPing blackbox_exporter sidecar agent" \

@@ -16,7 +16,7 @@ include config.mk
 S := @
 V :=
 
-GO := GO111MODULE=on go
+GO := GO111MODULE=on CGO_ENABLED=0 go
 GO_VENDOR := $(if $(realpath $(ROOTDIR)/vendor/modules.txt),true,false)
 GO_BUILD_COMMON_FLAGS := -trimpath
 ifeq ($(GO_VENDOR),true)

@@ -6,9 +6,5 @@ Documentation=https://prometheus.io/docs/introduction/overview/
 Restart=always
 User=root
 Group=root
-EnvironmentFile=/etc/worldping/blackbox.yml
 ExecStart=/usr/bin/blackbox_exporter --config.file /etc/worldping/blackbox.yml
 ExecReload=/bin/kill -HUP $MAINPID
-
-[Install]
-WantedBy=multi-user.target

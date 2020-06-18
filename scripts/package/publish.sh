@@ -54,6 +54,9 @@ if [ ! -x "$(which aptly)" ] ; then
   sudo apt-get install aptly
 fi
 
+# Activate GCS service account
+gcloud auth activate-service-account --key-file=/keys/gcs-key.json
+
 # write the aptly.conf file, will be rewritten if exists
 cat << EOF > ${APTLY_CONF_FILE}
 {
@@ -97,11 +100,15 @@ aptly -config=${APTLY_CONF_FILE} repo add -force-replace worldping ${APTLY_STAGE
 # Update local deb repo
 aptly -config=${APTLY_CONF_FILE} publish update -batch -passphrase-file=${BASE}/passphrase -force-overwrite stable filesystem:repo:worldping
 
-# Push binaries before the db 
-gsutil -m rsync -r ${APTLY_POOL} gs://${REPO_BUCKET}/deb/pool
-# Push the deb db
-gsutil -m rsync -r ${APTLY_REPO}/worldping gs://${REPO_BUCKET}/deb
+# Can set DISABLE_REPO_PUB=1 for testing to skip publishing to buckets.
+if [ -z "${DISABLE_REPO_PUB}" ] ; then
 
+  # Push binaries before the db 
+  gsutil -m rsync -r ${APTLY_POOL} gs://${REPO_BUCKET}/deb/pool
+  # Push the deb db
+  gsutil -m rsync -r ${APTLY_REPO}/worldping gs://${REPO_BUCKET}/deb
+
+fi
 
 ### TODO: RPM
 #sudo apt-get install -y rpm

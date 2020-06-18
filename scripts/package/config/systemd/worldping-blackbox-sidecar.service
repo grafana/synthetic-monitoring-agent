@@ -11,6 +11,7 @@ Restart=always
 
 [Unit]
 Requires=worldping-blackbox-exporter.service
+After=worldping-blackbox-exporter.service
 
 [Install]
 WantedBy=network-online.target

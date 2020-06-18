@@ -5,7 +5,8 @@
 
 # Setup
 sudo apt-get update
-sudo apt-get install -y wget
+sudo apt-get install -y apt-transport-https
+sudo apt-get install -y software-properties-common wget
 
 # Add worldping test repo to apt
 wget -q -O - https://wp-testing-repo.storage.googleapis.com/gpg.key | sudo apt-key add -
