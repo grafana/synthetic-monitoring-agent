@@ -27,7 +27,6 @@ There are other related repositories:
 
 * [The worldping API](https://github.com/grafana/worldping-api).
 * [The worldping application](https://github.com/grafana/worldping-app).
-* [The worldping forwarder](https://github.com/grafana/worldping-forwarder).
 
 Architecture
 ------------

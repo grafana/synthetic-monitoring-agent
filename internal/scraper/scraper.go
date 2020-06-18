@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"io/ioutil"
 	"math"
@@ -325,8 +326,25 @@ func (s *Scraper) GetModuleConfig() interface{} {
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
 	u := s.provider
 	q := u.Query()
+
 	// this is needed in order to obtain the logs alongside the metrics
 	q.Add("debug", "true")
+
+	// XXX(mem): at this point, we shouldn't care about the check
+	// type, as we have already set everything up to just hit BBE,
+	// but this is special-casing HTTP because we need to modify the
+	// target to append a cache-busting parameter that includes the
+	// current timestamp.
+	//
+	// This parameter IS NOT part of the target specified by the
+	// user because it needs to change every time the check runs,
+	// and it IS NOT part of s.check.Target because that would cause
+	// it to end up in the instance label that is added to every
+	// metric (see below).
+	if s.CheckType() == ScraperTypeHTTP && s.check.Settings.Http.CacheBustingQueryParamName != "" {
+		q.Set("target", addCacheBustParam(s.check.Target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name))
+	}
+
 	u.RawQuery = q.Encode()
 	address := u.String()
 
@@ -363,41 +381,22 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		{name: "job", value: s.check.Job},
 	}
 
-	checkInfoLabels := []labelPair{
-		{name: "check_name", value: s.checkName},
-		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
-		{name: "latitude", value: strconv.FormatFloat(float64(s.probe.Latitude), 'f', 6, 32)},
-		{name: "longitude", value: strconv.FormatFloat(float64(s.probe.Longitude), 'f', 6, 32)},
-	}
-
-	for _, l := range s.check.Labels {
-		checkInfoLabels = append(checkInfoLabels, labelPair{name: "label_" + l.Name, value: l.Value})
-	}
-
-	for _, l := range s.probe.Labels {
-		checkInfoLabels = append(checkInfoLabels, labelPair{name: "label_" + l.Name, value: l.Value})
-	}
-	// add geohash label
-	h := geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))
-	checkInfoLabels = append(checkInfoLabels, labelPair{name: "geohash", value: h})
+	checkInfoLabels := s.buildCheckInfoLabels()
 
 	// timeseries need to differentiate between base labels and
 	// check info labels in order to be able to apply the later only
 	// to the worldping_check_info metric
 	ts, err := s.extractTimeseries(t, metrics, sharedLabels, checkInfoLabels)
 
-	// apply a probe_success label to streams to help identify log
-	// lines which belong to failures
-	successLabel := labelPair{name: "probe_success"}
+	successValue := "1"
 
 	switch {
 	case err == nil:
-		// OK
-		successLabel.value = "1"
+		// OK, value already set
 
 	case errors.Is(err, errCheckFailed):
 		// probe failed
-		successLabel.value = "0"
+		successValue = "0"
 
 	default:
 		// something else failed
@@ -406,11 +405,9 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	allLabels := append(sharedLabels, checkInfoLabels...)
 
-	// apply a source label to streams to help identify log
-	// lines which belong to worldping
-	sourceLabel := labelPair{name: "source", value: "worldping"}
-
-	allLabels = append(allLabels, successLabel, sourceLabel)
+	allLabels = append(allLabels,
+		labelPair{name: "probe_success", value: successValue}, // identify log lines that are failures
+		labelPair{name: "source", value: "worldping"})         // identify log lines that belong to worldping
 
 	// streams need to have all the labels applied to them because
 	// loki does not support joins
@@ -561,6 +558,39 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 			return nil, err
 		}
 	}
+}
+
+func (s Scraper) buildCheckInfoLabels() []labelPair {
+	labels := []labelPair{
+		{name: "check_name", value: s.checkName},
+		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
+		{name: "latitude", value: strconv.FormatFloat(float64(s.probe.Latitude), 'f', 6, 32)},
+		{name: "longitude", value: strconv.FormatFloat(float64(s.probe.Longitude), 'f', 6, 32)},
+		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
+	}
+
+	seen := make(map[string]struct{})
+
+	// add check labels
+	for _, l := range s.check.Labels {
+		seen[l.Name] = struct{}{}
+
+		labels = append(labels,
+			labelPair{name: "label_" + l.Name, value: l.Value})
+	}
+
+	// add probe labels
+	for _, l := range s.probe.Labels {
+		if _, found := seen[l.Name]; found {
+			// checks can override probe labels
+			continue
+		}
+
+		labels = append(labels,
+			labelPair{name: "label_" + l.Name, value: l.Value})
+	}
+
+	return labels
 }
 
 func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.TimeSeries {
@@ -891,6 +921,23 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 		}
 	}
 
+	m.HTTP.HTTPClientConfig.BearerToken = promconfig.Secret(settings.BearerToken)
+
+	if settings.BasicAuth != nil {
+		m.HTTP.HTTPClientConfig.BasicAuth = &promconfig.BasicAuth{
+			Username: settings.BasicAuth.Username,
+			Password: promconfig.Secret(settings.BasicAuth.Password),
+		}
+	}
+
+	if settings.ProxyURL != "" {
+		var err error
+		m.HTTP.HTTPClientConfig.ProxyURL.URL, err = url.Parse(settings.ProxyURL)
+		if err != nil {
+			return m, fmt.Errorf("parsing proxy URL: %w", err)
+		}
+	}
+
 	return m, nil
 }
 
@@ -1141,4 +1188,21 @@ func getLabels(m *dto.Metric) map[string]string {
 	}
 
 	return labels
+}
+
+func addCacheBustParam(target, paramName, salt string) string {
+	// we already know this URL is valid
+	u, _ := url.Parse(target)
+	q := u.Query()
+	value := hashString(salt, strconv.FormatInt(time.Now().UnixNano(), 10))
+	q.Set(paramName, value)
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func hashString(salt, str string) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(salt))
+	_, _ = h.Write([]byte(str))
+	return strconv.FormatUint(h.Sum64(), 16)
 }
