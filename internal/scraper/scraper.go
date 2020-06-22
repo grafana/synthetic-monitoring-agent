@@ -404,8 +404,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	}
 
 	// GrafanaCloud loki limits log entries to 15 labels.
-	// The 'level' of the log message is extracted as a label, plus these 6,
-	// leaves us with 3 labels for probes and 4 labels for checks.
+	// 7 labels are needed here, leaving 8 labels for users to split between to checks and probes.
 	logLabels := []labelPair{
 		{name: "probe", value: s.probe.Name},
 		{name: "region", value: s.probe.Region},
@@ -425,13 +424,12 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 }
 
 func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair) Streams {
-	var streams Streams
 	var line strings.Builder
 
 	dec := logfmt.NewDecoder(bytes.NewReader(logs))
 
 	labels := make([]labelPair, 0, len(sharedLabels))
-
+	var entries []logproto.Entry
 RECORD:
 	for dec.ScanRecord() {
 		var t time.Time
@@ -461,10 +459,6 @@ RECORD:
 			case "caller", "module":
 				// skip
 
-			case "level":
-				// this has to be tranlated to a label
-				labels = append(labels, labelPair{name: "level", value: string(value)})
-
 			default:
 				if err := enc.EncodeKeyval(key, value); err != nil {
 					// We should never hit this because all the entries are valid.
@@ -477,17 +471,9 @@ RECORD:
 		if err := enc.EndRecord(); err != nil {
 			s.logger.Warn().Err(err).Msg("encoding logs")
 		}
-
-		// this is creating one stream per log line because the labels might have to change between lines (level
-		// is not going to be the same).
-		streams = append(streams, logproto.Stream{
-			Labels: fmtLabels(labels),
-			Entries: []logproto.Entry{
-				{
-					Timestamp: t,
-					Line:      line.String(),
-				},
-			},
+		entries = append(entries, logproto.Entry{
+			Timestamp: t,
+			Line:      line.String(),
 		})
 	}
 
@@ -495,7 +481,12 @@ RECORD:
 		s.logger.Error().Err(err).Msg("decoding logs")
 	}
 
-	return streams
+	return Streams{
+		logproto.Stream{
+			Labels:  fmtLabels(labels),
+			Entries: entries,
+		},
+	}
 }
 
 func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, checkInfoLabels []labelPair) (TimeSeries, error) {
