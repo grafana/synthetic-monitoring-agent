@@ -18,20 +18,20 @@ package worldping
 
 import (
 	"errors"
-	fmt "fmt"
 	"net/url"
 	"strconv"
 	"strings"
 )
 
 var (
-	ErrInvalidCheckProbes            = errors.New("invalid check probes")
-	ErrInvalidCheckTarget            = errors.New("invalid check target")
-	ErrInvalidCheckJob               = errors.New("invalid check job")
-	ErrInvalidCheckFrequency         = errors.New("invalid check frequency")
-	ErrInvalidCheckLabelName         = errors.New("invalid check label name")
-	ErrInvalidCheckReservedLabelName = errors.New("invalid check, reserved label name")
-	ErrInvalidCheckLabelValue        = errors.New("invalid check label value")
+	ErrInvalidTenantId        = errors.New("invalid tentantId")
+	ErrInvalidCheckProbes     = errors.New("invalid check probes")
+	ErrInvalidCheckTarget     = errors.New("invalid check target")
+	ErrInvalidCheckJob        = errors.New("invalid check job")
+	ErrInvalidCheckFrequency  = errors.New("invalid check frequency")
+	ErrInvalidCheckLabelName  = errors.New("invalid check label name")
+	ErrTooManyCheckLabels     = errors.New("too many check labels")
+	ErrInvalidCheckLabelValue = errors.New("invalid check label value")
 
 	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
@@ -56,12 +56,21 @@ var (
 	ErrInvalidProbeName              = errors.New("invalid probe name")
 	ErrInvalidProbeReservedLabelName = errors.New("invalid probe, reserved label name")
 	ErrInvalidProbeLabelName         = errors.New("invalid probe label name")
-	ErrInvalidProbeLabelValue        = errors.New("invalid probe, reserved label name")
+	ErrInvalidProbeLabelValue        = errors.New("invalid probe label value")
+	ErrTooManyProbeLabels            = errors.New("too many probe labels")
 	ErrInvalidProbeLatitude          = errors.New("invalid probe latitude")
 	ErrInvalidProbeLongitude         = errors.New("invalid probe longitude")
 )
 
+const (
+	MaxCheckLabels = 5
+	MaxProbeLabels = 3
+)
+
 func (c *Check) Validate() error {
+	if c.TenantId < 0 {
+		return ErrInvalidTenantId
+	}
 	if len(c.Probes) == 0 {
 		return ErrInvalidCheckProbes
 	}
@@ -82,12 +91,13 @@ func (c *Check) Validate() error {
 		return ErrInvalidCheckFrequency
 	}
 
-	for _, label := range c.Labels {
-		switch label.Name {
-		case "instance", "job", "probe", "config_version", "check_name":
-			return fmt.Errorf("%w: %s", ErrInvalidCheckReservedLabelName, label.Name)
+	if len(c.Labels) > MaxCheckLabels {
+		return ErrTooManyCheckLabels
+	}
 
-		case "":
+	for _, label := range c.Labels {
+
+		if label.Name == "" {
 			return ErrInvalidCheckLabelName
 		}
 
@@ -172,16 +182,17 @@ func (s *TcpSettings) Validate() error {
 }
 
 func (p *Probe) Validate() error {
+	if p.TenantId < 0 {
+		return ErrInvalidTenantId
+	}
 	if p.Name == "" {
 		return ErrInvalidProbeName
 	}
-
+	if len(p.Labels) > MaxProbeLabels {
+		return ErrTooManyProbeLabels
+	}
 	for _, label := range p.Labels {
-		switch label.Name {
-		case "instance", "job", "probe", "config_version", "check_name":
-			return fmt.Errorf("%w: %s", ErrInvalidProbeReservedLabelName, label.Name)
-
-		case "":
+		if label.Name == "" {
 			return ErrInvalidProbeLabelName
 		}
 
