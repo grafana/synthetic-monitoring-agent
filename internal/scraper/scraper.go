@@ -374,7 +374,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	// TODO(mem): this is constant for the scraper, move this
 	// outside this function?
-	sharedLabels := []labelPair{
+	metricLabels := []labelPair{
 		{name: "probe", value: s.probe.Name},
 		{name: "config_version", value: strconv.FormatInt(int64(s.check.Modified*1000000000), 10)},
 		{name: "instance", value: s.check.Target},
@@ -386,7 +386,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// timeseries need to differentiate between base labels and
 	// check info labels in order to be able to apply the later only
 	// to the worldping_check_info metric
-	ts, err := s.extractTimeseries(t, metrics, sharedLabels, checkInfoLabels)
+	ts, err := s.extractTimeseries(t, metrics, metricLabels, checkInfoLabels)
 
 	successValue := "1"
 
@@ -403,27 +403,33 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		return nil, err
 	}
 
-	allLabels := append(sharedLabels, checkInfoLabels...)
-
-	allLabels = append(allLabels,
-		labelPair{name: "probe_success", value: successValue}, // identify log lines that are failures
-		labelPair{name: "source", value: "worldping"})         // identify log lines that belong to worldping
+	// GrafanaCloud loki limits log entries to 15 labels.
+	// 7 labels are needed here, leaving 8 labels for users to split between to checks and probes.
+	logLabels := []labelPair{
+		{name: "probe", value: s.probe.Name},
+		{name: "region", value: s.probe.Region},
+		{name: "instance", value: s.check.Target},
+		{name: "job", value: s.check.Job},
+		{name: "check_name", value: s.checkName},
+		{name: "probe_success", value: successValue}, // identify log lines that are failures
+		{name: "source", value: "worldping"},         // identify log lines that belong to worldping
+	}
+	logLabels = append(logLabels, s.buildUserLabels()...)
 
 	// streams need to have all the labels applied to them because
 	// loki does not support joins
-	streams := s.extractLogs(t, logs, allLabels)
+	streams := s.extractLogs(t, logs, logLabels)
 
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, err
 }
 
 func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair) Streams {
-	var streams Streams
 	var line strings.Builder
 
 	dec := logfmt.NewDecoder(bytes.NewReader(logs))
 
 	labels := make([]labelPair, 0, len(sharedLabels))
-
+	var entries []logproto.Entry
 RECORD:
 	for dec.ScanRecord() {
 		var t time.Time
@@ -453,10 +459,6 @@ RECORD:
 			case "caller", "module":
 				// skip
 
-			case "level":
-				// this has to be tranlated to a label
-				labels = append(labels, labelPair{name: "level", value: string(value)})
-
 			default:
 				if err := enc.EncodeKeyval(key, value); err != nil {
 					// We should never hit this because all the entries are valid.
@@ -469,17 +471,9 @@ RECORD:
 		if err := enc.EndRecord(); err != nil {
 			s.logger.Warn().Err(err).Msg("encoding logs")
 		}
-
-		// this is creating one stream per log line because the labels might have to change between lines (level
-		// is not going to be the same).
-		streams = append(streams, logproto.Stream{
-			Labels: fmtLabels(labels),
-			Entries: []logproto.Entry{
-				{
-					Timestamp: t,
-					Line:      line.String(),
-				},
-			},
+		entries = append(entries, logproto.Entry{
+			Timestamp: t,
+			Line:      line.String(),
 		})
 	}
 
@@ -487,7 +481,12 @@ RECORD:
 		s.logger.Error().Err(err).Msg("decoding logs")
 	}
 
-	return streams
+	return Streams{
+		logproto.Stream{
+			Labels:  fmtLabels(labels),
+			Entries: entries,
+		},
+	}
 }
 
 func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, checkInfoLabels []labelPair) (TimeSeries, error) {
@@ -563,12 +562,16 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []byte, sharedLabels, ch
 func (s Scraper) buildCheckInfoLabels() []labelPair {
 	labels := []labelPair{
 		{name: "check_name", value: s.checkName},
+		{name: "region", value: s.probe.Region},
 		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
-		{name: "latitude", value: strconv.FormatFloat(float64(s.probe.Latitude), 'f', 6, 32)},
-		{name: "longitude", value: strconv.FormatFloat(float64(s.probe.Longitude), 'f', 6, 32)},
 		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
 	}
+	labels = append(labels, s.buildUserLabels()...)
+	return labels
+}
 
+func (s Scraper) buildUserLabels() []labelPair {
+	labels := []labelPair{}
 	seen := make(map[string]struct{})
 
 	// add check labels
