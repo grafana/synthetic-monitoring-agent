@@ -71,7 +71,7 @@ message Probe {
 	string         region       = 7 [(gogoproto.jsontag) = "region"];                               // region of the probe, such as AMER, EMEA, APAC
 	bool           public       = 8 [(gogoproto.jsontag) = "public"];                               // whether the probe is private or shared with all users
 	bool           online       = 9 [(gogoproto.jsontag) = "online"];                               // whether the probe is currently online
-	double         onlineChange = 10 [(gogoproto.jsontag) = "online"];                              // time probe started or stopped being online
+	double         onlineChange = 10 [(gogoproto.jsontag) = "onlineChange"];                        // time probe started or stopped being online
 	double         created      = 100 [(gogoproto.jsontag) = "created"];                            // time the probe was created
 	double         modified     = 101 [(gogoproto.jsontag) = "modified"];                           // last time modified
 }
