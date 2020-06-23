@@ -153,6 +153,10 @@ func (c *Check) Validate() error {
 	return nil
 }
 
+func (c *Check) ConfigVersion() string {
+	return strconv.FormatInt(int64(c.Modified*1000000000), 10)
+}
+
 func (s *PingSettings) Validate() error {
 	if s.PayloadSize < 0 || s.PayloadSize > 65499 {
 		return ErrInvalidPingPayloadSize

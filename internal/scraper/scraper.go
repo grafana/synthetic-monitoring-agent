@@ -265,6 +265,10 @@ func (s Scraper) CheckType() string {
 	panic("unknown check type")
 }
 
+func (s Scraper) ConfigVersion() string {
+	return s.check.ConfigVersion()
+}
+
 func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Context, time.Time), cleanup func(context.Context, time.Time), offset, period int64) {
 	timer := time.NewTimer(time.Duration(offset) * time.Millisecond)
 
@@ -376,7 +380,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// outside this function?
 	metricLabels := []labelPair{
 		{name: "probe", value: s.probe.Name},
-		{name: "config_version", value: strconv.FormatInt(int64(s.check.Modified*1000000000), 10)},
+		{name: "config_version", value: s.check.ConfigVersion()},
 		{name: "instance", value: s.check.Target},
 		{name: "job", value: s.check.Job},
 	}
