@@ -1,0 +1,17 @@
+[Unit]
+Description=Grafana worldPing Blackbox Exporter Sidecar Service
+
+[Service]
+Type=simple
+User=root
+Group=root
+EnvironmentFile=/etc/worldping/worldping.conf
+ExecStart=/usr/bin/worldping-blackbox-sidecar --api-token ${API_TOKEN} --api-server-address ${API_SERVER} --blackbox-exporter-config /etc/worldping/blackbox.yml
+Restart=always
+
+[Unit]
+Requires=worldping-blackbox-exporter.service
+After=worldping-blackbox-exporter.service
+
+[Install]
+WantedBy=network-online.target
