@@ -21,9 +21,4 @@ if [ ! -x "$(which worldping-blackbox-sidecar)" ] ; then
   exit 1
 fi
 
-if [ ! -x "$(which blackbox_exporter)" ] ; then
-  echo "ERROR: prometheus-blackbox-exporter not installed."
-  exit 1
-fi
-
 echo "Success"

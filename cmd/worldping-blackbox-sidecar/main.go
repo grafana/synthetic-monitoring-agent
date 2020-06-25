@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -28,22 +27,15 @@ func run(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet(args[0], flag.ExitOnError)
 
 	var (
-		debug               = flags.Bool("debug", false, "debug output (enables verbose)")
-		verbose             = flags.Bool("verbose", false, "verbose logging")
-		bbeConfigFilename   = flags.String("blackbox-exporter-config", "worldping.yaml", "filename for blackbox exporter configuration")
-		blackboxExporterStr = flags.String("blackbox-exporter-url", "http://localhost:9115/", "base URL for blackbox exporter")
-		grpcApiServerAddr   = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
-		grpcInsecure        = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
-		httpListenAddr      = flags.String("listen-address", ":4050", "listen address")
-		apiToken            = flags.String("api-token", "", "base64-encoded API token")
+		debug             = flags.Bool("debug", false, "debug output (enables verbose)")
+		verbose           = flags.Bool("verbose", false, "verbose logging")
+		grpcApiServerAddr = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
+		grpcInsecure      = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
+		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
+		apiToken          = flags.String("api-token", "", "base64-encoded API token")
 	)
 
 	if err := flags.Parse(args[1:]); err != nil {
-		return err
-	}
-
-	blackboxExporterURL, err := url.Parse(*blackboxExporterStr)
-	if err != nil {
 		return err
 	}
 
@@ -127,7 +119,7 @@ func run(args []string, stdout io.Writer) error {
 	}
 	defer conn.Close()
 
-	checksUpdater, err := checks.NewUpdater(conn, *bbeConfigFilename, blackboxExporterURL, zl.With().Str("subsystem", "updater").Logger(), publishCh, promRegisterer)
+	checksUpdater, err := checks.NewUpdater(conn, zl.With().Str("subsystem", "updater").Logger(), publishCh, promRegisterer)
 	if err != nil {
 		log.Fatalf("Cannot create checks updater: %s", err)
 	}
