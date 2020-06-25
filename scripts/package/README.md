@@ -1,6 +1,6 @@
 ## Packaging the blackbox exporter sidecar
 
-The following scripts are used for packaging and publishing `worldping-blackbox-sidecar`:
+The following scripts are used for packaging and publishing `synthetic-monitoring-agent`:
 
 Script | Usage
 ------ | -----

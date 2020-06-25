@@ -1,4 +1,4 @@
-# Setup container to publish worldping-blackbox-sidecar packages to GCS
+# Setup container to publish synthetic-monitoring-agent packages to GCS
 #
 # Usage to run the container:
 # 1. Set GPG environment variables:

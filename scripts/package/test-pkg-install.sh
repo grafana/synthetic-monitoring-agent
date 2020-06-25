@@ -13,11 +13,11 @@ wget -q -O - https://wp-testing-repo.storage.googleapis.com/gpg.key | sudo apt-k
 sudo add-apt-repository "deb https://wp-testing-repo.storage.googleapis.com/deb stable main"
 
 # Try installing
-sudo apt-get install worldping-blackbox-sidecar
+sudo apt-get install synthetic-monitoring-agent
 
 # Test if things were installed
-if [ ! -x "$(which worldping-blackbox-sidecar)" ] ; then
-  echo "ERROR: worldping-blackbox-sidecar not installed."
+if [ ! -x "$(which synthetic-monitoring-agent)" ] ; then
+  echo "ERROR: synthetic-monitoring-agent not installed."
   exit 1
 fi
 
