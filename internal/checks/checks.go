@@ -289,7 +289,7 @@ func (c *Updater) processChanges(ctx context.Context, cc worldping.Checks_GetCha
 					c.handleChangeBatch(ctx, msg.Changes)
 				} else {
 					c.handleFirstBatch(ctx, msg.Changes)
-					firstBatchDone = false
+					firstBatchDone = true
 				}
 
 			case io.EOF:
