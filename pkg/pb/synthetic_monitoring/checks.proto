@@ -25,10 +25,10 @@ option (gogoproto.goproto_getters_all) = false;
 
 service Checks {
 	// RegisterProbe causes this probe to be reported as online with
-	// worldping-api.
+	// synthetic-monitoring-api.
 	//
 	// The probe is identified via an authentication token provided
-	// in a different channel by worldping-api.
+	// in a different channel by synthetic-monitoring-api.
 	rpc RegisterProbe(Void) returns (RegisterProbeResult) {};
 
 	// GetChanges returns a list of check operations, specifying
@@ -63,7 +63,7 @@ message RegisterProbeResult {
 // Probe represents a probe
 message Probe {
 	int64          id           = 1 [(gogoproto.jsontag) = "id"];                                   // ID of the probe, assigned by the API
-	int64          tenantId     = 2 [(gogoproto.jsontag) = "tenantId"];                             // ID of the worldping tenant this probe belongs to
+	int64          tenantId     = 2 [(gogoproto.jsontag) = "tenantId"];                             // ID of the synthetic-monitoring tenant this probe belongs to
 	string         name         = 3 [(gogoproto.jsontag) = "name"];                                 // name of the probe
 	float          latitude     = 4 [(gogoproto.jsontag) = "latitude"];                             // latitude of the probe
 	float          longitude    = 5 [(gogoproto.jsontag) = "longitude"];                            // longitude of the probe
@@ -85,7 +85,7 @@ message TenantInfo {
 	int64 id = 1;
 }
 
-// Tenant represents a user of worldping
+// Tenant represents a user of synthetic-monitoring
 message Tenant {
 	int64           id            = 1   [(gogoproto.jsontag) = "id"];            // unique ID
 	int64           orgId         = 2   [(gogoproto.jsontag) = "orgId"];         // grafana.com orgId
@@ -135,7 +135,7 @@ message Label {
 // The "settings" field defines the type of check.
 message Check {
 	int64           id        = 1   [(gogoproto.jsontag) = "id"];                                     // unique ID
-	int64           tenantId  = 2   [(gogoproto.jsontag) = "tenantId"];                               // Worldping tenant
+	int64           tenantId  = 2   [(gogoproto.jsontag) = "tenantId"];                               // synthetic-monitoring tenant
 	int64           frequency = 3   [(gogoproto.jsontag) = "frequency"];                              // every X milliseconds
 	int64           offset    = 4   [(gogoproto.jsontag) = "offset"];                                 // ??? REMOVE???? ??? why user configured?
 	int64           timeout   = 5   [(gogoproto.jsontag) = "timeout"];                                // maximum time before aborting
