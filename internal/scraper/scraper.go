@@ -387,7 +387,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	// timeseries need to differentiate between base labels and
 	// check info labels in order to be able to apply the later only
-	// to the worldping_check_info metric
+	// to the sm_check_info metric
 	ts, err := s.extractTimeseries(t, mfs, metricLabels, checkInfoLabels)
 
 	successValue := "1"
@@ -668,7 +668,7 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 func makeCheckInfoMetrics(t time.Time, sharedLabels, checkInfoLabels []labelPair) prompb.TimeSeries {
 	labels := make([]prompb.Label, 0, 1+len(sharedLabels)+len(checkInfoLabels))
 
-	labels = append(labels, prompb.Label{Name: "__name__", Value: "worldping_check_info"})
+	labels = append(labels, prompb.Label{Name: "__name__", Value: "sm_check_info"})
 
 	for _, label := range sharedLabels {
 		labels = append(labels, prompb.Label{Name: label.name, Value: label.value})
