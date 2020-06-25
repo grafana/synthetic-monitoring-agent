@@ -414,7 +414,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		{name: "job", value: s.check.Job},
 		{name: "check_name", value: s.checkName},
 		{name: "probe_success", value: successValue},          // identify log lines that are failures
-		{name: "source", value: "synthetic-monitoring-agent"}, // identify log lines that belong to worldping
+		{name: "source", value: "synthetic-monitoring-agent"}, // identify log lines that belong to synthetic-monitoring-agent
 	}
 	logLabels = append(logLabels, s.buildUserLabels()...)
 
