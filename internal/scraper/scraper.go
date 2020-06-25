@@ -833,7 +833,7 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 
 	if settings.TlsConfig != nil {
 		var err error
-		m.HTTP.HTTPClientConfig.TLSConfig, err = worldpingTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
+		m.HTTP.HTTPClientConfig.TLSConfig, err = smTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
 		if err != nil {
 			return m, err
 		}
@@ -918,7 +918,7 @@ func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings
 
 	if settings.TlsConfig != nil {
 		var err error
-		m.TCP.TLSConfig, err = worldpingTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
+		m.TCP.TLSConfig, err = smTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
 		if err != nil {
 			return m, err
 		}
@@ -927,7 +927,7 @@ func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings
 	return m, nil
 }
 
-func worldpingTLSConfigToBBE(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfig) (promconfig.TLSConfig, error) {
+func smTLSConfigToBBE(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfig) (promconfig.TLSConfig, error) {
 	c := promconfig.TLSConfig{
 		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
 		ServerName:         tlsConfig.ServerName,
