@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/grafana/worldping-blackbox-sidecar/internal/checks"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/http"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
+	"github.com/grafana/synthetic-monitoring-agent/internal/http"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"

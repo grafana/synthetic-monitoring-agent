@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/grafana/loki/pkg/logproto"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/scraper"
-	"github.com/grafana/worldping-blackbox-sidecar/pkg/pb/worldping"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
+	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/worldping"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"

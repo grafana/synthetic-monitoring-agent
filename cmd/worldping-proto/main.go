@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/grafana/worldping-blackbox-sidecar/pkg/pb/worldping"
+	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/worldping"
 )
 
 type checkType int
