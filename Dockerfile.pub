@@ -6,7 +6,7 @@
 #    - GPG_KEY_PASSWORD="base64 encoded passphrase"
 # 2. Mount a volume to '/keys' containing a gcs-key.json credentials file
 #    for a service account that can write to GCS buckets. This can be 
-#    pulled from vault at secret/data/worldping/gcp-wp-publish-grafanalabs-global
+#    pulled from vault at secret/data/synthetic-monitoring/gcp-sm-publish-grafanalabs-global
 #
 FROM cimg/go:1.14 
 USER root
@@ -36,6 +36,6 @@ RUN mkdir -p /usr/local/gcloud && \
 # Add gcloud to the path
 ENV PATH $PATH:/usr/local/gcloud/google-cloud-sdk/bin
 
-RUN mkdir /worldping
+RUN mkdir /synthetic-monitoring
 
-WORKDIR /worldping
+WORKDIR /synthetic-monitoring
