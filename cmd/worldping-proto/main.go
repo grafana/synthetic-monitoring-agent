@@ -8,7 +8,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/worldping"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
 type checkType int
@@ -45,7 +45,7 @@ func read() {
 		os.Exit(1)
 	}
 
-	var check worldping.Check
+	var check sm.Check
 
 	if err := json.Unmarshal(input, &check); err != nil {
 		log.Printf("E: Cannot unmarshal input: %s", err)
@@ -62,50 +62,50 @@ func read() {
 
 func write(checkType checkType) {
 	var (
-		settings worldping.CheckSettings
+		settings sm.CheckSettings
 		target   string
 	)
 
 	switch checkType {
 	case CHECK_PING:
 		target = "grafana.com"
-		settings = worldping.CheckSettings{
-			Ping: &worldping.PingSettings{
-				IpVersion: worldping.IpVersion_V4,
+		settings = sm.CheckSettings{
+			Ping: &sm.PingSettings{
+				IpVersion: sm.IpVersion_V4,
 			},
 		}
 
 	case CHECK_HTTP:
 		target = "https://grafana.com/"
-		settings = worldping.CheckSettings{
-			Http: &worldping.HttpSettings{
-				Method:       worldping.HttpMethod_GET,
-				IpVersion:    worldping.IpVersion_V4,
+		settings = sm.CheckSettings{
+			Http: &sm.HttpSettings{
+				Method:       sm.HttpMethod_GET,
+				IpVersion:    sm.IpVersion_V4,
 				FailIfNotSSL: true,
 			},
 		}
 
 	case CHECK_DNS:
 		target = "grafana.com"
-		settings = worldping.CheckSettings{
-			Dns: &worldping.DnsSettings{
-				RecordType: worldping.DnsRecordType_A,
+		settings = sm.CheckSettings{
+			Dns: &sm.DnsSettings{
+				RecordType: sm.DnsRecordType_A,
 				Server:     "8.8.4.4",
-				IpVersion:  worldping.IpVersion_V4,
-				Protocol:   worldping.DnsProtocol_TCP,
+				IpVersion:  sm.IpVersion_V4,
+				Protocol:   sm.DnsProtocol_TCP,
 				Port:       53,
 			},
 		}
 	}
 
-	check := worldping.Check{
+	check := sm.Check{
 		Id:        123,
 		TenantId:  27172,
 		Frequency: 5000,
 		Offset:    2300,
 		Timeout:   2500,
 		Enabled:   true,
-		Labels:    []worldping.Label{{Name: "environment", Value: "production"}},
+		Labels:    []sm.Label{{Name: "environment", Value: "production"}},
 		Target:    target,
 		Settings:  settings,
 	}

@@ -12,9 +12,9 @@
 // limitations under the License.
 
 syntax = "proto3";
-package worldping;
+package synthetic_monitoring;
 
-option go_package = "worldping";
+option go_package = "synthetic_monitoring";
 
 import "gogoproto/gogo.proto";
 

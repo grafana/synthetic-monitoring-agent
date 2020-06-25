@@ -11,7 +11,7 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/loki"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
-	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/worldping"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -42,7 +42,7 @@ type Payload interface {
 }
 
 type Publisher struct {
-	tenantsClient worldping.TenantsClient
+	tenantsClient sm.TenantsClient
 	logger        zerolog.Logger
 	publishCh     <-chan Payload
 	clientsMutex  sync.Mutex
@@ -87,7 +87,7 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger zerolo
 	promRegisterer.MustRegister(bytesOut)
 
 	return &Publisher{
-		tenantsClient: worldping.NewTenantsClient(conn),
+		tenantsClient: sm.NewTenantsClient(conn),
 		publishCh:     publishCh,
 		clients:       make(map[int64]*remoteTarget),
 		logger:        logger,
@@ -178,7 +178,7 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarge
 		return client, nil
 	}
 
-	req := worldping.TenantInfo{
+	req := sm.TenantInfo{
 		Id: tenantId,
 	}
 	tenant, err := p.tenantsClient.GetTenant(ctx, &req)
@@ -212,7 +212,7 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarge
 	return clients, nil
 }
 
-func clientFromRemoteInfo(tenantId int64, remote *worldping.RemoteInfo) (*prom.ClientConfig, error) {
+func clientFromRemoteInfo(tenantId int64, remote *sm.RemoteInfo) (*prom.ClientConfig, error) {
 	// TODO(mem): this is hacky.
 	//
 	// it's trying to deal with the fact that the URL shown to users

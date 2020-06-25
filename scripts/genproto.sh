@@ -33,7 +33,7 @@ GOGO_PROTOBUF_PATH="${GOGO_PROTOBUF_ROOT}:${GOGO_PROTOBUF_ROOT}/protobuf"
 GOGO_GOOGLEAPIS_ROOT="$(GO111MODULE=on go list -f '{{ .Dir }}' -m github.com/gogo/googleapis)"
 GOGO_GOOGLEAPIS_PATH="${GOGO_GOOGLEAPIS_ROOT}"
 
-DIRS="pkg/pb/worldping"
+DIRS="pkg/pb/synthetic_monitoring"
 
 echo "generating code"
 for dir in ${DIRS}; do

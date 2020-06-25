@@ -12,7 +12,7 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
-	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/worldping"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -33,7 +33,7 @@ type Updater struct {
 	api                 apiInfo
 	logger              zerolog.Logger
 	publishCh           chan<- pusher.Payload
-	probe               *worldping.Probe
+	probe               *sm.Probe
 	scrapersMutex       sync.Mutex
 	scrapers            map[int64]*scraper.Scraper
 	changesCounter      *prometheus.CounterVec
@@ -184,7 +184,7 @@ func (c *Updater) Run(ctx context.Context) error {
 func (c *Updater) loop(ctx context.Context) error {
 	c.logger.Info().Msg("fetching check configuration from worldping-api")
 
-	client := worldping.NewChecksClient(c.api.conn)
+	client := sm.NewChecksClient(c.api.conn)
 
 	grpcErrorHandler := func(action string, err error) error {
 		status, ok := status.FromError(err)
@@ -210,16 +210,16 @@ func (c *Updater) loop(ctx context.Context) error {
 		}
 	}
 
-	result, err := client.RegisterProbe(ctx, &worldping.Void{})
+	result, err := client.RegisterProbe(ctx, &sm.Void{})
 	if err != nil {
 		return grpcErrorHandler("registering probe with worldping-api", err)
 	}
 
 	switch result.Status.Code {
-	case worldping.StatusCode_OK:
+	case sm.StatusCode_OK:
 		// continue
 
-	case worldping.StatusCode_NOT_AUTHORIZED:
+	case sm.StatusCode_NOT_AUTHORIZED:
 		return errNotAuthorized
 
 	default:
@@ -230,7 +230,7 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	c.logger.Info().Int64("probe id", c.probe.Id).Str("probe name", c.probe.Name).Msg("registered probe with worldping-api")
 
-	cc, err := client.GetChanges(ctx, &worldping.Void{})
+	cc, err := client.GetChanges(ctx, &sm.Void{})
 	if err != nil {
 		return grpcErrorHandler("requesting changes from worldping-api", err)
 	}
@@ -242,7 +242,7 @@ func (c *Updater) loop(ctx context.Context) error {
 	return nil
 }
 
-func (c *Updater) processChanges(ctx context.Context, cc worldping.Checks_GetChangesClient) error {
+func (c *Updater) processChanges(ctx context.Context, cc sm.Checks_GetChangesClient) error {
 	firstBatchDone := false
 
 	for {
@@ -274,7 +274,7 @@ func (c *Updater) processChanges(ctx context.Context, cc worldping.Checks_GetCha
 	}
 }
 
-func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) error {
+func (c *Updater) handleCheckAdd(ctx context.Context, check sm.Check) error {
 	c.changesCounter.WithLabelValues("add").Inc()
 
 	if err := check.Validate(); err != nil {
@@ -296,7 +296,7 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check worldping.Check) err
 	return c.addAndStartScraperWithLock(ctx, check)
 }
 
-func (c *Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) error {
+func (c *Updater) handleCheckUpdate(ctx context.Context, check sm.Check) error {
 	c.changesCounter.WithLabelValues("update").Inc()
 
 	if err := check.Validate(); err != nil {
@@ -311,7 +311,7 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check worldping.Check) 
 
 // handleCheckUpdateWithLock is the bottom half of handleCheckUpdate. It
 // MUST be called with the scrapersMutex lock held.
-func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check worldping.Check) error {
+func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check sm.Check) error {
 	scraper, found := c.scrapers[check.Id]
 	if !found {
 		c.logger.Warn().Int64("check_id", check.Id).Msg("update request for an unknown check")
@@ -330,7 +330,7 @@ func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check worldping
 	return c.addAndStartScraperWithLock(ctx, check)
 }
 
-func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) error {
+func (c *Updater) handleCheckDelete(ctx context.Context, check sm.Check) error {
 	c.changesCounter.WithLabelValues("delete").Inc()
 
 	c.scrapersMutex.Lock()
@@ -367,7 +367,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check worldping.Check) 
 //
 // We have to do this exactly once per reconnect. It's up to the calling code
 // to ensure this.
-func (c *Updater) handleFirstBatch(ctx context.Context, changes []worldping.CheckChange) {
+func (c *Updater) handleFirstBatch(ctx context.Context, changes []sm.CheckChange) {
 	newChecks := make(map[int64]struct{})
 
 	c.scrapersMutex.Lock()
@@ -378,7 +378,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes []worldping.Chec
 		c.logger.Debug().Interface("change", change).Msg("got change")
 
 		switch change.Operation {
-		case worldping.CheckOperation_CHECK_ADD:
+		case sm.CheckOperation_CHECK_ADD:
 			if err := c.handleInitialChangeAddWithLock(ctx, change.Check); err != nil {
 				c.changeErrorsCounter.WithLabelValues("add").Inc()
 				c.logger.Error().
@@ -424,7 +424,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes []worldping.Chec
 // and changes the operation to an update if necessary.
 //
 // This function MUST be called with the scrapers mutex held.
-func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check worldping.Check) error {
+func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check sm.Check) error {
 	if running, found := c.scrapers[check.Id]; found {
 		oldVersion := running.ConfigVersion()
 		newVersion := check.ConfigVersion()
@@ -455,24 +455,24 @@ func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check worl
 	return nil
 }
 
-func (c *Updater) handleChangeBatch(ctx context.Context, changes []worldping.CheckChange) {
+func (c *Updater) handleChangeBatch(ctx context.Context, changes []sm.CheckChange) {
 	for _, change := range changes {
 		c.logger.Debug().Interface("change", change).Msg("got change")
 
 		switch change.Operation {
-		case worldping.CheckOperation_CHECK_ADD:
+		case sm.CheckOperation_CHECK_ADD:
 			if err := c.handleCheckAdd(ctx, change.Check); err != nil {
 				c.changeErrorsCounter.WithLabelValues("add").Inc()
 				c.logger.Error().Err(err).Msg("handling check add")
 			}
 
-		case worldping.CheckOperation_CHECK_UPDATE:
+		case sm.CheckOperation_CHECK_UPDATE:
 			if err := c.handleCheckUpdate(ctx, change.Check); err != nil {
 				c.changeErrorsCounter.WithLabelValues("update").Inc()
 				c.logger.Error().Err(err).Msg("handling check update")
 			}
 
-		case worldping.CheckOperation_CHECK_DELETE:
+		case sm.CheckOperation_CHECK_DELETE:
 			if err := c.handleCheckDelete(ctx, change.Check); err != nil {
 				c.changeErrorsCounter.WithLabelValues("delete").Inc()
 				c.logger.Error().Err(err).Msg("handling check delete")
@@ -485,7 +485,7 @@ func (c *Updater) handleChangeBatch(ctx context.Context, changes []worldping.Che
 // scrapers managed by this updater and starts running it.
 //
 // This MUST be called with the scrapersMutex held.
-func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check worldping.Check) error {
+func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check) error {
 	scrapeCounter := c.scrapesCounter.With(prometheus.Labels{
 		"check_id": strconv.FormatInt(check.Id, 10),
 		"probe":    c.probe.Name,
