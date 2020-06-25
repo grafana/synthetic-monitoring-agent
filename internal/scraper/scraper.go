@@ -315,10 +315,6 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 	}
 }
 
-func (s *Scraper) GetModuleConfig() interface{} {
-	return s.bbeModule
-}
-
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
 	prober, ok := probers[s.bbeModule.Prober]
 	if !ok {
