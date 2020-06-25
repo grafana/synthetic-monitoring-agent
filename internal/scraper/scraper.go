@@ -35,7 +35,7 @@ var (
 	staleNaN    uint64  = 0x7ff0000000000002
 	staleMarker float64 = math.Float64frombits(staleNaN)
 
-	Probers = map[string]prober.ProbeFn{
+	probers = map[string]prober.ProbeFn{
 		"http": prober.ProbeHTTP,
 		"tcp":  prober.ProbeTCP,
 		"icmp": prober.ProbeICMP,
@@ -320,7 +320,7 @@ func (s *Scraper) GetModuleConfig() interface{} {
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
-	prober, ok := Probers[s.bbeModule.Prober]
+	prober, ok := probers[s.bbeModule.Prober]
 	if !ok {
 		return nil, fmt.Errorf("Unknown prober %q", s.bbeModule.Prober)
 	}
