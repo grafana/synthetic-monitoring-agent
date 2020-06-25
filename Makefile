@@ -131,7 +131,7 @@ package: build ## Build Debian and RPM packages.
 	$(S) sh scripts/package/package.sh
 
 .PHONY: publish-packages
-publish-packages: package ## Publish Debian and RPM packages to the worldping repository.
+publish-packages: package ## Publish Debian and RPM packages to the repository.
 	$(S) echo "Publishing Debian and RPM packages...."
 	$(S) sh scripts/package/publish.sh
 	
