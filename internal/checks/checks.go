@@ -53,7 +53,7 @@ type Streams = []logproto.Stream
 func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- pusher.Payload, promRegisterer prometheus.Registerer) (*Updater, error) {
 
 	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "worldping_bbe_sidecar",
+		Namespace: "sm_agent",
 		Subsystem: "updater",
 		Name:      "changes_total",
 		Help:      "Total number of changes processed.",
@@ -66,7 +66,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 	}
 
 	changeErrorsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "worldping_bbe_sidecar",
+		Namespace: "sm_agent",
 		Subsystem: "updater",
 		Name:      "change_errors_total",
 		Help:      "Total number of errors during change processing.",
@@ -79,7 +79,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 	}
 
 	runningScrapers := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "worldping_bbe_sidecar",
+		Namespace: "sm_agent",
 		Subsystem: "updater",
 		Name:      "scrapers_total",
 		Help:      "Total number of running scrapers.",
@@ -92,7 +92,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 	}
 
 	scrapesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "worldping_bbe_sidecar",
+		Namespace: "sm_agent",
 		Subsystem: "scraper",
 		Name:      "operations_total",
 		Help:      "Total number of scrape operations performed.",
@@ -106,7 +106,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 	}
 
 	scrapeErrorCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "worldping_bbe_sidecar",
+		Namespace: "sm_agent",
 		Subsystem: "scraper",
 		Name:      "errors_total",
 		Help:      "Total number of scraper errors.",

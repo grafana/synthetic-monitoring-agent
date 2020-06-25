@@ -55,7 +55,7 @@ type Publisher struct {
 func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger zerolog.Logger, promRegisterer prometheus.Registerer) *Publisher {
 	pushCounter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "worldping_bbe_sidecar",
+			Namespace: "sm_agent",
 			Subsystem: "publisher",
 			Name:      "push_total",
 			Help:      "Total number of push events.",
@@ -66,7 +66,7 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger zerolo
 
 	errorCounter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "worldping_bbe_sidecar",
+			Namespace: "sm_agent",
 			Subsystem: "publisher",
 			Name:      "push_errors_total",
 			Help:      "Total number of push errors.",
@@ -77,7 +77,7 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger zerolo
 
 	bytesOut := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "worldping_bbe_sidecar",
+			Namespace: "sm_agent",
 			Subsystem: "publisher",
 			Name:      "push_bytes",
 			Help:      "Total number of bytes pushed.",
