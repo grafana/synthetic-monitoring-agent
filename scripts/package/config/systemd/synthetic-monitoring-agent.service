@@ -1,11 +1,11 @@
 [Unit]
-Description=Grafana worldPing Blackbox Exporter Sidecar Service
+Description=Grafana synthetic monitoring agent
 
 [Service]
 Type=simple
 User=root
 Group=root
-EnvironmentFile=/etc/worldping/worldping.conf
+EnvironmentFile=/etc/synthetic-monitoring/synthetic-monitoring-agent.conf
 ExecStart=/usr/bin/synthetic-monitoring-agent --api-token ${API_TOKEN} --api-server-address ${API_SERVER}
 Restart=always
 

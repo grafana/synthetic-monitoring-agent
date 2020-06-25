@@ -39,18 +39,18 @@ copy_files_into_pkg () {
   # Setup dirs
   mkdir -p ${BUILD}/usr/bin
   mkdir -p ${BUILD}/lib/systemd/system/
-  mkdir -p ${BUILD}/etc/worldping
+  mkdir -p ${BUILD}/etc/synthetic-monitoring
 
   cp ${BUILD_OUTPUT}/synthetic-monitoring-agent ${BUILD}/usr/bin/
 
   # Copy config files in
-  cp ${CONFIG_DIR}/worldping.conf ${BUILD}/etc/worldping
+  cp ${CONFIG_DIR}/synthetic-monitoring-agent.conf ${BUILD}/etc/synthetic-monitoring
   cp ${CONFIG_DIR}/synthetic-monitoring-agent.service ${BUILD}/lib/systemd/system
 }
 copy_files_into_pkg
 
 fpm -s dir -t deb \
-  -v ${VERSION} -n synthetic-monitoring-agent -a ${ARCH} --description "worldPing blackbox_exporter sidecar agent" \
+  -v ${VERSION} -n synthetic-monitoring-agent -a ${ARCH} --description "synthetic monitoring agent" \
   --deb-systemd ${CONFIG_DIR}/synthetic-monitoring-agent.service \
   -m "$CONTACT" --vendor "$VENDOR" --license "$LICENSE" \
   -C ${BUILD} -p ${PACKAGE_NAME} .
@@ -63,8 +63,8 @@ PACKAGE_NAME="${BUILD}/synthetic-monitoring-agent-${VERSION}.el7.${ARCH}.rpm"
 [ -e ${PACKAGE_NAME} ] && rm ${PACKAGE_NAME}
 
 fpm -s dir -t rpm \
-  -v ${VERSION} -n synthetic-monitoring-agent -a ${ARCH} --description "worldPing blackbox_exporter sidecar agent" \
-  --config-files /etc/worldping/ \
+  -v ${VERSION} -n synthetic-monitoring-agent -a ${ARCH} --description "synthetic monitoring agent" \
+  --config-files /etc/synthetic-monitoring/ \
   -m "$CONTACT" --vendor "$VENDOR" --license "$LICENSE" \
   -C ${BUILD} -p ${PACKAGE_NAME} .
 

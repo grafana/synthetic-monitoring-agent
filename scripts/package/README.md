@@ -16,9 +16,9 @@ Script | Usage
 `Dockerfile.pub` at the root of the repo can be used to build and publish the packages by doing the following:
 
 1. Copy a GCP service account `.json` credential file to a directory like `~/keys` named `gcs-key.json` that has Google Storage Object permissions. The directory must be mounted to `/keys` when running the container.
-2. `docker build -t wp-publish -f ./Dockerfile.pub .`
+2. `docker build -t sm-publish -f ./Dockerfile.pub .`
 3. Set `GPG_PRIV_KEY` to a base64 encoded private key.
 4. Set `GPG_KEY_PASSWORD` to a base64 encoded key passphrase.
-5. `docker run -it --rm -e GPG_PRIV_KEY -e GPG_KEY_PASSWORD -v ~/keys:/keys -v $(pwd):/worldping --name wp-publish wp-publish sh -c 'make publish-packages'`
+5. `docker run -it --rm -e GPG_PRIV_KEY -e GPG_KEY_PASSWORD -v ~/keys:/keys -v $(pwd):/synthetic-monitoring --name sm-publish sm-publish sh -c 'make publish-packages'`
 
 \* Add `-e DISABLE_REPO_PUB=1` to run without publishing to the GCS buckets.

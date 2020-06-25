@@ -24,8 +24,8 @@ mkdir -p ${APTLY_STAGE}
 ARCH="$(uname -m)"
 
 # GCS buckets, deb db not in public bucket
-APTLY_DB_BUCKET=wp-testing-aptly-db
-REPO_BUCKET=wp-testing-repo
+APTLY_DB_BUCKET=sm-testing-aptly-db
+REPO_BUCKET=sm-testing-repo
 
 APTLY_CONF_FILE=${PUBLISH_ROOT}/aptly.conf
 
@@ -95,10 +95,10 @@ gsutil -m rsync -r gs://${APTLY_DB_BUCKET} ${APTLY_DIR}
 cp ${BUILD_DEB_DIR}/*.deb ${APTLY_STAGE}
 
 # Add packages to deb repo
-aptly -config=${APTLY_CONF_FILE} repo add -force-replace worldping ${APTLY_STAGE}
+aptly -config=${APTLY_CONF_FILE} repo add -force-replace synthetic-monitoring-agent ${APTLY_STAGE}
 
 # Update local deb repo
-aptly -config=${APTLY_CONF_FILE} publish update -batch -passphrase-file=${BASE}/passphrase -force-overwrite stable filesystem:repo:worldping
+aptly -config=${APTLY_CONF_FILE} publish update -batch -passphrase-file=${BASE}/passphrase -force-overwrite stable filesystem:repo:synthetic-monitoring-agent
 
 # Can set DISABLE_REPO_PUB=1 for testing to skip publishing to buckets.
 if [ -z "${DISABLE_REPO_PUB}" ] ; then
@@ -106,7 +106,7 @@ if [ -z "${DISABLE_REPO_PUB}" ] ; then
   # Push binaries before the db 
   gsutil -m rsync -r ${APTLY_POOL} gs://${REPO_BUCKET}/deb/pool
   # Push the deb db
-  gsutil -m rsync -r ${APTLY_REPO}/worldping gs://${REPO_BUCKET}/deb
+  gsutil -m rsync -r ${APTLY_REPO}/synthetic-monitoring-agent gs://${REPO_BUCKET}/deb
 
 fi
 
