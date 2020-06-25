@@ -454,7 +454,7 @@ func (m *TenantInfo) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_TenantInfo proto.InternalMessageInfo
 
-// Tenant represents a user of worldping
+// Tenant represents a user of synthetic-monitoring
 type Tenant struct {
 	Id                   int64       `protobuf:"varint,1,opt,name=id,proto3" json:"id"`
 	OrgId                int64       `protobuf:"varint,2,opt,name=orgId,proto3" json:"orgId"`
@@ -1394,10 +1394,10 @@ const _ = grpc.SupportPackageIsVersion4
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type ChecksClient interface {
 	// RegisterProbe causes this probe to be reported as online with
-	// worldping-api.
+	// synthetic-monitoring-api.
 	//
 	// The probe is identified via an authentication token provided
-	// in a different channel by worldping-api.
+	// in a different channel by synthetic-monitoring-api.
 	RegisterProbe(ctx context.Context, in *Void, opts ...grpc.CallOption) (*RegisterProbeResult, error)
 	// GetChanges returns a list of check operations, specifying
 	// whether to add, update or delete checks.
@@ -1456,10 +1456,10 @@ func (x *checksGetChangesClient) Recv() (*CheckChanges, error) {
 // ChecksServer is the server API for Checks service.
 type ChecksServer interface {
 	// RegisterProbe causes this probe to be reported as online with
-	// worldping-api.
+	// synthetic-monitoring-api.
 	//
 	// The probe is identified via an authentication token provided
-	// in a different channel by worldping-api.
+	// in a different channel by synthetic-monitoring-api.
 	RegisterProbe(context.Context, *Void) (*RegisterProbeResult, error)
 	// GetChanges returns a list of check operations, specifying
 	// whether to add, update or delete checks.

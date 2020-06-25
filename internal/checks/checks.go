@@ -182,7 +182,7 @@ func (c *Updater) Run(ctx context.Context) error {
 }
 
 func (c *Updater) loop(ctx context.Context) error {
-	c.logger.Info().Msg("fetching check configuration from worldping-api")
+	c.logger.Info().Msg("fetching check configuration from synthetic-monitoring-api")
 
 	client := sm.NewChecksClient(c.api.conn)
 
@@ -212,7 +212,7 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	result, err := client.RegisterProbe(ctx, &sm.Void{})
 	if err != nil {
-		return grpcErrorHandler("registering probe with worldping-api", err)
+		return grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
 	}
 
 	switch result.Status.Code {
@@ -223,20 +223,20 @@ func (c *Updater) loop(ctx context.Context) error {
 		return errNotAuthorized
 
 	default:
-		return fmt.Errorf("registering probe with worldping-api, response: %s", result.Status.Message)
+		return fmt.Errorf("registering probe with synthetic-monitoring-api, response: %s", result.Status.Message)
 	}
 
 	c.probe = &result.Probe
 
-	c.logger.Info().Int64("probe id", c.probe.Id).Str("probe name", c.probe.Name).Msg("registered probe with worldping-api")
+	c.logger.Info().Int64("probe id", c.probe.Id).Str("probe name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
 
 	cc, err := client.GetChanges(ctx, &sm.Void{})
 	if err != nil {
-		return grpcErrorHandler("requesting changes from worldping-api", err)
+		return grpcErrorHandler("requesting changes from synthetic-monitoring-api", err)
 	}
 
 	if err := c.processChanges(ctx, cc); err != nil {
-		return grpcErrorHandler("getting changes from worldping-api", err)
+		return grpcErrorHandler("getting changes from synthetic-monitoring-api", err)
 	}
 
 	return nil

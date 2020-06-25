@@ -13,7 +13,7 @@
 
 // package synthetic_monitoring provides access to types and methods
 // that allow for the production and consumption of protocol buffer
-// messages used to communicate with worldping-api.
+// messages used to communicate with synthetic-monitoring-api.
 package synthetic_monitoring
 
 import (

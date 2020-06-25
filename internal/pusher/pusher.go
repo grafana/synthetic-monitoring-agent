@@ -20,7 +20,7 @@ import (
 
 const (
 	defaultBufferCapacity = 10 * 1024
-	userAgent             = "worldping-blackbox-sidecar/0.0.1"
+	userAgent             = "synthetic-monitoring-agent/0.0.1"
 )
 
 var bufPool = sync.Pool{
