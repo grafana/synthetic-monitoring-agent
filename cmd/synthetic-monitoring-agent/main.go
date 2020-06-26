@@ -86,7 +86,7 @@ func run(args []string, stdout io.Writer) error {
 		ListenAddr:   *httpListenAddr,
 		Logger:       zl.With().Str("subsystem", "http").Logger(),
 		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  15 * time.Second,
 	}
 

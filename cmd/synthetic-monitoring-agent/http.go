@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"strconv"
 	"time"
 
@@ -38,6 +39,13 @@ func NewMux(opts MuxOpts) *Mux {
 	)
 
 	router.Handle("/metrics", promHandler)
+
+	// Register pprof handlers
+	router.HandleFunc("/debug/pprof/", pprof.Index)
+	router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	router.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	router.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
 	requestCounter := prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: "http",
