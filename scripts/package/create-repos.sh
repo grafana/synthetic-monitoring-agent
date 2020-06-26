@@ -17,8 +17,16 @@ mkdir -p ${APTLY_DB}
 APTLY_REPO=${PUBLISH_ROOT}/deb/repo
 mkdir -p ${APTLY_REPO}
 
-APTLY_DB_BUCKET=sm-testing-aptly-db
-REPO_BUCKET=sm-testing-repo
+# Only publish to prod if env explicitly set.
+if [ -n "${PUBLISH_PROD_PKGS}" ]; then
+  # Production GCS buckets
+  APTLY_DB_BUCKET=sm-aptly-db
+  REPO_BUCKET=packages-sm.grafana.com
+else
+  # Testing GCS buckets
+  APTLY_DB_BUCKET=sm-testing-aptly-db
+  REPO_BUCKET=sm-testing-repo
+fi
 
 ARCH="$(uname -m)"
 
@@ -26,18 +34,18 @@ APTLY_CONF_FILE=${PUBLISH_ROOT}/aptly.conf
 
 # UNCOMMENT to use test GPG keys
 #source ${BASE}/gpg-test-vars.sh
-if [ -z "${GPG_PRIV_KEY}" ] || [ -z "${GPG_KEY_PASSWORD}" ] ; then
-    echo "Error: GPG_PRIV_KEY and GPG_KEY_PASSWORD not set."
+if [ -z "${GPG_PRIV_KEY}" ] ; then
+    echo "Error: GPG_PRIV_KEY not set."
     exit 1
 fi
 
 # Import GPG keys
 GPG_PRIV_KEY_FILE=${BASE}/priv.key
-GPG_PASSPHRASE_FILE=${BASE}/passphrase
 echo $GPG_PRIV_KEY | base64 -d > ${GPG_PRIV_KEY_FILE}
-echo $GPG_KEY_PASSWORD > ${GPG_PASSPHRASE_FILE}
 gpg --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FILE}
 
+# Activate GCS service account
+gcloud auth activate-service-account --key-file=/keys/gcs-key.json
 
 # Install aptly if not already
 if [ ! -x "$(which aptly)" ] ; then
@@ -84,7 +92,7 @@ EOF
 aptly -config=${APTLY_CONF_FILE} repo create -distribution="stable" synthetic-monitoring
 
 # Publish blank repo
-aptly -config=${APTLY_CONF_FILE} publish repo -batch -passphrase-file=./scripts/package/passphrase -force-overwrite synthetic-monitoring filesystem:repo:synthetic-monitoring
+aptly -config=${APTLY_CONF_FILE} publish repo -batch -force-overwrite synthetic-monitoring filesystem:repo:synthetic-monitoring
 
 # UNCOMMENT: Commented out to keep from inadvertently overwriting the published
 # repo. Uncomment if a new repo really needs to be sync'd.
@@ -95,3 +103,10 @@ aptly -config=${APTLY_CONF_FILE} publish repo -batch -passphrase-file=./scripts/
 #TODO: RPM Repo creation
 #sudo apt-get install -y rpm
 
+
+# Done, cleanup and exit
+cleanup () {
+	rm ${GPG_PRIV_KEY_FILE}
+	exit 0
+}
+cleanup

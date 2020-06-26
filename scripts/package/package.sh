@@ -15,7 +15,7 @@ fi
 
 BUILD_OUTPUT=${CODE_DIR}/dist
 BUILD_ROOT=$CODE_DIR/dist/build
-mkdir -p $(BUILD_ROOT)
+mkdir -p ${BUILD_ROOT}
 
 ARCH="$(uname -m)"
 VERSION=$(git describe --long --always)
