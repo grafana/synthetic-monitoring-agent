@@ -23,25 +23,33 @@ APTLY_STAGE=${PUBLISH_ROOT}/tmp
 mkdir -p ${APTLY_STAGE} 
 ARCH="$(uname -m)"
 
-# GCS buckets, deb db not in public bucket
-APTLY_DB_BUCKET=sm-testing-aptly-db
-REPO_BUCKET=sm-testing-repo
+# Only publish to prod if env explicitly set.
+if [ -n "${PUBLISH_PROD_PKGS}" ]; then
+  # Production GCS buckets
+  APTLY_DB_BUCKET=sm-aptly-db
+  REPO_BUCKET=packages-sm.grafana.com
+else
+  # Testing GCS buckets
+  APTLY_DB_BUCKET=sm-testing-aptly-db
+  REPO_BUCKET=sm-testing-repo
+fi
 
 APTLY_CONF_FILE=${PUBLISH_ROOT}/aptly.conf
 
 # UNCOMMENT to use test GPG keys
 #source ${BASE}/gpg-test-vars.sh
-if [ -z "${GPG_PRIV_KEY}" ] || [ -z "${GPG_KEY_PASSWORD}" ] ; then
-    echo "Error: GPG_PRIV_KEY and GPG_KEY_PASSWORD not set."
+if [ -z "${GPG_PRIV_KEY}" ] ; then
+    echo "Error: GPG_PRIV_KEY not set."
     exit 1
 fi
 
 # Import GPG keys 
 GPG_PRIV_KEY_FILE=${BASE}/priv.key
-GPG_PASSPHRASE_FILE=${BASE}/passphrase
 echo $GPG_PRIV_KEY | base64 -d > ${GPG_PRIV_KEY_FILE}
-echo $GPG_KEY_PASSWORD > ${GPG_PASSPHRASE_FILE}
 gpg --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FILE}
+
+# Activate GCS service account
+gcloud auth activate-service-account --key-file=/keys/gcs-key.json
 
 ### DEBIAN 
 
@@ -53,9 +61,6 @@ if [ ! -x "$(which aptly)" ] ; then
   sudo apt-get update
   sudo apt-get install aptly
 fi
-
-# Activate GCS service account
-gcloud auth activate-service-account --key-file=/keys/gcs-key.json
 
 # write the aptly.conf file, will be rewritten if exists
 cat << EOF > ${APTLY_CONF_FILE}
@@ -89,16 +94,16 @@ cat << EOF > ${APTLY_CONF_FILE}
 EOF
 
 # Pull deb database
-gsutil -m rsync -r gs://${APTLY_DB_BUCKET} ${APTLY_DIR} 
+gsutil -m rsync -d -r gs://${APTLY_DB_BUCKET} ${APTLY_DIR} 
 
 # Copy packages to the repo
 cp ${BUILD_DEB_DIR}/*.deb ${APTLY_STAGE}
 
 # Add packages to deb repo
-aptly -config=${APTLY_CONF_FILE} repo add -force-replace synthetic-monitoring-agent ${APTLY_STAGE}
+aptly -config=${APTLY_CONF_FILE} repo add -force-replace synthetic-monitoring ${APTLY_STAGE}
 
 # Update local deb repo
-aptly -config=${APTLY_CONF_FILE} publish update -batch -passphrase-file=${BASE}/passphrase -force-overwrite stable filesystem:repo:synthetic-monitoring-agent
+aptly -config=${APTLY_CONF_FILE} publish update -batch -force-overwrite stable filesystem:repo:synthetic-monitoring
 
 # Can set DISABLE_REPO_PUB=1 for testing to skip publishing to buckets.
 if [ -z "${DISABLE_REPO_PUB}" ] ; then
@@ -106,7 +111,7 @@ if [ -z "${DISABLE_REPO_PUB}" ] ; then
   # Push binaries before the db 
   gsutil -m rsync -r ${APTLY_POOL} gs://${REPO_BUCKET}/deb/pool
   # Push the deb db
-  gsutil -m rsync -r ${APTLY_REPO}/synthetic-monitoring-agent gs://${REPO_BUCKET}/deb
+  gsutil -m rsync -r ${APTLY_REPO}/synthetic-monitoring gs://${REPO_BUCKET}/deb
 
 fi
 
@@ -114,13 +119,9 @@ fi
 #sudo apt-get install -y rpm
 
 
-
-# Done for some reason, cleanup and exit
+# Done, cleanup and exit
 cleanup () {
-	# cleanup passphrase and key files
 	rm ${GPG_PRIV_KEY_FILE}
-	rm ${GPG_PASSPHRASE_FILE}
-
 	exit 0
 }
 cleanup
