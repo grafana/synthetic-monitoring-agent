@@ -1,4 +1,4 @@
-module github.com/grafana/worldping-blackbox-sidecar/scripts/go
+module github.com/grafana/synthetic-monitoring-agent/scripts/go
 
 go 1.13
 

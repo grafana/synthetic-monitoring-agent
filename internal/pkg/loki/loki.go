@@ -7,7 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/grafana/loki/pkg/logproto"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/prom"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
 )
 
 var minBackoff = 30 * time.Millisecond

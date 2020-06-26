@@ -17,8 +17,8 @@ mkdir -p ${APTLY_DB}
 APTLY_REPO=${PUBLISH_ROOT}/deb/repo
 mkdir -p ${APTLY_REPO}
 
-APTLY_DB_BUCKET=wp-testing-aptly-db
-REPO_BUCKET=wp-testing-repo
+APTLY_DB_BUCKET=sm-testing-aptly-db
+REPO_BUCKET=sm-testing-repo
 
 ARCH="$(uname -m)"
 
@@ -81,10 +81,10 @@ EOF
 
 
 # Create Debian repo
-aptly -config=${APTLY_CONF_FILE} repo create -distribution="stable" worldping
+aptly -config=${APTLY_CONF_FILE} repo create -distribution="stable" synthetic-monitoring
 
 # Publish blank repo
-aptly -config=${APTLY_CONF_FILE} publish repo -batch -passphrase-file=./scripts/package/passphrase -force-overwrite worldping filesystem:repo:worldping
+aptly -config=${APTLY_CONF_FILE} publish repo -batch -passphrase-file=./scripts/package/passphrase -force-overwrite synthetic-monitoring filesystem:repo:synthetic-monitoring
 
 # UNCOMMENT: Commented out to keep from inadvertently overwriting the published
 # repo. Uncomment if a new repo really needs to be sync'd.

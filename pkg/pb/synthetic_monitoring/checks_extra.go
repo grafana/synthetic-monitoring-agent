@@ -11,10 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// package worldping provides access to types and methods that allow for
-// the production and consumption of protocol buffer messages used to
-// communicate with worldping-api.
-package worldping
+// package synthetic_monitoring provides access to types and methods
+// that allow for the production and consumption of protocol buffer
+// messages used to communicate with synthetic-monitoring-api.
+package synthetic_monitoring
 
 import (
 	"errors"

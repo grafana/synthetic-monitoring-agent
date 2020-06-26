@@ -18,8 +18,8 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/loki/pkg/logproto"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
-	"github.com/grafana/worldping-blackbox-sidecar/pkg/pb/worldping"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mmcloughlin/geohash"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
 	"github.com/prometheus/blackbox_exporter/prober"
@@ -56,8 +56,8 @@ type Scraper struct {
 	checkName     string
 	target        string
 	logger        zerolog.Logger
-	check         worldping.Check
-	probe         worldping.Probe
+	check         sm.Check
+	probe         sm.Probe
 	bbeModule     *bbeconfig.Module
 	stop          chan struct{}
 	scrapeCounter prometheus.Counter
@@ -87,7 +87,7 @@ func (d *probeData) Tenant() int64 {
 	return d.tenantId
 }
 
-func New(ctx context.Context, check worldping.Check, publishCh chan<- pusher.Payload, probe worldping.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
+func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, probe sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
 	logger = logger.With().
 		Int64("check_id", check.Id).
 		Str("probe", probe.Name).
@@ -240,7 +240,7 @@ func (s *Scraper) Stop() {
 
 func (s Scraper) CheckType() string {
 	// XXX(mem): this shouldn't be here, it should be in
-	// worldping.Check
+	// sm.Check
 
 	switch {
 	case s.check.Settings.Dns != nil:
@@ -387,7 +387,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	// timeseries need to differentiate between base labels and
 	// check info labels in order to be able to apply the later only
-	// to the worldping_check_info metric
+	// to the sm_check_info metric
 	ts, err := s.extractTimeseries(t, mfs, metricLabels, checkInfoLabels)
 
 	successValue := "1"
@@ -413,8 +413,8 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		{name: "instance", value: s.check.Target},
 		{name: "job", value: s.check.Job},
 		{name: "check_name", value: s.checkName},
-		{name: "probe_success", value: successValue}, // identify log lines that are failures
-		{name: "source", value: "worldping"},         // identify log lines that belong to worldping
+		{name: "probe_success", value: successValue},          // identify log lines that are failures
+		{name: "source", value: "synthetic-monitoring-agent"}, // identify log lines that belong to synthetic-monitoring-agent
 	}
 	logLabels = append(logLabels, s.buildUserLabels()...)
 
@@ -668,7 +668,7 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 func makeCheckInfoMetrics(t time.Time, sharedLabels, checkInfoLabels []labelPair) prompb.TimeSeries {
 	labels := make([]prompb.Label, 0, 1+len(sharedLabels)+len(checkInfoLabels))
 
-	labels = append(labels, prompb.Label{Name: "__name__", Value: "worldping_check_info"})
+	labels = append(labels, prompb.Label{Name: "__name__", Value: "sm_check_info"})
 
 	for _, label := range sharedLabels {
 		labels = append(labels, prompb.Label{Name: label.name, Value: label.value})
@@ -713,7 +713,7 @@ func fmtLabels(labels []labelPair) string {
 	return s.String()
 }
 
-func mapSettings(ctx context.Context, logger zerolog.Logger, target string, settings worldping.CheckSettings) (string, bbeconfig.Module, string, error) {
+func mapSettings(ctx context.Context, logger zerolog.Logger, target string, settings sm.CheckSettings) (string, bbeconfig.Module, string, error) {
 	// Map the change to a blackbox exporter module
 	switch {
 	case settings.Ping != nil:
@@ -735,17 +735,17 @@ func mapSettings(ctx context.Context, logger zerolog.Logger, target string, sett
 	}
 }
 
-func ipVersionToIpProtocol(v worldping.IpVersion) (string, bool) {
+func ipVersionToIpProtocol(v sm.IpVersion) (string, bool) {
 	switch v {
-	case worldping.IpVersion_V4:
+	case sm.IpVersion_V4:
 		// preferred_ip_protocol = ip4
 		// ip_protocol_fallback = false
 		return "ip4", false
-	case worldping.IpVersion_V6:
+	case sm.IpVersion_V6:
 		// preferred_ip_protocol = ip6
 		// ip_protocol_fallback = false
 		return "ip6", false
-	case worldping.IpVersion_Any:
+	case sm.IpVersion_Any:
 		// preferred_ip_protocol = ip6
 		// ip_protocol_fallback = true
 		return "ip6", true
@@ -754,7 +754,7 @@ func ipVersionToIpProtocol(v worldping.IpVersion) (string, bool) {
 	return "", false
 }
 
-func pingSettingsToBBEModule(settings *worldping.PingSettings) bbeconfig.Module {
+func pingSettingsToBBEModule(settings *sm.PingSettings) bbeconfig.Module {
 	var m bbeconfig.Module
 
 	m.Prober = "icmp"
@@ -770,7 +770,7 @@ func pingSettingsToBBEModule(settings *worldping.PingSettings) bbeconfig.Module 
 	return m
 }
 
-func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *worldping.HttpSettings) (bbeconfig.Module, error) {
+func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *sm.HttpSettings) (bbeconfig.Module, error) {
 	var m bbeconfig.Module
 
 	m.Prober = "http"
@@ -833,7 +833,7 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 
 	if settings.TlsConfig != nil {
 		var err error
-		m.HTTP.HTTPClientConfig.TLSConfig, err = worldpingTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
+		m.HTTP.HTTPClientConfig.TLSConfig, err = smTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
 		if err != nil {
 			return m, err
 		}
@@ -859,7 +859,7 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 	return m, nil
 }
 
-func dnsSettingsToBBEModule(ctx context.Context, settings *worldping.DnsSettings, target string) bbeconfig.Module {
+func dnsSettingsToBBEModule(ctx context.Context, settings *sm.DnsSettings, target string) bbeconfig.Module {
 	var m bbeconfig.Module
 
 	m.Prober = "dns"
@@ -897,7 +897,7 @@ func dnsSettingsToBBEModule(ctx context.Context, settings *worldping.DnsSettings
 	return m
 }
 
-func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *worldping.TcpSettings) (bbeconfig.Module, error) {
+func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *sm.TcpSettings) (bbeconfig.Module, error) {
 	var m bbeconfig.Module
 
 	m.Prober = "tcp"
@@ -918,7 +918,7 @@ func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings
 
 	if settings.TlsConfig != nil {
 		var err error
-		m.TCP.TLSConfig, err = worldpingTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
+		m.TCP.TLSConfig, err = smTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
 		if err != nil {
 			return m, err
 		}
@@ -927,7 +927,7 @@ func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings
 	return m, nil
 }
 
-func worldpingTLSConfigToBBE(ctx context.Context, logger zerolog.Logger, tlsConfig *worldping.TLSConfig) (promconfig.TLSConfig, error) {
+func smTLSConfigToBBE(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfig) (promconfig.TLSConfig, error) {
 	c := promconfig.TLSConfig{
 		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
 		ServerName:         tlsConfig.ServerName,

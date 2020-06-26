@@ -13,9 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/grafana/worldping-blackbox-sidecar/internal/checks"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/http"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
+	"github.com/grafana/synthetic-monitoring-agent/internal/http"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -86,7 +86,7 @@ func run(args []string, stdout io.Writer) error {
 		ListenAddr:   *httpListenAddr,
 		Logger:       zl.With().Str("subsystem", "http").Logger(),
 		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  15 * time.Second,
 	}
 

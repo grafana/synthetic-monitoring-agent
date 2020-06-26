@@ -1,4 +1,4 @@
-module github.com/grafana/worldping-blackbox-sidecar
+module github.com/grafana/synthetic-monitoring-agent
 
 go 1.13
 
@@ -29,7 +29,6 @@ require (
 	github.com/rs/zerolog v1.18.0
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	google.golang.org/grpc v1.26.0
-	gopkg.in/yaml.v2 v2.2.8
 )
 
 replace github.com/Azure/azure-sdk-for-go => github.com/Azure/azure-sdk-for-go v36.2.0+incompatible

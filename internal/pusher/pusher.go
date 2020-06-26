@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/grafana/loki/pkg/logproto"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/loki"
-	"github.com/grafana/worldping-blackbox-sidecar/internal/pkg/prom"
-	"github.com/grafana/worldping-blackbox-sidecar/pkg/pb/worldping"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/loki"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -20,7 +20,7 @@ import (
 
 const (
 	defaultBufferCapacity = 10 * 1024
-	userAgent             = "worldping-blackbox-sidecar/0.0.1"
+	userAgent             = "synthetic-monitoring-agent/0.0.1"
 )
 
 var bufPool = sync.Pool{
@@ -42,7 +42,7 @@ type Payload interface {
 }
 
 type Publisher struct {
-	tenantsClient worldping.TenantsClient
+	tenantsClient sm.TenantsClient
 	logger        zerolog.Logger
 	publishCh     <-chan Payload
 	clientsMutex  sync.Mutex
@@ -55,7 +55,7 @@ type Publisher struct {
 func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger zerolog.Logger, promRegisterer prometheus.Registerer) *Publisher {
 	pushCounter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "worldping_bbe_sidecar",
+			Namespace: "sm_agent",
 			Subsystem: "publisher",
 			Name:      "push_total",
 			Help:      "Total number of push events.",
@@ -66,7 +66,7 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger zerolo
 
 	errorCounter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "worldping_bbe_sidecar",
+			Namespace: "sm_agent",
 			Subsystem: "publisher",
 			Name:      "push_errors_total",
 			Help:      "Total number of push errors.",
@@ -77,7 +77,7 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger zerolo
 
 	bytesOut := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "worldping_bbe_sidecar",
+			Namespace: "sm_agent",
 			Subsystem: "publisher",
 			Name:      "push_bytes",
 			Help:      "Total number of bytes pushed.",
@@ -87,7 +87,7 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger zerolo
 	promRegisterer.MustRegister(bytesOut)
 
 	return &Publisher{
-		tenantsClient: worldping.NewTenantsClient(conn),
+		tenantsClient: sm.NewTenantsClient(conn),
 		publishCh:     publishCh,
 		clients:       make(map[int64]*remoteTarget),
 		logger:        logger,
@@ -178,7 +178,7 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarge
 		return client, nil
 	}
 
-	req := worldping.TenantInfo{
+	req := sm.TenantInfo{
 		Id: tenantId,
 	}
 	tenant, err := p.tenantsClient.GetTenant(ctx, &req)
@@ -212,7 +212,7 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarge
 	return clients, nil
 }
 
-func clientFromRemoteInfo(tenantId int64, remote *worldping.RemoteInfo) (*prom.ClientConfig, error) {
+func clientFromRemoteInfo(tenantId int64, remote *sm.RemoteInfo) (*prom.ClientConfig, error) {
 	// TODO(mem): this is hacky.
 	//
 	// it's trying to deal with the fact that the URL shown to users
