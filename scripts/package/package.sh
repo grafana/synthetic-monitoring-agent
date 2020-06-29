@@ -31,7 +31,7 @@ LICENSE="Apache2.0"
 ## Setup for the package name
 BUILD=${BUILD_ROOT}/systemd
 CONFIG_DIR=$BASE/config/systemd
-PACKAGE_NAME="${BUILD}/synthetic-monitoring-agent-${VERSION}_${ARCH}.deb"
+PACKAGE_NAME="${BUILD_OUTPUT}/synthetic-monitoring-agent-${VERSION}_${ARCH}.deb"
 [ -e ${PACKAGE_NAME} ] && rm ${PACKAGE_NAME}
 
 # Copy config files in
@@ -59,7 +59,7 @@ fpm -s dir -t deb \
 ## CentOS 7
 sudo apt-get install -y rpm
 
-PACKAGE_NAME="${BUILD}/synthetic-monitoring-agent-${VERSION}.el7.${ARCH}.rpm"
+PACKAGE_NAME="${BUILD_OUTPUT}/synthetic-monitoring-agent-${VERSION}.el7.${ARCH}.rpm"
 [ -e ${PACKAGE_NAME} ] && rm ${PACKAGE_NAME}
 
 fpm -s dir -t rpm \

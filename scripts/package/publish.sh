@@ -5,8 +5,8 @@
 set -x
 BASE=$(dirname $0)
 CODE_DIR=$(readlink -e "$BASE/../../")
-BUILD_DEB_DIR=${CODE_DIR}/dist/build/systemd
-BUILD_RMP_DIR=${CODE_DIR}/dist/build/systemd-centos7
+BUILD_DEB_DIR=${CODE_DIR}/dist
+BUILD_RMP_DIR=${CODE_DIR}/dist
 
 # Setup directories 
 PUBLISH_ROOT=${CODE_DIR}/dist/publish
