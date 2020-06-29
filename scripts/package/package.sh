@@ -7,10 +7,15 @@ set -x
 BASE=$(dirname $0)
 CODE_DIR=$(readlink -e "$BASE/../../")
 
+SUDO=""
+if [ $(id -u) -gt 0 ]; then
+  SUDO="sudo"
+fi
+
 # Install fpm if needed
 if [ ! -x "$(which fpm)" ] ; then
-  sudo apt-get install -y ruby ruby-dev rubygems build-essential
-  gem install --no-document fpm
+  $SUDO apt-get install -y ruby ruby-dev rubygems build-essential
+  $SUDO gem install --no-document fpm
 fi
 
 BUILD_OUTPUT=${CODE_DIR}/dist
@@ -57,7 +62,7 @@ fpm -s dir -t deb \
 
 
 ## CentOS 7
-sudo apt-get install -y rpm
+$SUDO apt-get install -y rpm
 
 PACKAGE_NAME="${BUILD_OUTPUT}/synthetic-monitoring-agent-${VERSION}.el7.${ARCH}.rpm"
 [ -e ${PACKAGE_NAME} ] && rm ${PACKAGE_NAME}

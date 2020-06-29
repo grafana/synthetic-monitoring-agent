@@ -8,6 +8,11 @@ CODE_DIR=$(readlink -e "$BASE/../../")
 BUILD_DEB_DIR=${CODE_DIR}/dist
 BUILD_RMP_DIR=${CODE_DIR}/dist
 
+SUDO=""
+if [ $(id -u) -gt 0 ]; then
+  SUDO="sudo"
+fi
+
 # Setup directories 
 PUBLISH_ROOT=${CODE_DIR}/dist/publish
 mkdir -p ${PUBLISH_ROOT}
@@ -60,11 +65,11 @@ gcloud auth activate-service-account --key-file=/keys/gcs-key.json
 
 # Install aptly if not already
 if [ ! -x "$(which aptly)" ] ; then
-  sudo apt-key adv --keyserver pool.sks-keyservers.net --recv-keys ED75B5A4483DA07C
-  wget -qO - https://www.aptly.info/pubkey.txt | sudo apt-key add -
-  sudo add-apt-repository "deb http://repo.aptly.info/ squeeze main"
-  sudo apt-get update
-  sudo apt-get install aptly
+  $SUDO apt-key adv --keyserver pool.sks-keyservers.net --recv-keys ED75B5A4483DA07C
+  wget -qO - https://www.aptly.info/pubkey.txt | $SUDO apt-key add -
+  $SUDO add-apt-repository "deb http://repo.aptly.info/ squeeze main"
+  $SUDO apt-get update
+  $SUDO apt-get install aptly
 fi
 
 # write the aptly.conf file, will be rewritten if exists
@@ -121,7 +126,7 @@ if [ -z "${DISABLE_REPO_PUB}" ] ; then
 fi
 
 ### TODO: RPM
-#sudo apt-get install -y rpm
+#$SUDO apt-get install -y rpm
 
 
 # Done, cleanup and exit
