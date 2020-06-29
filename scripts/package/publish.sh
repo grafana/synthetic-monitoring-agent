@@ -5,8 +5,13 @@
 set -x
 BASE=$(dirname $0)
 CODE_DIR=$(readlink -e "$BASE/../../")
-BUILD_DEB_DIR=${CODE_DIR}/dist/build/systemd
-BUILD_RMP_DIR=${CODE_DIR}/dist/build/systemd-centos7
+BUILD_DEB_DIR=${CODE_DIR}/dist
+BUILD_RMP_DIR=${CODE_DIR}/dist
+
+SUDO=""
+if [ $(id -u) -gt 0 ]; then
+  SUDO="sudo"
+fi
 
 # Setup directories 
 PUBLISH_ROOT=${CODE_DIR}/dist/publish
@@ -36,6 +41,9 @@ fi
 
 APTLY_CONF_FILE=${PUBLISH_ROOT}/aptly.conf
 
+# avoid printing our gpg key to stdout
+set +x
+
 # UNCOMMENT to use test GPG keys
 #source ${BASE}/gpg-test-vars.sh
 if [ -z "${GPG_PRIV_KEY}" ] ; then
@@ -48,6 +56,8 @@ GPG_PRIV_KEY_FILE=${BASE}/priv.key
 echo $GPG_PRIV_KEY | base64 -d > ${GPG_PRIV_KEY_FILE}
 gpg --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FILE}
 
+set -x
+
 # Activate GCS service account
 gcloud auth activate-service-account --key-file=/keys/gcs-key.json
 
@@ -55,11 +65,11 @@ gcloud auth activate-service-account --key-file=/keys/gcs-key.json
 
 # Install aptly if not already
 if [ ! -x "$(which aptly)" ] ; then
-  sudo apt-key adv --keyserver pool.sks-keyservers.net --recv-keys ED75B5A4483DA07C
-  wget -qO - https://www.aptly.info/pubkey.txt | sudo apt-key add -
-  sudo add-apt-repository "deb http://repo.aptly.info/ squeeze main"
-  sudo apt-get update
-  sudo apt-get install aptly
+  $SUDO apt-key adv --keyserver pool.sks-keyservers.net --recv-keys ED75B5A4483DA07C
+  wget -qO - https://www.aptly.info/pubkey.txt | $SUDO apt-key add -
+  $SUDO add-apt-repository "deb http://repo.aptly.info/ squeeze main"
+  $SUDO apt-get update
+  $SUDO apt-get install aptly
 fi
 
 # write the aptly.conf file, will be rewritten if exists
@@ -116,7 +126,7 @@ if [ -z "${DISABLE_REPO_PUB}" ] ; then
 fi
 
 ### TODO: RPM
-#sudo apt-get install -y rpm
+#$SUDO apt-get install -y rpm
 
 
 # Done, cleanup and exit

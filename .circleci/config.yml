@@ -23,11 +23,17 @@ jobs:
       - run:
           name: build docker image
           command: make docker
+      - run:
+          name: build packages
+          command: make package
       - deploy:
           command: |
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
               docker login -u $DOCKER_USER -p "$DOCKER_PASS" https://us.gcr.io
               docker push us.gcr.io/kubernetes-dev/synthetic-monitoring-agent:latest
+              mkdir -p /keys
+              echo "$DOCKER_PASS" > /keys/gcs-key.json
+              make publish-packages
             fi
 
 workflows:
