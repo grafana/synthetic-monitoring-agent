@@ -7,6 +7,7 @@ BASE=$(dirname $0)
 CODE_DIR=$(readlink -e "$BASE/../../")
 BUILD_DEB_DIR=${CODE_DIR}/dist
 BUILD_RMP_DIR=${CODE_DIR}/dist
+GCS_KEY_DIR=${GCS_KEY_DIR:-/keys}
 
 SUDO=""
 if [ $(id -u) -gt 0 ]; then
@@ -59,7 +60,7 @@ gpg --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FIL
 set -x
 
 # Activate GCS service account
-gcloud auth activate-service-account --key-file=/keys/gcs-key.json
+gcloud auth activate-service-account --key-file=${GCS_KEY_DIR}/gcs-key.json
 
 ### DEBIAN 
 
