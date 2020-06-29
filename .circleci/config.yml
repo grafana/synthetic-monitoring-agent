@@ -31,8 +31,9 @@ jobs:
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
               docker login -u $DOCKER_USER -p "$DOCKER_PASS" https://us.gcr.io
               docker push us.gcr.io/kubernetes-dev/synthetic-monitoring-agent:latest
-              mkdir -p /keys
-              echo "$DOCKER_PASS" > /keys/gcs-key.json
+              export GCS_KEY_DIR=$(pwd)/keys
+              mkdir -p $GCS_KEY_DIR
+              echo "$DOCKER_PASS" > $GCS_KEY_DIR/gcs-key.json
               make publish-packages
             fi
 
