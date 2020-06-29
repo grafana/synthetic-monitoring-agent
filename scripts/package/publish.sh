@@ -52,6 +52,10 @@ if [ -z "${GPG_PRIV_KEY}" ] ; then
     exit 1
 fi
 
+if [ ! -x "$(which gpg2)" ] ; then
+  $SUDO apt-get install -y gnupg2
+fi
+
 # Import GPG keys 
 GPG_PRIV_KEY_FILE=${BASE}/priv.key
 echo "$GPG_PRIV_KEY" | base64 -d > ${GPG_PRIV_KEY_FILE}
@@ -65,7 +69,7 @@ if [ ! -x "$(which gcloud)" ] ; then
   # Install the gcloud package
   $SUDO mkdir -p /usr/local/gcloud && \
     $SUDO tar -C /usr/local/gcloud -xvf /tmp/google-cloud-sdk.tar.gz && \
-    $SUDO /usr/local/gcloud/google-cloud-sdk/install.sh
+    $SUDO /usr/local/gcloud/google-cloud-sdk/install.sh --disable-prompts --install-dir=/usr/local/gcloud/google-cloud-sdk
 
   # Add gcloud to the path
   PATH=$PATH:/usr/local/gcloud/google-cloud-sdk/bin
