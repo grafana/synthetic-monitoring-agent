@@ -52,8 +52,8 @@ if [ -z "${GPG_PRIV_KEY}" ] ; then
     exit 1
 fi
 
-if [ ! -x "$(which gpg2)" ] ; then
-  $SUDO apt-get install -y gnupg2
+if [ ! -x "$(which gpg)" ] ; then
+  $SUDO apt-get install -y gnupg gpgv
 fi
 
 # Import GPG keys 
@@ -84,7 +84,7 @@ gcloud auth activate-service-account --key-file=${GCS_KEY_DIR}/gcs-key.json
 if [ ! -x "$(which aptly)" ] ; then
   $SUDO apt-key adv --keyserver pool.sks-keyservers.net --recv-keys ED75B5A4483DA07C
   wget -qO - https://www.aptly.info/pubkey.txt | $SUDO apt-key add -
-  $SUDO add-apt-repository "deb http://repo.aptly.info/ squeeze main"
+  $SUDO echo "deb http://repo.aptly.info/ squeeze main" > /etc/apt/sources.list.d/aptly.list
   $SUDO apt-get update
   $SUDO apt-get install aptly
 fi
