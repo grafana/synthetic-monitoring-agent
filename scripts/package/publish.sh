@@ -36,6 +36,9 @@ fi
 
 APTLY_CONF_FILE=${PUBLISH_ROOT}/aptly.conf
 
+# avoid printing our gpg key to stdout
+set +x
+
 # UNCOMMENT to use test GPG keys
 #source ${BASE}/gpg-test-vars.sh
 if [ -z "${GPG_PRIV_KEY}" ] ; then
@@ -47,6 +50,8 @@ fi
 GPG_PRIV_KEY_FILE=${BASE}/priv.key
 echo $GPG_PRIV_KEY | base64 -d > ${GPG_PRIV_KEY_FILE}
 gpg --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FILE}
+
+set -x
 
 # Activate GCS service account
 gcloud auth activate-service-account --key-file=/keys/gcs-key.json
