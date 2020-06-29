@@ -68,8 +68,8 @@ if [ ! -x "$(which gcloud)" ] ; then
   curl https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz > /tmp/google-cloud-sdk.tar.gz
   # Install the gcloud package
   $SUDO mkdir -p /usr/local/gcloud && \
-    $SUDO tar -C /usr/local/gcloud -xvf /tmp/google-cloud-sdk.tar.gz && \
-    $SUDO /usr/local/gcloud/google-cloud-sdk/install.sh --disable-prompts --install-dir=/usr/local/gcloud/google-cloud-sdk
+    $SUDO tar -C /usr/local/gcloud -xf /tmp/google-cloud-sdk.tar.gz && \
+    $SUDO /usr/local/gcloud/google-cloud-sdk/install.sh --disable-installation-options
 
   # Add gcloud to the path
   PATH=$PATH:/usr/local/gcloud/google-cloud-sdk/bin
@@ -84,7 +84,7 @@ gcloud auth activate-service-account --key-file=${GCS_KEY_DIR}/gcs-key.json
 if [ ! -x "$(which aptly)" ] ; then
   $SUDO apt-key adv --keyserver pool.sks-keyservers.net --recv-keys ED75B5A4483DA07C
   wget -qO - https://www.aptly.info/pubkey.txt | $SUDO apt-key add -
-  $SUDO echo "deb http://repo.aptly.info/ squeeze main" > /etc/apt/sources.list.d/aptly.list
+  $SUDO sbh -c 'echo "deb http://repo.aptly.info/ squeeze main" > /etc/apt/sources.list.d/aptly.list'
   $SUDO apt-get update
   $SUDO apt-get install aptly
 fi
