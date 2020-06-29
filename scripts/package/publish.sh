@@ -69,7 +69,7 @@ if [ ! -x "$(which gcloud)" ] ; then
   # Install the gcloud package
   $SUDO mkdir -p /usr/local/gcloud && \
     $SUDO tar -C /usr/local/gcloud -xf /tmp/google-cloud-sdk.tar.gz && \
-    $SUDO /usr/local/gcloud/google-cloud-sdk/install.sh --disable-installation-options
+    $SUDO /usr/local/gcloud/google-cloud-sdk/install.sh --quiet
 
   # Add gcloud to the path
   PATH=$PATH:/usr/local/gcloud/google-cloud-sdk/bin
