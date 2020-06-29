@@ -84,7 +84,7 @@ gcloud auth activate-service-account --key-file=${GCS_KEY_DIR}/gcs-key.json
 if [ ! -x "$(which aptly)" ] ; then
   $SUDO apt-key adv --keyserver pool.sks-keyservers.net --recv-keys ED75B5A4483DA07C
   wget -qO - https://www.aptly.info/pubkey.txt | $SUDO apt-key add -
-  $SUDO sbh -c 'echo "deb http://repo.aptly.info/ squeeze main" > /etc/apt/sources.list.d/aptly.list'
+  $SUDO sh -c 'echo "deb http://repo.aptly.info/ squeeze main" > /etc/apt/sources.list.d/aptly.list'
   $SUDO apt-get update
   $SUDO apt-get install aptly
 fi
