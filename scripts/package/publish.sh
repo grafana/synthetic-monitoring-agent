@@ -43,7 +43,7 @@ fi
 APTLY_CONF_FILE=${PUBLISH_ROOT}/aptly.conf
 
 # avoid printing our gpg key to stdout
-set +x
+#set +x
 
 # UNCOMMENT to use test GPG keys
 #source ${BASE}/gpg-test-vars.sh
@@ -54,10 +54,22 @@ fi
 
 # Import GPG keys 
 GPG_PRIV_KEY_FILE=${BASE}/priv.key
-echo $GPG_PRIV_KEY | base64 -d > ${GPG_PRIV_KEY_FILE}
+echo "$GPG_PRIV_KEY" | base64 -d > ${GPG_PRIV_KEY_FILE}
 gpg --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FILE}
 
-set -x
+#set -x
+
+if [ ! -x "$(which gcloud)" ] ; then
+  # Download gcloud package
+  curl https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz > /tmp/google-cloud-sdk.tar.gz
+  # Install the gcloud package
+  $SUDO mkdir -p /usr/local/gcloud && \
+    $SUDO tar -C /usr/local/gcloud -xvf /tmp/google-cloud-sdk.tar.gz && \
+    $SUDO /usr/local/gcloud/google-cloud-sdk/install.sh
+
+  # Add gcloud to the path
+  PATH=$PATH:/usr/local/gcloud/google-cloud-sdk/bin
+fi
 
 # Activate GCS service account
 gcloud auth activate-service-account --key-file=${GCS_KEY_DIR}/gcs-key.json
