@@ -59,7 +59,7 @@ fi
 # Import GPG keys 
 GPG_PRIV_KEY_FILE=${BASE}/priv.key
 echo "$GPG_PRIV_KEY" | base64 -d > ${GPG_PRIV_KEY_FILE}
-gpg --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FILE}
+gpg2 --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FILE}
 
 #set -x
 
