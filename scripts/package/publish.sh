@@ -52,8 +52,8 @@ if [ -z "${GPG_PRIV_KEY}" ] ; then
     exit 1
 fi
 
-if [ ! -x "$(which gpg)" ] ; then
-  $SUDO apt-get install -y gnupg gpgv
+if [ ! -x "$(which gpg2)" ] ; then
+  $SUDO apt-get install -y gnupg2
 fi
 
 # Import GPG keys 
