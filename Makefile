@@ -158,6 +158,12 @@ help: ## Display this help.
 docker: build
 	$(S) docker build -t $(DOCKER_TAG) ./
 
+.PHONY: docker-push
+docker-push:  docker
+	$(S) docker push $(DOCKER_TAG)
+	$(S) docker tag $(DOCKER_TAG) $(DOCKER_TAG):$(BUILD_VERSION)
+	$(S) docker push $(DOCKER_TAG):$(BUILD_VERSION)
+
 define build_go_command
 	$(S) echo 'Building $(1)'
 	$(S) mkdir -p dist
