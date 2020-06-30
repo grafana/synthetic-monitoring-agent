@@ -8,6 +8,7 @@ import (
 	"hash/fnv"
 	"io/ioutil"
 	"math"
+	"math/rand"
 	"net/url"
 	"os"
 	"strconv"
@@ -226,7 +227,12 @@ func (s *Scraper) Run(ctx context.Context) {
 		payload = nil
 	}
 
-	tickWithOffset(ctx, s.stop, scrape, cleanup, s.check.Offset, s.check.Frequency)
+	offset := s.check.Offset
+	if offset == 0 {
+		offset = rand.Int63n(s.check.Frequency)
+	}
+
+	tickWithOffset(ctx, s.stop, scrape, cleanup, offset, s.check.Frequency)
 
 	s.cancel()
 
