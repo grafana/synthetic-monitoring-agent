@@ -29,6 +29,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+// StatusCode represents the result of registering a probe with the API.
 type StatusCode int32
 
 const (
@@ -66,6 +67,8 @@ func (StatusCode) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_a921b63774164c1f, []int{0}
 }
 
+// CheckOperation represents an operation to be performed on a
+// particular check.
 type CheckOperation int32
 
 const (
@@ -94,6 +97,7 @@ func (CheckOperation) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_a921b63774164c1f, []int{1}
 }
 
+// HttpMethod represents the HTTP method used when making HTTP requests.
 type HttpMethod int32
 
 const (
@@ -137,6 +141,8 @@ func (HttpMethod) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_a921b63774164c1f, []int{2}
 }
 
+// DnsRecordType represents the DNS record types to be queried in DNS
+// checks.
 type DnsRecordType int32
 
 const (
@@ -186,6 +192,7 @@ func (DnsRecordType) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_a921b63774164c1f, []int{3}
 }
 
+// DnsProtocol represents the IP protocol to use for DNS queries.
 type DnsProtocol int32
 
 const (
@@ -211,6 +218,8 @@ func (DnsProtocol) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_a921b63774164c1f, []int{4}
 }
 
+// IpVersion represents the version of the IP protocol to be used in
+// checks.
 type IpVersion int32
 
 const (
@@ -280,6 +289,9 @@ func (m *Void) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Void proto.InternalMessageInfo
 
+// Status represents the result of registering a probe with the API,
+// including both a code as well as textual message that can be
+// presented to the user.
 type Status struct {
 	Code                 StatusCode `protobuf:"varint,1,opt,name=code,proto3,enum=synthetic_monitoring.StatusCode" json:"code,omitempty"`
 	Message              string     `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
@@ -321,6 +333,9 @@ func (m *Status) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Status proto.InternalMessageInfo
 
+// RegisterProbeResult is the message returned by the RegisterProbe
+// method of the Checks service. It provides both the status of the
+// operation and the probe's details after successful registration.
 type RegisterProbeResult struct {
 	Probe                Probe    `protobuf:"bytes,1,opt,name=probe,proto3" json:"probe"`
 	Status               Status   `protobuf:"bytes,2,opt,name=status,proto3" json:"status"`
@@ -362,7 +377,7 @@ func (m *RegisterProbeResult) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RegisterProbeResult proto.InternalMessageInfo
 
-// Probe represents a probe
+// Probe represents a probe.
 type Probe struct {
 	Id                   int64    `protobuf:"varint,1,opt,name=id,proto3" json:"id"`
 	TenantId             int64    `protobuf:"varint,2,opt,name=tenantId,proto3" json:"tenantId"`
@@ -414,6 +429,8 @@ func (m *Probe) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Probe proto.InternalMessageInfo
 
+// TenantInfo identifies the tenant for which information is being
+// requeted via the GetTenant method of the Tenants service.
 type TenantInfo struct {
 	Id                   int64    `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -454,7 +471,7 @@ func (m *TenantInfo) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_TenantInfo proto.InternalMessageInfo
 
-// Tenant represents a user of synthetic-monitoring
+// Tenant represents a user of synthetic-monitoring.
 type Tenant struct {
 	Id                   int64       `protobuf:"varint,1,opt,name=id,proto3" json:"id"`
 	OrgId                int64       `protobuf:"varint,2,opt,name=orgId,proto3" json:"orgId"`
@@ -500,7 +517,8 @@ func (m *Tenant) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_Tenant proto.InternalMessageInfo
 
-// RemoteInfo represents a target to send metrics or events to
+// RemoteInfo represents an instance of the Prometheus remote write
+// service to send metrics or events to.
 type RemoteInfo struct {
 	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name"`
 	Url                  string   `protobuf:"bytes,2,opt,name=url,proto3" json:"url"`
@@ -544,6 +562,7 @@ func (m *RemoteInfo) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_RemoteInfo proto.InternalMessageInfo
 
+// CheckChange represents one change operation for a given check.
 type CheckChange struct {
 	Operation            CheckOperation `protobuf:"varint,1,opt,name=operation,proto3,enum=synthetic_monitoring.CheckOperation" json:"operation,omitempty"`
 	Check                Check          `protobuf:"bytes,2,opt,name=check,proto3" json:"check"`
@@ -631,6 +650,8 @@ func (m *CheckChanges) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_CheckChanges proto.InternalMessageInfo
 
+// Label represents a single label in synthetic monitoring. These are
+// applied to the resulting metrics and logs.
 type Label struct {
 	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name"`
 	Value                string   `protobuf:"bytes,2,opt,name=value,proto3" json:"value"`
@@ -772,9 +793,6 @@ func (m *CheckSettings) XXX_DiscardUnknown() {
 var xxx_messageInfo_CheckSettings proto.InternalMessageInfo
 
 // PingSettings provides the settings for a ping check.
-//
-// "hostname" is the hostname to check.
-// "ipVersion" is the IP version to use in the IP layer.
 type PingSettings struct {
 	IpVersion            IpVersion `protobuf:"varint,1,opt,name=ipVersion,proto3,enum=synthetic_monitoring.IpVersion" json:"ipVersion"`
 	SourceIpAddress      string    `protobuf:"bytes,2,opt,name=sourceIpAddress,proto3" json:"sourceIpAddress,omitempty"`
@@ -876,6 +894,8 @@ func (m *HttpSettings) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_HttpSettings proto.InternalMessageInfo
 
+// HeaderMatch represents a single header that must match in order for
+// the check to be considered successful.
 type HeaderMatch struct {
 	Header               string   `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	Regexp               string   `protobuf:"bytes,2,opt,name=regexp,proto3" json:"regexp,omitempty"`
@@ -918,6 +938,7 @@ func (m *HeaderMatch) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_HeaderMatch proto.InternalMessageInfo
 
+// DNSRRValidator represents the DNS resource record validations.
 type DNSRRValidator struct {
 	FailIfMatchesRegexp    []string `protobuf:"bytes,1,rep,name=failIfMatchesRegexp,proto3" json:"failIfMatchesRegexp,omitempty"`
 	FailIfNotMatchesRegexp []string `protobuf:"bytes,2,rep,name=failIfNotMatchesRegexp,proto3" json:"failIfNotMatchesRegexp,omitempty"`
@@ -964,6 +985,8 @@ var xxx_messageInfo_DNSRRValidator proto.InternalMessageInfo
 // The way blackbox-exporter works, a DNS check tests a _server_, so the
 // _target_ of the check is a server address, and the check itself
 // contains the record to check.
+//
+// "ipVersion" is the IP version to use in the IP layer.
 type DnsSettings struct {
 	IpVersion            IpVersion       `protobuf:"varint,1,opt,name=ipVersion,proto3,enum=synthetic_monitoring.IpVersion" json:"ipVersion"`
 	SourceIpAddress      string          `protobuf:"bytes,2,opt,name=sourceIpAddress,proto3" json:"sourceIpAddress,omitempty"`
@@ -1060,6 +1083,9 @@ func (m *TcpSettings) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_TcpSettings proto.InternalMessageInfo
 
+// TCPQueryResponse represents a single step in a sequence of
+// send/expect pairs to be used when connecting to a generic TCP
+// service.
 type TCPQueryResponse struct {
 	Send                 []byte   `protobuf:"bytes,1,opt,name=send,proto3" json:"send"`
 	Expect               []byte   `protobuf:"bytes,2,opt,name=expect,proto3" json:"expect"`
@@ -1102,6 +1128,8 @@ func (m *TCPQueryResponse) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_TCPQueryResponse proto.InternalMessageInfo
 
+// TLSConfig represents the TLS data to be used when establishing a
+// secure connection in the protocols that support it.
 type TLSConfig struct {
 	InsecureSkipVerify   bool     `protobuf:"varint,1,opt,name=insecureSkipVerify,proto3" json:"insecureSkipVerify,omitempty"`
 	CACert               []byte   `protobuf:"bytes,2,opt,name=CACert,proto3" json:"caCert,omitempty"`
@@ -1146,6 +1174,8 @@ func (m *TLSConfig) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_TLSConfig proto.InternalMessageInfo
 
+// BasicAuth represents the basic authentication credentials to be used
+// when talking to HTTP servers.
 type BasicAuth struct {
 	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	Password             string   `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`

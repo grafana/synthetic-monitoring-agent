@@ -41,6 +41,7 @@ service Checks {
 message Void {
 }
 
+// StatusCode represents the result of registering a probe with the API.
 enum StatusCode {
 	OK               = 0;
 	NOT_FOUND        = 1;
@@ -50,17 +51,23 @@ enum StatusCode {
 	NOT_AUTHORIZED   = 5;
 }
 
+// Status represents the result of registering a probe with the API,
+// including both a code as well as textual message that can be
+// presented to the user.
 message Status {
 	StatusCode code    = 1;
 	string     message = 2;
 }
 
+// RegisterProbeResult is the message returned by the RegisterProbe
+// method of the Checks service. It provides both the status of the
+// operation and the probe's details after successful registration.
 message RegisterProbeResult {
 	Probe  probe  = 1 [(gogoproto.nullable) = false];
 	Status status = 2 [(gogoproto.nullable) = false];
 }
 
-// Probe represents a probe
+// Probe represents a probe.
 message Probe {
 	int64          id           = 1 [(gogoproto.jsontag) = "id"];                                   // ID of the probe, assigned by the API
 	int64          tenantId     = 2 [(gogoproto.jsontag) = "tenantId"];                             // ID of the synthetic-monitoring tenant this probe belongs to
@@ -81,11 +88,13 @@ service Tenants {
 	rpc GetTenant(TenantInfo) returns (Tenant) {};
 }
 
+// TenantInfo identifies the tenant for which information is being
+// requeted via the GetTenant method of the Tenants service.
 message TenantInfo {
 	int64 id = 1;
 }
 
-// Tenant represents a user of synthetic-monitoring
+// Tenant represents a user of synthetic-monitoring.
 message Tenant {
 	int64           id            = 1   [(gogoproto.jsontag) = "id"];            // unique ID
 	int64           orgId         = 2   [(gogoproto.jsontag) = "orgId"];         // grafana.com orgId
@@ -96,7 +105,8 @@ message Tenant {
 	double          modified      = 101 [(gogoproto.jsontag) = "modified"];      // last time modified
 }
 
-// RemoteInfo represents a target to send metrics or events to
+// RemoteInfo represents an instance of the Prometheus remote write
+// service to send metrics or events to.
 message RemoteInfo {
 	string name     = 1 [(gogoproto.jsontag) = "name"];     // instance name
 	string url      = 2 [(gogoproto.jsontag) = "url"];      // instance URL
@@ -104,12 +114,15 @@ message RemoteInfo {
 	string password = 4 [(gogoproto.jsontag) = "password"]; // password (publisher API key)
 }
 
+// CheckOperation represents an operation to be performed on a
+// particular check.
 enum CheckOperation {
 	CHECK_ADD    = 0;
 	CHECK_UPDATE = 1;
 	CHECK_DELETE = 2;
 }
 
+// CheckChange represents one change operation for a given check.
 message CheckChange {
 	CheckOperation operation = 1;
 	Check          check     = 2 [(gogoproto.nullable) = false];
@@ -125,6 +138,8 @@ message CheckChanges {
 	repeated CheckChange changes = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "changes"];
 }
 
+// Label represents a single label in synthetic monitoring. These are
+// applied to the resulting metrics and logs.
 message Label {
 	string name  = 1 [(gogoproto.jsontag) = "name"];
 	string value = 2 [(gogoproto.jsontag) = "value"];
@@ -140,8 +155,8 @@ message Check {
 	int64           offset    = 4   [(gogoproto.jsontag) = "offset"];                                 // ??? REMOVE???? ??? why user configured?
 	int64           timeout   = 5   [(gogoproto.jsontag) = "timeout"];                                // maximum time before aborting
 	bool            enabled   = 6   [(gogoproto.jsontag) = "enabled"];                                // user enable/disable   
-	repeated Label  labels    = 7   [(gogoproto.nullable) = false, (gogoproto.jsontag) = "labels"];   // Custom labels applied to all metrics and events (ie: production)
-	CheckSettings   settings  = 8   [(gogoproto.nullable) = false, (gogoproto.jsontag) = "settings"];
+	repeated Label  labels    = 7   [(gogoproto.nullable) = false, (gogoproto.jsontag) = "labels"];   // custom labels applied to all metrics and events (ie: production)
+	CheckSettings   settings  = 8   [(gogoproto.nullable) = false, (gogoproto.jsontag) = "settings"]; // check-specific settings
 	repeated int64  probes    = 9   [(gogoproto.jsontag) = "probes"];                                 // list of probes where this check should run
 	string          target    = 10  [(gogoproto.jsontag) = "target"];                                 // endpoint that this check is targeting
 	string          job       = 11  [(gogoproto.jsontag) = "job"];                                    // name of job this check belongs to
@@ -160,16 +175,14 @@ message CheckSettings {
 }
 
 // PingSettings provides the settings for a ping check.
-//
-// "hostname" is the hostname to check.
-// "ipVersion" is the IP version to use in the IP layer.
 message PingSettings {
-	IpVersion  ipVersion       = 1 [(gogoproto.jsontag) = "ipVersion"];
-	string     sourceIpAddress = 2 [(gogoproto.jsontag) = "sourceIpAddress,omitempty"];
-	int64      payloadSize     = 3 [(gogoproto.jsontag) = "payloadSize,omitempty"];
-	bool       dontFragment    = 4 [(gogoproto.jsontag) = "dontFragment"];
+	IpVersion  ipVersion       = 1 [(gogoproto.jsontag) = "ipVersion"];                 // IP version used in the IP layer
+	string     sourceIpAddress = 2 [(gogoproto.jsontag) = "sourceIpAddress,omitempty"]; // source IP address for the packets
+	int64      payloadSize     = 3 [(gogoproto.jsontag) = "payloadSize,omitempty"];     // size of the ICMP packet's data portion
+	bool       dontFragment    = 4 [(gogoproto.jsontag) = "dontFragment"];              // set the IP "don't fragment" option
 }
 
+// HttpMethod represents the HTTP method used when making HTTP requests.
 enum HttpMethod {
 	GET     = 0;
 	CONNECT = 1;
@@ -183,18 +196,18 @@ enum HttpMethod {
 
 // HttpSettings provides the settings for a HTTP check.
 message HttpSettings {
-	IpVersion             ipVersion                    = 1  [(gogoproto.jsontag) = "ipVersion"];
-	HttpMethod            method                       = 2  [(gogoproto.jsontag) = "method"];
-	repeated string       headers                      = 3  [(gogoproto.jsontag) = "headers,omitempty"];
-	string                body                         = 4  [(gogoproto.jsontag) = "body,omitempty"];
-	bool                  noFollowRedirects            = 5  [(gogoproto.jsontag) = "noFollowRedirects"];
+	IpVersion             ipVersion                    = 1   [(gogoproto.jsontag) = "ipVersion"];
+	HttpMethod            method                       = 2   [(gogoproto.jsontag) = "method"];
+	repeated string       headers                      = 3   [(gogoproto.jsontag) = "headers,omitempty"];
+	string                body                         = 4   [(gogoproto.jsontag) = "body,omitempty"];
+	bool                  noFollowRedirects            = 5   [(gogoproto.jsontag) = "noFollowRedirects"];
 
 	// client config
 
-	TLSConfig             tlsConfig                    = 100  [(gogoproto.jsontag) = "tlsConfig,omitempty"];
-	BasicAuth             basicAuth                    = 101  [(gogoproto.jsontag) = "basicAuth,omitempty"];
-	string                bearerToken                  = 102  [(gogoproto.jsontag) = "bearerToken,omitempty"];
-	string                proxyURL                     = 103  [(gogoproto.jsontag) = "proxyURL,omitempty"];
+	TLSConfig             tlsConfig                    = 100 [(gogoproto.jsontag) = "tlsConfig,omitempty"];
+	BasicAuth             basicAuth                    = 101 [(gogoproto.jsontag) = "basicAuth,omitempty"];
+	string                bearerToken                  = 102 [(gogoproto.jsontag) = "bearerToken,omitempty"];
+	string                proxyURL                     = 103 [(gogoproto.jsontag) = "proxyURL,omitempty"];
 
 	// validations
 
@@ -212,12 +225,16 @@ message HttpSettings {
 	string                cacheBustingQueryParamName   = 900 [(gogoproto.jsontag) = "cacheBustingQueryParamName,omitempty"];
 }
 
+// HeaderMatch represents a single header that must match in order for
+// the check to be considered successful.
 message HeaderMatch {
-	string header       = 1 [(gogoproto.jsontag) = "header,omitempty"];
-	string regexp       = 2 [(gogoproto.jsontag) = "regexp,omitempty"];
-	bool   allowMissing = 3 [(gogoproto.jsontag) = "allowMissing,omitempty"];
+	string header       = 1 [(gogoproto.jsontag) = "header,omitempty"];       // the header to match
+	string regexp       = 2 [(gogoproto.jsontag) = "regexp,omitempty"];       // a regular expression to match against the header's value
+	bool   allowMissing = 3 [(gogoproto.jsontag) = "allowMissing,omitempty"]; // consider the match successful if the header is absent
 }
 
+// DnsRecordType represents the DNS record types to be queried in DNS
+// checks.
 enum DnsRecordType {
 	ANY   = 0;
 	A     = 1;
@@ -231,11 +248,13 @@ enum DnsRecordType {
 	TXT   = 9;
 }
 
+// DnsProtocol represents the IP protocol to use for DNS queries.
 enum DnsProtocol {
 	TCP = 0;
 	UDP = 1;
 }
 
+// DNSRRValidator represents the DNS resource record validations.
 message DNSRRValidator {
 	repeated string failIfMatchesRegexp    = 1 [(gogoproto.jsontag) = "failIfMatchesRegexp,omitempty"];
 	repeated string failIfNotMatchesRegexp = 2 [(gogoproto.jsontag) = "failIfNotMatchesRegexp,omitempty"];
@@ -246,6 +265,8 @@ message DNSRRValidator {
 // The way blackbox-exporter works, a DNS check tests a _server_, so the
 // _target_ of the check is a server address, and the check itself
 // contains the record to check.
+//
+// "ipVersion" is the IP version to use in the IP layer.
 message DnsSettings {
 	IpVersion        ipVersion          = 1  [(gogoproto.jsontag) = "ipVersion"];
 	string           sourceIpAddress    = 2  [(gogoproto.jsontag) = "sourceIpAddress,omitempty"];
@@ -273,18 +294,25 @@ message TcpSettings {
 	repeated TCPQueryResponse queryResponse   = 5 [(gogoproto.jsontag) = "queryResponse,omitempty", (gogoproto.nullable) = false];
 }
 
+// TCPQueryResponse represents a single step in a sequence of
+// send/expect pairs to be used when connecting to a generic TCP
+// service.
 message TCPQueryResponse {
 	bytes send     = 1 [(gogoproto.jsontag) = "send"];
 	bytes expect   = 2 [(gogoproto.jsontag) = "expect"];
 	bool  startTLS = 3 [(gogoproto.jsontag) = "startTLS,omitempty"];
 }
 
+// IpVersion represents the version of the IP protocol to be used in
+// checks.
 enum IpVersion {
-	Any = 0;
-	V4  = 1;
-	V6  = 2;
+	Any = 0; // use IPv6 if supported and fall back to IPv4 otherwise
+	V4  = 1; // use IPv4 only
+	V6  = 2; // use IPv6 only
 }
 
+// TLSConfig represents the TLS data to be used when establishing a
+// secure connection in the protocols that support it.
 message TLSConfig {
 	bool   insecureSkipVerify = 1 [(gogoproto.jsontag) = "insecureSkipVerify,omitempty"];
 	bytes  CACert             = 2 [(gogoproto.jsontag) = "caCert,omitempty"];
@@ -293,6 +321,8 @@ message TLSConfig {
 	string serverName         = 5 [(gogoproto.jsontag) = "serverName,omitempty"];
 }
 
+// BasicAuth represents the basic authentication credentials to be used
+// when talking to HTTP servers.
 message BasicAuth {
 	string username = 1 [(gogoproto.jsontag) = "username,omitempty"];
 	string password = 2 [(gogoproto.jsontag) = "password,omitempty"];
