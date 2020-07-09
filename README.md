@@ -14,7 +14,7 @@ Probes run [checks](https://github.com/grafana/synthetic-monitoring-app/blob/mas
 
 To run your own probe
 ---------------------
-![Add Probe](img/sm-probe.png)
+![Add Probe](img/screenshot-probes.png)
 ### Add a new probe in your Grafana instance
 * Navigate to **Synthetic Monitoring -> Probes**.
 * Click **New**
