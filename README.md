@@ -1,37 +1,59 @@
-Synthetic monitoring agent
+<img src="img/logo.svg" width="100" />
+
+Synthetic Monitoring Agent
 ==========================
+This is the 'worker' for Grafana's [Synthetic Monitoring application](https://github.com/grafana/synthetic-monitoring-app). The agent provides probe functionality and executes network [checks](https://github.com/grafana/synthetic-monitoring-app/blob/master/README.md#check-types) for monitoring remote targets. 
 
-Synthetic monitoring is a black box monitoring solution that provides
-users with insights into how their applications and services are
-behaving from an external point of view. It complements the insights
-from within the applications and services we already provide through our
-existing Metrics and Logs services at the core of our Grafana Cloud
-platform.
+Please [install](https://grafana.com/grafana/plugins/grafana-synthetic-monitoring-app/installation) Synthetic Monitoring in your Grafana Cloud or local Grafana instance before setting up your own private probe. You may need to generate a [new API key](https://grafana.com/profile/api-keys) to initialize the app.
 
-Synthetic monitoring is also a demonstration of how use-case specific applications
-can be built on top of Grafana and Grafana Cloud. It is the successor to
-the original [worldping
-application](https://grafana.net/plugins/raintank-worldping-app). The
-refreshed synthetic monitoring product focuses on reducing complexity
-and taking advantage of Grafana Cloud capabilities.
 
-This is the agent: its function is to obtain configuration information
-from synthetic-monitoring-api and use it to build a configuration for
-[blackbox_exporter](https://github.com/prometheus/blackbox_exporter),
-which is how checks are executed. The resulting metrics and events are
-pushed directly to Grafana Cloud Prometheus and Loki services.
+Probes
+------
+Probes run [checks](https://github.com/grafana/synthetic-monitoring-app/blob/master/README.md#check-types) from distributed locations around the world and send the resulting metrics and events directly to [Grafana Cloud](https://grafana.com/products/cloud/) Prometheus and Loki services. You can select 1 or more 'public' probes to run checks from or run your own 'private' probes from any environment you choose.
 
-There are other related repositories:
 
-* [The synthetic monitoring API](https://github.com/grafana/synthetic-monitoring-api).
-* [The synthetic monitoring application](https://github.com/grafana/synthetic-monitoring-app).
+To run your own probe
+---------------------
+![Add Probe](img/sm-probe.png)
+### Add a new probe in your Grafana instance
+* Navigate to **Synthetic Monitoring -> Probes**.
+* Click **New**
+* Enter a **Probe Name**, **Latitude**, **Longitude**, and **Region**.
+* Optionally enter up to 3 custom labels to identify your probe.
+* Click **Save**
+* Copy the "Probe Authetication Token" and save for installing the agent.
+
+### Install the agent on Debian based systems
+
+* Add package repo GPG key
+
+`wget -q -O - https://packages-sm.grafana.com/gpg.key | sudo apt-key add -`
+
+* Add Debian package repo
+
+`sudo add-apt-repository "deb https://packages-sm.grafana.com/deb stable main"`
+
+* Install synthetic-monitoring-agent package
+
+
+`sudo apt-get install synthetic-monitoring-agent`
+
+* Edit `/etc/synthetic-monitoring/synthetic-monitoring-agent.conf` and add the token retrieved from Grafana
+
+```
+# Enter API token retrieved from grafana.com here
+API_TOKEN='YOUR TOKEN HERE'
+```
+
+* Restart the agent
+
+`sudo service synthetic-monitoring-agent restart`
+
+Once the service is running, you will be able to select your new probe exactly the same as any public probe. You will need to manually add the new probe to any previously created checks.
 
 Architecture
 ------------
-
-Please see
-[synthetic-monitoring-api](https://github.com/grafana/synthetic-monitoring-api)
-for an architectural description.
+The agent obtains configuration information from the synthetic-monitoring-api and uses it to build a configuration for [blackbox_exporter](https://github.com/prometheus/blackbox_exporter), which is how checks are executed.
 
 ![agent process][process]
 
