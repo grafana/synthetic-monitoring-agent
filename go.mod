@@ -13,10 +13,10 @@ require (
 	github.com/mmcloughlin/geohash v0.9.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/blackbox_exporter v0.16.0
+	github.com/prometheus/blackbox_exporter v0.17.1-0.20200713103052-55c667ab4ce5
 	github.com/prometheus/client_golang v1.6.0
 	github.com/prometheus/client_model v0.2.0
-	github.com/prometheus/common v0.9.1
+	github.com/prometheus/common v0.10.0
 	// This is actually version v2.16.0
 	//
 	// Without this, you get:
