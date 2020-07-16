@@ -18,6 +18,7 @@ package synthetic_monitoring
 
 import (
 	"errors"
+	"net"
 	"net/url"
 	"strconv"
 	"strings"
@@ -35,6 +36,11 @@ var (
 
 	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
+	ErrInvalidFQHNLenght        = errors.New("invalid FQHN lenght")
+	ErrInvalidFQHNElements      = errors.New("invalid number of elements in fqhn")
+	ErrInvalidFQHNElementLenght = errors.New("invalid FQHN element lenght")
+	ErrInvalidFQHNElement       = errors.New("invalid FQHN element")
+
 	ErrInvalidPingHostname    = errors.New("invalid ping hostname")
 	ErrInvalidPingPayloadSize = errors.New("invalid ping payload size")
 
@@ -49,6 +55,9 @@ var (
 	ErrInvalidHttpUrl          = errors.New("invalid HTTP URL")
 	ErrInvalidHttpMethodString = errors.New("invalid HTTP method string")
 	ErrInvalidHttpMethodValue  = errors.New("invalid HTTP method value")
+
+	ErrInvalidTcpHostname = errors.New("invalid TCP hostname")
+	ErrInvalidTcpPort     = errors.New("invalid TCP port")
 
 	ErrInvalidIpVersionString = errors.New("invalid ip version string")
 	ErrInvalidIpVersionValue  = errors.New("invalid ip version value")
@@ -111,6 +120,10 @@ func (c *Check) Validate() error {
 	if c.Settings.Ping != nil {
 		settingsCount++
 
+		if err := validateHost(c.Target); err != nil {
+			return ErrInvalidPingHostname
+		}
+
 		if err := c.Settings.Ping.Validate(); err != nil {
 			return err
 		}
@@ -133,6 +146,10 @@ func (c *Check) Validate() error {
 	if c.Settings.Dns != nil {
 		settingsCount++
 
+		if err := validateHost(c.Target); err != nil {
+			return ErrInvalidDnsName
+		}
+
 		if err := c.Settings.Dns.Validate(); err != nil {
 			return err
 		}
@@ -140,6 +157,10 @@ func (c *Check) Validate() error {
 
 	if c.Settings.Tcp != nil {
 		settingsCount++
+
+		if err := validateHostPort(c.Target); err != nil {
+			return err
+		}
 
 		if err := c.Settings.Tcp.Validate(); err != nil {
 			return err
@@ -170,7 +191,7 @@ func (s *HttpSettings) Validate() error {
 }
 
 func (s *DnsSettings) Validate() error {
-	if len(s.Server) == 0 {
+	if len(s.Server) == 0 || validateHost(s.Server) != nil {
 		return ErrInvalidDnsServer
 	}
 
@@ -314,4 +335,84 @@ func (out *DnsProtocol) UnmarshalJSON(b []byte) error {
 	}
 
 	return ErrInvalidDnsProtocolString
+}
+
+func validateHost(target string) error {
+	if ip := net.ParseIP(target); ip != nil {
+		return nil
+	}
+
+	return checkFQHN(target)
+}
+
+func validateHostPort(target string) error {
+	if host, port, err := net.SplitHostPort(target); err != nil {
+		return ErrInvalidCheckTarget
+	} else if validateHost(host) != nil {
+		return ErrInvalidTcpHostname
+	} else if n, err := strconv.ParseUint(port, 10, 16); err != nil || n == 0 {
+		return ErrInvalidTcpPort
+	}
+
+	return nil
+}
+
+// checkFQHN validates that the provided fully qualified hostname
+// follows RFC 1034, section 3.5
+// (https://tools.ietf.org/html/rfc1034#section-3.5).
+//
+// This assumes that the *hostname* part of the FQHN follows the same
+// rules.
+//
+// Note that if there are any IDNA transformations going on, they need
+// to happen _before_ calling this function.
+func checkFQHN(fqhn string) error {
+	if len(fqhn) == 0 || len(fqhn) > 255 {
+		return ErrInvalidFQHNLenght
+	}
+
+	labels := strings.Split(fqhn, ".")
+
+	if len(labels) < 2 {
+		return ErrInvalidFQHNElements
+	}
+
+	isLetter := func(r rune) bool {
+		return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+	}
+
+	isDigit := func(r rune) bool {
+		return (r >= '0' && r <= '9')
+	}
+
+	isDash := func(r rune) bool {
+		return (r == '-')
+	}
+
+	for _, label := range labels {
+		if len(label) == 0 || len(label) > 63 {
+			return ErrInvalidFQHNElementLenght
+		}
+
+		runes := []rune(label)
+
+		// labels must start with a letter
+		if r := runes[0]; !isLetter(r) {
+			return ErrInvalidFQHNElement
+		}
+
+		// labels must end with a letter or digit
+		if r := runes[len(runes)-1]; !isLetter(r) && !isDigit(r) {
+			return ErrInvalidFQHNElement
+		}
+
+		for _, r := range runes {
+			// the only valid characters are [-A-Za-z0-9].
+			if !isLetter(r) && !isDigit(r) && !isDash(r) {
+				return ErrInvalidFQHNElement
+			}
+		}
+	}
+
+	return nil
 }
