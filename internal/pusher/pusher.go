@@ -112,33 +112,54 @@ func (p *Publisher) Run(ctx context.Context) error {
 func (p *Publisher) publish(ctx context.Context, payload Payload) {
 	tenantID := payload.Tenant()
 	tenantStr := strconv.FormatInt(tenantID, 10)
+	newClient := false
 
-	client, err := p.getClient(ctx, tenantID)
-	if err != nil {
-		p.logger.Error().Err(err).Int64("tenant", tenantID).Msg("get client")
-		p.errorCounter.WithLabelValues("client", tenantStr).Inc()
+	logger := p.logger.With().Int64("tenant", tenantID).Logger()
+
+	for retry := 2; retry > 0; retry-- {
+		client, err := p.getClient(ctx, tenantID, newClient)
+		if err != nil {
+			logger.Error().Err(err).Msg("get client")
+			p.errorCounter.WithLabelValues("client", tenantStr).Inc()
+			return
+		}
+
+		if len(payload.Streams()) > 0 {
+			if n, err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
+				logger.Error().Err(err).Msg("publish events")
+				p.errorCounter.WithLabelValues("logs", tenantStr).Inc()
+				if prom.IsHttpUnauthorized(err) {
+					// Retry to get a new client, credentials might be stale.
+					newClient = true
+					continue
+				}
+			} else {
+				p.pushCounter.WithLabelValues("logs", tenantStr).Inc()
+				p.bytesOut.WithLabelValues("logs", tenantStr).Add(float64(n))
+			}
+		}
+
+		if len(payload.Metrics()) > 0 {
+			if n, err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
+				logger.Error().Err(err).Msg("publish metrics")
+				p.errorCounter.WithLabelValues("metrics", tenantStr).Inc()
+				if prom.IsHttpUnauthorized(err) {
+					// Retry to get a new client, credentials might be stale.
+					newClient = true
+					continue
+				}
+			} else {
+				p.pushCounter.WithLabelValues("metrics", tenantStr).Inc()
+				p.bytesOut.WithLabelValues("metrics", tenantStr).Add(float64(n))
+			}
+		}
+
+		// if we make it here we have sent everything we could send, we are done.
 		return
 	}
 
-	if len(payload.Streams()) > 0 {
-		if n, err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
-			p.logger.Error().Err(err).Int64("tenant", tenantID).Msg("publish events")
-			p.errorCounter.WithLabelValues("logs", tenantStr).Inc()
-		} else {
-			p.pushCounter.WithLabelValues("logs", tenantStr).Inc()
-			p.bytesOut.WithLabelValues("logs", tenantStr).Add(float64(n))
-		}
-	}
-
-	if len(payload.Metrics()) > 0 {
-		if n, err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
-			p.logger.Error().Err(err).Int64("tenant", tenantID).Msg("publish metrics")
-			p.errorCounter.WithLabelValues("metrics", tenantStr).Inc()
-		} else {
-			p.pushCounter.WithLabelValues("metrics", tenantStr).Inc()
-			p.bytesOut.WithLabelValues("metrics", tenantStr).Add(float64(n))
-		}
-	}
+	// if we are here, we retried and failed
+	logger.Warn().Msg("failed to push payload")
 }
 
 func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams []logproto.Stream) (int, error) {
@@ -169,11 +190,20 @@ func (p *Publisher) pushMetrics(ctx context.Context, client *prom.Client, metric
 	return len(*buf), nil
 }
 
-func (p *Publisher) getClient(ctx context.Context, tenantId int64) (*remoteTarget, error) {
-	p.clientsMutex.Lock()
+func (p *Publisher) getClient(ctx context.Context, tenantId int64, newClient bool) (*remoteTarget, error) {
+	var (
+		client *remoteTarget
+		found  bool
+	)
 
-	client, found := p.clients[tenantId]
+	p.clientsMutex.Lock()
+	if newClient {
+		delete(p.clients, tenantId)
+	} else {
+		client, found = p.clients[tenantId]
+	}
 	p.clientsMutex.Unlock()
+
 	if found {
 		return client, nil
 	}
