@@ -25,32 +25,53 @@ import (
 
 const maxErrMsgLen = 256
 
-var minBackoff = 30 * time.Millisecond
-var maxBackoff = 100 * time.Millisecond
+var (
+	maxRetries = 10
+	minBackoff = 30 * time.Millisecond
+	maxBackoff = 250 * time.Millisecond
+)
 
 type recoverableError struct {
 	error
 }
 
-// sendSamples to the remote storage with backoff for recoverable errors.
-func SendSamplesWithBackoff(ctx context.Context, client *Client, samples []prompb.TimeSeries, buf *[]byte) error {
-	backoff := minBackoff
-	req, _, err := buildTimeSeriesWriteRequest(samples, *buf)
-	*buf = req
-	if err != nil {
-		// Failing to build the write request is non-recoverable, since it will
-		// only error if marshaling the proto to bytes fails.
-		return err
+type httpError struct {
+	StatusCode int
+	Status     string
+	error
+}
+
+func IsHttpUnauthorized(err error) bool {
+	for ; err != nil; err = errors.Unwrap(err) {
+		err2, ok := err.(*httpError)
+		if ok && err2.StatusCode == http.StatusUnauthorized {
+			return true
+		}
 	}
 
-	for {
+	return false
+}
+
+func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte) error {
+	clampBackoff := func(a time.Duration) time.Duration {
+		if a > maxBackoff {
+			return maxBackoff
+		}
+		return a
+	}
+
+	var err error
+
+	backoff := minBackoff
+
+	for retries := maxRetries; retries > 0; {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
 
-		err := client.Store(ctx, req)
+		err = client.Store(ctx, req)
 
 		if err == nil {
 			return nil
@@ -60,12 +81,28 @@ func SendSamplesWithBackoff(ctx context.Context, client *Client, samples []promp
 			return err
 		}
 
-		time.Sleep(backoff)
-		backoff = backoff * 2
-		if backoff > maxBackoff {
-			backoff = maxBackoff
+		retries--
+
+		if retries > 0 {
+			time.Sleep(backoff)
+			backoff = clampBackoff(2 * backoff)
 		}
 	}
+
+	return err
+}
+
+// sendSamples to the remote storage with backoff for recoverable errors.
+func SendSamplesWithBackoff(ctx context.Context, client *Client, samples []prompb.TimeSeries, buf *[]byte) error {
+	req, _, err := buildTimeSeriesWriteRequest(samples, *buf)
+	*buf = req
+	if err != nil {
+		// Failing to build the write request is non-recoverable, since it will
+		// only error if marshaling the proto to bytes fails.
+		return err
+	}
+
+	return SendBytesWithBackoff(ctx, client, req)
 }
 
 func buildTimeSeriesWriteRequest(samples []prompb.TimeSeries, buf []byte) ([]byte, int64, error) {
@@ -337,7 +374,11 @@ func (c *Client) Store(ctx context.Context, req []byte) error {
 		if scanner.Scan() {
 			line = scanner.Text()
 		}
-		err = errors.Errorf("server returned HTTP status %s: %s", httpResp.Status, line)
+		err = &httpError{
+			Status:     httpResp.Status,
+			StatusCode: httpResp.StatusCode,
+			error:      errors.Errorf("server returned HTTP status %s: %s", httpResp.Status, line),
+		}
 	}
 	if httpResp.StatusCode/100 == 5 {
 		return recoverableError{err}
