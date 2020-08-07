@@ -30,21 +30,25 @@ var (
 // running on that probe and it manages the configuration for
 // blackbox-exporter that corresponds to the collection of scrapers.
 type Updater struct {
-	api                 apiInfo
-	logger              zerolog.Logger
-	publishCh           chan<- pusher.Payload
-	probe               *sm.Probe
-	scrapersMutex       sync.Mutex
-	scrapers            map[int64]*scraper.Scraper
+	api           apiInfo
+	logger        zerolog.Logger
+	publishCh     chan<- pusher.Payload
+	probe         *sm.Probe
+	scrapersMutex sync.Mutex
+	scrapers      map[int64]*scraper.Scraper
+	metrics       metrics
+}
+
+type apiInfo struct {
+	conn *grpc.ClientConn
+}
+
+type metrics struct {
 	changesCounter      *prometheus.CounterVec
 	changeErrorsCounter *prometheus.CounterVec
 	runningScrapers     *prometheus.GaugeVec
 	scrapesCounter      *prometheus.CounterVec
 	scrapeErrorCounter  *prometheus.CounterVec
-}
-
-type apiInfo struct {
-	conn *grpc.ClientConn
 }
 
 type TimeSeries = []prompb.TimeSeries
@@ -124,14 +128,16 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 		api: apiInfo{
 			conn: conn,
 		},
-		logger:              logger,
-		publishCh:           publishCh,
-		scrapers:            make(map[int64]*scraper.Scraper),
-		changesCounter:      changesCounter,
-		changeErrorsCounter: changeErrorsCounter,
-		runningScrapers:     runningScrapers,
-		scrapesCounter:      scrapesCounter,
-		scrapeErrorCounter:  scrapeErrorCounter,
+		logger:    logger,
+		publishCh: publishCh,
+		scrapers:  make(map[int64]*scraper.Scraper),
+		metrics: metrics{
+			changesCounter:      changesCounter,
+			changeErrorsCounter: changeErrorsCounter,
+			runningScrapers:     runningScrapers,
+			scrapesCounter:      scrapesCounter,
+			scrapeErrorCounter:  scrapeErrorCounter,
+		},
 	}, nil
 }
 
@@ -275,7 +281,7 @@ func (c *Updater) processChanges(ctx context.Context, cc sm.Checks_GetChangesCli
 }
 
 func (c *Updater) handleCheckAdd(ctx context.Context, check sm.Check) error {
-	c.changesCounter.WithLabelValues("add").Inc()
+	c.metrics.changesCounter.WithLabelValues("add").Inc()
 
 	if err := check.Validate(); err != nil {
 		return fmt.Errorf("invalid check: %w", err)
@@ -297,7 +303,7 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check sm.Check) error {
 }
 
 func (c *Updater) handleCheckUpdate(ctx context.Context, check sm.Check) error {
-	c.changesCounter.WithLabelValues("update").Inc()
+	c.metrics.changesCounter.WithLabelValues("update").Inc()
 
 	if err := check.Validate(); err != nil {
 		return fmt.Errorf("invalid check: %w", err)
@@ -325,13 +331,13 @@ func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check sm.Check)
 	checkType := scraper.CheckType()
 	delete(c.scrapers, check.Id)
 
-	c.runningScrapers.WithLabelValues(checkType).Dec()
+	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
 
 	return c.addAndStartScraperWithLock(ctx, check)
 }
 
 func (c *Updater) handleCheckDelete(ctx context.Context, check sm.Check) error {
-	c.changesCounter.WithLabelValues("delete").Inc()
+	c.metrics.changesCounter.WithLabelValues("delete").Inc()
 
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
@@ -347,7 +353,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check sm.Check) error {
 
 	delete(c.scrapers, check.Id)
 
-	c.runningScrapers.WithLabelValues(checkType).Dec()
+	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
 
 	return nil
 }
@@ -380,7 +386,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes []sm.CheckChange
 		switch change.Operation {
 		case sm.CheckOperation_CHECK_ADD:
 			if err := c.handleInitialChangeAddWithLock(ctx, change.Check); err != nil {
-				c.changeErrorsCounter.WithLabelValues("add").Inc()
+				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
 				c.logger.Error().
 					Err(err).
 					Int64("check_id", change.Check.Id).
@@ -414,7 +420,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes []sm.CheckChange
 
 		delete(c.scrapers, id)
 
-		c.runningScrapers.WithLabelValues(checkType).Dec()
+		c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
 	}
 }
 
@@ -441,14 +447,14 @@ func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check sm.C
 		return c.handleCheckUpdateWithLock(ctx, check)
 	}
 
-	c.changesCounter.WithLabelValues("add").Inc()
+	c.metrics.changesCounter.WithLabelValues("add").Inc()
 
 	if err := check.Validate(); err != nil {
 		return err
 	}
 
 	if err := c.addAndStartScraperWithLock(ctx, check); err != nil {
-		c.changeErrorsCounter.WithLabelValues("add").Inc()
+		c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
 		return err
 	}
 
@@ -462,19 +468,19 @@ func (c *Updater) handleChangeBatch(ctx context.Context, changes []sm.CheckChang
 		switch change.Operation {
 		case sm.CheckOperation_CHECK_ADD:
 			if err := c.handleCheckAdd(ctx, change.Check); err != nil {
-				c.changeErrorsCounter.WithLabelValues("add").Inc()
+				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
 				c.logger.Error().Err(err).Msg("handling check add")
 			}
 
 		case sm.CheckOperation_CHECK_UPDATE:
 			if err := c.handleCheckUpdate(ctx, change.Check); err != nil {
-				c.changeErrorsCounter.WithLabelValues("update").Inc()
+				c.metrics.changeErrorsCounter.WithLabelValues("update").Inc()
 				c.logger.Error().Err(err).Msg("handling check update")
 			}
 
 		case sm.CheckOperation_CHECK_DELETE:
 			if err := c.handleCheckDelete(ctx, change.Check); err != nil {
-				c.changeErrorsCounter.WithLabelValues("delete").Inc()
+				c.metrics.changeErrorsCounter.WithLabelValues("delete").Inc()
 				c.logger.Error().Err(err).Msg("handling check delete")
 			}
 		}
@@ -486,12 +492,12 @@ func (c *Updater) handleChangeBatch(ctx context.Context, changes []sm.CheckChang
 //
 // This MUST be called with the scrapersMutex held.
 func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check) error {
-	scrapeCounter := c.scrapesCounter.With(prometheus.Labels{
+	scrapeCounter := c.metrics.scrapesCounter.With(prometheus.Labels{
 		"check_id": strconv.FormatInt(check.Id, 10),
 		"probe":    c.probe.Name,
 	})
 
-	scrapeErrorCounter, err := c.scrapeErrorCounter.CurryWith(prometheus.Labels{
+	scrapeErrorCounter, err := c.metrics.scrapeErrorCounter.CurryWith(prometheus.Labels{
 		"check_id": strconv.FormatInt(check.Id, 10),
 		"probe":    c.probe.Name,
 	})
@@ -508,7 +514,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 
 	go scraper.Run(ctx)
 
-	c.runningScrapers.WithLabelValues(scraper.CheckType()).Inc()
+	c.metrics.runningScrapers.WithLabelValues(scraper.CheckType()).Inc()
 
 	return nil
 }
