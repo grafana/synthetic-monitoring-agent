@@ -33,6 +33,8 @@ SH_FILES ?= $(shell find ./scripts -name *.sh)
 
 COMMANDS := $(shell $(GO) list $(GO_BUILD_MOD_FLAGS) ./cmd/...)
 
+VERSION_PKG := $(shell $(GO) list $(GO_BUILD_MOD_FLAGS) ./internal/version)
+
 .DEFAULT_GOAL := all
 
 .PHONY: all
@@ -170,6 +172,6 @@ define build_go_command
 	$(V) $(GO) build \
 		$(GO_BUILD_FLAGS) \
 		-o '$(DISTDIR)/$(notdir $(1))' \
-		-ldflags '-X "main.commit=$(BUILD_COMMIT)" -X "main.version=$(BUILD_VERSION)" -X "main.buildstamp=$(BUILD_STAMP)"' \
+		-ldflags '-X "$(VERSION_PKG).commit=$(BUILD_COMMIT)" -X "$(VERSION_PKG).version=$(BUILD_VERSION)" -X "$(VERSION_PKG).buildstamp=$(BUILD_STAMP)"' \
 		'$(1)'
 endef

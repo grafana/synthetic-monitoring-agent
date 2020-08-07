@@ -12,6 +12,7 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
+	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
@@ -49,6 +50,7 @@ type metrics struct {
 	runningScrapers     *prometheus.GaugeVec
 	scrapesCounter      *prometheus.CounterVec
 	scrapeErrorCounter  *prometheus.CounterVec
+	probeInfo           *prometheus.GaugeVec
 }
 
 type TimeSeries = []prompb.TimeSeries
@@ -124,6 +126,22 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 		return nil, err
 	}
 
+	probeInfoGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "sm_agent",
+		Name:      "info",
+		Help:      "Agent information.",
+	}, []string{
+		"id",
+		"name",
+		"version",
+		"commit",
+		"buildstamp",
+	})
+
+	if err := promRegisterer.Register(probeInfoGauge); err != nil {
+		return nil, err
+	}
+
 	return &Updater{
 		api: apiInfo{
 			conn: conn,
@@ -137,6 +155,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 			runningScrapers:     runningScrapers,
 			scrapesCounter:      scrapesCounter,
 			scrapeErrorCounter:  scrapeErrorCounter,
+			probeInfo:           probeInfoGauge,
 		},
 	}, nil
 }
@@ -235,6 +254,18 @@ func (c *Updater) loop(ctx context.Context) error {
 	c.probe = &result.Probe
 
 	c.logger.Info().Int64("probe id", c.probe.Id).Str("probe name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
+
+	// this is constant throughout the life of the probe, but since
+	// we don't know the probe's id or name until this point, set it
+	// here.
+	c.metrics.probeInfo.Reset()
+	c.metrics.probeInfo.With(map[string]string{
+		"id":         strconv.FormatInt(c.probe.Id, 10),
+		"name":       c.probe.Name,
+		"version":    version.Short(),
+		"commit":     version.Commit(),
+		"buildstamp": version.Buildstamp(),
+	}).Set(1)
 
 	cc, err := client.GetChanges(ctx, &sm.Void{})
 	if err != nil {

@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -69,7 +70,7 @@ func run(args []string, stdout io.Writer) error {
 		return signalHandler(ctx, zl.With().Str("subsystem", "signal handler").Logger())
 	})
 
-	zl.Info().Str("version", version).Str("commit", commit).Str("buildstamp", buildstamp).Msg("starting")
+	zl.Info().Str("version", version.Short()).Str("commit", version.Commit()).Str("buildstamp", version.Buildstamp()).Msg("starting")
 
 	promRegisterer := prometheus.NewRegistry()
 
