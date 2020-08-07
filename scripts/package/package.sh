@@ -12,6 +12,9 @@ if [ $(id -u) -gt 0 ]; then
   SUDO="sudo"
 fi
 
+# Update apt's package list (security packages might have changed updated)
+$SUDO apt-get update
+
 # Install fpm if needed
 if [ ! -x "$(which fpm)" ] ; then
   $SUDO apt-get install -y ruby ruby-dev rubygems build-essential
