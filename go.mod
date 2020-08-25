@@ -27,6 +27,7 @@ require (
 	// at, you get a different error (see below).
 	github.com/prometheus/prometheus v1.8.2-0.20200213233353-b90be6f32a33
 	github.com/rs/zerolog v1.18.0
+	golang.org/x/net v0.0.0-20200822124328-c89045814202 // indirect
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	google.golang.org/grpc v1.26.0
 )
