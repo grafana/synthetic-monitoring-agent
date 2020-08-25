@@ -771,7 +771,13 @@ func pingSettingsToBBEModule(settings *sm.PingSettings) bbeconfig.Module {
 
 	m.ICMP.PayloadSize = int(settings.PayloadSize)
 
-	m.ICMP.DontFragment = settings.DontFragment
+	// TODO(mem): uncomment this.
+	//
+	// DontFragment is causing a panic inside BBE. Disable this
+	// temporarely until we can find a fix.
+	//
+	// m.ICMP.DontFragment = settings.DontFragment
+	m.ICMP.DontFragment = false
 
 	return m
 }
