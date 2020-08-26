@@ -19,6 +19,13 @@ jobs:
       - image: circleci/golang:1.13.10
     steps:
       - checkout
+      - run: make build
+
+  deploy:
+    docker:
+      - image: circleci/golang:1.13.10
+    steps:
+      - checkout
       - setup_remote_docker
       - run:
           name: build docker image
@@ -28,22 +35,72 @@ jobs:
           command: make package
       - deploy:
           command: |
-            if [ "${CIRCLE_BRANCH}" == "master" ]; then
-              docker login -u $DOCKER_USER -p "$DOCKER_PASS"
-              make docker-push
-              export GCS_KEY_DIR=$(pwd)/keys
-              mkdir -p $GCS_KEY_DIR
-              echo "$GCS_KEY" > $GCS_KEY_DIR/gcs-key.json
-              make publish-packages
-            fi
+            docker login -u $DOCKER_USER -p "$DOCKER_PASS"
+            make docker-push
+            export GCS_KEY_DIR=$(pwd)/keys
+            mkdir -p $GCS_KEY_DIR
+            echo "$GCS_KEY" > $GCS_KEY_DIR/gcs-key.json
+            make publish-packages
 
 workflows:
   version: 2
-  test_and_build:
+
+  test-and-build-everything:
     jobs:
-      - lint
-      - test
+      - lint:
+          filters:
+            branches:
+              ignore: master
+      - test:
+          filters:
+            branches:
+              ignore: master
       - build:
           requires:
             - test
             - lint
+          filters:
+            branches:
+              ignore: master
+
+  test-and-deploy-master:
+    jobs:
+      - lint:
+          filters:
+            branches:
+              only: master
+      - test:
+          filters:
+            branches:
+              only: master
+      - deploy:
+          requires:
+            - test
+            - lint
+          filters:
+            branches:
+              only: master
+
+  test-and-deploy-tagged:
+    jobs:
+      - lint:
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - test:
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - deploy:
+          requires:
+            - test
+            - lint
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
