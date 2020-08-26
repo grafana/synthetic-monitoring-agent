@@ -23,7 +23,7 @@ jobs:
           name: git fetch tags
           command: |
             git fetch origin --tags
-            git describe --dirty --tags --always
+            ./scripts/version
       - run: make build
 
   deploy:
@@ -36,7 +36,7 @@ jobs:
           name: git fetch tags
           command: |
             git fetch origin --tags
-            git describe --dirty --tags --always
+            ./scripts/version
       - run:
           name: build docker image
           command: make docker
