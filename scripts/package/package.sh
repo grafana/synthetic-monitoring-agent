@@ -26,7 +26,7 @@ BUILD_ROOT=$CODE_DIR/dist/build
 mkdir -p ${BUILD_ROOT}
 
 ARCH="$(uname -m)"
-VERSION=$(git describe --long --always)
+VERSION="$(${CODE_DIR}/scripts/version)"
 ## trim "v" prefix of version
 VERSION=${VERSION#?}
 CONTACT="Grafana Labs <hello@grafana.com>"

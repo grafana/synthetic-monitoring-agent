@@ -5,7 +5,7 @@
 ROOTDIR := $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 DISTDIR := $(abspath $(ROOTDIR)/dist)
 
-BUILD_VERSION := $(shell git describe --dirty --tags --always)
+BUILD_VERSION := $(shell $(ROOTDIR)/scripts/version)
 BUILD_COMMIT := $(shell git rev-parse HEAD^{commit})
 BUILD_STAMP := $(shell date --utc --rfc-3339=seconds)
 
