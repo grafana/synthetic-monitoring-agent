@@ -638,8 +638,8 @@ github.com/posener/complete v1.1.1/go.mod h1:em0nMJCgc9GFtwrmVmEMR/ZL6WyhyjMBndr
 github.com/prometheus/alertmanager v0.18.0/go.mod h1:WcxHBl40VSPuOaqWae6l6HpnEOVRIycEJ7i9iYkadEE=
 github.com/prometheus/alertmanager v0.19.0/go.mod h1:Eyp94Yi/T+kdeb2qvq66E3RGuph5T/jm/RBVh4yz1xo=
 github.com/prometheus/alertmanager v0.20.0/go.mod h1:9g2i48FAyZW6BtbsnvHtMHQXl2aVtrORKwKVCQ+nbrg=
-github.com/prometheus/blackbox_exporter v0.17.1-0.20200713103052-55c667ab4ce5 h1:CV9Uil9IfwPlyj6upRAPzMWE6xXfFswuw+VggO3grn4=
-github.com/prometheus/blackbox_exporter v0.17.1-0.20200713103052-55c667ab4ce5/go.mod h1:cwo6pb60ghYWFCGtAdq/cavlA4WSQiDCPygeLja+RyY=
+github.com/prometheus/blackbox_exporter v0.17.1-0.20200829081835-daa62bf75457 h1:nspCS0D4C7eX5fra7naBcXBuBFH2ad4gfEEndz/MMcA=
+github.com/prometheus/blackbox_exporter v0.17.1-0.20200829081835-daa62bf75457/go.mod h1:cwo6pb60ghYWFCGtAdq/cavlA4WSQiDCPygeLja+RyY=
 github.com/prometheus/client_golang v0.8.0/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
 github.com/prometheus/client_golang v0.9.2/go.mod h1:OsXs2jCmiKlQ1lTBmv21f2mNfw4xf/QclQDMrYNZzcM=
