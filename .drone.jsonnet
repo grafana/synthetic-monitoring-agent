@@ -60,7 +60,7 @@ local vault_secret(name, vault_path, key) = {
     step('publish packages', [
       'export GCS_KEY_DIR=$(pwd)/keys',
       'mkdir -p $GCS_KEY_DIR',
-      'echo "$GCS_KEY" > $GCS_KEY_DIR/gcs-key.json',
+      'echo "$GCS_KEY" | base64 -d > $GCS_KEY_DIR/gcs-key.json',
       'make publish-packages',
       ])
       + {environment: {
