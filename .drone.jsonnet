@@ -12,6 +12,9 @@ local pipeline(name, steps=[]) = {
   steps: [step('runner identification', ['echo $DRONE_RUNNER_NAME'], 'alpine')] + steps,
 };
 
+local masterOnly = {
+  when: {branch:['master']},
+};
 
 [
   pipeline('build', [
@@ -22,5 +25,9 @@ local pipeline(name, steps=[]) = {
       './scripts/version',
       'make build',
     ]),
+    step('deploy',[
+      'git fetch origin --tags',
+      './scripts/version',
+    ]) + masterOnly,
   ])
 ]
