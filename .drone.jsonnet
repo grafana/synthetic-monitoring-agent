@@ -58,7 +58,12 @@ local vault_secret(name, vault_path, key) = {
     }
     + masterOnly,
     step('package', ['make package']) + prOnly,
-    step('publish packages', ['make publish-packages']),
+    step('publish packages', [
+      'export GCS_KEY_DIR=$(pwd)/keys',
+      'mkdir -p $GCS_KEY_DIR',
+      'echo "$GCS_KEY" > $GCS_KEY_DIR/gcs-key.json',
+      'make publish-packages',
+      ]),
   ]),
 
   vault_secret('docker_username','infra/data/ci/docker_hub', 'username'),
