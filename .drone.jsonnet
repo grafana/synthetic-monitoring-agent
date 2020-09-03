@@ -13,7 +13,7 @@ local pipeline(name, steps=[]) = {
 };
 
 local masterOnly = {
-  when: {branch:['master']},
+  when: {branch:['drone']},
 };
 
 [
@@ -25,9 +25,11 @@ local masterOnly = {
       './scripts/version',
       'make build',
     ]),
-    step('deploy',[
+    step('package',[
       'git fetch origin --tags',
       './scripts/version',
-    ]) + masterOnly,
+      'make docker',
+      'make package'
+    ])
   ])
 ]
