@@ -20,7 +20,7 @@ local repo = 'grafana/synthetic-monitoring-agent';
 
 [
   pipeline('build', [
-    step('lint', ['make lint']),
+    step('lint', ['echo $GOCACHE', 'ls $GOCACHE', 'make lint']),
     step('test', ['make test']),
     step('build', [
       'git fetch origin --tags',
