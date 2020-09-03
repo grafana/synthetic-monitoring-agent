@@ -1,9 +1,8 @@
-local step(name, commands, image='golang:1.13.10') = {
+local step(name, commands, image='circleci/golang:1.13.10') = {
   name: name,
   commands: commands,
   image: image,
 };
-
 
 local pipeline(name, steps=[]) = {
   kind: 'pipeline',
