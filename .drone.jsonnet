@@ -16,7 +16,7 @@ local masterOnly = {
   when: {branch:['drone']},
 };
 
-local repo = 'grafana/synthetic-monitoring-agent'
+local repo = 'grafana/synthetic-monitoring-agent';
 
 [
   pipeline('build', [
