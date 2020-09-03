@@ -15,6 +15,10 @@ local masterOnly = {
   when: {branch:['master']},
 };
 
+local prOnly = {
+  when: {event: ['pull_request']},
+},
+
 local repo = 'grafana/synthetic-monitoring-agent';
 
 local vault_secret(name, vault_path, key) = {
@@ -53,7 +57,7 @@ local vault_secret(name, vault_path, key) = {
         }
     }
     + masterOnly,
-    step('package', ['make package']),
+    step('package', ['make package']) + prOnly,
     step('publish packages', ['make publish-packages']),
   ]),
 
