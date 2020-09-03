@@ -18,18 +18,18 @@ local masterOnly = {
 
 [
   pipeline('build', [
-    step('lint', ['make lint']),
-    step('test', ['make test']),
-    step('build', [
-      'git fetch origin --tags',
-      './scripts/version',
-      'make build',
-    ]),
+    //step('lint', ['make lint']),
+    // step('test', ['make test']),
+    // step('build', [
+    //   'git fetch origin --tags',
+    //   './scripts/version',
+    //   'make build',
+    // ]),
     step('package',[
       'git fetch origin --tags',
       './scripts/version',
       'make docker',
       'make package'
-    ])
+    ],'circleci/golang:1.13.10')
   ])
 ]
