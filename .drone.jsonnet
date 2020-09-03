@@ -67,7 +67,7 @@ local vault_secret(name, vault_path, key) = {
           GCS_KEY:{from_secret: 'gcs_key'},
           GPG_PRIV_KEY:{from_secret: 'gpg_priv_key'},
         }}
-      + masterOnly,
+      ,
   ]),
 
   vault_secret('docker_username','infra/data/ci/docker_hub', 'username'),
