@@ -1,4 +1,4 @@
-local step(name, commands, image) = {
+local step(name, commands, image='golang:1.13.10') = {
   name: name,
   commands: commands,
   image: image,
@@ -15,6 +15,12 @@ local pipeline(name, steps=[]) = {
 
 [
   pipeline('build', [
-    step('lint', ['make lint'], 'golang:1.15'),
+    step('lint', ['make lint']),
+    step('test', ['make test']),
+    step('build', [
+      'git fetch origin --tags',
+      './scripts/version',
+      'make build',
+    ]),
   ])
 ]
