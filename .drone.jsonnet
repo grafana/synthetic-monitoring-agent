@@ -23,6 +23,7 @@ local masterOnly = {
     step('build', [
       'git fetch origin --tags',
       './scripts/version',
+      './scripts/version > .tags', // save version in special file for docker plugin
       'make build',
     ]),
     step('docker',[],'plugins/docker')+{
