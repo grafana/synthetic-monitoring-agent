@@ -61,8 +61,7 @@ local vault_secret(name, vault_path, key) = {
       'export GCS_KEY_DIR=$(pwd)/keys',
       'mkdir -p $GCS_KEY_DIR',
       'echo "$GCS_KEY" > $GCS_KEY_DIR/gcs-key.json',
-      'cat $GCS_KEY_DIR/gcs-key.json | base64',
-      //'make publish-packages',
+      'make publish-packages',
       ])
       + {environment: {
           GCS_KEY:{from_secret: 'gcs_key'},
