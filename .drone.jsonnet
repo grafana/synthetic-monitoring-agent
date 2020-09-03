@@ -9,6 +9,10 @@ local pipeline(name, steps=[]) = {
   type: 'docker',
   name: name,
   steps: [step('runner identification', ['echo $DRONE_RUNNER_NAME'], 'alpine')] + steps,
+  trigger+: {
+    branch+: ['master'],
+    event+: ['push','pull_request'],
+  },
 };
 
 local masterOnly = {
