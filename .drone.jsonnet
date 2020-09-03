@@ -64,8 +64,8 @@ local vault_secret(name, vault_path, key) = {
       'make publish-packages',
       ])
       + {environment: {
-          GCS_KEY:{from_secret: 'gcs_key'}
-          GPG_PRIV_KEY:{from_secret: 'gpg_priv_key'}
+          GCS_KEY:{from_secret: 'gcs_key'},
+          GPG_PRIV_KEY:{from_secret: 'gpg_priv_key'},
         }}
       + masterOnly,
   ]),
