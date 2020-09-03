@@ -13,7 +13,7 @@ local pipeline(name, steps=[]) = {
 };
 
 local masterOnly = {
-  when: {branch:['drone']},
+  when: {branch:['master']},
 };
 
 local repo = 'grafana/synthetic-monitoring-agent';
@@ -34,8 +34,7 @@ local vault_secret(name, vault_path, key) = {
     step('build', [
       'git fetch origin --tags',
       './scripts/version',
-      //'./scripts/version > .tags', // save version in special file for docker plugin
-      'echo test > .tags',
+      './scripts/version > .tags', // save version in special file for docker plugin
       'make build',
     ]),
     // We can't use 'make docker' without making this repo priveleged in drone
