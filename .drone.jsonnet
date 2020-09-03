@@ -29,7 +29,7 @@ local vault_secret(name, vault_path, key) = {
 
 [
   pipeline('build', [
-    step('lint', ['echo $GOCACHE', 'ls $GOCACHE', 'make lint']),
+    step('lint', ['make lint']),
     step('test', ['make test']),
     step('build', [
       'git fetch origin --tags',
@@ -54,6 +54,7 @@ local vault_secret(name, vault_path, key) = {
         }
     }
     + masterOnly,
+    step('package', ['make package']),
   ]),
 
   vault_secret('docker_username','infra/data/ci/docker_hub', 'username'),
