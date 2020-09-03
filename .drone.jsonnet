@@ -67,12 +67,11 @@ local vault_secret(name, vault_path, key) = {
           GCS_KEY:{from_secret: 'gcs_key'},
           GPG_PRIV_KEY:{from_secret: 'gpg_priv_key'},
           PUBLISH_PROD_PKGS: "1",
-        }}
-      + masterOnly,
+        }},
   ]),
 
   vault_secret('docker_username','infra/data/ci/docker_hub', 'username'),
   vault_secret('docker_password','infra/data/ci/docker_hub', 'password'),
   vault_secret('gcs_key','infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'key'),
-  vault_secret('gpg_priv_key','infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'key'),
+  vault_secret('gpg_priv_key','infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'gpg_priv_key'),
 ]
