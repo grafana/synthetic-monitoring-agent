@@ -1,4 +1,4 @@
-local step(name, commands, image='circleci/golang:1.13.10') = {
+local step(name, commands, image='golang:1.13.10') = {
   name: name,
   commands: commands,
   image: image,
@@ -54,6 +54,7 @@ local vault_secret(name, vault_path, key) = {
     }
     + masterOnly,
     step('package', ['make package']),
+    step('publish packages', ['make publish-packages']),
   ]),
 
   vault_secret('docker_username','infra/data/ci/docker_hub', 'username'),
