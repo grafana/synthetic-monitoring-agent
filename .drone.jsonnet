@@ -18,6 +18,15 @@ local masterOnly = {
 
 local repo = 'grafana/synthetic-monitoring-agent';
 
+local vault_secret(name, vault_path, key) = {
+  kind: 'secret',
+  name: name,
+  get: {
+    path: vault_path,
+    name: key,
+  },
+};
+
 [
   pipeline('build', [
     step('lint', ['echo $GOCACHE', 'ls $GOCACHE', 'make lint']),
@@ -25,7 +34,8 @@ local repo = 'grafana/synthetic-monitoring-agent';
     step('build', [
       'git fetch origin --tags',
       './scripts/version',
-      './scripts/version > .tags', // save version in special file for docker plugin
+      //'./scripts/version > .tags', // save version in special file for docker plugin
+      'echo test > .tags',
       'make build',
     ]),
     // We can't use 'make docker' without making this repo priveleged in drone
@@ -40,8 +50,14 @@ local repo = 'grafana/synthetic-monitoring-agent';
     + {
         settings:{
           repo: repo,
+          username: {from_secret: 'docker_username'},
+          password: {from_secret: 'docker_password'},
         }
     }
     + masterOnly,
-  ])
+  ]),
+
+  vault_secret('docker_username','infra/data/ci/docker_hub', 'username'),
+  vault_secret('docker_password','infra/data/ci/docker_hub', 'password'),
+
 ]
