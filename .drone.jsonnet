@@ -18,18 +18,19 @@ local masterOnly = {
 
 [
   pipeline('build', [
-    //step('lint', ['make lint']),
-    // step('test', ['make test']),
-    // step('build', [
-    //   'git fetch origin --tags',
-    //   './scripts/version',
-    //   'make build',
-    // ]),
-    step('package',[
+    step('lint', ['make lint']),
+    step('test', ['make test']),
+    step('build', [
       'git fetch origin --tags',
       './scripts/version',
-      'make docker',
-      'make package'
-    ],'circleci/golang:1.13.10')
+      'make build',
+    ]),
+    step('docker',[],'plugins/docker')+{
+      settings:{
+        repo: 'grafana/synthetic-monitoring-agent',
+        tags: 'dronetest',
+        dry_run: 'true',
+      }
+    },
   ])
 ]
