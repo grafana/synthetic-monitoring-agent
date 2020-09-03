@@ -26,10 +26,11 @@ local masterOnly = {
       './scripts/version > .tags', // save version in special file for docker plugin
       'make build',
     ]),
+    // We can't use 'make docker' without making this repo priveleged in drone
+    // so we will use the native docker plugin instead for security.
     step('docker',[],'plugins/docker')+{
       settings:{
         repo: 'grafana/synthetic-monitoring-agent',
-        tags: 'dronetest',
         dry_run: 'true',
       }
     },
