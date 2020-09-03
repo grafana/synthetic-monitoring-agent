@@ -16,7 +16,7 @@ local pipeline(name, steps=[]) = {
 };
 
 local masterOnly = {
-  when: {branch:['master']},
+  when: {branch:['master'], event: ['push']},
 };
 
 local prOnly = {
