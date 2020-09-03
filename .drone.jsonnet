@@ -16,6 +16,8 @@ local masterOnly = {
   when: {branch:['drone']},
 };
 
+local repo = 'grafana/synthetic-monitoring-agent'
+
 [
   pipeline('build', [
     step('lint', ['make lint']),
@@ -28,11 +30,18 @@ local masterOnly = {
     ]),
     // We can't use 'make docker' without making this repo priveleged in drone
     // so we will use the native docker plugin instead for security.
-    step('docker',[],'plugins/docker')+{
+    step('docker build',[],'plugins/docker')+{
       settings:{
-        repo: 'grafana/synthetic-monitoring-agent',
+        repo: repo,
         dry_run: 'true',
       }
     },
+    step('docker push',[],'plugins/docker')
+    + {
+        settings:{
+          repo: repo,
+        }
+    }
+    + masterOnly,
   ])
 ]
