@@ -17,7 +17,7 @@ local masterOnly = {
 
 local prOnly = {
   when: {event: ['pull_request']},
-},
+};
 
 local repo = 'grafana/synthetic-monitoring-agent';
 
