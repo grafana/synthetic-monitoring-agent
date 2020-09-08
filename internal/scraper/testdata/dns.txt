@@ -1,0 +1,112 @@
+# HELP probe_dns_additional_rrs Returns number of entries in the additional resource record list
+# TYPE probe_dns_additional_rrs gauge
+probe_dns_additional_rrs 0
+# HELP probe_dns_answer_rrs Returns number of entries in the answer resource record list
+# TYPE probe_dns_answer_rrs gauge
+probe_dns_answer_rrs 2
+# HELP probe_dns_authority_rrs Returns number of entries in the authority resource record list
+# TYPE probe_dns_authority_rrs gauge
+probe_dns_authority_rrs 0
+# HELP probe_dns_duration_seconds Duration of DNS request by phase
+# TYPE probe_dns_duration_seconds gauge
+probe_dns_duration_seconds{phase="connect"} 7.3759e-05
+probe_dns_duration_seconds{phase="request"} 0.000465143
+probe_dns_duration_seconds{phase="resolve"} 2.1922e-05
+# HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
+# TYPE probe_dns_lookup_time_seconds gauge
+probe_dns_lookup_time_seconds 2.1922e-05
+# HELP probe_duration_seconds Returns how long the probe took to complete in seconds
+# TYPE probe_duration_seconds gauge
+probe_duration_seconds 0.001561165
+# HELP probe_ip_addr_hash Specifies the hash of IP address. It's useful to detect if the IP address changes.
+# TYPE probe_ip_addr_hash gauge
+probe_ip_addr_hash 1.768495365e+09
+# HELP probe_ip_protocol Specifies whether probe ip protocol is IP4 or IP6
+# TYPE probe_ip_protocol gauge
+probe_ip_protocol 6
+# HELP probe_success Displays whether or not the probe was a success
+# TYPE probe_success gauge
+probe_success 1
+# HELP sm_check_info Provides information about a single check configuration
+# TYPE sm_check_info gauge
+sm_check_info 1
+# HELP probe_all_duration_seconds Returns how long the probe took to complete in seconds (histogram)
+# TYPE probe_all_duration_seconds histogram
+probe_all_duration_seconds_bucket{le="0.005"} 1
+probe_all_duration_seconds_bucket{le="0.01"} 1
+probe_all_duration_seconds_bucket{le="0.025"} 1
+probe_all_duration_seconds_bucket{le="0.05"} 1
+probe_all_duration_seconds_bucket{le="0.1"} 1
+probe_all_duration_seconds_bucket{le="0.25"} 1
+probe_all_duration_seconds_bucket{le="0.5"} 1
+probe_all_duration_seconds_bucket{le="1"} 1
+probe_all_duration_seconds_bucket{le="2.5"} 1
+probe_all_duration_seconds_bucket{le="5"} 1
+probe_all_duration_seconds_bucket{le="10"} 1
+probe_all_duration_seconds_bucket{le="+Inf"} 1
+probe_all_duration_seconds_sum 0.001561165
+probe_all_duration_seconds_count 1
+# HELP probe_all_success Displays whether or not the probe was a success (summary)
+# TYPE probe_all_success summary
+probe_all_success_sum 1
+probe_all_success_count 1
+# HELP probe_dns_all_duration_seconds Duration of DNS request by phase (histogram)
+# TYPE probe_dns_all_duration_seconds histogram
+probe_dns_all_duration_seconds_bucket{phase="connect",le="0.005"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="0.01"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="0.025"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="0.05"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="0.1"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="0.25"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="0.5"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="1"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="2.5"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="5"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="10"} 1
+probe_dns_all_duration_seconds_bucket{phase="connect",le="+Inf"} 1
+probe_dns_all_duration_seconds_sum{phase="connect"} 7.3759e-05
+probe_dns_all_duration_seconds_count{phase="connect"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="0.005"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="0.01"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="0.025"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="0.05"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="0.1"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="0.25"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="0.5"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="1"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="2.5"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="5"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="10"} 1
+probe_dns_all_duration_seconds_bucket{phase="request",le="+Inf"} 1
+probe_dns_all_duration_seconds_sum{phase="request"} 0.000465143
+probe_dns_all_duration_seconds_count{phase="request"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="0.005"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="0.01"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="0.025"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="0.05"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="0.1"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="0.25"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="0.5"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="1"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="2.5"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="5"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="10"} 1
+probe_dns_all_duration_seconds_bucket{phase="resolve",le="+Inf"} 1
+probe_dns_all_duration_seconds_sum{phase="resolve"} 2.1922e-05
+probe_dns_all_duration_seconds_count{phase="resolve"} 1
+# HELP probe_dns_lookup_all_time_seconds Returns the time taken for probe dns lookup in seconds (histogram)
+# TYPE probe_dns_lookup_all_time_seconds histogram
+probe_dns_lookup_all_time_seconds_bucket{le="0.005"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.01"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.025"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.05"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.1"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.25"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.5"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="1"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="2.5"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="5"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="10"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="+Inf"} 1
+probe_dns_lookup_all_time_seconds_sum 2.1922e-05
+probe_dns_lookup_all_time_seconds_count 1
