@@ -10,6 +10,7 @@ require (
 	github.com/golang/snappy v0.0.1
 	github.com/grafana/loki v1.5.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.5 // indirect
+	github.com/miekg/dns v1.1.29
 	github.com/mmcloughlin/geohash v0.9.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/pkg/errors v0.9.1
@@ -27,6 +28,7 @@ require (
 	// at, you get a different error (see below).
 	github.com/prometheus/prometheus v1.8.2-0.20200213233353-b90be6f32a33
 	github.com/rs/zerolog v1.18.0
+	github.com/stretchr/testify v1.5.1
 	golang.org/x/net v0.0.0-20200822124328-c89045814202 // indirect
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	google.golang.org/grpc v1.26.0

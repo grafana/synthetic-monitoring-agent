@@ -37,10 +37,10 @@ var (
 	staleMarker float64 = math.Float64frombits(staleNaN)
 
 	probers = map[string]prober.ProbeFn{
-		"http": prober.ProbeHTTP,
-		"tcp":  prober.ProbeTCP,
-		"icmp": prober.ProbeICMP,
-		"dns":  prober.ProbeDNS,
+		ScraperTypeHTTP: prober.ProbeHTTP,
+		ScraperTypeTcp:  prober.ProbeTCP,
+		ScraperTypePing: prober.ProbeICMP,
+		ScraperTypeDNS:  prober.ProbeDNS,
 	}
 )
 
@@ -340,42 +340,13 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		target = addCacheBustParam(s.target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name)
 	}
 
-	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_success",
-		Help: "Displays whether or not the probe was a success",
-	})
-	probeDurationGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_duration_seconds",
-		Help: "Returns how long the probe took to complete in seconds",
-	})
-
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
 	bl := kitlog.NewLogfmtLogger(&logs)
 	sl := kitlog.With(bl, "ts", kitlog.DefaultTimestampUTC, "target", target)
 
-	_ = level.Info(sl).Log("msg", "Beginning check", "type", s.bbeModule.Prober, "timeout_seconds", s.bbeModule.Timeout.Seconds())
-
-	start := time.Now()
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(probeSuccessGauge)
-	registry.MustRegister(probeDurationGauge)
-
-	checkCtx, cancel := context.WithTimeout(ctx, s.bbeModule.Timeout)
-	defer cancel()
-
-	success := prober(checkCtx, target, *s.bbeModule, registry, sl)
-	duration := time.Since(start).Seconds()
-	probeDurationGauge.Set(duration)
-	if success {
-		probeSuccessGauge.Set(1)
-		_ = level.Info(sl).Log("msg", "Check succeeded", "duration_seconds", duration)
-	} else {
-		_ = level.Error(sl).Log("msg", "Check failed", "duration_seconds", duration)
-	}
-	mfs, err := registry.Gather()
+	success, mfs, err := getProbeMetrics(ctx, prober, target, s.bbeModule, s.buildCheckInfoLabels(), s.summaries, s.histograms, sl)
 	if err != nil {
-		err = fmt.Errorf(`msg="extracting data from blackbox-exporter" probe=%s target=%s job=%s err="%w"`, s.probe.Name, s.check.Target, s.check.Job, err)
 		return nil, err
 	}
 
@@ -388,26 +359,11 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		{name: "job", value: s.check.Job},
 	}
 
-	checkInfoLabels := s.buildCheckInfoLabels()
-
-	// timeseries need to differentiate between base labels and
-	// check info labels in order to be able to apply the later only
-	// to the sm_check_info metric
-	ts, err := s.extractTimeseries(t, mfs, metricLabels, checkInfoLabels)
+	ts := s.extractTimeseries(t, mfs, metricLabels)
 
 	successValue := "1"
-
-	switch {
-	case err == nil:
-		// OK, value already set
-
-	case errors.Is(err, errCheckFailed):
-		// probe failed
+	if !success {
 		successValue = "0"
-
-	default:
-		// something else failed
-		return nil, err
 	}
 
 	// GrafanaCloud loki limits log entries to 15 labels.
@@ -427,7 +383,116 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// loki does not support joins
 	streams := s.extractLogs(t, logs.Bytes(), logLabels)
 
-	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, err
+	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, nil
+}
+
+func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, module *bbeconfig.Module, checkInfoLabels map[string]string, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger kitlog.Logger) (bool, []*dto.MetricFamily, error) {
+	registry := prometheus.NewRegistry()
+
+	success := runProber(ctx, prober, target, module, registry, checkInfoLabels, logger)
+
+	mfs, err := registry.Gather()
+	if err != nil {
+		return success, nil, fmt.Errorf(`extracting data from blackbox-exporter: %w`, err)
+	}
+
+	registry = prometheus.NewRegistry()
+
+	if err := getDerivedMetrics(mfs, summaries, histograms, registry); err != nil {
+		return success, nil, fmt.Errorf(`getting derived metrics: %w`, err)
+	}
+
+	dmfs, err := registry.Gather()
+	if err != nil {
+		return success, nil, fmt.Errorf(`extracting derived metrics: %w`, err)
+	}
+
+	mfs = append(mfs, dmfs...)
+
+	return success, mfs, nil
+}
+
+func runProber(ctx context.Context, prober prober.ProbeFn, target string, module *bbeconfig.Module, registry *prometheus.Registry, checkInfoLabels map[string]string, logger kitlog.Logger) bool {
+	start := time.Now()
+
+	_ = level.Info(logger).Log("msg", "Beginning check", "type", module.Prober, "timeout_seconds", module.Timeout.Seconds())
+
+	checkCtx, cancel := context.WithTimeout(ctx, module.Timeout)
+	defer cancel()
+
+	success := prober(checkCtx, target, *module, registry, logger)
+
+	duration := time.Since(start).Seconds()
+
+	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_success",
+		Help: "Displays whether or not the probe was a success",
+	})
+	probeDurationGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_duration_seconds",
+		Help: "Returns how long the probe took to complete in seconds",
+	})
+	smCheckInfo := prometheus.NewGauge(prometheus.GaugeOpts{
+		Name:        "sm_check_info",
+		Help:        "Provides information about a single check configuration",
+		ConstLabels: checkInfoLabels,
+	})
+
+	registry.MustRegister(probeSuccessGauge)
+	registry.MustRegister(probeDurationGauge)
+	registry.MustRegister(smCheckInfo)
+
+	probeDurationGauge.Set(duration)
+
+	if success {
+		probeSuccessGauge.Set(1)
+		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", duration)
+	} else {
+		probeSuccessGauge.Set(0)
+		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", duration)
+	}
+
+	smCheckInfo.Set(1)
+
+	return success
+}
+
+func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, registry *prometheus.Registry) error {
+	for _, mf := range mfs {
+		switch {
+		case mf.GetType() == dto.MetricType_GAUGE && mf.GetName() == "probe_success":
+			derivedMetricName := "probe_all_success"
+
+			for _, metric := range mf.GetMetric() {
+				_, err := updateSummaryFromMetric(derivedMetricName, mf.GetHelp(), metric, summaries, registry)
+				if err != nil {
+					return err
+				}
+			}
+
+		case mf.GetType() == dto.MetricType_GAUGE:
+			suffixes := []string{"_duration_seconds", "_time_seconds"}
+
+			metricName := mf.GetName()
+
+			for _, suffix := range suffixes {
+				if strings.HasSuffix(metricName, suffix) {
+					derivedMetricName := strings.TrimSuffix(metricName, suffix) + "_all" + suffix
+
+					for _, metric := range mf.GetMetric() {
+						_, err := updateHistogramFromMetric(derivedMetricName, mf.GetHelp(), metric, histograms, registry)
+						if err != nil {
+							return err
+						}
+					}
+
+					break
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair) Streams {
@@ -493,62 +558,39 @@ RECORD:
 	}
 }
 
-func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels, checkInfoLabels []labelPair) (TimeSeries, error) {
+func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair) TimeSeries {
+	return extractTimeseries(t, metrics, sharedLabels, s.summaries, s.histograms, s.logger)
+}
+
+func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
 	metricLabels := make([]prompb.Label, 0, len(sharedLabels))
 	for _, label := range sharedLabels {
 		metricLabels = append(metricLabels, prompb.Label{Name: label.name, Value: label.value})
 	}
 
-	checkInfoMetric := makeCheckInfoMetrics(t, sharedLabels, checkInfoLabels)
-
-	ts := []prompb.TimeSeries{checkInfoMetric}
-	var checkErr error
+	var ts []prompb.TimeSeries
 	for _, mf := range metrics {
-		// got metrics
 		mName := mf.GetName()
 		mType := mf.GetType()
 
 		for _, m := range mf.GetMetric() {
 			ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
-
-			switch {
-			case mName == "probe_success" && mType == dto.MetricType_GAUGE:
-				if m.GetGauge().GetValue() == 0 {
-					// return an error to the caller, signalling that the check failed.
-					s.logger.Info().Err(errCheckFailed).Msg("check failed")
-					checkErr = errCheckFailed
-				}
-
-				// derive a summary from this metric
-				dName, dm, err := updateSummaryFromMetric(mName, m, s.summaries)
-				if err != nil {
-					s.logger.Warn().Err(err).Str("name", mName).Interface("metric", m).Msg("updating summary from metric")
-				} else {
-					ts = appendDtoToTimeseries(ts, t, dName, metricLabels, dto.MetricType_SUMMARY, dm)
-				}
-
-			case mType == dto.MetricType_GAUGE && strings.HasSuffix(mName, "_seconds"):
-				// derive a histogram from this metric
-				dName, dm, err := updateHistogramFromMetric(mName, m, s.histograms)
-				if err != nil {
-					s.logger.Warn().Err(err).Str("name", mName).Interface("metric", m).Msg("updating histogram from metric")
-				} else {
-					ts = appendDtoToTimeseries(ts, t, dName, metricLabels, dto.MetricType_HISTOGRAM, dm)
-				}
-			}
 		}
 	}
-	return ts, checkErr
+
+	return ts
 }
 
-func (s Scraper) buildCheckInfoLabels() []labelPair {
-	labels := []labelPair{
-		{name: "check_name", value: s.checkName},
-		{name: "region", value: s.probe.Region},
-		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
-		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
+func (s Scraper) buildCheckInfoLabels() map[string]string {
+	labels := map[string]string{
+		"check_name": s.checkName,
+		"region":     s.probe.Region,
+		"frequency":  strconv.FormatInt(s.check.Frequency, 10),
+		"geohash":    geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude)),
 	}
-	labels = append(labels, s.buildUserLabels()...)
+	for _, label := range s.buildUserLabels() {
+		labels[label.name] = label.value
+	}
 	return labels
 }
 
@@ -670,22 +712,6 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 	return ts
 }
 
-func makeCheckInfoMetrics(t time.Time, sharedLabels, checkInfoLabels []labelPair) prompb.TimeSeries {
-	labels := make([]prompb.Label, 0, 1+len(sharedLabels)+len(checkInfoLabels))
-
-	labels = append(labels, prompb.Label{Name: "__name__", Value: "sm_check_info"})
-
-	for _, label := range sharedLabels {
-		labels = append(labels, prompb.Label{Name: label.name, Value: label.value})
-	}
-
-	for _, label := range checkInfoLabels {
-		labels = append(labels, prompb.Label{Name: label.name, Value: label.value})
-	}
-
-	return makeTimeseries(t, 1, labels...)
-}
-
 type labelPair struct {
 	name  string
 	value string
@@ -722,18 +748,18 @@ func mapSettings(ctx context.Context, logger zerolog.Logger, target string, sett
 	// Map the change to a blackbox exporter module
 	switch {
 	case settings.Ping != nil:
-		return "ping", pingSettingsToBBEModule(settings.Ping), target, nil
+		return ScraperTypePing, pingSettingsToBBEModule(settings.Ping), target, nil
 
 	case settings.Http != nil:
 		m, err := httpSettingsToBBEModule(ctx, logger, settings.Http)
-		return "http", m, target, err
+		return ScraperTypeHTTP, m, target, err
 
 	case settings.Dns != nil:
-		return "dns", dnsSettingsToBBEModule(ctx, settings.Dns, target), settings.Dns.Server, nil
+		return ScraperTypeDNS, dnsSettingsToBBEModule(ctx, settings.Dns, target), settings.Dns.Server, nil
 
 	case settings.Tcp != nil:
 		m, err := tcpSettingsToBBEModule(ctx, logger, settings.Tcp)
-		return "tcp", m, target, err
+		return ScraperTypeTcp, m, target, err
 
 	default:
 		return "", bbeconfig.Module{}, "", fmt.Errorf("unsupported change")
@@ -762,7 +788,7 @@ func ipVersionToIpProtocol(v sm.IpVersion) (string, bool) {
 func pingSettingsToBBEModule(settings *sm.PingSettings) bbeconfig.Module {
 	var m bbeconfig.Module
 
-	m.Prober = "icmp"
+	m.Prober = ScraperTypePing
 
 	m.ICMP.IPProtocol, m.ICMP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
@@ -778,7 +804,7 @@ func pingSettingsToBBEModule(settings *sm.PingSettings) bbeconfig.Module {
 func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *sm.HttpSettings) (bbeconfig.Module, error) {
 	var m bbeconfig.Module
 
-	m.Prober = "http"
+	m.Prober = ScraperTypeHTTP
 
 	m.HTTP.IPProtocol, m.HTTP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
@@ -867,7 +893,7 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 func dnsSettingsToBBEModule(ctx context.Context, settings *sm.DnsSettings, target string) bbeconfig.Module {
 	var m bbeconfig.Module
 
-	m.Prober = "dns"
+	m.Prober = ScraperTypeDNS
 	m.DNS.IPProtocol, m.DNS.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
 	// BBE dns_probe actually tests the DNS server, so we
@@ -905,7 +931,7 @@ func dnsSettingsToBBEModule(ctx context.Context, settings *sm.DnsSettings, targe
 func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *sm.TcpSettings) (bbeconfig.Module, error) {
 	var m bbeconfig.Module
 
-	m.Prober = "tcp"
+	m.Prober = ScraperTypeTcp
 	m.TCP.IPProtocol, m.TCP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
 	m.TCP.SourceIPAddress = settings.SourceIpAddress
@@ -1001,7 +1027,7 @@ func newDataProvider(ctx context.Context, logger zerolog.Logger, basename string
 	return fn, nil
 }
 
-func updateSummaryFromMetric(mName string, m *dto.Metric, summaries map[uint64]prometheus.Summary) (string, *dto.Metric, error) {
+func updateSummaryFromMetric(mName, help string, m *dto.Metric, summaries map[uint64]prometheus.Summary, registry *prometheus.Registry) (prometheus.Summary, error) {
 	var value float64
 
 	switch {
@@ -1012,39 +1038,32 @@ func updateSummaryFromMetric(mName string, m *dto.Metric, summaries map[uint64]p
 		value = m.GetGauge().GetValue()
 
 	default:
-		return "", nil, errUnsupportedMetric
+		return nil, errUnsupportedMetric
 	}
 
 	mHash := hashMetricNameAndLabels(mName, m.GetLabel())
 
-	s, found := summaries[mHash]
+	summary, found := summaries[mHash]
 	if !found {
-		s = prometheus.NewSummary(prometheus.SummaryOpts{
-			// since we are not specifying objectives,
-			// reusing the name causes only two metrics to
-			// be added: name_sum and name_count; if we were
-			// to specify objectives here, the same metric
-			// name would be used, adding labels to specify
-			// the quantiles ("le") and we should transform
-			// the metric's name.
+		summary = prometheus.NewSummary(prometheus.SummaryOpts{
 			Name:        mName,
+			Help:        help + " (summary)",
 			ConstLabels: getLabels(m),
 		})
-		summaries[mHash] = s
+
+		if err := registry.Register(summary); err != nil {
+			return nil, err
+		}
+
+		summaries[mHash] = summary
 	}
 
-	s.Observe(value)
+	summary.Observe(value)
 
-	dm := new(dto.Metric)
-
-	if err := s.Write(dm); err != nil {
-		return "", nil, err
-	}
-
-	return mName, dm, nil
+	return summary, nil
 }
 
-func updateHistogramFromMetric(mName string, m *dto.Metric, histograms map[uint64]prometheus.Histogram) (string, *dto.Metric, error) {
+func updateHistogramFromMetric(mName, help string, m *dto.Metric, histograms map[uint64]prometheus.Histogram, registry *prometheus.Registry) (prometheus.Histogram, error) {
 	var value float64
 
 	switch {
@@ -1055,35 +1074,30 @@ func updateHistogramFromMetric(mName string, m *dto.Metric, histograms map[uint6
 		value = m.GetGauge().GetValue()
 
 	default:
-		return "", nil, errUnsupportedMetric
+		return nil, errUnsupportedMetric
 	}
 
 	mHash := hashMetricNameAndLabels(mName, m.GetLabel())
 
-	s, found := histograms[mHash]
+	histogram, found := histograms[mHash]
 	if !found {
-		s = prometheus.NewHistogram(prometheus.HistogramOpts{
-			// reusing the name causes three metrics to be
-			// added: name_sum, name_count and name_bucket.
-			// The original name is never published as part
-			// of the histogram, so it's safe to leave the
-			// original name unmodified.
+		histogram = prometheus.NewHistogram(prometheus.HistogramOpts{
 			Name:        mName,
+			Help:        help + " (histogram)",
 			ConstLabels: getLabels(m),
 			Buckets:     prometheus.DefBuckets,
 		})
-		histograms[mHash] = s
+
+		if err := registry.Register(histogram); err != nil {
+			return nil, err
+		}
+
+		histograms[mHash] = histogram
 	}
 
-	s.Observe(value)
+	histogram.Observe(value)
 
-	dm := new(dto.Metric)
-
-	if err := s.Write(dm); err != nil {
-		return "", nil, err
-	}
-
-	return mName, dm, nil
+	return histogram, nil
 }
 
 func hashMetricNameAndLabels(name string, dtoLabels []*dto.LabelPair) uint64 {

@@ -1,0 +1,69 @@
+# HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
+# TYPE probe_dns_lookup_time_seconds gauge
+probe_dns_lookup_time_seconds 1.3934e-05
+# HELP probe_duration_seconds Returns how long the probe took to complete in seconds
+# TYPE probe_duration_seconds gauge
+probe_duration_seconds 0.005230991
+# HELP probe_failed_due_to_regex Indicates if probe failed due to regex
+# TYPE probe_failed_due_to_regex gauge
+probe_failed_due_to_regex 0
+# HELP probe_ip_addr_hash Specifies the hash of IP address. It's useful to detect if the IP address changes.
+# TYPE probe_ip_addr_hash gauge
+probe_ip_addr_hash 5.83692603e+08
+# HELP probe_ip_protocol Specifies whether probe ip protocol is IP4 or IP6
+# TYPE probe_ip_protocol gauge
+probe_ip_protocol 4
+# HELP probe_ssl_earliest_cert_expiry Returns earliest SSL cert expiry date
+# TYPE probe_ssl_earliest_cert_expiry gauge
+probe_ssl_earliest_cert_expiry 3.6e+09
+# HELP probe_ssl_last_chain_expiry_timestamp_seconds Returns last SSL chain expiry in unixtime
+# TYPE probe_ssl_last_chain_expiry_timestamp_seconds gauge
+probe_ssl_last_chain_expiry_timestamp_seconds -6.21355968e+10
+# HELP probe_ssl_last_chain_info Contains SSL leaf certificate information
+# TYPE probe_ssl_last_chain_info gauge
+probe_ssl_last_chain_info{fingerprint_sha256="efc04a3afb86376b3a4db1b1d2f454afc60d192a573d78541836d83e4c849813"} 1
+# HELP probe_success Displays whether or not the probe was a success
+# TYPE probe_success gauge
+probe_success 1
+# HELP probe_tls_version_info Returns the TLS version used, or NaN when unknown
+# TYPE probe_tls_version_info gauge
+probe_tls_version_info{version="TLS 1.3"} 1
+# HELP sm_check_info Provides information about a single check configuration
+# TYPE sm_check_info gauge
+sm_check_info 1
+# HELP probe_all_duration_seconds Returns how long the probe took to complete in seconds (histogram)
+# TYPE probe_all_duration_seconds histogram
+probe_all_duration_seconds_bucket{le="0.005"} 0
+probe_all_duration_seconds_bucket{le="0.01"} 1
+probe_all_duration_seconds_bucket{le="0.025"} 1
+probe_all_duration_seconds_bucket{le="0.05"} 1
+probe_all_duration_seconds_bucket{le="0.1"} 1
+probe_all_duration_seconds_bucket{le="0.25"} 1
+probe_all_duration_seconds_bucket{le="0.5"} 1
+probe_all_duration_seconds_bucket{le="1"} 1
+probe_all_duration_seconds_bucket{le="2.5"} 1
+probe_all_duration_seconds_bucket{le="5"} 1
+probe_all_duration_seconds_bucket{le="10"} 1
+probe_all_duration_seconds_bucket{le="+Inf"} 1
+probe_all_duration_seconds_sum 0.005230991
+probe_all_duration_seconds_count 1
+# HELP probe_all_success Displays whether or not the probe was a success (summary)
+# TYPE probe_all_success summary
+probe_all_success_sum 1
+probe_all_success_count 1
+# HELP probe_dns_lookup_all_time_seconds Returns the time taken for probe dns lookup in seconds (histogram)
+# TYPE probe_dns_lookup_all_time_seconds histogram
+probe_dns_lookup_all_time_seconds_bucket{le="0.005"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.01"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.025"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.05"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.1"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.25"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.5"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="1"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="2.5"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="5"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="10"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="+Inf"} 1
+probe_dns_lookup_all_time_seconds_sum 1.3934e-05
+probe_dns_lookup_all_time_seconds_count 1

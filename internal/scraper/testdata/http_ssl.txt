@@ -1,0 +1,166 @@
+# HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
+# TYPE probe_dns_lookup_time_seconds gauge
+probe_dns_lookup_time_seconds 1.7726e-05
+# HELP probe_duration_seconds Returns how long the probe took to complete in seconds
+# TYPE probe_duration_seconds gauge
+probe_duration_seconds 0.007807906
+# HELP probe_failed_due_to_regex Indicates if probe failed due to regex
+# TYPE probe_failed_due_to_regex gauge
+probe_failed_due_to_regex 0
+# HELP probe_http_content_length Length of http content response
+# TYPE probe_http_content_length gauge
+probe_http_content_length 0
+# HELP probe_http_duration_seconds Duration of http request by phase, summed over all redirects
+# TYPE probe_http_duration_seconds gauge
+probe_http_duration_seconds{phase="connect"} 0.000226802
+probe_http_duration_seconds{phase="processing"} 0.000405109
+probe_http_duration_seconds{phase="resolve"} 1.7726e-05
+probe_http_duration_seconds{phase="tls"} 0.004935417
+probe_http_duration_seconds{phase="transfer"} 0.000167606
+# HELP probe_http_redirects The number of redirects
+# TYPE probe_http_redirects gauge
+probe_http_redirects 0
+# HELP probe_http_ssl Indicates if SSL was used for the final redirect
+# TYPE probe_http_ssl gauge
+probe_http_ssl 1
+# HELP probe_http_status_code Response HTTP status code
+# TYPE probe_http_status_code gauge
+probe_http_status_code 200
+# HELP probe_http_uncompressed_body_length Length of uncompressed response body
+# TYPE probe_http_uncompressed_body_length gauge
+probe_http_uncompressed_body_length 0
+# HELP probe_http_version Returns the version of HTTP of the probe response
+# TYPE probe_http_version gauge
+probe_http_version 1.1
+# HELP probe_ip_addr_hash Specifies the hash of IP address. It's useful to detect if the IP address changes.
+# TYPE probe_ip_addr_hash gauge
+probe_ip_addr_hash 9.9635399e+07
+# HELP probe_ip_protocol Specifies whether probe ip protocol is IP4 or IP6
+# TYPE probe_ip_protocol gauge
+probe_ip_protocol 4
+# HELP probe_ssl_earliest_cert_expiry Returns earliest SSL cert expiry in unixtime
+# TYPE probe_ssl_earliest_cert_expiry gauge
+probe_ssl_earliest_cert_expiry 3.6e+09
+# HELP probe_ssl_last_chain_expiry_timestamp_seconds Returns last SSL chain expiry in timestamp seconds
+# TYPE probe_ssl_last_chain_expiry_timestamp_seconds gauge
+probe_ssl_last_chain_expiry_timestamp_seconds -6.21355968e+10
+# HELP probe_ssl_last_chain_info Contains SSL leaf certificate information
+# TYPE probe_ssl_last_chain_info gauge
+probe_ssl_last_chain_info{fingerprint_sha256="448f628a8a65aa18560e53a80c53acb38c51b427df0334082349141147dc9bf6"} 1
+# HELP probe_success Displays whether or not the probe was a success
+# TYPE probe_success gauge
+probe_success 1
+# HELP probe_tls_version_info Contains the TLS version used
+# TYPE probe_tls_version_info gauge
+probe_tls_version_info{version="TLS 1.3"} 1
+# HELP sm_check_info Provides information about a single check configuration
+# TYPE sm_check_info gauge
+sm_check_info 1
+# HELP probe_all_duration_seconds Returns how long the probe took to complete in seconds (histogram)
+# TYPE probe_all_duration_seconds histogram
+probe_all_duration_seconds_bucket{le="0.005"} 0
+probe_all_duration_seconds_bucket{le="0.01"} 1
+probe_all_duration_seconds_bucket{le="0.025"} 1
+probe_all_duration_seconds_bucket{le="0.05"} 1
+probe_all_duration_seconds_bucket{le="0.1"} 1
+probe_all_duration_seconds_bucket{le="0.25"} 1
+probe_all_duration_seconds_bucket{le="0.5"} 1
+probe_all_duration_seconds_bucket{le="1"} 1
+probe_all_duration_seconds_bucket{le="2.5"} 1
+probe_all_duration_seconds_bucket{le="5"} 1
+probe_all_duration_seconds_bucket{le="10"} 1
+probe_all_duration_seconds_bucket{le="+Inf"} 1
+probe_all_duration_seconds_sum 0.007807906
+probe_all_duration_seconds_count 1
+# HELP probe_all_success Displays whether or not the probe was a success (summary)
+# TYPE probe_all_success summary
+probe_all_success_sum 1
+probe_all_success_count 1
+# HELP probe_dns_lookup_all_time_seconds Returns the time taken for probe dns lookup in seconds (histogram)
+# TYPE probe_dns_lookup_all_time_seconds histogram
+probe_dns_lookup_all_time_seconds_bucket{le="0.005"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.01"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.025"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.05"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.1"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.25"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="0.5"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="1"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="2.5"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="5"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="10"} 1
+probe_dns_lookup_all_time_seconds_bucket{le="+Inf"} 1
+probe_dns_lookup_all_time_seconds_sum 1.7726e-05
+probe_dns_lookup_all_time_seconds_count 1
+# HELP probe_http_all_duration_seconds Duration of http request by phase, summed over all redirects (histogram)
+# TYPE probe_http_all_duration_seconds histogram
+probe_http_all_duration_seconds_bucket{phase="connect",le="0.005"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="0.01"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="0.025"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="0.05"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="0.1"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="0.25"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="0.5"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="1"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="2.5"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="5"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="10"} 1
+probe_http_all_duration_seconds_bucket{phase="connect",le="+Inf"} 1
+probe_http_all_duration_seconds_sum{phase="connect"} 0.000226802
+probe_http_all_duration_seconds_count{phase="connect"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="0.005"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="0.01"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="0.025"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="0.05"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="0.1"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="0.25"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="0.5"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="1"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="2.5"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="5"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="10"} 1
+probe_http_all_duration_seconds_bucket{phase="processing",le="+Inf"} 1
+probe_http_all_duration_seconds_sum{phase="processing"} 0.000405109
+probe_http_all_duration_seconds_count{phase="processing"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="0.005"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="0.01"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="0.025"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="0.05"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="0.1"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="0.25"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="0.5"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="1"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="2.5"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="5"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="10"} 1
+probe_http_all_duration_seconds_bucket{phase="resolve",le="+Inf"} 1
+probe_http_all_duration_seconds_sum{phase="resolve"} 1.7726e-05
+probe_http_all_duration_seconds_count{phase="resolve"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="0.005"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="0.01"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="0.025"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="0.05"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="0.1"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="0.25"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="0.5"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="1"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="2.5"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="5"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="10"} 1
+probe_http_all_duration_seconds_bucket{phase="tls",le="+Inf"} 1
+probe_http_all_duration_seconds_sum{phase="tls"} 0.004935417
+probe_http_all_duration_seconds_count{phase="tls"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="0.005"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="0.01"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="0.025"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="0.05"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="0.1"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="0.25"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="0.5"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="1"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="2.5"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="5"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="10"} 1
+probe_http_all_duration_seconds_bucket{phase="transfer",le="+Inf"} 1
+probe_http_all_duration_seconds_sum{phase="transfer"} 0.000167606
+probe_http_all_duration_seconds_count{phase="transfer"} 1
