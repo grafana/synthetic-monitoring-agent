@@ -35,6 +35,18 @@ COMMANDS := $(shell $(GO) list $(GO_BUILD_MOD_FLAGS) ./cmd/...)
 
 VERSION_PKG := $(shell $(GO) list $(GO_BUILD_MOD_FLAGS) ./internal/version)
 
+ifeq ($(origin GOLANGCI_LINT),undefined)
+GOLANGCI_LINT ?= $(ROOTDIR)/scripts/go/bin/golangci-lint
+LOCAL_GOLANGCI_LINT = yes
+endif
+
+ifeq ($(origin GOTESTSUM),undefined)
+GOTESTSUM ?= $(ROOTDIR)/scripts/go/bin/gotestsum
+LOCAL_GOTESTSUM = yes
+endif
+
+TEST_OUTPUT := $(DISTDIR)/test
+
 .DEFAULT_GOAL := all
 
 .PHONY: all
@@ -80,22 +92,39 @@ run: scripts/go/bin/bra ## Build and run web server on filesystem changes.
 
 ##@ Testing
 
+ifeq ($(LOCAL_GOTESTSUM),yes)
+$(GOTESTSUM): scripts/go/go.mod
+	$(S) cd scripts/go; \
+		$(GO) build -o $(GOTESTSUM) gotest.tools/gotestsum
+endif
+
 .PHONY: test-go
-test-go: ## Run Go tests.
+test-go: $(GOTESTSUM) ## Run Go tests.
 	$(S) echo "test backend"
-	$(GO) test $(GO_BUILD_MOD_FLAGS) -v ./...
+	$(GOTESTSUM) \
+		--format standard-verbose \
+		--jsonfile $(TEST_OUTPUT).json \
+		--junitfile $(TEST_OUTPUT).xml \
+		-- \
+		$(GO_BUILD_MOD_FLAGS) \
+		-cover \
+		-coverprofile=$(TEST_OUTPUT).cov \
+		-race \
+		./...
 
 .PHONY: test
 test: test-go ## Run all tests.
 
 ##@ Linting
 
-scripts/go/bin/golangci-lint: scripts/go/go.mod
+ifeq ($(LOCAL_GOLANGCI_LINT),yes)
+$(GOLANGCI_LINT): scripts/go/go.mod
 	$(S) cd scripts/go; \
-		$(GO) build -o ./bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
+		$(GO) build -o $(GOLANGCI_LINT) github.com/golangci/golangci-lint/cmd/golangci-lint
+endif
 
 .PHONY: golangci-lint
-golangci-lint: scripts/go/bin/golangci-lint
+golangci-lint: $(GOLANGCI_LINT)
 	$(S) echo "lint via golangci-lint"
 	$(S) scripts/go/bin/golangci-lint run \
 		$(GOLANGCI_LINT_MOD_FLAGS) \

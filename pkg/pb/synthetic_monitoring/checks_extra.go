@@ -36,9 +36,9 @@ var (
 
 	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
-	ErrInvalidFQHNLenght        = errors.New("invalid FQHN lenght")
+	ErrInvalidFQHNLenght        = errors.New("invalid FQHN length")
 	ErrInvalidFQHNElements      = errors.New("invalid number of elements in fqhn")
-	ErrInvalidFQHNElementLenght = errors.New("invalid FQHN element lenght")
+	ErrInvalidFQHNElementLenght = errors.New("invalid FQHN element length")
 	ErrInvalidFQHNElement       = errors.New("invalid FQHN element")
 
 	ErrInvalidPingHostname    = errors.New("invalid ping hostname")
@@ -105,7 +105,6 @@ func (c *Check) Validate() error {
 	}
 
 	for _, label := range c.Labels {
-
 		if label.Name == "" {
 			return ErrInvalidCheckLabelName
 		}
