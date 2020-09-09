@@ -6,20 +6,53 @@ run:
 linters:
   disable-all: true
   enable:
+    - bodyclose
     - deadcode
+    - depguard
+    - dogsled
+    - errcheck
+    - exportloopref
+    - goconst
+    # - gocritic
+    # - gocognit
+    - gocyclo
     - gofmt
+    # - gofumpt
+    - goimports
+    # - golint
+    - goprintffuncname
+    # - gosec
     - gosimple
     - govet
     - ineffassign
+    # - lll
+    - misspell
+    - nakedret
+    - rowserrcheck
+    - staticcheck
     - structcheck
     - typecheck
     - unconvert
     - unused
     - varcheck
-    - goconst
-    - staticcheck
-    - errcheck
+    - whitespace
 
 linter-settings:
   goconst:
     ignore-tests: true
+    min-len: 5
+    min-occurrences: 5
+  gocyclo:
+    min-complexity: 10
+  golint:
+    ignore-tests: true
+    min-confidence: 3
+  rowserrcheck:
+    packages:
+      - github.com/jmoiron/sqlx
+
+issues:
+  exclude:
+    - "(func|method|type|var|struct field|func parameter|method parameter) [^ ]+ should be .*"
+  # new: true
+  # new-from-rev: v0.0.3

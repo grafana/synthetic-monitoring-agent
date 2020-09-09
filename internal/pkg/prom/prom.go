@@ -431,7 +431,6 @@ func (t *tlsRoundTripper) getCAWithHash() ([]byte, []byte, error) {
 	}
 	h := sha256.Sum256(b)
 	return b, h[:], nil
-
 }
 
 // RoundTrip implements the http.RoundTrip interface.

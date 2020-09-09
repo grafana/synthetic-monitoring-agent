@@ -317,7 +317,6 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 			lastTick = t
 			f(ctx, t)
 		}
-
 	}
 }
 
@@ -1097,7 +1096,6 @@ func hashMetricNameAndLabels(name string, dtoLabels []*dto.LabelPair) uint64 {
 	}
 
 	return uint64(ls.Fingerprint())
-
 }
 
 func getLabels(m *dto.Metric) map[string]string {

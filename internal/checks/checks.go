@@ -57,7 +57,6 @@ type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
 func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- pusher.Payload, promRegisterer prometheus.Registerer) (*Updater, error) {
-
 	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "sm_agent",
 		Subsystem: "updater",
@@ -202,7 +201,6 @@ func (c *Updater) Run(ctx context.Context) error {
 			time.Sleep(2 * time.Second)
 			continue
 		}
-
 	}
 }
 
@@ -399,7 +397,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check sm.Check) error {
 // scrapers that the server might think we are NOT running, so build a list of
 // checks the server sent our way and compare it with the list of checks we
 // actually have (from the running scrapers). Remove anything that the server
-// didn't send, becuase that means it didn't know we have those (they got
+// didn't send, because that means it didn't know we have those (they got
 // deleted during the reconnect, and the server didn't send them).
 //
 // We have to do this exactly once per reconnect. It's up to the calling code
