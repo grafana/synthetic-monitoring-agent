@@ -36,11 +36,12 @@ local vault_secret(name, vault_path, key) = {
 
 [
   pipeline('build', [
-    step('lint', ['git status', 'make lint']),
-    step('test', ['git status', 'make test']),
+    step('lint', ['make lint']),
+    step('test', ['make test']),
     step('build', [
       'git fetch origin --tags',
-      'git status',
+      'git status --porcelain --untracked-files=no',
+      'git diff --no-ext-diff --quiet', // fail if the workspace has modified files
       './scripts/version',
       './scripts/version > .tags', // save version in special file for docker plugin
       'make build',
