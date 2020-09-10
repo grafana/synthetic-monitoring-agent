@@ -49,7 +49,7 @@ local vault_secret(name, vault_path, key) = {
     step('docker build',[],'plugins/docker')+{
       settings:{
         repo: repo,
-        dry_run: 'true',
+        dry_run: 'false',
       }
     },
     step('docker push',[],'plugins/docker')
