@@ -36,10 +36,11 @@ local vault_secret(name, vault_path, key) = {
 
 [
   pipeline('build', [
-    step('lint', ['make lint']),
-    step('test', ['make test']),
+    step('lint', ['git status', 'make lint']),
+    step('test', ['git status', 'make test']),
     step('build', [
       'git fetch origin --tags',
+      'git status',
       './scripts/version',
       './scripts/version > .tags', // save version in special file for docker plugin
       'make build',
