@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.0.6"></a>
+## [v0.0.6] - 2020-09-10
+### Build
+- update lint and test tools
+
+
 <a name="v0.0.5"></a>
 ## [v0.0.5] - 2020-08-31
 ### Fix
@@ -24,7 +30,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.6...HEAD
+[v0.0.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.5...v0.0.6
 [v0.0.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.4...v0.0.5
 [v0.0.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.3...v0.0.4
 [v0.0.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.2...v0.0.3
