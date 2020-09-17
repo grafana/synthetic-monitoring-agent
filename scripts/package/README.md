@@ -1,4 +1,4 @@
-## Packaging the blackbox exporter sidecar
+## Packaging Synthetic Monitoring Agent
 
 The following scripts are used for packaging and publishing `synthetic-monitoring-agent`:
 
