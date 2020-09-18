@@ -9,7 +9,12 @@ Please [install](https://grafana.com/grafana/plugins/grafana-synthetic-monitorin
 
 Probes
 ------
-Probes run [checks](https://github.com/grafana/synthetic-monitoring-app/blob/master/README.md#check-types) from distributed locations around the world and send the resulting metrics and events directly to [Grafana Cloud](https://grafana.com/products/cloud/) Prometheus and Loki services. You can select 1 or more 'public' probes to run checks from or run your own 'private' probes from any environment you choose.
+Probes run [checks](https://github.com/grafana/synthetic-monitoring-app/blob/master/README.md#check-types) from 
+distributed locations around the world and send the resulting metrics and events directly to 
+[Grafana Cloud](https://grafana.com/products/cloud/) Prometheus and Loki services. 
+
+You can select 1 or more **public** probes to run checks from or [run your own **private** probes](https://grafana.com/docs/grafana-cloud/synthetic-monitoring/private-probes/)
+from any environment you choose.
 
 
 To run your own probe
@@ -21,7 +26,7 @@ To run your own probe
 * Enter a **Probe Name**, **Latitude**, **Longitude**, and **Region**.
 * Optionally enter up to 3 custom labels to identify your probe.
 * Click **Save**
-* Copy the "Probe Authetication Token" and save for installing the agent.
+* Copy the "Probe Authentication Token" and save for installing the agent.
 
 ### Install the agent on Debian based systems
 

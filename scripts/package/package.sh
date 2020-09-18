@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Script to package the synthetic-monitoring-agent and the prometheus 
-# blackbox-exporter together.
+# Script to package the synthetic-monitoring-agent
 
 set -x
 BASE=$(dirname $0)
