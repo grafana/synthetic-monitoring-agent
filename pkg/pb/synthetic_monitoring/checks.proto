@@ -28,8 +28,8 @@ service Checks {
 	// synthetic-monitoring-api.
 	//
 	// The probe is identified via an authentication token provided
-	// in a different channel by synthetic-monitoring-api.
-	rpc RegisterProbe(Void) returns (RegisterProbeResult) {};
+	// through a different channel by synthetic-monitoring-api.
+	rpc RegisterProbe(ProbeInfo) returns (RegisterProbeResult) {};
 
 	// GetChanges returns a list of check operations, specifying
 	// whether to add, update or delete checks.
@@ -39,6 +39,12 @@ service Checks {
 // Void is an empty message used by RPC methods that don't take
 // arguments.
 message Void {
+}
+
+message ProbeInfo {
+	string Version    = 1;
+	string Commit     = 2;
+	string Buildstamp = 3;
 }
 
 // StatusCode represents the result of registering a probe with the API.

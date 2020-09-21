@@ -233,7 +233,7 @@ func (c *Updater) loop(ctx context.Context) error {
 		}
 	}
 
-	result, err := client.RegisterProbe(ctx, &sm.Void{})
+	result, err := client.RegisterProbe(ctx, &sm.ProbeInfo{Version: version.Short(), Commit: version.Commit(), Buildstamp: version.Buildstamp()})
 	if err != nil {
 		return grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
 	}
