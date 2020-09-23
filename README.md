@@ -4,7 +4,8 @@ Synthetic Monitoring Agent
 ==========================
 This is the 'worker' for Grafana's [Synthetic Monitoring application](https://github.com/grafana/synthetic-monitoring-app). The agent provides probe functionality and executes network [checks](https://github.com/grafana/synthetic-monitoring-app/blob/master/README.md#check-types) for monitoring remote targets. 
 
-Please [install](https://grafana.com/grafana/plugins/grafana-synthetic-monitoring-app/installation) Synthetic Monitoring in your Grafana Cloud or local Grafana instance before setting up your own private probe. You may need to generate a [new API key](https://grafana.com/profile/api-keys) to initialize the app.
+Please [install](https://grafana.com/grafana/plugins/grafana-synthetic-monitoring-app/installation) Synthetic Monitoring 
+in your Grafana Cloud or local Grafana instance before setting up your own private probe. You may need to generate a [new API key](https://grafana.com/profile/api-keys) to initialize the app.
 
 
 Probes
@@ -55,6 +56,18 @@ API_TOKEN='YOUR TOKEN HERE'
 `sudo service synthetic-monitoring-agent restart`
 
 Once the service is running, you will be able to select your new probe exactly the same as any public probe. You will need to manually add the new probe to any previously created checks.
+
+#### Deploy it using Docker
+We published docker image on [docker hub](https://hub.docker.com/r/grafana/synthetic-monitoring-agent)
+
+Pull Image
+```bash
+docker pull grafana/synthetic-monitoring-agent
+```
+
+
+#### Deploy it using Kubernetes
+See examples folder for [Kubernetes example yaml](./examples/kubernetes)
 
 Architecture
 ------------
