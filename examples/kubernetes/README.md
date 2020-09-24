@@ -1,11 +1,11 @@
 # Kubernetes
 
 Steps:
-- Get Probe Authentication Token for your private probe, [see steps](https://grafana.com/docs/grafana-cloud/synthetic-monitoring/private-probes/)
-- Replace `YOUR_TOKEN_HERE` in [secret.yaml](secret.yaml) with your Probe Authentication Token
-- Apply [namespace.yaml](namespace.yaml) to create `synthetic-monitoring` namespace
-- Apply [secret.yaml](secret.yaml) to create `sm-agent-1` secret
-- Now we will apply [deployment.yaml](deployment.yaml) to deploy out agent
+- Get a probe Authentication Token for your private probe, [see here for steps](https://grafana.com/docs/grafana-cloud/synthetic-monitoring/private-probes/)
+- Replace `YOUR_TOKEN_HERE` in [secret.yaml](secret.yaml) with your probe Authentication Token
+- Apply [namespace.yaml](namespace.yaml) to create the `synthetic-monitoring` namespace
+- Apply [secret.yaml](secret.yaml) to create the `sm-agent-1` secret
+- Apply [deployment.yaml](deployment.yaml) to deploy your agent
 
 Here are these steps as commands:
 
@@ -15,12 +15,12 @@ kubectl apply -f secret.yaml
 kubectl apply -f deployment.yaml
 ```
 
-Now you should have agent reporting as private probe.
+Now you should have the agent reporting as private probe.
 
 ### Production Deployment
 
-If you are running it in production, you should pin the image version instead of `latest`,
+If you are running it in production, you should pin the image to an specific version instead of `latest`,
 see all tags on [docker hub](https://hub.docker.com/r/grafana/synthetic-monitoring-agent)
 
-We expose Prometheus style metrics (/metrics endpoint) on port 4050 of process(and pod),
-you can scrape and monitor your private probe
+The process exposes Prometheus-style metrics on an HTTP server running on port 4050 (/metrics endpoint).
+You can scrape and monitor your private probe in this way using either Prometheus or the Grafana Cloud Agent.

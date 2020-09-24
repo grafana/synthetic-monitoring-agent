@@ -58,13 +58,13 @@ API_TOKEN='YOUR TOKEN HERE'
 Once the service is running, you will be able to select your new probe exactly the same as any public probe. You will need to manually add the new probe to any previously created checks.
 
 #### Deploy it using Docker
-We publish docker image on [docker hub](https://hub.docker.com/r/grafana/synthetic-monitoring-agent)
+We publish a docker image on [docker hub](https://hub.docker.com/r/grafana/synthetic-monitoring-agent)
 
 Steps:
-- Get Probe Authentication Token for your private probe, [see steps](https://grafana.com/docs/grafana-cloud/synthetic-monitoring/private-probes/)
+- Get an Authentication Token for your private probe, [see here for the steps](https://grafana.com/docs/grafana-cloud/synthetic-monitoring/private-probes/)
 - export Probe Authentication Token (for ease of use)
 - export Synthetic Monitoring API server (for ease of use)
-- Pull Image
+- Pull image
 - Run it with token and API server location
 
 Here are these steps as commands:
@@ -78,10 +78,10 @@ export API_SERVER="synthetic-monitoring-grpc.grafana.net:443"
 docker run grafana/synthetic-monitoring-agent --api-server-address=${API_SERVER} --api-token=${API_TOKEN} --verbose=true
 ```
 
-Now you should have agent reporting as private probe, and running checks(if you have assigned) in logs.
+Now you should have the agent reporting as private probe, and running checks (if you have created some) in the logs.
 
 #### Deploy it using Kubernetes
-See [examples/kubernetes](./examples/kubernetes) for Docs and example yaml files
+See [examples/kubernetes](./examples/kubernetes) for documentation and example yaml files
 
 Architecture
 ------------
