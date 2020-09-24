@@ -62,16 +62,12 @@ We publish a docker image on [docker hub](https://hub.docker.com/r/grafana/synth
 
 Steps:
 - Get an Authentication Token for your private probe, [see here for the steps](https://grafana.com/docs/grafana-cloud/synthetic-monitoring/private-probes/)
-- export Probe Authentication Token (for ease of use)
-- export Synthetic Monitoring API server (for ease of use)
-- Pull image
-- Run it with token and API server location
 
-Here are these steps as commands:
 ```bash
 # pull image
 docker pull grafana/synthetic-monitoring-agent:latest
 # export configs
+# replace YOUR_TOKEN_HERE with your Authentication Token
 export API_TOKEN=YOUR_TOKEN_HERE
 export API_SERVER="synthetic-monitoring-grpc.grafana.net:443"
 # run
@@ -81,7 +77,7 @@ docker run grafana/synthetic-monitoring-agent --api-server-address=${API_SERVER}
 Now you should have the agent reporting as private probe, and running checks (if you have created some) in the logs.
 
 #### Deploy it using Kubernetes
-See [examples/kubernetes](./examples/kubernetes) for documentation and example yaml files
+See [examples/kubernetes](./examples/kubernetes) for the documentation and example yaml files
 
 Architecture
 ------------
