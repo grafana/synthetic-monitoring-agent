@@ -2,6 +2,19 @@
 ## [Unreleased]
 
 
+<a name="v0.0.7"></a>
+## [v0.0.7] - 2020-09-25
+### Build
+- Add git-chglog configuration files
+
+### Docs
+- update and add links ([#78](https://github.com/grafana/synthetic-monitoring-agent/issues/78))
+
+### Feature
+- Implement test to check metric changes
+- report probe version to API
+
+
 <a name="v0.0.6"></a>
 ## [v0.0.6] - 2020-09-10
 ### Build
@@ -30,7 +43,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.7...HEAD
+[v0.0.7]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.6...v0.0.7
 [v0.0.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.5...v0.0.6
 [v0.0.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.4...v0.0.5
 [v0.0.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.3...v0.0.4
