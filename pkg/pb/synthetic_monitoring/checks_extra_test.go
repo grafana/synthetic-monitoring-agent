@@ -148,16 +148,20 @@ func TestCheckFQHN(t *testing.T) {
 			input:       "x",
 			expectError: true,
 		},
-		"label must start with letter 1": {
+		"label must start with letter or digit 1": {
 			input:       "0.x",
-			expectError: true,
+			expectError: false,
 		},
-		"label must start with letter 2": {
+		"label must start with letter or digit 2": {
 			input:       "-.x",
 			expectError: true,
 		},
-		"label must start with letter 3": {
+		"label must start with letter or digit 3": {
 			input:       "x.y",
+			expectError: false,
+		},
+		"label must start with letter or digit 4": {
+			input:       "1x.y",
 			expectError: false,
 		},
 		"label must end with a letter or digit 1": {
