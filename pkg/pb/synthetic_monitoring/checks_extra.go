@@ -358,7 +358,8 @@ func validateHostPort(target string) error {
 
 // checkFQHN validates that the provided fully qualified hostname
 // follows RFC 1034, section 3.5
-// (https://tools.ietf.org/html/rfc1034#section-3.5).
+// (https://tools.ietf.org/html/rfc1034#section-3.5) and RFC 1123,
+// section 2.1 (https://tools.ietf.org/html/rfc1123#section-2.1).
 //
 // This assumes that the *hostname* part of the FQHN follows the same
 // rules.
@@ -388,21 +389,45 @@ func checkFQHN(fqhn string) error {
 		return (r == '-')
 	}
 
-	for _, label := range labels {
+	for i, label := range labels {
 		if len(label) == 0 || len(label) > 63 {
 			return ErrInvalidFQHNElementLenght
 		}
 
 		runes := []rune(label)
 
-		// labels must start with a letter
-		if r := runes[0]; !isLetter(r) {
+		// labels must start with a letter or digit (RFC 1123);
+		// reading the RFC strictly, it's likely that the
+		// intention was that _only_ the host name could begin
+		// with a letter or a digit, but since any portion of
+		// the FQHN could be a host name, accept it anywhere.
+		if r := runes[0]; !isLetter(r) && !isDigit(r) {
 			return ErrInvalidFQHNElement
 		}
 
 		// labels must end with a letter or digit
 		if r := runes[len(runes)-1]; !isLetter(r) && !isDigit(r) {
 			return ErrInvalidFQHNElement
+		}
+
+		// these checks allow for all-numeric FQHNs, but the
+		// very last label (the TLD) MUST NOT be all numeric
+		// because that allows for 256.256.256.256 to be a FQHN,
+		// not an invalid IP address, and down that path lies
+		// madness.
+		if i == len(labels)-1 {
+			allDigits := true
+
+			for _, r := range runes {
+				if !isDigit(r) {
+					allDigits = false
+					break
+				}
+			}
+
+			if allDigits {
+				return ErrInvalidFQHNElement
+			}
 		}
 
 		for _, r := range runes {
