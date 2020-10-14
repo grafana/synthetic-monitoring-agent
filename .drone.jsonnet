@@ -1,4 +1,4 @@
-local step(name, commands, image='golang:1.13.10') = {
+local step(name, commands, image='golang:1.14') = {
   name: name,
   commands: commands,
   image: image,
@@ -10,13 +10,21 @@ local pipeline(name, steps=[]) = {
   name: name,
   steps: [step('runner identification', ['echo $DRONE_RUNNER_NAME'], 'alpine')] + steps,
   trigger+: {
-    branch+: ['master'],
-    event+: ['push','pull_request'],
+    ref+: [
+      'refs/heads/master',
+      'refs/pull/**',
+      'refs/tags/v*.*.*',
+    ],
   },
 };
 
-local masterOnly = {
-  when: {branch:['master'], event: ['push']},
+local releaseOnly = {
+  when: {
+    ref+: [
+      'refs/heads/master',
+      'refs/tags/v*.*.*',
+    ],
+  },
 };
 
 local prOnly = {
@@ -37,43 +45,55 @@ local vault_secret(name, vault_path, key) = {
 [
   pipeline('build', [
     step('lint', ['make lint']),
+
     step('test', ['make test']),
+
     step('build', [
       'git fetch origin --tags',
       'git status --porcelain --untracked-files=no',
       'git diff --no-ext-diff --quiet', // fail if the workspace has modified files
       './scripts/version',
-      './scripts/version > .tags', // save version in special file for docker plugin
+      '{ echo -n latest, ; ./scripts/version ; } > .tags', // save version in special file for docker plugin
       'make build',
     ]),
+
     // We can't use 'make docker' without making this repo priveleged in drone
     // so we will use the native docker plugin instead for security.
-    step('docker build',[],'plugins/docker')+{
+    step('docker build', [], 'plugins/docker')
+    + {
       settings:{
         repo: repo,
         dry_run: 'true',
       }
     },
-    step('docker push',[],'plugins/docker')
+
+    step('docker push', [], 'plugins/docker')
     + {
         settings:{
           repo: repo,
           username: {from_secret: 'docker_username'},
           password: {from_secret: 'docker_password'},
         }
-    } + masterOnly,
-    step('package', ['make package']) + prOnly,
+    }
+    + releaseOnly,
+
+    step('package', ['make package'])
+    + prOnly,
+
     step('publish packages', [
       'export GCS_KEY_DIR=$(pwd)/keys',
       'mkdir -p $GCS_KEY_DIR',
       'echo "$GCS_KEY" | base64 -d > $GCS_KEY_DIR/gcs-key.json',
       'make publish-packages',
       ])
-      + {environment: {
+    + {
+        environment: {
           GCS_KEY:{from_secret: 'gcs_key'},
           GPG_PRIV_KEY:{from_secret: 'gpg_priv_key'},
           PUBLISH_PROD_PKGS: "1",
-        }} + masterOnly,
+        }
+      }
+    + releaseOnly,
   ]),
 
   vault_secret('docker_username','infra/data/ci/docker_hub', 'username'),
