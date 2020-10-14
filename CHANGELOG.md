@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.0.8"></a>
+## [v0.0.8] - 2020-10-14
+### Fix
+- be more flexible with what we accept for a FQHN
+
+
 <a name="v0.0.7"></a>
 ## [v0.0.7] - 2020-09-25
 ### Build
@@ -43,7 +49,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.7...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.8...HEAD
+[v0.0.8]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.7...v0.0.8
 [v0.0.7]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.6...v0.0.7
 [v0.0.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.5...v0.0.6
 [v0.0.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.4...v0.0.5
