@@ -1051,11 +1051,11 @@ func updateSummaryFromMetric(mName, help string, m *dto.Metric, summaries map[ui
 			ConstLabels: getLabels(m),
 		})
 
-		if err := registry.Register(summary); err != nil {
-			return nil, err
-		}
-
 		summaries[mHash] = summary
+	}
+
+	if err := registry.Register(summary); err != nil {
+		return nil, err
 	}
 
 	summary.Observe(value)
@@ -1088,11 +1088,11 @@ func updateHistogramFromMetric(mName, help string, m *dto.Metric, histograms map
 			Buckets:     prometheus.DefBuckets,
 		})
 
-		if err := registry.Register(histogram); err != nil {
-			return nil, err
-		}
-
 		histograms[mHash] = histogram
+	}
+
+	if err := registry.Register(histogram); err != nil {
+		return nil, err
 	}
 
 	histogram.Observe(value)
