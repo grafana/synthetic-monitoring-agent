@@ -33,7 +33,7 @@ func run(args []string, stdout io.Writer) error {
 		grpcApiServerAddr = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
 		grpcInsecure      = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
 		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
-		apiToken          = flags.String("api-token", "", "base64-encoded API token")
+		apiToken          = flags.String("api-token", "", "synthetic monitoring probe authentication token")
 	)
 
 	if err := flags.Parse(args[1:]); err != nil {
