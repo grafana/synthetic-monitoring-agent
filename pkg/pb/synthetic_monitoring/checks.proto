@@ -103,6 +103,12 @@ message TenantInfo {
 	int64 id = 1;
 }
 
+// TenantStatus represents the status associated to particular tenant.
+enum TenantStatus {
+	ACTIVE   = 0;
+	DISABLED = 1;
+}
+
 // Tenant represents a user of synthetic-monitoring.
 message Tenant {
 	int64           id            = 1   [(gogoproto.jsontag) = "id"];            // unique ID
@@ -110,6 +116,8 @@ message Tenant {
 	RemoteInfo      metricsRemote = 3   [(gogoproto.jsontag) = "metricsRemote"]; // target to send metrics to
 	RemoteInfo      eventsRemote  = 4   [(gogoproto.jsontag) = "eventsRemote"];  // target to send events to
 	int64           stackId       = 5   [(gogoproto.jsontag) = "stackId"];       // grafana.com stackId
+	TenantStatus    status        = 6   [(gogoproto.jsontag) = "status"];        // tenant status
+	string          reason        = 7   [(gogoproto.jsontag) = "reason"];        // reason provided for the status
 
 	double          created       = 100 [(gogoproto.jsontag) = "created"];       // time the check was created
 	double          modified      = 101 [(gogoproto.jsontag) = "modified"];      // last time modified
