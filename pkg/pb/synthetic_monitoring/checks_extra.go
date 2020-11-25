@@ -30,9 +30,12 @@ var (
 	ErrInvalidCheckTarget     = errors.New("invalid check target")
 	ErrInvalidCheckJob        = errors.New("invalid check job")
 	ErrInvalidCheckFrequency  = errors.New("invalid check frequency")
+	ErrInvalidCheckTimeout    = errors.New("invalid check timeout")
 	ErrInvalidCheckLabelName  = errors.New("invalid check label name")
 	ErrTooManyCheckLabels     = errors.New("too many check labels")
 	ErrInvalidCheckLabelValue = errors.New("invalid check label value")
+	ErrInvalidLabelName       = errors.New("invalid label name")
+	ErrInvalidLabelValue      = errors.New("invalid label value")
 
 	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
@@ -95,9 +98,11 @@ func (c *Check) Validate() error {
 		return ErrInvalidCheckFrequency
 	}
 
-	// timeout must be in [1, 10] seconds
-	if c.Timeout < 1*1000 || c.Timeout > 10*1000 {
-		return ErrInvalidCheckFrequency
+	// timeout must be in [1, 10] seconds, and it must be less than
+	// frequency (otherwise we can end up running overlapping
+	// checks)
+	if c.Timeout < 1*1000 || c.Timeout > 10*1000 || c.Timeout > c.Frequency {
+		return ErrInvalidCheckTimeout
 	}
 
 	if len(c.Labels) > MaxCheckLabels {
@@ -105,12 +110,8 @@ func (c *Check) Validate() error {
 	}
 
 	for _, label := range c.Labels {
-		if label.Name == "" {
-			return ErrInvalidCheckLabelName
-		}
-
-		if len(label.Value) == 0 || len(label.Value) > 32 {
-			return ErrInvalidCheckLabelValue
+		if err := label.Validate(); err != nil {
+			return err
 		}
 	}
 
@@ -216,12 +217,8 @@ func (p *Probe) Validate() error {
 		return ErrTooManyProbeLabels
 	}
 	for _, label := range p.Labels {
-		if label.Name == "" {
-			return ErrInvalidProbeLabelName
-		}
-
-		if len(label.Value) == 0 || len(label.Value) > 32 {
-			return ErrInvalidProbeLabelValue
+		if err := label.Validate(); err != nil {
+			return err
 		}
 	}
 
@@ -233,6 +230,27 @@ func (p *Probe) Validate() error {
 		return ErrInvalidProbeLongitude
 	}
 
+	return nil
+}
+
+func (l Label) Validate() error {
+	if len(l.Name) == 0 {
+		return ErrInvalidLabelName
+	}
+
+	// This bit is lifted from Prometheus code, except that
+	// Prometheus accepts /^[a-zA-Z_][a-zA-Z0-9_]*$/ and we accept
+	// /^[a-zA-Z0-9_]+$/ because these names are going to be
+	// prefixed with "label_".
+	for _, b := range l.Name {
+		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9')) {
+			return ErrInvalidLabelName
+		}
+	}
+
+	if len(l.Value) == 0 || len(l.Value) > 32 {
+		return ErrInvalidLabelValue
+	}
 	return nil
 }
 
