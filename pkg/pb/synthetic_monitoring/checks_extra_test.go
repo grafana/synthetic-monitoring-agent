@@ -8,6 +8,90 @@ import (
 
 var testDebugOutput = flag.Bool("test.debug-output", false, "include test debug output")
 
+func TestCheckValidate(t *testing.T) {
+	testcases := map[string]struct {
+		input       Check
+		expectError bool
+	}{
+		"trivial ping": {
+			input: Check{
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Ping: &PingSettings{},
+				},
+			},
+			expectError: false,
+		},
+		"invalid tenant": {
+			input: Check{
+				TenantId:  -1,
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Ping: &PingSettings{},
+				},
+			},
+			expectError: true,
+		},
+		"invalid label": {
+			input: Check{
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Ping: &PingSettings{},
+				},
+				Labels: []Label{{Name: "name ", Value: "value"}},
+			},
+			expectError: true,
+		},
+		"multiple settings": {
+			input: Check{
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Ping: &PingSettings{},
+					Http: &HttpSettings{},
+				},
+				Labels: []Label{{Name: "name ", Value: "value"}},
+			},
+			expectError: true,
+		},
+		"invalid timeout": { // issue #101
+			input: Check{
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1001, // timeout should be equal or less than frequency
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Ping: &PingSettings{},
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			err := testcase.input.Validate()
+			checkError(t, testcase.expectError, err, testcase.input)
+		})
+	}
+}
+
 func TestValidateHost(t *testing.T) {
 	testcases := map[string]struct {
 		input       string
@@ -276,6 +360,57 @@ func TestValidateHostPort(t *testing.T) {
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
 			err := validateHostPort(testcase.input)
+			checkError(t, testcase.expectError, err, testcase.input)
+		})
+	}
+}
+
+func TestValidateLabel(t *testing.T) {
+	testcases := map[string]struct {
+		input       Label
+		expectError bool
+	}{
+		"trivial": {
+			input:       Label{Name: "label", Value: "value"},
+			expectError: false,
+		},
+		"name with underscore": {
+			input:       Label{Name: "some_name", Value: "value"},
+			expectError: false,
+		},
+		"name with leading underscore": {
+			input:       Label{Name: "_name", Value: "value"},
+			expectError: false,
+		},
+		"empty name": {
+			input:       Label{Name: "", Value: "value"},
+			expectError: true,
+		},
+		"invalid name": {
+			input:       Label{Name: "foo@bar", Value: "value"},
+			expectError: true,
+		},
+		"name with trailing blank": { // issue #99
+			input:       Label{Name: "name ", Value: "value"},
+			expectError: true,
+		},
+		"empty value": {
+			input:       Label{Name: "name", Value: ""},
+			expectError: true,
+		},
+		"long value": {
+			input:       Label{Name: "name", Value: "12345678901234567890123456789012"},
+			expectError: false,
+		},
+		"value too long": {
+			input:       Label{Name: "name", Value: "123456789012345678901234567890123"},
+			expectError: true,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			err := testcase.input.Validate()
 			checkError(t, testcase.expectError, err, testcase.input)
 		})
 	}
