@@ -2,8 +2,14 @@
 ## [Unreleased]
 
 
-<a name="0.0.12"></a>
-## [0.0.12] - 2020-11-18
+<a name="v0.0.13"></a>
+## [v0.0.13] - 2020-11-25
+### Fix
+- validate check and probe labels
+
+
+<a name="v0.0.12"></a>
+## [v0.0.12] - 2020-11-18
 
 <a name="v0.0.11"></a>
 ## [v0.0.11] - 2020-11-11
@@ -67,8 +73,9 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/0.0.12...HEAD
-[0.0.12]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.11...0.0.12
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.13...HEAD
+[v0.0.13]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.12...v0.0.13
+[v0.0.12]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.11...v0.0.12
 [v0.0.11]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.10...v0.0.11
 [v0.0.10]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.9...v0.0.10
 [v0.0.9]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.8...v0.0.9
