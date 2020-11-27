@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	ErrInvalidTenantId        = errors.New("invalid tentantId")
+	ErrInvalidTenantId        = errors.New("invalid tenant ID")
 	ErrInvalidCheckProbes     = errors.New("invalid check probes")
 	ErrInvalidCheckTarget     = errors.New("invalid check target")
 	ErrInvalidCheckJob        = errors.New("invalid check job")
@@ -39,9 +39,9 @@ var (
 
 	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
-	ErrInvalidFQHNLenght        = errors.New("invalid FQHN length")
-	ErrInvalidFQHNElements      = errors.New("invalid number of elements in fqhn")
-	ErrInvalidFQHNElementLenght = errors.New("invalid FQHN element length")
+	ErrInvalidFQDNLength        = errors.New("invalid FQHN length")
+	ErrInvalidFQHNElements      = errors.New("invalid number of elements in FQHN")
+	ErrInvalidFQDNElementLength = errors.New("invalid FQHN element length")
 	ErrInvalidFQHNElement       = errors.New("invalid FQHN element")
 
 	ErrInvalidPingHostname    = errors.New("invalid ping hostname")
@@ -386,7 +386,7 @@ func validateHostPort(target string) error {
 // to happen _before_ calling this function.
 func checkFQHN(fqhn string) error {
 	if len(fqhn) == 0 || len(fqhn) > 255 {
-		return ErrInvalidFQHNLenght
+		return ErrInvalidFQDNLength
 	}
 
 	labels := strings.Split(fqhn, ".")
@@ -409,7 +409,7 @@ func checkFQHN(fqhn string) error {
 
 	for i, label := range labels {
 		if len(label) == 0 || len(label) > 63 {
-			return ErrInvalidFQHNElementLenght
+			return ErrInvalidFQDNElementLength
 		}
 
 		runes := []rune(label)
