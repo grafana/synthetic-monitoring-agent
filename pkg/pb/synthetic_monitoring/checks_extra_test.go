@@ -69,6 +69,19 @@ func TestCheckValidate(t *testing.T) {
 			},
 			expectError: true,
 		},
+		"valid timeout & frequency": { // test for case when frequency > max timeout
+			input: Check{
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 60000, // 60 seconds
+				Timeout:   5000,  // 5 seconds
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Ping: &PingSettings{},
+				},
+			},
+			expectError: false,
+		},
 		"invalid timeout": { // issue #101
 			input: Check{
 				Target:    "127.0.0.1",
