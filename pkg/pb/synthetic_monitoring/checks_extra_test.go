@@ -82,6 +82,20 @@ func TestCheckValidate(t *testing.T) {
 			},
 			expectError: true,
 		},
+		"invalid HTTP target": {
+			input: Check{
+				Target:    "ftp://example.org/",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{},
+				},
+				Labels: []Label{{Name: "name ", Value: "value"}},
+			},
+			expectError: true,
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -360,6 +374,75 @@ func TestValidateHostPort(t *testing.T) {
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
 			err := validateHostPort(testcase.input)
+			checkError(t, testcase.expectError, err, testcase.input)
+		})
+	}
+}
+
+func TestValidateHttpUrl(t *testing.T) {
+	testcases := map[string]struct {
+		input       string
+		expectError bool
+	}{
+		"http": {
+			input:       "http://example.org/",
+			expectError: false,
+		},
+		"https": {
+			input:       "https://example.org/",
+			expectError: false,
+		},
+		"http port": {
+			input:       "http://example.org:8000/",
+			expectError: false,
+		},
+		"https port": {
+			input:       "https://example.org:8443/",
+			expectError: false,
+		},
+		"ipv4": {
+			input:       "http://127.0.0.1/",
+			expectError: false,
+		},
+		"ipv6": {
+			input:       "http://[::1]/",
+			expectError: false,
+		},
+		"ipv4 port": {
+			input:       "http://127.0.0.1:80/",
+			expectError: false,
+		},
+		"ipv6 port": {
+			input:       "http://[::1]:80/",
+			expectError: false,
+		},
+		"invalid scheme": {
+			input:       "ftp://example.org/",
+			expectError: true,
+		},
+
+		// these are covered by TestValidateHostPort
+		"bad host": {
+			input:       "http://test/",
+			expectError: true,
+		},
+		"port too large": {
+			input:       "http://example.org:65536/",
+			expectError: true,
+		},
+		"port zero": {
+			input:       "http://example.org:0/",
+			expectError: true,
+		},
+		"negative port": {
+			input:       "http://example.org:-1/",
+			expectError: true,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			err := validateHttpUrl(testcase.input)
 			checkError(t, testcase.expectError, err, testcase.input)
 		})
 	}
