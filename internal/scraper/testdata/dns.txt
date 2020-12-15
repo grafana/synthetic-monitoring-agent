@@ -9,15 +9,15 @@ probe_dns_answer_rrs 2
 probe_dns_authority_rrs 0
 # HELP probe_dns_duration_seconds Duration of DNS request by phase
 # TYPE probe_dns_duration_seconds gauge
-probe_dns_duration_seconds{phase="connect"} 7.3759e-05
-probe_dns_duration_seconds{phase="request"} 0.000465143
-probe_dns_duration_seconds{phase="resolve"} 2.1922e-05
+probe_dns_duration_seconds{phase="connect"} 7.9847e-05
+probe_dns_duration_seconds{phase="request"} 0.000381273
+probe_dns_duration_seconds{phase="resolve"} 1.5002e-05
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 2.1922e-05
+probe_dns_lookup_time_seconds 1.5002e-05
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.001561165
+probe_duration_seconds 0.001560181
 # HELP probe_ip_addr_hash Specifies the hash of IP address. It's useful to detect if the IP address changes.
 # TYPE probe_ip_addr_hash gauge
 probe_ip_addr_hash 1.768495365e+09
@@ -44,7 +44,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.001561165
+probe_all_duration_seconds_sum 0.001560181
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
@@ -64,7 +64,7 @@ probe_dns_all_duration_seconds_bucket{phase="connect",le="2.5"} 1
 probe_dns_all_duration_seconds_bucket{phase="connect",le="5"} 1
 probe_dns_all_duration_seconds_bucket{phase="connect",le="10"} 1
 probe_dns_all_duration_seconds_bucket{phase="connect",le="+Inf"} 1
-probe_dns_all_duration_seconds_sum{phase="connect"} 7.3759e-05
+probe_dns_all_duration_seconds_sum{phase="connect"} 7.9847e-05
 probe_dns_all_duration_seconds_count{phase="connect"} 1
 probe_dns_all_duration_seconds_bucket{phase="request",le="0.005"} 1
 probe_dns_all_duration_seconds_bucket{phase="request",le="0.01"} 1
@@ -78,7 +78,7 @@ probe_dns_all_duration_seconds_bucket{phase="request",le="2.5"} 1
 probe_dns_all_duration_seconds_bucket{phase="request",le="5"} 1
 probe_dns_all_duration_seconds_bucket{phase="request",le="10"} 1
 probe_dns_all_duration_seconds_bucket{phase="request",le="+Inf"} 1
-probe_dns_all_duration_seconds_sum{phase="request"} 0.000465143
+probe_dns_all_duration_seconds_sum{phase="request"} 0.000381273
 probe_dns_all_duration_seconds_count{phase="request"} 1
 probe_dns_all_duration_seconds_bucket{phase="resolve",le="0.005"} 1
 probe_dns_all_duration_seconds_bucket{phase="resolve",le="0.01"} 1
@@ -92,7 +92,7 @@ probe_dns_all_duration_seconds_bucket{phase="resolve",le="2.5"} 1
 probe_dns_all_duration_seconds_bucket{phase="resolve",le="5"} 1
 probe_dns_all_duration_seconds_bucket{phase="resolve",le="10"} 1
 probe_dns_all_duration_seconds_bucket{phase="resolve",le="+Inf"} 1
-probe_dns_all_duration_seconds_sum{phase="resolve"} 2.1922e-05
+probe_dns_all_duration_seconds_sum{phase="resolve"} 1.5002e-05
 probe_dns_all_duration_seconds_count{phase="resolve"} 1
 # HELP probe_dns_lookup_all_time_seconds Returns the time taken for probe dns lookup in seconds (histogram)
 # TYPE probe_dns_lookup_all_time_seconds histogram
@@ -108,5 +108,5 @@ probe_dns_lookup_all_time_seconds_bucket{le="2.5"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="5"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="10"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="+Inf"} 1
-probe_dns_lookup_all_time_seconds_sum 2.1922e-05
+probe_dns_lookup_all_time_seconds_sum 1.5002e-05
 probe_dns_lookup_all_time_seconds_count 1
