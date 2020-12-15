@@ -345,7 +345,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	bl := kitlog.NewLogfmtLogger(&logs)
 	sl := kitlog.With(bl, "ts", kitlog.DefaultTimestampUTC, "target", target)
 
-	success, mfs, err := getProbeMetrics(ctx, prober, target, s.bbeModule, s.buildCheckInfoLabels(), s.summaries, s.histograms, sl)
+	success, mfs, err := getProbeMetrics(ctx, prober, target, s.bbeModule, s.buildCheckInfoLabels(), s.summaries, s.histograms, sl, s.check.BasicMetricsOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +386,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, nil
 }
 
-func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, module *bbeconfig.Module, checkInfoLabels map[string]string, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger kitlog.Logger) (bool, []*dto.MetricFamily, error) {
+func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, module *bbeconfig.Module, checkInfoLabels map[string]string, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger kitlog.Logger, basicMetricsOnly bool) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
 	success := runProber(ctx, prober, target, module, registry, checkInfoLabels, logger)
@@ -398,7 +398,7 @@ func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, 
 
 	registry = prometheus.NewRegistry()
 
-	if err := getDerivedMetrics(mfs, summaries, histograms, registry); err != nil {
+	if err := getDerivedMetrics(mfs, summaries, histograms, registry, basicMetricsOnly); err != nil {
 		return success, nil, fmt.Errorf(`getting derived metrics: %w`, err)
 	}
 
@@ -457,7 +457,7 @@ func runProber(ctx context.Context, prober prober.ProbeFn, target string, module
 	return success
 }
 
-func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, registry *prometheus.Registry) error {
+func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, registry *prometheus.Registry, basicMetricsOnly bool) error {
 	for _, mf := range mfs {
 		switch {
 		case mf.GetType() == dto.MetricType_GAUGE && mf.GetName() == "probe_success":
@@ -471,9 +471,16 @@ func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.
 			}
 
 		case mf.GetType() == dto.MetricType_GAUGE:
-			suffixes := []string{"_duration_seconds", "_time_seconds"}
-
 			metricName := mf.GetName()
+
+			// we need to keep probe_all_duration_seconds
+			// because we use it to build a more reliable
+			// way of computing "uptime".
+			if metricName != "probe_duration_seconds" && basicMetricsOnly {
+				continue
+			}
+
+			suffixes := []string{"_duration_seconds", "_time_seconds"}
 
 			for _, suffix := range suffixes {
 				if strings.HasSuffix(metricName, suffix) {

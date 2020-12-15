@@ -1,9 +1,9 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 1.5629e-05
+probe_dns_lookup_time_seconds 1.3263e-05
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.002885874
+probe_duration_seconds 0.002686206
 # HELP probe_failed_due_to_regex Indicates if probe failed due to regex
 # TYPE probe_failed_due_to_regex gauge
 probe_failed_due_to_regex 0
@@ -12,11 +12,11 @@ probe_failed_due_to_regex 0
 probe_http_content_length 0
 # HELP probe_http_duration_seconds Duration of http request by phase, summed over all redirects
 # TYPE probe_http_duration_seconds gauge
-probe_http_duration_seconds{phase="connect"} 0.000512783
-probe_http_duration_seconds{phase="processing"} 0.000356264
-probe_http_duration_seconds{phase="resolve"} 1.5629e-05
+probe_http_duration_seconds{phase="connect"} 0.000559018
+probe_http_duration_seconds{phase="processing"} 0.000331993
+probe_http_duration_seconds{phase="resolve"} 1.3263e-05
 probe_http_duration_seconds{phase="tls"} 0
-probe_http_duration_seconds{phase="transfer"} 0.000112833
+probe_http_duration_seconds{phase="transfer"} 0.000201574
 # HELP probe_http_redirects The number of redirects
 # TYPE probe_http_redirects gauge
 probe_http_redirects 0
@@ -58,7 +58,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.002885874
+probe_all_duration_seconds_sum 0.002686206
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
@@ -78,7 +78,7 @@ probe_dns_lookup_all_time_seconds_bucket{le="2.5"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="5"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="10"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="+Inf"} 1
-probe_dns_lookup_all_time_seconds_sum 1.5629e-05
+probe_dns_lookup_all_time_seconds_sum 1.3263e-05
 probe_dns_lookup_all_time_seconds_count 1
 # HELP probe_http_all_duration_seconds Duration of http request by phase, summed over all redirects (histogram)
 # TYPE probe_http_all_duration_seconds histogram
@@ -94,7 +94,7 @@ probe_http_all_duration_seconds_bucket{phase="connect",le="2.5"} 1
 probe_http_all_duration_seconds_bucket{phase="connect",le="5"} 1
 probe_http_all_duration_seconds_bucket{phase="connect",le="10"} 1
 probe_http_all_duration_seconds_bucket{phase="connect",le="+Inf"} 1
-probe_http_all_duration_seconds_sum{phase="connect"} 0.000512783
+probe_http_all_duration_seconds_sum{phase="connect"} 0.000559018
 probe_http_all_duration_seconds_count{phase="connect"} 1
 probe_http_all_duration_seconds_bucket{phase="processing",le="0.005"} 1
 probe_http_all_duration_seconds_bucket{phase="processing",le="0.01"} 1
@@ -108,7 +108,7 @@ probe_http_all_duration_seconds_bucket{phase="processing",le="2.5"} 1
 probe_http_all_duration_seconds_bucket{phase="processing",le="5"} 1
 probe_http_all_duration_seconds_bucket{phase="processing",le="10"} 1
 probe_http_all_duration_seconds_bucket{phase="processing",le="+Inf"} 1
-probe_http_all_duration_seconds_sum{phase="processing"} 0.000356264
+probe_http_all_duration_seconds_sum{phase="processing"} 0.000331993
 probe_http_all_duration_seconds_count{phase="processing"} 1
 probe_http_all_duration_seconds_bucket{phase="resolve",le="0.005"} 1
 probe_http_all_duration_seconds_bucket{phase="resolve",le="0.01"} 1
@@ -122,7 +122,7 @@ probe_http_all_duration_seconds_bucket{phase="resolve",le="2.5"} 1
 probe_http_all_duration_seconds_bucket{phase="resolve",le="5"} 1
 probe_http_all_duration_seconds_bucket{phase="resolve",le="10"} 1
 probe_http_all_duration_seconds_bucket{phase="resolve",le="+Inf"} 1
-probe_http_all_duration_seconds_sum{phase="resolve"} 1.5629e-05
+probe_http_all_duration_seconds_sum{phase="resolve"} 1.3263e-05
 probe_http_all_duration_seconds_count{phase="resolve"} 1
 probe_http_all_duration_seconds_bucket{phase="tls",le="0.005"} 1
 probe_http_all_duration_seconds_bucket{phase="tls",le="0.01"} 1
@@ -150,5 +150,5 @@ probe_http_all_duration_seconds_bucket{phase="transfer",le="2.5"} 1
 probe_http_all_duration_seconds_bucket{phase="transfer",le="5"} 1
 probe_http_all_duration_seconds_bucket{phase="transfer",le="10"} 1
 probe_http_all_duration_seconds_bucket{phase="transfer",le="+Inf"} 1
-probe_http_all_duration_seconds_sum{phase="transfer"} 0.000112833
+probe_http_all_duration_seconds_sum{phase="transfer"} 0.000201574
 probe_http_all_duration_seconds_count{phase="transfer"} 1

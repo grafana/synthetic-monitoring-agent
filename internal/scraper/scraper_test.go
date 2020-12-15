@@ -154,7 +154,10 @@ func TestValidateMetrics(t *testing.T) {
 
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
-			verifyProberMetrics(t, name, testcase.prober, testcase.setup, testcase.config)
+			verifyProberMetrics(t, name, testcase.prober, testcase.setup, testcase.config, false)
+		})
+		t.Run(name+"_basic", func(t *testing.T) {
+			verifyProberMetrics(t, name+"_basic", testcase.prober, testcase.setup, testcase.config, true)
 		})
 	}
 }
@@ -166,7 +169,7 @@ func TestValidateMetrics(t *testing.T) {
 //
 // Optionally, this function will update the golden files if the
 // -update-golden flag was passed to the test.
-func verifyProberMetrics(t *testing.T, name string, prober prober.ProbeFn, setup func(t *testing.T) (string, func()), config bbeconfig.Module) {
+func verifyProberMetrics(t *testing.T, name string, prober prober.ProbeFn, setup func(t *testing.T) (string, func()), config bbeconfig.Module, basicMetricsOnly bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -177,7 +180,7 @@ func verifyProberMetrics(t *testing.T, name string, prober prober.ProbeFn, setup
 	target, stop := setup(t)
 	defer stop()
 
-	success, mfs, err := getProbeMetrics(ctx, prober, target, &config, nil, summaries, histograms, logger)
+	success, mfs, err := getProbeMetrics(ctx, prober, target, &config, nil, summaries, histograms, logger, basicMetricsOnly)
 	if err != nil {
 		t.Fatalf("probe failed: %s", err.Error())
 	} else if !success {
