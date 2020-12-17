@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
+	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -113,6 +114,7 @@ func run(args []string, stdout io.Writer) error {
 	})
 
 	publishCh := make(chan pusher.Payload)
+	tenantCh := make(chan synthetic_monitoring.Tenant)
 
 	conn, err := dialAPIServer(ctx, *grpcApiServerAddr, *grpcInsecure, *apiToken)
 	if err != nil {
@@ -120,7 +122,7 @@ func run(args []string, stdout io.Writer) error {
 	}
 	defer conn.Close()
 
-	checksUpdater, err := checks.NewUpdater(conn, zl.With().Str("subsystem", "updater").Logger(), publishCh, promRegisterer)
+	checksUpdater, err := checks.NewUpdater(conn, zl.With().Str("subsystem", "updater").Logger(), publishCh, tenantCh, promRegisterer)
 	if err != nil {
 		log.Fatalf("Cannot create checks updater: %s", err)
 	}
@@ -129,7 +131,7 @@ func run(args []string, stdout io.Writer) error {
 		return checksUpdater.Run(ctx)
 	})
 
-	publisher := pusher.NewPublisher(conn, publishCh, zl.With().Str("subsystem", "publisher").Logger(), promRegisterer)
+	publisher := pusher.NewPublisher(conn, publishCh, tenantCh, zl.With().Str("subsystem", "publisher").Logger(), promRegisterer)
 
 	g.Go(func() error {
 		return publisher.Run(ctx)

@@ -33,7 +33,7 @@ service Checks {
 
 	// GetChanges returns a list of check operations, specifying
 	// whether to add, update or delete checks.
-	rpc GetChanges(Void) returns (stream CheckChanges) {};
+	rpc GetChanges(Void) returns (stream Changes) {};
 }
 
 // Void is an empty message used by RPC methods that don't take
@@ -146,14 +146,18 @@ message CheckChange {
 	Check          check     = 2 [(gogoproto.nullable) = false];
 }
 
-// CheckChanges represents a series of check changes.
+// Changes represents a series of changes to be applied to the workloads
+// running on the probe.
 //
-// This exists in order to support the initialization phase of the
-// probe's connection: when a probe connects, it will get a sequence of
-// changes describing all the checks associated to that probe. After
-// that, it will get one change (add, delete, update) at a time.
-message CheckChanges {
-	repeated CheckChange changes = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "changes"];
+// When a probe connects, it will get a sequence of changes describing
+// all the checks associated to that probe. After the initial batch, it
+// will continue getting changes as they happen.
+//
+// When a tenant's credentials change, this message will contain the new
+// information for that tenant.
+message Changes {
+	repeated CheckChange checks  = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "checks"];
+	repeated Tenant      tenants = 2 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "tenants"];
 }
 
 // Label represents a single label in synthetic monitoring. These are
