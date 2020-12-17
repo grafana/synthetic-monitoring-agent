@@ -59,8 +59,8 @@ var (
 	ErrInvalidHttpMethodString = errors.New("invalid HTTP method string")
 	ErrInvalidHttpMethodValue  = errors.New("invalid HTTP method value")
 
-	ErrInvalidTcpHostname = errors.New("invalid TCP hostname")
-	ErrInvalidTcpPort     = errors.New("invalid TCP port")
+	ErrInvalidHostname = errors.New("invalid hostname")
+	ErrInvalidPort     = errors.New("invalid port")
 
 	ErrInvalidIpVersionString = errors.New("invalid ip version string")
 	ErrInvalidIpVersionValue  = errors.New("invalid ip version value")
@@ -132,10 +132,8 @@ func (c *Check) Validate() error {
 	if c.Settings.Http != nil {
 		settingsCount++
 
-		if target, err := url.Parse(c.Target); err != nil {
-			return ErrInvalidHttpUrl
-		} else if !(target.Scheme == "http" || target.Scheme == "https") {
-			return ErrInvalidHttpUrl
+		if err := validateHttpUrl(c.Target); err != nil {
+			return err
 		}
 
 		if err := c.Settings.Http.Validate(); err != nil {
@@ -277,7 +275,7 @@ func lookupString(b []byte, m map[string]int32) (int32, bool) {
 
 	in = strings.ToLower(in)
 
-	for str, v := range IpVersion_value {
+	for str, v := range m {
 		if strings.ToLower(str) == in {
 			return v, true
 		}
@@ -366,12 +364,47 @@ func validateHostPort(target string) error {
 	if host, port, err := net.SplitHostPort(target); err != nil {
 		return ErrInvalidCheckTarget
 	} else if validateHost(host) != nil {
-		return ErrInvalidTcpHostname
+		return ErrInvalidHostname
 	} else if n, err := strconv.ParseUint(port, 10, 16); err != nil || n == 0 {
-		return ErrInvalidTcpPort
+		return ErrInvalidPort
 	}
 
 	return nil
+}
+
+func validateHttpUrl(target string) error {
+	u, err := url.Parse(target)
+	if err != nil {
+		return ErrInvalidHttpUrl
+	}
+
+	if !(u.Scheme == "http" || u.Scheme == "https") {
+		return ErrInvalidHttpUrl
+	}
+
+	hasPort := func(h string) bool {
+		for l := len(h) - 1; l > 0; l-- {
+			if h[l] == ':' {
+				return true
+			} else if h[l] == ']' || h[l] == '.' {
+				return false
+			}
+		}
+
+		return false
+	}
+
+	hostport := u.Host
+
+	if (u.Host[0] == '[' && u.Host[len(u.Host)-1] == ']') || !hasPort(u.Host) {
+		if u.Scheme == "https" {
+			hostport += ":443"
+		} else {
+			hostport += ":80"
+		}
+	}
+
+	return validateHostPort(hostport)
 }
 
 // checkFQHN validates that the provided fully qualified hostname
