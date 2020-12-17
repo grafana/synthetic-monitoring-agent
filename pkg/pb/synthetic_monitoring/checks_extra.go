@@ -59,8 +59,8 @@ var (
 	ErrInvalidHttpMethodString = errors.New("invalid HTTP method string")
 	ErrInvalidHttpMethodValue  = errors.New("invalid HTTP method value")
 
-	ErrInvalidHostname = errors.New("invalid TCP hostname")
-	ErrInvalidPort     = errors.New("invalid TCP port")
+	ErrInvalidHostname = errors.New("invalid hostname")
+	ErrInvalidPort     = errors.New("invalid port")
 
 	ErrInvalidIpVersionString = errors.New("invalid ip version string")
 	ErrInvalidIpVersionValue  = errors.New("invalid ip version value")
