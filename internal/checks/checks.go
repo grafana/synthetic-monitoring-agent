@@ -34,6 +34,7 @@ type Updater struct {
 	api           apiInfo
 	logger        zerolog.Logger
 	publishCh     chan<- pusher.Payload
+	tenantCh      chan<- sm.Tenant
 	probe         *sm.Probe
 	scrapersMutex sync.Mutex
 	scrapers      map[int64]*scraper.Scraper
@@ -56,7 +57,7 @@ type metrics struct {
 type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
-func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- pusher.Payload, promRegisterer prometheus.Registerer) (*Updater, error) {
+func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- pusher.Payload, tenantCh chan<- sm.Tenant, promRegisterer prometheus.Registerer) (*Updater, error) {
 	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "sm_agent",
 		Subsystem: "updater",
@@ -147,6 +148,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 		},
 		logger:    logger,
 		publishCh: publishCh,
+		tenantCh:  tenantCh,
 		scrapers:  make(map[int64]*scraper.Scraper),
 		metrics: metrics{
 			changesCounter:      changesCounter,
@@ -278,7 +280,7 @@ func (c *Updater) loop(ctx context.Context) error {
 }
 
 func (c *Updater) processChanges(ctx context.Context, cc sm.Checks_GetChangesClient) error {
-	firstBatchDone := false
+	firstBatch := true
 
 	for {
 		select {
@@ -288,12 +290,8 @@ func (c *Updater) processChanges(ctx context.Context, cc sm.Checks_GetChangesCli
 		default:
 			switch msg, err := cc.Recv(); err {
 			case nil:
-				if firstBatchDone {
-					c.handleChangeBatch(ctx, msg.Changes)
-				} else {
-					c.handleFirstBatch(ctx, msg.Changes)
-					firstBatchDone = true
-				}
+				c.handleChangeBatch(ctx, msg, firstBatch)
+				firstBatch = false
 
 			case io.EOF:
 				c.logger.Warn().Err(err).Msg("no more messages?")
@@ -402,38 +400,38 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check sm.Check) error {
 //
 // We have to do this exactly once per reconnect. It's up to the calling code
 // to ensure this.
-func (c *Updater) handleFirstBatch(ctx context.Context, changes []sm.CheckChange) {
+func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 	newChecks := make(map[int64]struct{})
 
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
 	// add checks from the provided list
-	for _, change := range changes {
-		c.logger.Debug().Interface("change", change).Msg("got change")
+	for _, checkChange := range changes.Checks {
+		c.logger.Debug().Interface("check change", checkChange).Msg("got check change")
 
-		switch change.Operation {
+		switch checkChange.Operation {
 		case sm.CheckOperation_CHECK_ADD:
-			if err := c.handleInitialChangeAddWithLock(ctx, change.Check); err != nil {
+			if err := c.handleInitialChangeAddWithLock(ctx, checkChange.Check); err != nil {
 				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
 				c.logger.Error().
 					Err(err).
-					Int64("check_id", change.Check.Id).
+					Int64("check_id", checkChange.Check.Id).
 					Msg("adding check failed, dropping check")
 				continue
 			}
 
 			// add this to the list of checks we have seen during
 			// this operation
-			newChecks[change.Check.Id] = struct{}{}
+			newChecks[checkChange.Check.Id] = struct{}{}
 
 		default:
 			// we should never hit this because the first time we
 			// connect the server will only send adds.
 			c.logger.Warn().
-				Interface("check", change.Check).
-				Str("operation", change.Operation.String()).
-				Msg("unexpected operation, dropping change")
+				Interface("check", checkChange.Check).
+				Str("operation", checkChange.Operation.String()).
+				Msg("unexpected operation, dropping check change")
 			continue
 		}
 	}
@@ -490,25 +488,34 @@ func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check sm.C
 	return nil
 }
 
-func (c *Updater) handleChangeBatch(ctx context.Context, changes []sm.CheckChange) {
-	for _, change := range changes {
-		c.logger.Debug().Interface("change", change).Msg("got change")
+func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, firstBatch bool) {
+	if firstBatch {
+		c.handleFirstBatch(ctx, changes)
+		return
+	}
 
-		switch change.Operation {
+	for _, tenant := range changes.Tenants {
+		c.tenantCh <- tenant
+	}
+
+	for _, checkChange := range changes.Checks {
+		c.logger.Debug().Interface("check change", checkChange).Msg("got check change")
+
+		switch checkChange.Operation {
 		case sm.CheckOperation_CHECK_ADD:
-			if err := c.handleCheckAdd(ctx, change.Check); err != nil {
+			if err := c.handleCheckAdd(ctx, checkChange.Check); err != nil {
 				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
 				c.logger.Error().Err(err).Msg("handling check add")
 			}
 
 		case sm.CheckOperation_CHECK_UPDATE:
-			if err := c.handleCheckUpdate(ctx, change.Check); err != nil {
+			if err := c.handleCheckUpdate(ctx, checkChange.Check); err != nil {
 				c.metrics.changeErrorsCounter.WithLabelValues("update").Inc()
 				c.logger.Error().Err(err).Msg("handling check update")
 			}
 
 		case sm.CheckOperation_CHECK_DELETE:
-			if err := c.handleCheckDelete(ctx, change.Check); err != nil {
+			if err := c.handleCheckDelete(ctx, checkChange.Check); err != nil {
 				c.metrics.changeErrorsCounter.WithLabelValues("delete").Inc()
 				c.logger.Error().Err(err).Msg("handling check delete")
 			}

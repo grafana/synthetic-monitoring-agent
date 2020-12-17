@@ -45,6 +45,7 @@ type Publisher struct {
 	tenantsClient sm.TenantsClient
 	logger        zerolog.Logger
 	publishCh     <-chan Payload
+	tenantCh      <-chan sm.Tenant
 	clientsMutex  sync.Mutex
 	clients       map[int64]*remoteTarget
 	pushCounter   *prometheus.CounterVec
@@ -52,7 +53,7 @@ type Publisher struct {
 	bytesOut      *prometheus.CounterVec
 }
 
-func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger zerolog.Logger, promRegisterer prometheus.Registerer) *Publisher {
+func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, tenantCh <-chan sm.Tenant, logger zerolog.Logger, promRegisterer prometheus.Registerer) *Publisher {
 	pushCounter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "sm_agent",
@@ -89,6 +90,7 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, logger zerolo
 	return &Publisher{
 		tenantsClient: sm.NewTenantsClient(conn),
 		publishCh:     publishCh,
+		tenantCh:      tenantCh,
 		clients:       make(map[int64]*remoteTarget),
 		logger:        logger,
 		pushCounter:   pushCounter,
@@ -105,6 +107,9 @@ func (p *Publisher) Run(ctx context.Context) error {
 
 		case payload := <-p.publishCh:
 			go p.publish(ctx, payload)
+
+		case tenant := <-p.tenantCh:
+			go p.updateTenant(tenant)
 		}
 	}
 }
@@ -162,6 +167,14 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 	logger.Warn().Msg("failed to push payload")
 }
 
+func (p *Publisher) updateTenant(tenant sm.Tenant) {
+	p.logger.Info().Int64("tenantId", tenant.Id).Msg("updating tenant")
+	_, err := p.updateClient(&tenant)
+	if err != nil {
+		p.logger.Error().Err(err).Msg("updating tenant")
+	}
+}
+
 func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams []logproto.Stream) (int, error) {
 	buf := bufPool.Get().(*[]byte)
 	defer bufPool.Put(buf)
@@ -198,6 +211,7 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64, newClient boo
 
 	p.clientsMutex.Lock()
 	if newClient {
+		p.logger.Info().Int64("tenantId", tenantId).Msg("removing tenant from cache")
 		delete(p.clients, tenantId)
 	} else {
 		client, found = p.clients[tenantId]
@@ -208,6 +222,8 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64, newClient boo
 		return client, nil
 	}
 
+	p.logger.Info().Int64("tenantId", tenantId).Msg("fetching tenant credentials")
+
 	req := sm.TenantInfo{
 		Id: tenantId,
 	}
@@ -215,29 +231,41 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64, newClient boo
 	if err != nil {
 		return nil, err
 	}
-	mClientCfg, err := clientFromRemoteInfo(tenantId, tenant.MetricsRemote)
+
+	return p.updateClient(tenant)
+}
+
+func (p *Publisher) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
+	mClientCfg, err := clientFromRemoteInfo(tenant.Id, tenant.MetricsRemote)
 	if err != nil {
 		return nil, fmt.Errorf("creating metrics client configuration: %w", err)
 	}
+
 	mClient, err := prom.NewClient(tenant.MetricsRemote.Name, mClientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating metrics client: %w", err)
 	}
-	eClientCfg, err := clientFromRemoteInfo(tenantId, tenant.EventsRemote)
+
+	eClientCfg, err := clientFromRemoteInfo(tenant.Id, tenant.EventsRemote)
 	if err != nil {
 		return nil, fmt.Errorf("creating events client configuration: %w", err)
 	}
+
 	eClient, err := prom.NewClient(tenant.EventsRemote.Name, eClientCfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating events client: %w", err)
 	}
+
 	clients := &remoteTarget{
 		Metrics: mClient,
 		Events:  eClient,
 	}
+
 	p.clientsMutex.Lock()
-	p.clients[tenantId] = clients
+	p.clients[tenant.Id] = clients
 	p.clientsMutex.Unlock()
+
+	p.logger.Debug().Int64("tenantId", tenant.Id).Interface("tenant", tenant).Msg("updated client")
 
 	return clients, nil
 }
