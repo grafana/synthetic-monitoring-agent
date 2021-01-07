@@ -2,8 +2,14 @@
 ## [Unreleased]
 
 
+<a name="v0.0.14"></a>
+## [v0.0.14] - 2020-12-17
+### Feature
+- add option to reduce the number of published metrics
+
+
 <a name="v0.0.13"></a>
-## [v0.0.13] - 2020-11-25
+## [v0.0.13] - 2020-11-26
 ### Fix
 - validate check and probe labels
 
@@ -73,7 +79,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.13...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.14...HEAD
+[v0.0.14]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.13...v0.0.14
 [v0.0.13]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.12...v0.0.13
 [v0.0.12]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.11...v0.0.12
 [v0.0.11]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.10...v0.0.11
