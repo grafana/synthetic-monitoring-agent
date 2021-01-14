@@ -590,10 +590,11 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []
 
 func (s Scraper) buildCheckInfoLabels() map[string]string {
 	labels := map[string]string{
-		"check_name": s.checkName,
-		"region":     s.probe.Region,
-		"frequency":  strconv.FormatInt(s.check.Frequency, 10),
-		"geohash":    geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude)),
+		"check_name":        s.checkName,
+		"region":            s.probe.Region,
+		"frequency":         strconv.FormatInt(s.check.Frequency, 10),
+		"geohash":           geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude)),
+		"alert_sensitivity": s.check.AlertSensitivity,
 	}
 	for _, label := range s.buildUserLabels() {
 		labels[label.name] = label.value
