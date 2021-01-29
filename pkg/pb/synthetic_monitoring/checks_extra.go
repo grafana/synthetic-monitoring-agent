@@ -23,6 +23,8 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+
+	"golang.org/x/net/http/httpguts"
 )
 
 var (
@@ -60,6 +62,7 @@ var (
 	ErrInvalidHttpUrl          = errors.New("invalid HTTP URL")
 	ErrInvalidHttpMethodString = errors.New("invalid HTTP method string")
 	ErrInvalidHttpMethodValue  = errors.New("invalid HTTP method value")
+	ErrInvalidHttpHeaders      = errors.New("invalid HTTP headers")
 
 	ErrInvalidHostname = errors.New("invalid hostname")
 	ErrInvalidPort     = errors.New("invalid port")
@@ -279,6 +282,24 @@ func (s *PingSettings) Validate() error {
 }
 
 func (s *HttpSettings) Validate() error {
+	for _, h := range s.Headers {
+		fields := strings.Split(h, ":")
+		if len(fields) != 2 {
+			return ErrInvalidHttpHeaders
+		}
+
+		// remove optional leading and trailing whitespace
+		fields[1] = strings.TrimSpace(fields[1])
+
+		if !httpguts.ValidHeaderFieldName(fields[0]) {
+			return ErrInvalidHttpHeaders
+		}
+
+		if !httpguts.ValidHeaderFieldValue(fields[1]) {
+			return ErrInvalidHttpHeaders
+		}
+	}
+
 	return nil
 }
 
