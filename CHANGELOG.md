@@ -2,8 +2,11 @@
 ## [Unreleased]
 
 
+<a name="v0.0.15"></a>
+## [v0.0.15] - 2021-01-27
+
 <a name="v0.0.14"></a>
-## [v0.0.14] - 2020-12-17
+## [v0.0.14] - 2021-01-07
 ### Feature
 - add option to reduce the number of published metrics
 
@@ -79,7 +82,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.14...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.15...HEAD
+[v0.0.15]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.14...v0.0.15
 [v0.0.14]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.13...v0.0.14
 [v0.0.13]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.12...v0.0.13
 [v0.0.12]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.11...v0.0.12
