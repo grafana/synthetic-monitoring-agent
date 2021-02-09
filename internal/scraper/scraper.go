@@ -37,18 +37,11 @@ var (
 	staleMarker float64 = math.Float64frombits(staleNaN)
 
 	probers = map[string]prober.ProbeFn{
-		ScraperTypeHTTP: prober.ProbeHTTP,
-		ScraperTypeTcp:  prober.ProbeTCP,
-		ScraperTypePing: prober.ProbeICMP,
-		ScraperTypeDNS:  prober.ProbeDNS,
+		sm.CheckTypeHttp.String(): prober.ProbeHTTP,
+		sm.CheckTypeTcp.String():  prober.ProbeTCP,
+		sm.CheckTypePing.String(): prober.ProbeICMP,
+		sm.CheckTypeDns.String():  prober.ProbeDNS,
 	}
-)
-
-const (
-	ScraperTypeDNS  = "dns"
-	ScraperTypeHTTP = "http"
-	ScraperTypePing = "ping"
-	ScraperTypeTcp  = "tcp"
 )
 
 type Scraper struct {
@@ -97,7 +90,7 @@ func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, p
 		Logger()
 
 	sctx, cancel := context.WithCancel(ctx)
-	checkName, bbeModule, target, err := mapSettings(sctx, logger, check.Target, check.Settings)
+	bbeModule, target, err := mapSettings(sctx, logger, check)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -108,9 +101,9 @@ func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, p
 	return &Scraper{
 		publishCh:     publishCh,
 		cancel:        cancel,
-		checkName:     checkName,
+		checkName:     bbeModule.Prober,
 		target:        target,
-		logger:        logger.With().Str("check", checkName).Logger(),
+		logger:        logger.With().Str("check", bbeModule.Prober).Logger(),
 		check:         check,
 		probe:         probe,
 		bbeModule:     &bbeModule,
@@ -244,27 +237,8 @@ func (s *Scraper) Stop() {
 	close(s.stop)
 }
 
-func (s Scraper) CheckType() string {
-	// XXX(mem): this shouldn't be here, it should be in
-	// sm.Check
-
-	switch {
-	case s.check.Settings.Dns != nil:
-		return ScraperTypeDNS
-
-	case s.check.Settings.Http != nil:
-		return ScraperTypeHTTP
-
-	case s.check.Settings.Ping != nil:
-		return ScraperTypePing
-
-	case s.check.Settings.Tcp != nil:
-		return ScraperTypeTcp
-	}
-
-	// we need this to make sure that adding a check type does not
-	// go unnoticed in here
-	panic("unknown check type")
+func (s Scraper) CheckType() sm.CheckType {
+	return s.check.Type()
 }
 
 func (s Scraper) ConfigVersion() string {
@@ -336,7 +310,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// and it IS NOT part of s.check.Target because that would cause
 	// it to end up in the instance label that is added to every
 	// metric (see below).
-	if s.CheckType() == ScraperTypeHTTP && s.check.Settings.Http.CacheBustingQueryParamName != "" {
+	if s.bbeModule.Prober == sm.CheckTypeHttp.String() && s.check.Settings.Http.CacheBustingQueryParamName != "" {
 		target = addCacheBustParam(s.target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name)
 	}
 
@@ -754,25 +728,27 @@ func fmtLabels(labels []labelPair) string {
 	return s.String()
 }
 
-func mapSettings(ctx context.Context, logger zerolog.Logger, target string, settings sm.CheckSettings) (string, bbeconfig.Module, string, error) {
-	// Map the change to a blackbox exporter module
-	switch {
-	case settings.Ping != nil:
-		return ScraperTypePing, pingSettingsToBBEModule(settings.Ping), target, nil
+func mapSettings(ctx context.Context, logger zerolog.Logger, check sm.Check) (bbeconfig.Module, string, error) {
+	// Map the check to a blackbox exporter module
+	switch checkType := check.Type(); checkType {
+	case sm.CheckTypePing:
+		m := pingSettingsToBBEModule(check.Settings.Ping)
+		return m, check.Target, nil
 
-	case settings.Http != nil:
-		m, err := httpSettingsToBBEModule(ctx, logger, settings.Http)
-		return ScraperTypeHTTP, m, target, err
+	case sm.CheckTypeHttp:
+		m, err := httpSettingsToBBEModule(ctx, logger, check.Settings.Http)
+		return m, check.Target, err
 
-	case settings.Dns != nil:
-		return ScraperTypeDNS, dnsSettingsToBBEModule(ctx, settings.Dns, target), settings.Dns.Server, nil
+	case sm.CheckTypeDns:
+		m := dnsSettingsToBBEModule(ctx, check.Settings.Dns, check.Target)
+		return m, check.Settings.Dns.Server, nil
 
-	case settings.Tcp != nil:
-		m, err := tcpSettingsToBBEModule(ctx, logger, settings.Tcp)
-		return ScraperTypeTcp, m, target, err
+	case sm.CheckTypeTcp:
+		m, err := tcpSettingsToBBEModule(ctx, logger, check.Settings.Tcp)
+		return m, check.Target, err
 
 	default:
-		return "", bbeconfig.Module{}, "", fmt.Errorf("unsupported change")
+		return bbeconfig.Module{}, "", fmt.Errorf("unsupported change")
 	}
 }
 
@@ -798,7 +774,7 @@ func ipVersionToIpProtocol(v sm.IpVersion) (string, bool) {
 func pingSettingsToBBEModule(settings *sm.PingSettings) bbeconfig.Module {
 	var m bbeconfig.Module
 
-	m.Prober = ScraperTypePing
+	m.Prober = sm.CheckTypePing.String()
 
 	m.ICMP.IPProtocol, m.ICMP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
@@ -814,7 +790,7 @@ func pingSettingsToBBEModule(settings *sm.PingSettings) bbeconfig.Module {
 func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *sm.HttpSettings) (bbeconfig.Module, error) {
 	var m bbeconfig.Module
 
-	m.Prober = ScraperTypeHTTP
+	m.Prober = sm.CheckTypeHttp.String()
 
 	m.HTTP.IPProtocol, m.HTTP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
@@ -903,7 +879,7 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 func dnsSettingsToBBEModule(ctx context.Context, settings *sm.DnsSettings, target string) bbeconfig.Module {
 	var m bbeconfig.Module
 
-	m.Prober = ScraperTypeDNS
+	m.Prober = sm.CheckTypeDns.String()
 	m.DNS.IPProtocol, m.DNS.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
 	// BBE dns_probe actually tests the DNS server, so we
@@ -941,7 +917,7 @@ func dnsSettingsToBBEModule(ctx context.Context, settings *sm.DnsSettings, targe
 func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *sm.TcpSettings) (bbeconfig.Module, error) {
 	var m bbeconfig.Module
 
-	m.Prober = ScraperTypeTcp
+	m.Prober = sm.CheckTypeTcp.String()
 	m.TCP.IPProtocol, m.TCP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
 	m.TCP.SourceIPAddress = settings.SourceIpAddress
