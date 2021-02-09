@@ -79,6 +79,32 @@ const (
 	MaxProbeLabels = 3
 )
 
+// CheckType represents the type of the associated check
+type CheckType int
+
+const (
+	CheckTypeDns CheckType = iota
+	CheckTypeHttp
+	CheckTypePing
+	CheckTypeTcp
+)
+
+var checkTypeToString = map[CheckType]string{
+	CheckTypeDns:  "dns",
+	CheckTypeHttp: "http",
+	CheckTypePing: "ping",
+	CheckTypeTcp:  "tcp",
+}
+
+func (t CheckType) String() string {
+	str, found := checkTypeToString[t]
+	if !found {
+		panic("unhandled check type")
+	}
+
+	return str
+}
+
 func (c *Check) Validate() error {
 	if c.TenantId < 0 {
 		return ErrInvalidTenantId
@@ -119,7 +145,26 @@ func (c *Check) Validate() error {
 
 	if c.Settings.Ping != nil {
 		settingsCount++
+	}
 
+	if c.Settings.Http != nil {
+		settingsCount++
+	}
+
+	if c.Settings.Dns != nil {
+		settingsCount++
+	}
+
+	if c.Settings.Tcp != nil {
+		settingsCount++
+	}
+
+	if settingsCount != 1 {
+		return ErrInvalidCheckSettings
+	}
+
+	switch c.Type() {
+	case CheckTypePing:
 		if err := validateHost(c.Target); err != nil {
 			return ErrInvalidPingHostname
 		}
@@ -127,11 +172,8 @@ func (c *Check) Validate() error {
 		if err := c.Settings.Ping.Validate(); err != nil {
 			return err
 		}
-	}
 
-	if c.Settings.Http != nil {
-		settingsCount++
-
+	case CheckTypeHttp:
 		if err := validateHttpUrl(c.Target); err != nil {
 			return err
 		}
@@ -139,11 +181,8 @@ func (c *Check) Validate() error {
 		if err := c.Settings.Http.Validate(); err != nil {
 			return err
 		}
-	}
 
-	if c.Settings.Dns != nil {
-		settingsCount++
-
+	case CheckTypeDns:
 		if err := validateDnsTarget(c.Target); err != nil {
 			return ErrInvalidDnsName
 		}
@@ -151,11 +190,8 @@ func (c *Check) Validate() error {
 		if err := c.Settings.Dns.Validate(); err != nil {
 			return err
 		}
-	}
 
-	if c.Settings.Tcp != nil {
-		settingsCount++
-
+	case CheckTypeTcp:
 		if err := validateHostPort(c.Target); err != nil {
 			return err
 		}
@@ -165,11 +201,26 @@ func (c *Check) Validate() error {
 		}
 	}
 
-	if settingsCount != 1 {
-		return ErrInvalidCheckSettings
-	}
-
 	return nil
+}
+
+func (c Check) Type() CheckType {
+	switch {
+	case c.Settings.Dns != nil:
+		return CheckTypeDns
+
+	case c.Settings.Http != nil:
+		return CheckTypeHttp
+
+	case c.Settings.Ping != nil:
+		return CheckTypePing
+
+	case c.Settings.Tcp != nil:
+		return CheckTypeTcp
+
+	default:
+		panic("unhandled check type")
+	}
 }
 
 func (c *Check) ConfigVersion() string {

@@ -355,7 +355,7 @@ func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check sm.Check)
 	// down, start it again.
 
 	scraper.Stop()
-	checkType := scraper.CheckType()
+	checkType := scraper.CheckType().String()
 	delete(c.scrapers, check.Id)
 
 	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
@@ -376,7 +376,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check sm.Check) error {
 	}
 
 	scraper.Stop()
-	checkType := scraper.CheckType()
+	checkType := scraper.CheckType().String()
 
 	delete(c.scrapers, check.Id)
 
@@ -442,7 +442,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 			continue
 		}
 
-		checkType := scraper.CheckType()
+		checkType := scraper.CheckType().String()
 		scraper.Stop()
 
 		delete(c.scrapers, id)
@@ -550,7 +550,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 
 	go scraper.Run(ctx)
 
-	c.metrics.runningScrapers.WithLabelValues(scraper.CheckType()).Inc()
+	c.metrics.runningScrapers.WithLabelValues(scraper.CheckType().String()).Inc()
 
 	return nil
 }
