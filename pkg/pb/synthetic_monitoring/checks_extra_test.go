@@ -221,6 +221,69 @@ func TestValidateHost(t *testing.T) {
 	}
 }
 
+func TestValidateDnsTarget(t *testing.T) {
+	testcases := map[string]struct {
+		input       string
+		expectError bool
+	}{
+		// valid hostnames
+		"hostname": {
+			input:       "grafana.com",
+			expectError: false,
+		},
+
+		// localhost is valid
+		"localhost": {
+			input:       "localhost",
+			expectError: false,
+		},
+
+		// localhost. is valid
+		"localhost.": {
+			input:       "localhost.",
+			expectError: false,
+		},
+
+		// single label fully qualified dns name is valid
+		"org.": {
+			input:       "org.",
+			expectError: false,
+		},
+
+		// multi-label dns name is valid
+		"grafana.com.": {
+			input:       "grafana.com.",
+			expectError: false,
+		},
+
+		// single label is invalid
+		"org": {
+			input:       "org",
+			expectError: true,
+		},
+
+		// IP address is invalid
+		"127.0.0.1": {
+			input:       "127.0.0.1",
+			expectError: true,
+		},
+
+		// IP address disguised as multi-label fully qualified
+		// dns name is invalid
+		"127.0.0.1.": {
+			input:       "127.0.0.1.",
+			expectError: true,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			err := validateDnsTarget(testcase.input)
+			checkError(t, testcase.expectError, err, testcase.input)
+		})
+	}
+}
+
 func TestCheckFQHN(t *testing.T) {
 	genstr := func(n int) string {
 		var sb strings.Builder
