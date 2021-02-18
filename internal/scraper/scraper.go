@@ -983,7 +983,7 @@ func smTLSConfigToBBE(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.
 	}
 
 	if len(tlsConfig.ClientCert) > 0 {
-		fn, err := newDataProvider(ctx, logger, "client_cert", tlsConfig.CACert)
+		fn, err := newDataProvider(ctx, logger, "client_cert", tlsConfig.ClientCert)
 		if err != nil {
 			return promconfig.TLSConfig{}, err
 		}
@@ -991,7 +991,7 @@ func smTLSConfigToBBE(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.
 	}
 
 	if len(tlsConfig.ClientKey) > 0 {
-		fn, err := newDataProvider(ctx, logger, "client_key", tlsConfig.CACert)
+		fn, err := newDataProvider(ctx, logger, "client_key", tlsConfig.ClientKey)
 		if err != nil {
 			return promconfig.TLSConfig{}, err
 		}
