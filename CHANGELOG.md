@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.0.17"></a>
+## [v0.0.17] - 2021-02-18
+### Fix
+- typo in client certificate and key
+
+
 <a name="v0.0.16"></a>
 ## [v0.0.16] - 2021-01-29
 
@@ -85,7 +91,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.16...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.17...HEAD
+[v0.0.17]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.16...v0.0.17
 [v0.0.16]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.15...v0.0.16
 [v0.0.15]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.14...v0.0.15
 [v0.0.14]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.13...v0.0.14
