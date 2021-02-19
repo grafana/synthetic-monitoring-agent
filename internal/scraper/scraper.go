@@ -1015,7 +1015,14 @@ func newDataProvider(ctx context.Context, logger zerolog.Logger, basename string
 		logger.Error().Err(err).Str("basename", basename).Msg("creating temporary file")
 		return "", fmt.Errorf("creating temporary file: %w", err)
 	}
-	defer fh.Close()
+	defer func() {
+		if err := fh.Close(); err != nil {
+			// close errors should never happen, but if they
+			// do, the most we can do is log them to be able
+			// to debug the issue.
+			logger.Error().Err(err).Str("filename", fh.Name()).Msg("closing temporary file")
+		}
+	}()
 
 	fn := fh.Name()
 
