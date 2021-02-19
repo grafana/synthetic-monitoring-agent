@@ -83,7 +83,8 @@ build-go: $(BUILD_GO_TARGETS) ## Build all Go binaries.
 build: build-go ## Build everything.
 
 scripts/go/bin/bra: scripts/go/go.mod
-	$(S) cd scripts/go; \
+	$(S) cd scripts/go && \
+		$(GO) mod download && \
 		$(GO) build -o ./bin/bra github.com/unknwon/bra
 
 .PHONY: run
@@ -94,7 +95,8 @@ run: scripts/go/bin/bra ## Build and run web server on filesystem changes.
 
 ifeq ($(LOCAL_GOTESTSUM),yes)
 $(GOTESTSUM): scripts/go/go.mod
-	$(S) cd scripts/go; \
+	$(S) cd scripts/go && \
+		$(GO) mod download && \
 		$(GO) build -o $(GOTESTSUM) gotest.tools/gotestsum
 endif
 
@@ -119,7 +121,8 @@ test: test-go ## Run all tests.
 
 ifeq ($(LOCAL_GOLANGCI_LINT),yes)
 $(GOLANGCI_LINT): scripts/go/go.mod
-	$(S) cd scripts/go; \
+	$(S) cd scripts/go && \
+		$(GO) mod download && \
 		$(GO) build -o $(GOLANGCI_LINT) github.com/golangci/golangci-lint/cmd/golangci-lint
 endif
 
@@ -132,7 +135,8 @@ golangci-lint: $(GOLANGCI_LINT)
 		$(GO_PKGS)
 
 scripts/go/bin/gosec: scripts/go/go.mod
-	$(S) cd scripts/go; \
+	$(S) cd scripts/go && \
+		$(GO) mod download && \
 		$(GO) build -o ./bin/gosec github.com/securego/gosec/cmd/gosec
 
 # TODO recheck the rules and leave only necessary exclusions
