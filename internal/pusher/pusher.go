@@ -15,7 +15,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
-	"google.golang.org/grpc"
 )
 
 const (
@@ -42,10 +41,9 @@ type Payload interface {
 }
 
 type Publisher struct {
-	tenantsClient sm.TenantsClient
+	tenantManager *TenantManager
 	logger        zerolog.Logger
 	publishCh     <-chan Payload
-	tenantCh      <-chan sm.Tenant
 	clientsMutex  sync.Mutex
 	clients       map[int64]*remoteTarget
 	pushCounter   *prometheus.CounterVec
@@ -53,7 +51,7 @@ type Publisher struct {
 	bytesOut      *prometheus.CounterVec
 }
 
-func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, tenantCh <-chan sm.Tenant, logger zerolog.Logger, promRegisterer prometheus.Registerer) *Publisher {
+func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Logger, promRegisterer prometheus.Registerer) *Publisher {
 	pushCounter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "sm_agent",
@@ -88,9 +86,8 @@ func NewPublisher(conn *grpc.ClientConn, publishCh <-chan Payload, tenantCh <-ch
 	promRegisterer.MustRegister(bytesOut)
 
 	return &Publisher{
-		tenantsClient: sm.NewTenantsClient(conn),
+		tenantManager: tm,
 		publishCh:     publishCh,
-		tenantCh:      tenantCh,
 		clients:       make(map[int64]*remoteTarget),
 		logger:        logger,
 		pushCounter:   pushCounter,
@@ -107,9 +104,6 @@ func (p *Publisher) Run(ctx context.Context) error {
 
 		case payload := <-p.publishCh:
 			go p.publish(ctx, payload)
-
-		case tenant := <-p.tenantCh:
-			go p.updateTenant(tenant)
 		}
 	}
 }
@@ -167,14 +161,6 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 	logger.Warn().Msg("failed to push payload")
 }
 
-func (p *Publisher) updateTenant(tenant sm.Tenant) {
-	p.logger.Info().Int64("tenantId", tenant.Id).Msg("updating tenant")
-	_, err := p.updateClient(&tenant)
-	if err != nil {
-		p.logger.Error().Err(err).Msg("updating tenant")
-	}
-}
-
 func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams []logproto.Stream) (int, error) {
 	buf := bufPool.Get().(*[]byte)
 	defer bufPool.Put(buf)
@@ -227,7 +213,7 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64, newClient boo
 	req := sm.TenantInfo{
 		Id: tenantId,
 	}
-	tenant, err := p.tenantsClient.GetTenant(ctx, &req)
+	tenant, err := p.tenantManager.GetTenant(ctx, &req)
 	if err != nil {
 		return nil, err
 	}

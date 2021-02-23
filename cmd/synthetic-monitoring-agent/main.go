@@ -131,7 +131,9 @@ func run(args []string, stdout io.Writer) error {
 		return checksUpdater.Run(ctx)
 	})
 
-	publisher := pusher.NewPublisher(conn, publishCh, tenantCh, zl.With().Str("subsystem", "publisher").Logger(), promRegisterer)
+	tm := pusher.NewTenantManager(ctx, synthetic_monitoring.NewTenantsClient(conn), tenantCh, 15*time.Minute)
+
+	publisher := pusher.NewPublisher(tm, publishCh, zl.With().Str("subsystem", "publisher").Logger(), promRegisterer)
 
 	g.Go(func() error {
 		return publisher.Run(ctx)
