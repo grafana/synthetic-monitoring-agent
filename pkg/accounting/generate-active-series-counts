@@ -1,0 +1,13 @@
+#!/bin/sh
+
+set -e
+
+GOMOD=$(go env GOMOD)
+GOMOD_DIR=$(dirname "${GOMOD}")
+
+go run \
+	"./generate-active-series-counts.go" \
+	"./data.go.tmpl" \
+	"${GOMOD_DIR}"/internal/scraper/testdata/*.txt > "./data.go"
+
+gofmt -w -s "./data.go"

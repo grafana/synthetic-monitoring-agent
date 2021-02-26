@@ -199,6 +199,14 @@ docker-push:  docker
 	$(S) docker tag $(DOCKER_TAG) $(DOCKER_TAG):$(BUILD_VERSION)
 	$(S) docker push $(DOCKER_TAG):$(BUILD_VERSION)
 
+.PHONY: generate
+generate: $(ROOTDIR)/pkg/accounting/data.go
+	$(S) true
+
+$(ROOTDIR)/pkg/accounting/data.go : $(ROOTDIR)/pkg/accounting/data.go.tmpl $(wildcard $(ROOTDIR)/internal/scraper/testdata/*.txt)
+	$(S) echo "Generating $@ ..."
+	$(GO) generate -v "$(@D)"
+
 define build_go_command
 	$(S) echo 'Building $(1)'
 	$(S) mkdir -p dist
