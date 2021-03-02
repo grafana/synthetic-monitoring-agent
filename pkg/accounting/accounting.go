@@ -21,6 +21,22 @@ var ErrUnhandledCheck = errors.New("cannot compute the number of active series f
 // This is of course dependent on the running agent being the same
 // version as the code embedded in the program using this information.
 func GetActiveSeriesForCheck(check synthetic_monitoring.Check) (int, error) {
+	accountingClass, err := GetCheckAccountingClass(check)
+	if err != nil {
+		return 0, err
+	}
+
+	as, found := activeSeriesByCheckType[accountingClass]
+	if !found {
+		return 0, ErrUnhandledCheck
+	}
+
+	return as, nil
+}
+
+// GetCheckAccountingClass returns the accounting class corresponding to
+// the specified check.
+func GetCheckAccountingClass(check synthetic_monitoring.Check) (string, error) {
 	checkType := check.Type()
 	key := checkType.String()
 
@@ -40,17 +56,24 @@ func GetActiveSeriesForCheck(check synthetic_monitoring.Check) (int, error) {
 		}
 
 	default:
-		return 0, ErrUnhandledCheck
+		return "", ErrUnhandledCheck
 	}
 
 	if check.BasicMetricsOnly {
 		key += "_basic"
 	}
 
-	as, found := activeSeriesByCheckType[key]
-	if !found {
-		return 0, ErrUnhandledCheck
+	return key, nil
+}
+
+// GetAccountingClassInfo returns all the known accounting classes and
+// the corresponding active series.
+func GetAccountingClassInfo() map[string]int {
+	info := make(map[string]int, len(activeSeriesByCheckType))
+
+	for class, as := range activeSeriesByCheckType {
+		info[class] = as
 	}
 
-	return as, nil
+	return info
 }

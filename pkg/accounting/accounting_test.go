@@ -10,15 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestGetActiveSeriesForCheck verifies that GetActiveSeriesForCheck
-// returns the data in activeSeriesByCheckType. This makes sure that the
-// function is applying the correct criteria to select the entry from
-// the map. It also verifies that all the entries in that map are
-// covered.
-func TestGetActiveSeriesForCheck(t *testing.T) {
-	testcases := map[string]struct {
-		input                synthetic_monitoring.Check
-		expectedActiveSeries int
+func getTestCases() map[string]struct {
+	input synthetic_monitoring.Check
+	class string
+} {
+	return map[string]struct {
+		input synthetic_monitoring.Check
+		class string
 	}{
 		"dns": {
 			input: synthetic_monitoring.Check{
@@ -27,7 +25,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					Dns: &synthetic_monitoring.DnsSettings{},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["dns"],
+			class: "dns",
 		},
 		"dns_basic": {
 			input: synthetic_monitoring.Check{
@@ -37,7 +35,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					Dns: &synthetic_monitoring.DnsSettings{},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["dns_basic"],
+			class: "dns_basic",
 		},
 
 		"http": {
@@ -47,7 +45,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					Http: &synthetic_monitoring.HttpSettings{},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["http"],
+			class: "http",
 		},
 		"http_ssl": {
 			input: synthetic_monitoring.Check{
@@ -56,7 +54,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					Http: &synthetic_monitoring.HttpSettings{},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["http_ssl"],
+			class: "http_ssl",
 		},
 		"http_basic": {
 			input: synthetic_monitoring.Check{
@@ -66,7 +64,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					Http: &synthetic_monitoring.HttpSettings{},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["http_basic"],
+			class: "http_basic",
 		},
 		"http_ssl_basic": {
 			input: synthetic_monitoring.Check{
@@ -76,7 +74,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					Http: &synthetic_monitoring.HttpSettings{},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["http_ssl_basic"],
+			class: "http_ssl_basic",
 		},
 
 		"ping": {
@@ -86,7 +84,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					Ping: &synthetic_monitoring.PingSettings{},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["ping"],
+			class: "ping",
 		},
 		"ping_basic": {
 			input: synthetic_monitoring.Check{
@@ -96,7 +94,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					Ping: &synthetic_monitoring.PingSettings{},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["ping_basic"],
+			class: "ping_basic",
 		},
 
 		"tcp": {
@@ -106,7 +104,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					Tcp: &synthetic_monitoring.TcpSettings{},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["tcp"],
+			class: "tcp",
 		},
 		"tcp_ssl": {
 			input: synthetic_monitoring.Check{
@@ -117,7 +115,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["tcp_ssl"],
+			class: "tcp_ssl",
 		},
 		"tcp_basic": {
 			input: synthetic_monitoring.Check{
@@ -127,7 +125,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					Tcp: &synthetic_monitoring.TcpSettings{},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["tcp_basic"],
+			class: "tcp_basic",
 		},
 		"tcp_ssl_basic": {
 			input: synthetic_monitoring.Check{
@@ -139,9 +137,18 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 					},
 				},
 			},
-			expectedActiveSeries: activeSeriesByCheckType["tcp_ssl_basic"],
+			class: "tcp_ssl_basic",
 		},
 	}
+}
+
+// TestGetActiveSeriesForCheck verifies that GetActiveSeriesForCheck
+// returns the data in activeSeriesByCheckType. This makes sure that the
+// function is applying the correct criteria to select the entry from
+// the map. It also verifies that all the entries in that map are
+// covered.
+func TestGetActiveSeriesForCheck(t *testing.T) {
+	testcases := getTestCases()
 
 	// For know simply expect that every element in
 	// activeSeriesByCheckType has a corresponding test case of the
@@ -157,10 +164,38 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			as, err := GetActiveSeriesForCheck(tc.input)
+			actual, err := GetActiveSeriesForCheck(tc.input)
 			require.NoError(t, err)
-			require.Equal(t, activeSeriesByCheckType[name], as)
+			require.Equal(t, activeSeriesByCheckType[tc.class], actual)
 		})
+	}
+}
+
+func TestGetCheckAccountingClass(t *testing.T) {
+	testcases := getTestCases()
+
+	// See comment in TestGetActiveSeriesForCheck
+	for checkType := range activeSeriesByCheckType {
+		_, found := testcases[checkType]
+		require.True(t, found, "every element in activeSeriesByCheckType must be tested")
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual, err := GetCheckAccountingClass(tc.input)
+			require.NoError(t, err)
+			require.Equal(t, tc.class, actual)
+		})
+	}
+}
+
+func TestGetAccountingClassInfo(t *testing.T) {
+	info := GetAccountingClassInfo()
+
+	for checkType, expected := range activeSeriesByCheckType {
+		actual, found := info[checkType]
+		require.True(t, found, "every element in activeSeriesByCheckType must be tested")
+		require.Equal(t, expected, actual)
 	}
 }
 
