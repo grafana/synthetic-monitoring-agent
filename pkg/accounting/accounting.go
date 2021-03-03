@@ -66,14 +66,38 @@ func GetCheckAccountingClass(check synthetic_monitoring.Check) (string, error) {
 	return key, nil
 }
 
+// ClassInfo contains information about a specific accounting class
+type ClassInfo struct {
+	CheckType synthetic_monitoring.CheckType // the correspodning check type for this class
+	Series    int                            // how many series does this class of check produce
+}
+
 // GetAccountingClassInfo returns all the known accounting classes and
-// the corresponding active series.
-func GetAccountingClassInfo() map[string]int {
-	info := make(map[string]int, len(activeSeriesByCheckType))
+// their corresponding information
+func GetAccountingClassInfo() map[string]ClassInfo {
+	info := make(map[string]ClassInfo, len(activeSeriesByCheckType))
 
 	for class, as := range activeSeriesByCheckType {
-		info[class] = as
+		info[class] = ClassInfo{
+			CheckType: getTypeFromClass(class),
+			Series:    as,
+		}
 	}
 
 	return info
+}
+
+// getTypeFromClass is a helper that returns the corresponding check
+// type for a given accounting class.
+func getTypeFromClass(class string) synthetic_monitoring.CheckType {
+	// We know that the accounting class is built by appending
+	// variations to the base check type so strip that to get back
+	// the check type.
+	str := strings.SplitN(class, "_", 2)[0]
+	checkType, found := synthetic_monitoring.CheckTypeFromString(str)
+	if !found {
+		panic("unhandled check type string")
+	}
+
+	return checkType
 }
