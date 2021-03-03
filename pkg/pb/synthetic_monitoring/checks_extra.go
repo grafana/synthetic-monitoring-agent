@@ -80,29 +80,53 @@ const (
 )
 
 // CheckType represents the type of the associated check
-type CheckType int
+type CheckType int32
 
 const (
-	CheckTypeDns CheckType = iota
-	CheckTypeHttp
-	CheckTypePing
-	CheckTypeTcp
+	CheckTypeDns  CheckType = 0
+	CheckTypeHttp CheckType = 1
+	CheckTypePing CheckType = 2
+	CheckTypeTcp  CheckType = 3
 )
 
-var checkTypeToString = map[CheckType]string{
-	CheckTypeDns:  "dns",
-	CheckTypeHttp: "http",
-	CheckTypePing: "ping",
-	CheckTypeTcp:  "tcp",
-}
+var (
+	checkType_name = map[CheckType]string{
+		CheckTypeDns:  "dns",
+		CheckTypeHttp: "http",
+		CheckTypePing: "ping",
+		CheckTypeTcp:  "tcp",
+	}
+
+	checkType_value = map[string]CheckType{
+		"dns":  CheckTypeDns,
+		"http": CheckTypeHttp,
+		"ping": CheckTypePing,
+		"tcp":  CheckTypeTcp,
+	}
+)
 
 func (t CheckType) String() string {
-	str, found := checkTypeToString[t]
+	str, found := checkType_name[t]
 	if !found {
 		panic("unhandled check type")
 	}
 
 	return str
+}
+
+func CheckTypeFromString(in string) (CheckType, bool) {
+	if checkType, found := checkType_value[in]; found {
+		return checkType, true
+	}
+
+	// lowercase input, try again
+	in = strings.ToLower(in)
+
+	if checkType, found := checkType_value[in]; found {
+		return checkType, true
+	}
+
+	return 0, false
 }
 
 func (c *Check) Validate() error {

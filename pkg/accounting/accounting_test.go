@@ -192,10 +192,23 @@ func TestGetCheckAccountingClass(t *testing.T) {
 func TestGetAccountingClassInfo(t *testing.T) {
 	info := GetAccountingClassInfo()
 
-	for checkType, expected := range activeSeriesByCheckType {
-		actual, found := info[checkType]
+	for accountingClass, expectedSeries := range activeSeriesByCheckType {
+		actual, found := info[accountingClass]
 		require.True(t, found, "every element in activeSeriesByCheckType must be tested")
-		require.Equal(t, expected, actual)
+		require.Equal(t, expectedSeries, actual.Series)
+		require.Equal(t, getTypeFromClass(accountingClass), actual.CheckType)
+	}
+}
+
+// TestGetTypeFromClass verifies that the helper returns the correct
+// type for the corresponding check.
+func TestGetTypeFromClass(t *testing.T) {
+	for name, tc := range getTestCases() {
+		t.Run(name, func(t *testing.T) {
+			expected := tc.input.Type()
+			actual := getTypeFromClass(tc.class)
+			require.Equal(t, expected, actual)
+		})
 	}
 }
 
