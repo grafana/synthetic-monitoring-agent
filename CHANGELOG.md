@@ -2,8 +2,19 @@
 ## [Unreleased]
 
 
+<a name="v0.0.18"></a>
+## [v0.0.18] - 2021-03-03
+### Feature
+- provide access to accounting map
+- provide number of active series per check type
+- add method to report check type
+
+### Fix
+- provide check type along with class info
+
+
 <a name="v0.0.17"></a>
-## [v0.0.17] - 2021-02-18
+## [v0.0.17] - 2021-02-19
 ### Fix
 - typo in client certificate and key
 
@@ -91,7 +102,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.17...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.18...HEAD
+[v0.0.18]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.17...v0.0.18
 [v0.0.17]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.16...v0.0.17
 [v0.0.16]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.15...v0.0.16
 [v0.0.15]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.14...v0.0.15
