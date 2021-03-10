@@ -21,7 +21,6 @@ import (
 
 	"github.com/miekg/dns"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
-	"github.com/prometheus/blackbox_exporter/prober"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	promconfig "github.com/prometheus/common/config"
@@ -44,26 +43,28 @@ var updateGolden = flag.Bool("update-golden", false, "update golden files")
 func TestValidateMetrics(t *testing.T) {
 	testcases := map[string]struct {
 		setup  func(t *testing.T) (string, func())
-		config bbeconfig.Module
-		prober prober.ProbeFn
+		config ConfigModule
+		prober ProbeFn
 	}{
 		"ping": {
-			prober: prober.ProbeICMP,
+			prober: ProberPing,
 			setup: func(*testing.T) (string, func()) {
 				return "127.0.0.1", func() {}
 			},
-			config: bbeconfig.Module{
-				Prober:  "icmp",
-				Timeout: 2 * time.Second,
-				ICMP: bbeconfig.ICMPProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: false,
+			config: ConfigModule{
+				Module: bbeconfig.Module{
+					Prober:  "icmp",
+					Timeout: 2 * time.Second,
+					ICMP: bbeconfig.ICMPProbe{
+						IPProtocol:         "ip4",
+						IPProtocolFallback: false,
+					},
 				},
 			},
 		},
 
 		"http": {
-			prober: prober.ProbeHTTP,
+			prober: ProberHTTP,
 			setup: func(*testing.T) (string, func()) {
 				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.WriteHeader(http.StatusOK)
@@ -71,19 +72,21 @@ func TestValidateMetrics(t *testing.T) {
 				httpSrv.Start()
 				return httpSrv.URL, httpSrv.Close
 			},
-			config: bbeconfig.Module{
-				Prober:  "http",
-				Timeout: 2 * time.Second,
-				HTTP: bbeconfig.HTTPProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: false,
-					HTTPClientConfig:   promconfig.HTTPClientConfig{},
+			config: ConfigModule{
+				Module: bbeconfig.Module{
+					Prober:  "http",
+					Timeout: 2 * time.Second,
+					HTTP: bbeconfig.HTTPProbe{
+						IPProtocol:         "ip4",
+						IPProtocolFallback: false,
+						HTTPClientConfig:   promconfig.HTTPClientConfig{},
+					},
 				},
 			},
 		},
 
 		"http_ssl": {
-			prober: prober.ProbeHTTP,
+			prober: ProberHTTP,
 			setup: func(*testing.T) (string, func()) {
 				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.WriteHeader(http.StatusOK)
@@ -91,15 +94,17 @@ func TestValidateMetrics(t *testing.T) {
 				httpSrv.StartTLS()
 				return httpSrv.URL, httpSrv.Close
 			},
-			config: bbeconfig.Module{
-				Prober:  "http",
-				Timeout: 2 * time.Second,
-				HTTP: bbeconfig.HTTPProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: false,
-					HTTPClientConfig: promconfig.HTTPClientConfig{
-						TLSConfig: promconfig.TLSConfig{
-							InsecureSkipVerify: true,
+			config: ConfigModule{
+				Module: bbeconfig.Module{
+					Prober:  "http",
+					Timeout: 2 * time.Second,
+					HTTP: bbeconfig.HTTPProbe{
+						IPProtocol:         "ip4",
+						IPProtocolFallback: false,
+						HTTPClientConfig: promconfig.HTTPClientConfig{
+							TLSConfig: promconfig.TLSConfig{
+								InsecureSkipVerify: true,
+							},
 						},
 					},
 				},
@@ -107,45 +112,51 @@ func TestValidateMetrics(t *testing.T) {
 		},
 
 		"dns": {
-			prober: prober.ProbeDNS,
+			prober: ProberDNS,
 			setup:  setupDNSServer,
-			config: bbeconfig.Module{
-				Prober:  "dns",
-				Timeout: 2 * time.Second,
-				DNS: bbeconfig.DNSProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: true,
-					QueryName:          "example.com",
-					TransportProtocol:  "udp",
+			config: ConfigModule{
+				Module: bbeconfig.Module{
+					Prober:  "dns",
+					Timeout: 2 * time.Second,
+					DNS: bbeconfig.DNSProbe{
+						IPProtocol:         "ip4",
+						IPProtocolFallback: true,
+						QueryName:          "example.com",
+						TransportProtocol:  "udp",
+					},
 				},
 			},
 		},
 
 		"tcp": {
-			prober: prober.ProbeTCP,
+			prober: ProberTcp,
 			setup:  setupTCPServer,
-			config: bbeconfig.Module{
-				Prober:  "tcp",
-				Timeout: 2 * time.Second,
-				TCP: bbeconfig.TCPProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: true,
+			config: ConfigModule{
+				Module: bbeconfig.Module{
+					Prober:  "tcp",
+					Timeout: 2 * time.Second,
+					TCP: bbeconfig.TCPProbe{
+						IPProtocol:         "ip4",
+						IPProtocolFallback: true,
+					},
 				},
 			},
 		},
 
 		"tcp_ssl": {
-			prober: prober.ProbeTCP,
+			prober: ProberTcp,
 			setup:  setupTCPServerWithSSL,
-			config: bbeconfig.Module{
-				Prober:  "tcp",
-				Timeout: 2 * time.Second,
-				TCP: bbeconfig.TCPProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: true,
-					TLS:                true,
-					TLSConfig: promconfig.TLSConfig{
-						InsecureSkipVerify: true,
+			config: ConfigModule{
+				Module: bbeconfig.Module{
+					Prober:  "tcp",
+					Timeout: 2 * time.Second,
+					TCP: bbeconfig.TCPProbe{
+						IPProtocol:         "ip4",
+						IPProtocolFallback: true,
+						TLS:                true,
+						TLSConfig: promconfig.TLSConfig{
+							InsecureSkipVerify: true,
+						},
 					},
 				},
 			},
@@ -169,7 +180,7 @@ func TestValidateMetrics(t *testing.T) {
 //
 // Optionally, this function will update the golden files if the
 // -update-golden flag was passed to the test.
-func verifyProberMetrics(t *testing.T, name string, prober prober.ProbeFn, setup func(t *testing.T) (string, func()), config bbeconfig.Module, basicMetricsOnly bool) {
+func verifyProberMetrics(t *testing.T, name string, prober ProbeFn, setup func(t *testing.T) (string, func()), config ConfigModule, basicMetricsOnly bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

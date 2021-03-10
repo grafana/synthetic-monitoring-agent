@@ -41,15 +41,29 @@ func ProberTraceroute(ctx context.Context, target string, module ConfigModule, r
 
 type ProbeFn func(ctx context.Context, target string, config ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool
 
+func ProberHTTP(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
+	return prober.ProbeHTTP(ctx, target, module.Module, registry, logger)
+}
+
+func ProberTcp(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
+	return prober.ProbeTCP(ctx, target, module.Module, registry, logger)
+}
+func ProberPing(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
+	return prober.ProbeICMP(ctx, target, module.Module, registry, logger)
+}
+func ProberDNS(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
+	return prober.ProbeDNS(ctx, target, module.Module, registry, logger)
+}
+
 var (
 	staleNaN    uint64  = 0x7ff0000000000002
 	staleMarker float64 = math.Float64frombits(staleNaN)
 
 	probers = map[string]ProbeFn{
-		ScraperTypeHTTP:       prober.ProbeHTTP,
-		ScraperTypeTcp:        prober.ProbeTCP,
-		ScraperTypePing:       prober.ProbeICMP,
-		ScraperTypeDNS:        prober.ProbeDNS,
+		ScraperTypeHTTP:       ProberHTTP,
+		ScraperTypeTcp:        ProberTcp,
+		ScraperTypePing:       ProberPing,
+		ScraperTypeDNS:        ProberDNS,
 		ScraperTypeTraceroute: ProberTraceroute,
 	}
 )
@@ -414,7 +428,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, nil
 }
 
-func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, module *ConfigModule, checkInfoLabels map[string]string, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger kitlog.Logger, basicMetricsOnly bool) (bool, []*dto.MetricFamily, error) {
+func getProbeMetrics(ctx context.Context, prober ProbeFn, target string, module *ConfigModule, checkInfoLabels map[string]string, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger kitlog.Logger, basicMetricsOnly bool) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
 	success := runProber(ctx, prober, target, module, registry, checkInfoLabels, logger)
@@ -440,7 +454,7 @@ func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, 
 	return success, mfs, nil
 }
 
-func runProber(ctx context.Context, prober prober.ProbeFn, target string, module *ConfigModule, registry *prometheus.Registry, checkInfoLabels map[string]string, logger kitlog.Logger) bool {
+func runProber(ctx context.Context, prober ProbeFn, target string, module *ConfigModule, registry *prometheus.Registry, checkInfoLabels map[string]string, logger kitlog.Logger) bool {
 	start := time.Now()
 
 	_ = level.Info(logger).Log("msg", "Beginning check", "type", module.Prober, "timeout_seconds", module.Timeout.Seconds())
