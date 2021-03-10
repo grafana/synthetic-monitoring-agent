@@ -3,6 +3,7 @@ module github.com/grafana/synthetic-monitoring-agent
 go 1.13
 
 require (
+	github.com/aeden/traceroute v0.0.0-20210211061815-03f5f7cb7908
 	github.com/go-kit/kit v0.10.0
 	github.com/go-logfmt/logfmt v0.5.0
 	github.com/gogo/googleapis v1.3.2

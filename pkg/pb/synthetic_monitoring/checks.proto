@@ -192,10 +192,21 @@ message Check {
 // CheckSettings provides the settings for exactly one type of check.
 message CheckSettings {
 	option (gogoproto.onlyone) = true;
-	PingSettings ping = 1 [(gogoproto.jsontag) = "ping,omitempty"];
-	HttpSettings http = 2 [(gogoproto.jsontag) = "http,omitempty"];
-	DnsSettings  dns  = 3 [(gogoproto.jsontag) = "dns,omitempty"];
-	TcpSettings  tcp  = 4 [(gogoproto.jsontag) = "tcp,omitempty"];
+	PingSettings ping 						= 1 [(gogoproto.jsontag) = "ping,omitempty"];
+	HttpSettings http 						= 2 [(gogoproto.jsontag) = "http,omitempty"];
+	DnsSettings  dns  						= 3 [(gogoproto.jsontag) = "dns,omitempty"];
+	TcpSettings  tcp  						= 4 [(gogoproto.jsontag) = "tcp,omitempty"];
+	TracerouteSettings traceroute = 5 [(gogoproto.jsontag) = "traceroute,omitempty"];
+}
+
+message TracerouteSettings {
+	int64 firstHop   = 1 [(gogoproto.jsontag) = "firstHop"]; 
+	int64 maxHops 	 = 2 [(gogoproto.jsontag) = "maxHops"]; 
+	int64 packetSize = 3 [(gogoproto.jsontag) = "packetSize"];
+	int64 port 			 = 4 [(gogoproto.jsontag) = "port"];
+	int64 retries 	 = 5 [(gogoproto.jsontag) = "retries"];
+	int64 timeout 	 = 6 [(gogoproto.jsontag) = "timeout"];
+
 }
 
 // PingSettings provides the settings for a ping check.

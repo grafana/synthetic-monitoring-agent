@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aeden/traceroute"
 	kitlog "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/go-logfmt/logfmt"
@@ -32,24 +33,48 @@ import (
 	"github.com/rs/zerolog"
 )
 
+func ProberTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
+	var options *traceroute.TracerouteOptions
+	traceroute.Traceroute("www.google.com", options)
+	return true
+}
+
+type ProbeFn func(ctx context.Context, target string, config ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool
+
 var (
 	staleNaN    uint64  = 0x7ff0000000000002
 	staleMarker float64 = math.Float64frombits(staleNaN)
 
-	probers = map[string]prober.ProbeFn{
-		ScraperTypeHTTP: prober.ProbeHTTP,
-		ScraperTypeTcp:  prober.ProbeTCP,
-		ScraperTypePing: prober.ProbeICMP,
-		ScraperTypeDNS:  prober.ProbeDNS,
+	probers = map[string]ProbeFn{
+		ScraperTypeHTTP:       prober.ProbeHTTP,
+		ScraperTypeTcp:        prober.ProbeTCP,
+		ScraperTypePing:       prober.ProbeICMP,
+		ScraperTypeDNS:        prober.ProbeDNS,
+		ScraperTypeTraceroute: ProberTraceroute,
 	}
 )
 
 const (
-	ScraperTypeDNS  = "dns"
-	ScraperTypeHTTP = "http"
-	ScraperTypePing = "ping"
-	ScraperTypeTcp  = "tcp"
+	ScraperTypeDNS        = "dns"
+	ScraperTypeHTTP       = "http"
+	ScraperTypePing       = "ping"
+	ScraperTypeTcp        = "tcp"
+	ScraperTypeTraceroute = "traceroute"
 )
+
+type TracerouteProbe struct {
+	FirstHop   int `yaml:"firstHop,omitempty"`
+	MaxHops    int `yaml:"maxHops,omitempty"`
+	PacketSize int `yaml:"packetSize,omitempty"`
+	Port       int `yaml:"port,omitempty"`
+	Retries    int `yaml:"retries,omitempty"`
+	Timeout    int `yaml:"timeout,omitempty"`
+}
+
+type ConfigModule struct {
+	bbeconfig.Module
+	Traceroute TracerouteProbe `yaml:"traceroute,omitempty"`
+}
 
 type Scraper struct {
 	publishCh     chan<- pusher.Payload
@@ -59,7 +84,7 @@ type Scraper struct {
 	logger        zerolog.Logger
 	check         sm.Check
 	probe         sm.Probe
-	bbeModule     *bbeconfig.Module
+	bbeModule     *ConfigModule
 	stop          chan struct{}
 	scrapeCounter prometheus.Counter
 	errorCounter  *prometheus.CounterVec
@@ -97,13 +122,13 @@ func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, p
 		Logger()
 
 	sctx, cancel := context.WithCancel(ctx)
-	checkName, bbeModule, target, err := mapSettings(sctx, logger, check.Target, check.Settings)
+	checkName, configModule, target, err := mapSettings(sctx, logger, check.Target, check.Settings)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 
-	bbeModule.Timeout = time.Duration(check.Timeout) * time.Millisecond
+	configModule.Timeout = time.Duration(check.Timeout) * time.Millisecond
 
 	return &Scraper{
 		publishCh:     publishCh,
@@ -113,7 +138,7 @@ func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, p
 		logger:        logger.With().Str("check", checkName).Logger(),
 		check:         check,
 		probe:         probe,
-		bbeModule:     &bbeModule,
+		bbeModule:     &configModule,
 		stop:          make(chan struct{}),
 		scrapeCounter: scrapeCounter,
 		errorCounter:  errorCounter,
@@ -260,6 +285,9 @@ func (s Scraper) CheckType() string {
 
 	case s.check.Settings.Tcp != nil:
 		return ScraperTypeTcp
+
+	case s.check.Settings.Traceroute != nil:
+		return ScraperTypeTraceroute
 	}
 
 	// we need this to make sure that adding a check type does not
@@ -386,7 +414,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, nil
 }
 
-func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, module *bbeconfig.Module, checkInfoLabels map[string]string, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger kitlog.Logger, basicMetricsOnly bool) (bool, []*dto.MetricFamily, error) {
+func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, module *ConfigModule, checkInfoLabels map[string]string, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger kitlog.Logger, basicMetricsOnly bool) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
 	success := runProber(ctx, prober, target, module, registry, checkInfoLabels, logger)
@@ -412,7 +440,7 @@ func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, 
 	return success, mfs, nil
 }
 
-func runProber(ctx context.Context, prober prober.ProbeFn, target string, module *bbeconfig.Module, registry *prometheus.Registry, checkInfoLabels map[string]string, logger kitlog.Logger) bool {
+func runProber(ctx context.Context, prober prober.ProbeFn, target string, module *ConfigModule, registry *prometheus.Registry, checkInfoLabels map[string]string, logger kitlog.Logger) bool {
 	start := time.Now()
 
 	_ = level.Info(logger).Log("msg", "Beginning check", "type", module.Prober, "timeout_seconds", module.Timeout.Seconds())
@@ -754,25 +782,29 @@ func fmtLabels(labels []labelPair) string {
 	return s.String()
 }
 
-func mapSettings(ctx context.Context, logger zerolog.Logger, target string, settings sm.CheckSettings) (string, bbeconfig.Module, string, error) {
+func mapSettings(ctx context.Context, logger zerolog.Logger, target string, settings sm.CheckSettings) (string, ConfigModule, string, error) {
 	// Map the change to a blackbox exporter module
 	switch {
 	case settings.Ping != nil:
-		return ScraperTypePing, pingSettingsToBBEModule(settings.Ping), target, nil
+		return ScraperTypePing, pingSettingsToConfigModule(settings.Ping), target, nil
 
 	case settings.Http != nil:
-		m, err := httpSettingsToBBEModule(ctx, logger, settings.Http)
+		m, err := httpSettingsToConfigModule(ctx, logger, settings.Http)
 		return ScraperTypeHTTP, m, target, err
 
 	case settings.Dns != nil:
-		return ScraperTypeDNS, dnsSettingsToBBEModule(ctx, settings.Dns, target), settings.Dns.Server, nil
+		return ScraperTypeDNS, dnsSettingsToConfigModule(ctx, settings.Dns, target), settings.Dns.Server, nil
 
 	case settings.Tcp != nil:
-		m, err := tcpSettingsToBBEModule(ctx, logger, settings.Tcp)
+		m, err := tcpSettingsToConfigModule(ctx, logger, settings.Tcp)
 		return ScraperTypeTcp, m, target, err
 
+	case settings.Traceroute != nil:
+		m, err := tracerouteSettingsToConfigModule(ctx, logger, settings.Traceroute)
+		return ScraperTypeTraceroute, m, target, err
+
 	default:
-		return "", bbeconfig.Module{}, "", fmt.Errorf("unsupported change")
+		return "", ConfigModule{}, "", fmt.Errorf("unsupported change")
 	}
 }
 
@@ -795,8 +827,22 @@ func ipVersionToIpProtocol(v sm.IpVersion) (string, bool) {
 	return "", false
 }
 
-func pingSettingsToBBEModule(settings *sm.PingSettings) bbeconfig.Module {
-	var m bbeconfig.Module
+func tracerouteSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, settings *sm.TracerouteSettings) (ConfigModule, error) {
+	var m ConfigModule
+
+	m.Prober = ScraperTypeTraceroute
+
+	// m.ICMP.SourceIPAddress = settings.SourceIpAddress
+
+	// m.ICMP.PayloadSize = int(settings.PayloadSize)
+
+	// m.ICMP.DontFragment = settings.DontFragment
+
+	return m, nil
+}
+
+func pingSettingsToConfigModule(settings *sm.PingSettings) ConfigModule {
+	var m ConfigModule
 
 	m.Prober = ScraperTypePing
 
@@ -811,8 +857,8 @@ func pingSettingsToBBEModule(settings *sm.PingSettings) bbeconfig.Module {
 	return m
 }
 
-func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *sm.HttpSettings) (bbeconfig.Module, error) {
-	var m bbeconfig.Module
+func httpSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, settings *sm.HttpSettings) (ConfigModule, error) {
+	var m ConfigModule
 
 	m.Prober = ScraperTypeHTTP
 
@@ -900,8 +946,8 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 	return m, nil
 }
 
-func dnsSettingsToBBEModule(ctx context.Context, settings *sm.DnsSettings, target string) bbeconfig.Module {
-	var m bbeconfig.Module
+func dnsSettingsToConfigModule(ctx context.Context, settings *sm.DnsSettings, target string) ConfigModule {
+	var m ConfigModule
 
 	m.Prober = ScraperTypeDNS
 	m.DNS.IPProtocol, m.DNS.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
@@ -938,8 +984,8 @@ func dnsSettingsToBBEModule(ctx context.Context, settings *sm.DnsSettings, targe
 	return m
 }
 
-func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *sm.TcpSettings) (bbeconfig.Module, error) {
-	var m bbeconfig.Module
+func tcpSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, settings *sm.TcpSettings) (ConfigModule, error) {
+	var m ConfigModule
 
 	m.Prober = ScraperTypeTcp
 	m.TCP.IPProtocol, m.TCP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
