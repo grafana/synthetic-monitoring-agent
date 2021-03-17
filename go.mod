@@ -10,14 +10,14 @@ require (
 	github.com/golang/snappy v0.0.1
 	github.com/grafana/loki v1.5.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.5 // indirect
-	github.com/miekg/dns v1.1.29
+	github.com/miekg/dns v1.1.40
 	github.com/mmcloughlin/geohash v0.9.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/blackbox_exporter v0.18.0
-	github.com/prometheus/client_golang v1.6.0
+	github.com/prometheus/blackbox_exporter v0.18.1-0.20210419222326-cdab0e75102f
+	github.com/prometheus/client_golang v1.9.0
 	github.com/prometheus/client_model v0.2.0
-	github.com/prometheus/common v0.10.0
+	github.com/prometheus/common v0.18.0
 	// This is actually version v2.16.0
 	//
 	// Without this, you get:
@@ -29,8 +29,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20200213233353-b90be6f32a33
 	github.com/rs/zerolog v1.18.0
 	github.com/stretchr/testify v1.5.1
-	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
-	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
+	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	google.golang.org/grpc v1.26.0
 )

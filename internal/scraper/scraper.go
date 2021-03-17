@@ -815,26 +815,50 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 	m.HTTP.ValidHTTPVersions = make([]string, len(settings.ValidHTTPVersions))
 	copy(m.HTTP.ValidHTTPVersions, settings.ValidHTTPVersions)
 
-	m.HTTP.FailIfBodyMatchesRegexp = make([]string, len(settings.FailIfBodyMatchesRegexp))
-	copy(m.HTTP.FailIfBodyMatchesRegexp, settings.FailIfBodyMatchesRegexp)
+	m.HTTP.FailIfBodyMatchesRegexp = make([]bbeconfig.Regexp, 0, len(settings.FailIfBodyMatchesRegexp))
+	for _, str := range settings.FailIfBodyMatchesRegexp {
+		re, err := bbeconfig.NewRegexp(str)
+		if err != nil {
+			return m, err
+		}
 
-	m.HTTP.FailIfBodyNotMatchesRegexp = make([]string, len(settings.FailIfBodyNotMatchesRegexp))
-	copy(m.HTTP.FailIfBodyNotMatchesRegexp, settings.FailIfBodyNotMatchesRegexp)
+		m.HTTP.FailIfBodyMatchesRegexp = append(m.HTTP.FailIfBodyMatchesRegexp, re)
+	}
+
+	m.HTTP.FailIfBodyNotMatchesRegexp = make([]bbeconfig.Regexp, 0, len(settings.FailIfBodyNotMatchesRegexp))
+	for _, str := range settings.FailIfBodyNotMatchesRegexp {
+		re, err := bbeconfig.NewRegexp(str)
+		if err != nil {
+			return m, err
+		}
+
+		m.HTTP.FailIfBodyNotMatchesRegexp = append(m.HTTP.FailIfBodyNotMatchesRegexp, re)
+	}
 
 	m.HTTP.FailIfHeaderMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(settings.FailIfHeaderMatchesRegexp))
 	for _, match := range settings.FailIfHeaderMatchesRegexp {
+		re, err := bbeconfig.NewRegexp(match.Regexp)
+		if err != nil {
+			return m, err
+		}
+
 		m.HTTP.FailIfHeaderMatchesRegexp = append(m.HTTP.FailIfHeaderMatchesRegexp, bbeconfig.HeaderMatch{
 			Header:       match.Header,
-			Regexp:       match.Regexp,
+			Regexp:       re,
 			AllowMissing: match.AllowMissing,
 		})
 	}
 
 	m.HTTP.FailIfHeaderNotMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(settings.FailIfHeaderNotMatchesRegexp))
 	for _, match := range settings.FailIfHeaderNotMatchesRegexp {
+		re, err := bbeconfig.NewRegexp(match.Regexp)
+		if err != nil {
+			return m, err
+		}
+
 		m.HTTP.FailIfHeaderNotMatchesRegexp = append(m.HTTP.FailIfHeaderNotMatchesRegexp, bbeconfig.HeaderMatch{
 			Header:       match.Header,
-			Regexp:       match.Regexp,
+			Regexp:       re,
 			AllowMissing: match.AllowMissing,
 		})
 	}
@@ -948,8 +972,13 @@ func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings
 	m.TCP.QueryResponse = make([]bbeconfig.QueryResponse, len(settings.QueryResponse))
 
 	for _, qr := range settings.QueryResponse {
+		re, err := bbeconfig.NewRegexp(string(qr.Expect))
+		if err != nil {
+			return m, err
+		}
+
 		m.TCP.QueryResponse = append(m.TCP.QueryResponse, bbeconfig.QueryResponse{
-			Expect: string(qr.Expect),
+			Expect: re,
 			Send:   string(qr.Send),
 		})
 	}
