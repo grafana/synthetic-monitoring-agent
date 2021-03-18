@@ -18,9 +18,11 @@ type TracerouteProbe struct {
 }
 
 func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
-	var options *traceroute.TracerouteOptions
+	options := traceroute.TracerouteOptions{}
 
-	result, err := traceroute.Traceroute(target, options)
+	options.SetTimeoutMs(module.Traceroute.Timeout * 1000)
+
+	result, err := traceroute.Traceroute(target, &options)
 
 	if err != nil {
 		logger.Log(err)

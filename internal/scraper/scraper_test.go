@@ -161,6 +161,26 @@ func TestValidateMetrics(t *testing.T) {
 				},
 			},
 		},
+
+		"traceroute": {
+			prober: ProbeTraceroute,
+			setup: func(*testing.T) (string, func()) {
+				return "127.0.0.1", func() {}
+			},
+			config: ConfigModule{
+				Module: bbeconfig.Module{
+					Prober: "traceroute",
+				},
+				Traceroute: TracerouteProbe{
+					Timeout:    int(2 * time.Second),
+					FirstHop:   1,
+					MaxHops:    10,
+					PacketSize: 32,
+					Port:       80,
+					Retries:    0,
+				},
+			},
+		},
 	}
 
 	for name, testcase := range testcases {
