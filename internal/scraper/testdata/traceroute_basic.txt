@@ -27,3 +27,6 @@ probe_all_duration_seconds_count 1
 # TYPE probe_all_success summary
 probe_all_success_sum 1
 probe_all_success_count 1
+# HELP Total hops to reach a traceroute destination
+# TYPE probe_traceroute_total_hops gauge
+probe_traceroute_total_hops 1

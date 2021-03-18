@@ -17,10 +17,41 @@ type TracerouteProbe struct {
 	Timeout    int `yaml:"timeout,omitempty"`
 }
 
+// func logHop(hop traceroute.TracerouteHop) {
+// 	addr := fmt.Sprintf("%v.%v.%v.%v", hop.Address[0], hop.Address[1], hop.Address[2], hop.Address[3])
+// 	hostOrAddr := addr
+// 	if hop.Host != "" {
+// 		hostOrAddr = hop.Host
+// 	}
+// 	if hop.Success {
+// 		fmt.Printf("%-3d %v (%v)  %v\n", hop.TTL, hostOrAddr, addr, hop.ElapsedTime)
+// 	} else {
+// 		fmt.Printf("%-3d *\n", hop.TTL)
+// 	}
+// }
+
 func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
 	options := traceroute.TracerouteOptions{}
 
 	options.SetTimeoutMs(module.Traceroute.Timeout * 1000)
+	options.SetFirstHop(module.Traceroute.FirstHop)
+	options.SetMaxHops(module.Traceroute.MaxHops)
+	options.SetPort(module.Traceroute.Port)
+	options.SetPacketSize(module.Traceroute.PacketSize)
+	options.SetRetries(module.Traceroute.Retries)
+
+	// c := make(chan traceroute.TracerouteHop, 0)
+
+	// go func() {
+	// 	for {
+	// 		hop, ok := <-c
+	// 		if !ok {
+	// 			fmt.Println()
+	// 			return
+	// 		}
+	// 		logHop(hop)
+	// 	}
+	// }()
 
 	result, err := traceroute.Traceroute(target, &options)
 

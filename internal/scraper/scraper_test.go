@@ -165,14 +165,14 @@ func TestValidateMetrics(t *testing.T) {
 		"traceroute": {
 			prober: ProbeTraceroute,
 			setup: func(*testing.T) (string, func()) {
-				return "127.0.0.1", func() {}
+				return "example.com", func() {}
 			},
 			config: ConfigModule{
 				Module: bbeconfig.Module{
 					Prober: "traceroute",
 				},
 				Traceroute: TracerouteProbe{
-					Timeout:    int(2 * time.Second),
+					Timeout:    int(10 * time.Second),
 					FirstHop:   1,
 					MaxHops:    10,
 					PacketSize: 32,
@@ -208,6 +208,8 @@ func verifyProberMetrics(t *testing.T, name string, prober ProbeFn, setup func(t
 	histograms := make(map[uint64]prometheus.Histogram)
 	logger := &testLogger{w: ioutil.Discard}
 
+	// logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(os.Stdout))
+
 	target, stop := setup(t)
 	defer stop()
 
@@ -216,6 +218,7 @@ func verifyProberMetrics(t *testing.T, name string, prober ProbeFn, setup func(t
 		t.Fatalf("probe failed: %s", err.Error())
 	} else if !success {
 		t.Log("probe failed")
+		t.Log(err)
 	}
 
 	fn := filepath.Join("testdata", name+".txt")
