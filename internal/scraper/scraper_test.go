@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -19,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	kitlog "github.com/go-kit/kit/log"
 	"github.com/miekg/dns"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
@@ -206,9 +206,9 @@ func verifyProberMetrics(t *testing.T, name string, prober ProbeFn, setup func(t
 
 	summaries := make(map[uint64]prometheus.Summary)
 	histograms := make(map[uint64]prometheus.Histogram)
-	logger := &testLogger{w: ioutil.Discard}
+	// logger := &testLogger{w: ioutil.Discard}
 
-	// logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(os.Stdout))
+	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(os.Stdout))
 
 	target, stop := setup(t)
 	defer stop()
@@ -218,7 +218,6 @@ func verifyProberMetrics(t *testing.T, name string, prober ProbeFn, setup func(t
 		t.Fatalf("probe failed: %s", err.Error())
 	} else if !success {
 		t.Log("probe failed")
-		t.Log(err)
 	}
 
 	fn := filepath.Join("testdata", name+".txt")

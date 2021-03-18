@@ -53,20 +53,12 @@ var (
 	staleMarker float64 = math.Float64frombits(staleNaN)
 
 	probers = map[string]ProbeFn{
-		ScraperTypeHTTP:       ProberHTTP,
-		ScraperTypeTcp:        ProberTcp,
-		ScraperTypePing:       ProberPing,
-		ScraperTypeDNS:        ProberDNS,
-		ScraperTypeTraceroute: ProbeTraceroute,
+		sm.CheckTypeHttp.String():       ProberHTTP,
+		sm.CheckTypeTcp.String():        ProberTcp,
+		sm.CheckTypePing.String():       ProberPing,
+		sm.CheckTypeDns.String():        ProberDNS,
+		sm.CheckTypeTraceroute.String(): ProbeTraceroute,
 	}
-)
-
-const (
-	ScraperTypeDNS        = "dns"
-	ScraperTypeHTTP       = "http"
-	ScraperTypePing       = "ping"
-	ScraperTypeTcp        = "tcp"
-	ScraperTypeTraceroute = "traceroute"
 )
 
 type Scraper struct {
@@ -115,7 +107,7 @@ func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, p
 		Logger()
 
 	sctx, cancel := context.WithCancel(ctx)
-	checkName, configModule, target, err := mapSettings(sctx, logger, check.Target, check.Settings)
+	configModule, target, err := mapSettings(sctx, logger, check)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -126,9 +118,9 @@ func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, p
 	return &Scraper{
 		publishCh:     publishCh,
 		cancel:        cancel,
-		checkName:     checkName,
+		checkName:     configModule.Prober,
 		target:        target,
-		logger:        logger.With().Str("check", checkName).Logger(),
+		logger:        logger.With().Str("check", configModule.Prober).Logger(),
 		check:         check,
 		probe:         probe,
 		bbeModule:     &configModule,
@@ -262,30 +254,8 @@ func (s *Scraper) Stop() {
 	close(s.stop)
 }
 
-func (s Scraper) CheckType() string {
-	// XXX(mem): this shouldn't be here, it should be in
-	// sm.Check
-
-	switch {
-	case s.check.Settings.Dns != nil:
-		return ScraperTypeDNS
-
-	case s.check.Settings.Http != nil:
-		return ScraperTypeHTTP
-
-	case s.check.Settings.Ping != nil:
-		return ScraperTypePing
-
-	case s.check.Settings.Tcp != nil:
-		return ScraperTypeTcp
-
-	case s.check.Settings.Traceroute != nil:
-		return ScraperTypeTraceroute
-	}
-
-	// we need this to make sure that adding a check type does not
-	// go unnoticed in here
-	panic("unknown check type")
+func (s Scraper) CheckType() sm.CheckType {
+	return s.check.Type()
 }
 
 func (s Scraper) ConfigVersion() string {
@@ -357,7 +327,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// and it IS NOT part of s.check.Target because that would cause
 	// it to end up in the instance label that is added to every
 	// metric (see below).
-	if s.CheckType() == ScraperTypeHTTP && s.check.Settings.Http.CacheBustingQueryParamName != "" {
+	if s.bbeModule.Prober == sm.CheckTypeHttp.String() && s.check.Settings.Http.CacheBustingQueryParamName != "" {
 		target = addCacheBustParam(s.target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name)
 	}
 
@@ -775,29 +745,31 @@ func fmtLabels(labels []labelPair) string {
 	return s.String()
 }
 
-func mapSettings(ctx context.Context, logger zerolog.Logger, target string, settings sm.CheckSettings) (string, ConfigModule, string, error) {
-	// Map the change to a blackbox exporter module
-	switch {
-	case settings.Ping != nil:
-		return ScraperTypePing, pingSettingsToConfigModule(settings.Ping), target, nil
+func mapSettings(ctx context.Context, logger zerolog.Logger, check sm.Check) (ConfigModule, string, error) {
+	// Map the check to a blackbox exporter module
+	switch checkType := check.Type(); checkType {
+	case sm.CheckTypePing:
+		m := pingSettingsToConfigModule(check.Settings.Ping)
+		return m, check.Target, nil
 
-	case settings.Http != nil:
-		m, err := httpSettingsToConfigModule(ctx, logger, settings.Http)
-		return ScraperTypeHTTP, m, target, err
+	case sm.CheckTypeHttp:
+		m, err := httpSettingsToConfigModule(ctx, logger, check.Settings.Http)
+		return m, check.Target, err
 
-	case settings.Dns != nil:
-		return ScraperTypeDNS, dnsSettingsToConfigModule(ctx, settings.Dns, target), settings.Dns.Server, nil
+	case sm.CheckTypeDns:
+		m := dnsSettingsToConfigModule(ctx, check.Settings.Dns, check.Target)
+		return m, check.Settings.Dns.Server, nil
 
-	case settings.Tcp != nil:
-		m, err := tcpSettingsToConfigModule(ctx, logger, settings.Tcp)
-		return ScraperTypeTcp, m, target, err
+	case sm.CheckTypeTcp:
+		m, err := tcpSettingsToConfigModule(ctx, logger, check.Settings.Tcp)
+		return m, check.Target, err
 
-	case settings.Traceroute != nil:
-		m, err := tracerouteSettingsToConfigModule(ctx, logger, settings.Traceroute)
-		return ScraperTypeTraceroute, m, target, err
+	case sm.CheckTypeTraceroute:
+		m, err := tracerouteSettingsToConfigModule(ctx, logger, check.Settings.Traceroute)
+		return m, check.Target, err
 
 	default:
-		return "", ConfigModule{}, "", fmt.Errorf("unsupported change")
+		return ConfigModule{}, "", fmt.Errorf("unsupported change")
 	}
 }
 
@@ -823,7 +795,7 @@ func ipVersionToIpProtocol(v sm.IpVersion) (string, bool) {
 func tracerouteSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, settings *sm.TracerouteSettings) (ConfigModule, error) {
 	var m ConfigModule
 
-	m.Prober = ScraperTypeTraceroute
+	m.Prober = sm.CheckTypeTraceroute.String()
 
 	// m.ICMP.SourceIPAddress = settings.SourceIpAddress
 
@@ -837,7 +809,7 @@ func tracerouteSettingsToConfigModule(ctx context.Context, logger zerolog.Logger
 func pingSettingsToConfigModule(settings *sm.PingSettings) ConfigModule {
 	var m ConfigModule
 
-	m.Prober = ScraperTypePing
+	m.Prober = sm.CheckTypePing.String()
 
 	m.ICMP.IPProtocol, m.ICMP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
@@ -853,7 +825,7 @@ func pingSettingsToConfigModule(settings *sm.PingSettings) ConfigModule {
 func httpSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, settings *sm.HttpSettings) (ConfigModule, error) {
 	var m ConfigModule
 
-	m.Prober = ScraperTypeHTTP
+	m.Prober = sm.CheckTypeHttp.String()
 
 	m.HTTP.IPProtocol, m.HTTP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
@@ -942,7 +914,7 @@ func httpSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, sett
 func dnsSettingsToConfigModule(ctx context.Context, settings *sm.DnsSettings, target string) ConfigModule {
 	var m ConfigModule
 
-	m.Prober = ScraperTypeDNS
+	m.Prober = sm.CheckTypeDns.String()
 	m.DNS.IPProtocol, m.DNS.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
 	// BBE dns_probe actually tests the DNS server, so we
@@ -980,7 +952,7 @@ func dnsSettingsToConfigModule(ctx context.Context, settings *sm.DnsSettings, ta
 func tcpSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, settings *sm.TcpSettings) (ConfigModule, error) {
 	var m ConfigModule
 
-	m.Prober = ScraperTypeTcp
+	m.Prober = sm.CheckTypeTcp.String()
 	m.TCP.IPProtocol, m.TCP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
 
 	m.TCP.SourceIPAddress = settings.SourceIpAddress
@@ -1022,7 +994,7 @@ func smTLSConfigToBBE(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.
 	}
 
 	if len(tlsConfig.ClientCert) > 0 {
-		fn, err := newDataProvider(ctx, logger, "client_cert", tlsConfig.CACert)
+		fn, err := newDataProvider(ctx, logger, "client_cert", tlsConfig.ClientCert)
 		if err != nil {
 			return promconfig.TLSConfig{}, err
 		}
@@ -1030,7 +1002,7 @@ func smTLSConfigToBBE(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.
 	}
 
 	if len(tlsConfig.ClientKey) > 0 {
-		fn, err := newDataProvider(ctx, logger, "client_key", tlsConfig.CACert)
+		fn, err := newDataProvider(ctx, logger, "client_key", tlsConfig.ClientKey)
 		if err != nil {
 			return promconfig.TLSConfig{}, err
 		}
@@ -1054,7 +1026,14 @@ func newDataProvider(ctx context.Context, logger zerolog.Logger, basename string
 		logger.Error().Err(err).Str("basename", basename).Msg("creating temporary file")
 		return "", fmt.Errorf("creating temporary file: %w", err)
 	}
-	defer fh.Close()
+	defer func() {
+		if err := fh.Close(); err != nil {
+			// close errors should never happen, but if they
+			// do, the most we can do is log them to be able
+			// to debug the issue.
+			logger.Error().Err(err).Str("filename", fh.Name()).Msg("closing temporary file")
+		}
+	}()
 
 	fn := fh.Name()
 

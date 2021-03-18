@@ -83,7 +83,8 @@ build-go: $(BUILD_GO_TARGETS) ## Build all Go binaries.
 build: build-go ## Build everything.
 
 scripts/go/bin/bra: scripts/go/go.mod
-	$(S) cd scripts/go; \
+	$(S) cd scripts/go && \
+		$(GO) mod download && \
 		$(GO) build -o ./bin/bra github.com/unknwon/bra
 
 .PHONY: run
@@ -94,7 +95,8 @@ run: scripts/go/bin/bra ## Build and run web server on filesystem changes.
 
 ifeq ($(LOCAL_GOTESTSUM),yes)
 $(GOTESTSUM): scripts/go/go.mod
-	$(S) cd scripts/go; \
+	$(S) cd scripts/go && \
+		$(GO) mod download && \
 		$(GO) build -o $(GOTESTSUM) gotest.tools/gotestsum
 endif
 
@@ -119,7 +121,8 @@ test: test-go ## Run all tests.
 
 ifeq ($(LOCAL_GOLANGCI_LINT),yes)
 $(GOLANGCI_LINT): scripts/go/go.mod
-	$(S) cd scripts/go; \
+	$(S) cd scripts/go && \
+		$(GO) mod download && \
 		$(GO) build -o $(GOLANGCI_LINT) github.com/golangci/golangci-lint/cmd/golangci-lint
 endif
 
@@ -132,7 +135,8 @@ golangci-lint: $(GOLANGCI_LINT)
 		$(GO_PKGS)
 
 scripts/go/bin/gosec: scripts/go/go.mod
-	$(S) cd scripts/go; \
+	$(S) cd scripts/go && \
+		$(GO) mod download && \
 		$(GO) build -o ./bin/gosec github.com/securego/gosec/cmd/gosec
 
 # TODO recheck the rules and leave only necessary exclusions
@@ -194,6 +198,23 @@ docker-push:  docker
 	$(S) docker push $(DOCKER_TAG)
 	$(S) docker tag $(DOCKER_TAG) $(DOCKER_TAG):$(BUILD_VERSION)
 	$(S) docker push $(DOCKER_TAG):$(BUILD_VERSION)
+
+.PHONY: generate
+generate: $(ROOTDIR)/pkg/accounting/data.go $(ROOTDIR) $(ROOTDIR)/pkg/pb/synthetic_monitoring/checks.pb.go
+	$(S) true
+
+$(ROOTDIR)/pkg/accounting/data.go : $(ROOTDIR)/pkg/accounting/data.go.tmpl $(wildcard $(ROOTDIR)/internal/scraper/testdata/*.txt)
+	$(S) echo "Generating $@ ..."
+	$(GO) generate -v "$(@D)"
+
+$(ROOTDIR)/pkg/pb/synthetic_monitoring/%.pb.go : $(ROOTDIR)/pkg/pb/synthetic_monitoring/%.proto
+	$(S) echo "Generating $@ ..."
+	$(V) $(ROOTDIR)/scripts/genproto.sh
+
+.PHONY: testdata
+testdata: ## Update golden files for tests.
+	# update scraper golden files
+	$(V) $(GO) go -v -run TestValidateMetrics ./internal/scraper -args -update-golden
 
 define build_go_command
 	$(S) echo 'Building $(1)'

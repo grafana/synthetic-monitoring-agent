@@ -1,6 +1,6 @@
 module github.com/grafana/synthetic-monitoring-agent
 
-go 1.13
+go 1.16
 
 require (
 	github.com/aeden/traceroute v0.0.0-20210211061815-03f5f7cb7908
@@ -15,7 +15,7 @@ require (
 	github.com/mmcloughlin/geohash v0.9.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/pkg/errors v0.9.1
-	github.com/prometheus/blackbox_exporter v0.17.1-0.20200829081835-daa62bf75457
+	github.com/prometheus/blackbox_exporter v0.18.0
 	github.com/prometheus/client_golang v1.6.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.10.0

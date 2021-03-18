@@ -1,4 +1,4 @@
-local step(name, commands, image='golang:1.14') = {
+local step(name, commands, image='golang:1.16') = {
   name: name,
   commands: commands,
   image: image,
@@ -28,7 +28,7 @@ local releaseOnly = {
 };
 
 local prOnly = {
-  when: {event: ['pull_request']},
+  when: { event: ['pull_request'] },
 };
 
 local repo = 'grafana/synthetic-monitoring-agent';
@@ -51,9 +51,9 @@ local vault_secret(name, vault_path, key) = {
     step('build', [
       'git fetch origin --tags',
       'git status --porcelain --untracked-files=no',
-      'git diff --no-ext-diff --quiet', // fail if the workspace has modified files
+      'git diff --no-ext-diff --quiet',  // fail if the workspace has modified files
       './scripts/version',
-      '{ echo -n latest, ; ./scripts/version ; } > .tags', // save version in special file for docker plugin
+      '{ echo -n latest, ; ./scripts/version ; } > .tags',  // save version in special file for docker plugin
       'make build',
     ]),
 
@@ -61,19 +61,19 @@ local vault_secret(name, vault_path, key) = {
     // so we will use the native docker plugin instead for security.
     step('docker build', [], 'plugins/docker')
     + {
-      settings:{
+      settings: {
         repo: repo,
         dry_run: 'true',
-      }
+      },
     },
 
     step('docker push', [], 'plugins/docker')
     + {
-        settings:{
-          repo: repo,
-          username: {from_secret: 'docker_username'},
-          password: {from_secret: 'docker_password'},
-        }
+      settings: {
+        repo: repo,
+        username: { from_secret: 'docker_username' },
+        password: { from_secret: 'docker_password' },
+      },
     }
     + releaseOnly,
 
@@ -85,19 +85,19 @@ local vault_secret(name, vault_path, key) = {
       'mkdir -p $GCS_KEY_DIR',
       'echo "$GCS_KEY" | base64 -d > $GCS_KEY_DIR/gcs-key.json',
       'make publish-packages',
-      ])
+    ])
     + {
-        environment: {
-          GCS_KEY:{from_secret: 'gcs_key'},
-          GPG_PRIV_KEY:{from_secret: 'gpg_priv_key'},
-          PUBLISH_PROD_PKGS: "1",
-        }
-      }
+      environment: {
+        GCS_KEY: { from_secret: 'gcs_key' },
+        GPG_PRIV_KEY: { from_secret: 'gpg_priv_key' },
+        PUBLISH_PROD_PKGS: '1',
+      },
+    }
     + releaseOnly,
   ]),
 
-  vault_secret('docker_username','infra/data/ci/docker_hub', 'username'),
-  vault_secret('docker_password','infra/data/ci/docker_hub', 'password'),
-  vault_secret('gcs_key','infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'key'),
-  vault_secret('gpg_priv_key','infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'gpg_priv_key'),
+  vault_secret('docker_username', 'infra/data/ci/docker_hub', 'username'),
+  vault_secret('docker_password', 'infra/data/ci/docker_hub', 'password'),
+  vault_secret('gcs_key', 'infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'key'),
+  vault_secret('gpg_priv_key', 'infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'gpg_priv_key'),
 ]

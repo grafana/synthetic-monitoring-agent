@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aeden/traceroute"
 	kitlog "github.com/go-kit/kit/log"
@@ -17,41 +18,45 @@ type TracerouteProbe struct {
 	Timeout    int `yaml:"timeout,omitempty"`
 }
 
-// func logHop(hop traceroute.TracerouteHop) {
-// 	addr := fmt.Sprintf("%v.%v.%v.%v", hop.Address[0], hop.Address[1], hop.Address[2], hop.Address[3])
-// 	hostOrAddr := addr
-// 	if hop.Host != "" {
-// 		hostOrAddr = hop.Host
-// 	}
-// 	if hop.Success {
-// 		fmt.Printf("%-3d %v (%v)  %v\n", hop.TTL, hostOrAddr, addr, hop.ElapsedTime)
-// 	} else {
-// 		fmt.Printf("%-3d *\n", hop.TTL)
-// 	}
-// }
+func logHop(hop traceroute.TracerouteHop, logger kitlog.Logger) {
+	addr := fmt.Sprintf("%v.%v.%v.%v", hop.Address[0], hop.Address[1], hop.Address[2], hop.Address[3])
+	hostOrAddr := addr
+	logger.Log("Host or address", hostOrAddr)
+	if hop.Host != "" {
+		hostOrAddr = hop.Host
+	}
+	if hop.Success {
+		logger.Log(fmt.Printf("%-3d %v (%v)  %v\n", hop.TTL, hostOrAddr, addr, hop.ElapsedTime))
+	} else {
+		logger.Log(fmt.Printf("%-3d *\n", hop.TTL))
+	}
+}
 
 func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
 	options := traceroute.TracerouteOptions{}
 
-	options.SetTimeoutMs(module.Traceroute.Timeout * 1000)
+	options.SetTimeoutMs(100)
 	options.SetFirstHop(module.Traceroute.FirstHop)
 	options.SetMaxHops(module.Traceroute.MaxHops)
 	options.SetPort(module.Traceroute.Port)
 	options.SetPacketSize(module.Traceroute.PacketSize)
 	options.SetRetries(module.Traceroute.Retries)
 
-	// c := make(chan traceroute.TracerouteHop, 0)
+	logger.Log("TARGET ***** ", target)
 
-	// go func() {
-	// 	for {
-	// 		hop, ok := <-c
-	// 		if !ok {
-	// 			fmt.Println()
-	// 			return
-	// 		}
-	// 		logHop(hop)
-	// 	}
-	// }()
+	c := make(chan traceroute.TracerouteHop)
+
+	go func() {
+		for {
+			hop, ok := <-c
+			if !ok {
+				logger.Log("traceroute hop not OK")
+				fmt.Println()
+				return
+			}
+			logHop(hop, logger)
+		}
+	}()
 
 	result, err := traceroute.Traceroute(target, &options)
 
@@ -59,6 +64,7 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 		logger.Log(err)
 		return false
 	}
+	logger.Log("Traceroute success", result)
 
 	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_traceroute_total_hops",

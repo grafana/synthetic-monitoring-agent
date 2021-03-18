@@ -79,6 +79,59 @@ const (
 	MaxProbeLabels = 3
 )
 
+// CheckType represents the type of the associated check
+type CheckType int32
+
+const (
+	CheckTypeDns        CheckType = 0
+	CheckTypeHttp       CheckType = 1
+	CheckTypePing       CheckType = 2
+	CheckTypeTcp        CheckType = 3
+	CheckTypeTraceroute CheckType = 4
+)
+
+var (
+	checkType_name = map[CheckType]string{
+		CheckTypeDns:        "dns",
+		CheckTypeHttp:       "http",
+		CheckTypePing:       "ping",
+		CheckTypeTcp:        "tcp",
+		CheckTypeTraceroute: "traceroute",
+	}
+
+	checkType_value = map[string]CheckType{
+		"dns":        CheckTypeDns,
+		"http":       CheckTypeHttp,
+		"ping":       CheckTypePing,
+		"tcp":        CheckTypeTcp,
+		"traceroute": CheckTypeTraceroute,
+	}
+)
+
+func (t CheckType) String() string {
+	str, found := checkType_name[t]
+	if !found {
+		panic("unhandled check type")
+	}
+
+	return str
+}
+
+func CheckTypeFromString(in string) (CheckType, bool) {
+	if checkType, found := checkType_value[in]; found {
+		return checkType, true
+	}
+
+	// lowercase input, try again
+	in = strings.ToLower(in)
+
+	if checkType, found := checkType_value[in]; found {
+		return checkType, true
+	}
+
+	return 0, false
+}
+
 func (c *Check) Validate() error {
 	if c.TenantId < 0 {
 		return ErrInvalidTenantId
@@ -119,7 +172,26 @@ func (c *Check) Validate() error {
 
 	if c.Settings.Ping != nil {
 		settingsCount++
+	}
 
+	if c.Settings.Http != nil {
+		settingsCount++
+	}
+
+	if c.Settings.Dns != nil {
+		settingsCount++
+	}
+
+	if c.Settings.Tcp != nil {
+		settingsCount++
+	}
+
+	if settingsCount != 1 {
+		return ErrInvalidCheckSettings
+	}
+
+	switch c.Type() {
+	case CheckTypePing:
 		if err := validateHost(c.Target); err != nil {
 			return ErrInvalidPingHostname
 		}
@@ -127,11 +199,8 @@ func (c *Check) Validate() error {
 		if err := c.Settings.Ping.Validate(); err != nil {
 			return err
 		}
-	}
 
-	if c.Settings.Http != nil {
-		settingsCount++
-
+	case CheckTypeHttp:
 		if err := validateHttpUrl(c.Target); err != nil {
 			return err
 		}
@@ -139,23 +208,17 @@ func (c *Check) Validate() error {
 		if err := c.Settings.Http.Validate(); err != nil {
 			return err
 		}
-	}
 
-	if c.Settings.Dns != nil {
-		settingsCount++
-
-		if err := validateHost(c.Target); err != nil {
+	case CheckTypeDns:
+		if err := validateDnsTarget(c.Target); err != nil {
 			return ErrInvalidDnsName
 		}
 
 		if err := c.Settings.Dns.Validate(); err != nil {
 			return err
 		}
-	}
 
-	if c.Settings.Tcp != nil {
-		settingsCount++
-
+	case CheckTypeTcp:
 		if err := validateHostPort(c.Target); err != nil {
 			return err
 		}
@@ -165,11 +228,29 @@ func (c *Check) Validate() error {
 		}
 	}
 
-	if settingsCount != 1 {
-		return ErrInvalidCheckSettings
-	}
-
 	return nil
+}
+
+func (c Check) Type() CheckType {
+	switch {
+	case c.Settings.Dns != nil:
+		return CheckTypeDns
+
+	case c.Settings.Http != nil:
+		return CheckTypeHttp
+
+	case c.Settings.Ping != nil:
+		return CheckTypePing
+
+	case c.Settings.Tcp != nil:
+		return CheckTypeTcp
+
+	case c.Settings.Traceroute != nil:
+		return CheckTypeTraceroute
+
+	default:
+		panic("unhandled check type")
+	}
 }
 
 func (c *Check) ConfigVersion() string {
@@ -360,6 +441,39 @@ func validateHost(target string) error {
 	return checkFQHN(target)
 }
 
+// validateDnsTarget checks that the provided target is a valid DNS
+// target, meaning it's either "localhost" exactly or a fully qualified
+// domain name (with a full stop at the end). To accept something like
+// "org" it has to be specified as "org.".
+func validateDnsTarget(target string) error {
+	labels := strings.Split(target, ".")
+	switch len(labels) {
+	case 1:
+		if target == "localhost" {
+			return nil
+		}
+
+		// no dots, not "localhost", this is invalid
+		return ErrInvalidDnsName
+
+	default:
+		if labels[len(labels)-1] == "" {
+			// last label is empty, so the target is of the
+			// form "foo.bar."; drop the last label
+			labels = labels[:len(labels)-1]
+		}
+
+		for i, label := range labels {
+			err := validateFQHNLabel(label, i == len(labels)-1)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+}
+
 func validateHostPort(target string) error {
 	if host, port, err := net.SplitHostPort(target); err != nil {
 		return ErrInvalidCheckTarget
@@ -428,6 +542,17 @@ func checkFQHN(fqhn string) error {
 		return ErrInvalidFQHNElements
 	}
 
+	for i, label := range labels {
+		err := validateFQHNLabel(label, i == len(labels)-1)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateFQHNLabel(label string, isLast bool) error {
 	isLetter := func(r rune) bool {
 		return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
 	}
@@ -440,52 +565,50 @@ func checkFQHN(fqhn string) error {
 		return (r == '-')
 	}
 
-	for i, label := range labels {
-		if len(label) == 0 || len(label) > 63 {
-			return ErrInvalidFQDNElementLength
-		}
+	if len(label) == 0 || len(label) > 63 {
+		return ErrInvalidFQDNElementLength
+	}
 
-		runes := []rune(label)
+	runes := []rune(label)
 
-		// labels must start with a letter or digit (RFC 1123);
-		// reading the RFC strictly, it's likely that the
-		// intention was that _only_ the host name could begin
-		// with a letter or a digit, but since any portion of
-		// the FQHN could be a host name, accept it anywhere.
-		if r := runes[0]; !isLetter(r) && !isDigit(r) {
-			return ErrInvalidFQHNElement
-		}
+	// labels must start with a letter or digit (RFC 1123);
+	// reading the RFC strictly, it's likely that the
+	// intention was that _only_ the host name could begin
+	// with a letter or a digit, but since any portion of
+	// the FQHN could be a host name, accept it anywhere.
+	if r := runes[0]; !isLetter(r) && !isDigit(r) {
+		return ErrInvalidFQHNElement
+	}
 
-		// labels must end with a letter or digit
-		if r := runes[len(runes)-1]; !isLetter(r) && !isDigit(r) {
-			return ErrInvalidFQHNElement
-		}
+	// labels must end with a letter or digit
+	if r := runes[len(runes)-1]; !isLetter(r) && !isDigit(r) {
+		return ErrInvalidFQHNElement
+	}
 
-		// these checks allow for all-numeric FQHNs, but the
-		// very last label (the TLD) MUST NOT be all numeric
-		// because that allows for 256.256.256.256 to be a FQHN,
-		// not an invalid IP address, and down that path lies
-		// madness.
-		if i == len(labels)-1 {
-			allDigits := true
-
-			for _, r := range runes {
-				if !isDigit(r) {
-					allDigits = false
-					break
-				}
-			}
-
-			if allDigits {
-				return ErrInvalidFQHNElement
-			}
-		}
+	// these checks allow for all-numeric FQHNs, but the
+	// very last label (the TLD) MUST NOT be all numeric
+	// because that allows for 256.256.256.256 to be a FQHN,
+	// not an invalid IP address, and down that path lies
+	// madness.
+	if isLast {
+		allDigits := true
 
 		for _, r := range runes {
-			// the only valid characters are [-A-Za-z0-9].
-			if !isLetter(r) && !isDigit(r) && !isDash(r) {
-				return ErrInvalidFQHNElement
+			if !isDigit(r) {
+				allDigits = false
+				break
 			}
+		}
+
+		if allDigits {
+			return ErrInvalidFQHNElement
+		}
+	}
+
+	for _, r := range runes {
+		// the only valid characters are [-A-Za-z0-9].
+		if !isLetter(r) && !isDigit(r) && !isDash(r) {
+			return ErrInvalidFQHNElement
 		}
 	}
 

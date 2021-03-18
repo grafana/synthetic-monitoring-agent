@@ -1,14 +1,17 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 1.4779e-05
+probe_dns_lookup_time_seconds 1.777e-06
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.00082993
+probe_duration_seconds 0.000149135
 # HELP probe_icmp_duration_seconds Duration of icmp request by phase
 # TYPE probe_icmp_duration_seconds gauge
-probe_icmp_duration_seconds{phase="resolve"} 1.4779e-05
-probe_icmp_duration_seconds{phase="rtt"} 9.5716e-05
-probe_icmp_duration_seconds{phase="setup"} 7.503e-05
+probe_icmp_duration_seconds{phase="resolve"} 1.777e-06
+probe_icmp_duration_seconds{phase="rtt"} 4.0246e-05
+probe_icmp_duration_seconds{phase="setup"} 3.4131e-05
+# HELP probe_icmp_reply_hop_limit Replied packet hop limit (TTL for ipv4)
+# TYPE probe_icmp_reply_hop_limit gauge
+probe_icmp_reply_hop_limit 64
 # HELP probe_ip_addr_hash Specifies the hash of IP address. It's useful to detect if the IP address changes.
 # TYPE probe_ip_addr_hash gauge
 probe_ip_addr_hash 9.9635399e+07
@@ -35,7 +38,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.00082993
+probe_all_duration_seconds_sum 0.000149135
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary

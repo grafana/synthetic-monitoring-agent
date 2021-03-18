@@ -119,6 +119,116 @@ func TestCheckValidate(t *testing.T) {
 	}
 }
 
+func TestCheckType(t *testing.T) {
+	testcases := map[string]struct {
+		input    Check
+		expected CheckType
+	}{
+		"dns": {
+			input: Check{
+				Target:    "www.example.org",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Dns: &DnsSettings{
+						Server: "127.0.0.1",
+					},
+				},
+			},
+			expected: CheckTypeDns,
+		},
+		"http": {
+			input: Check{
+				Target:    "http://www.example.org",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{},
+				},
+			},
+			expected: CheckTypeHttp,
+		},
+		"ping": {
+			input: Check{
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Ping: &PingSettings{},
+				},
+			},
+			expected: CheckTypePing,
+		},
+		"tcp": {
+			input: Check{
+				Target:    "127.0.0.1:9000",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Tcp: &TcpSettings{},
+				},
+			},
+			expected: CheckTypeTcp,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			err := testcase.input.Validate()
+			checkError(t, false, err, testcase.input)
+			if err != nil {
+				return
+			}
+
+			actual := testcase.input.Type()
+			if testcase.expected != actual {
+				t.Errorf(`expecting %[1]d (%[1]s) for input %[3]q, but got %[2]d (%[2]s)`, testcase.expected, actual, &testcase.input)
+			}
+		})
+	}
+}
+
+func TestCheckTypeString(t *testing.T) {
+	testcases := map[string]struct {
+		input    CheckType
+		expected string
+	}{
+		"dns": {
+			input:    CheckTypeDns,
+			expected: "dns",
+		},
+		"http": {
+			input:    CheckTypeHttp,
+			expected: "http",
+		},
+		"ping": {
+			input:    CheckTypePing,
+			expected: "ping",
+		},
+		"tcp": {
+			input:    CheckTypeTcp,
+			expected: "tcp",
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual := testcase.input.String()
+			if testcase.expected != actual {
+				t.Errorf(`expecting %s for input %q, but got %s`, testcase.expected, &testcase.input, actual)
+			}
+		})
+	}
+}
+
 func TestValidateHost(t *testing.T) {
 	testcases := map[string]struct {
 		input       string
@@ -216,6 +326,69 @@ func TestValidateHost(t *testing.T) {
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
 			err := validateHost(testcase.input)
+			checkError(t, testcase.expectError, err, testcase.input)
+		})
+	}
+}
+
+func TestValidateDnsTarget(t *testing.T) {
+	testcases := map[string]struct {
+		input       string
+		expectError bool
+	}{
+		// valid hostnames
+		"hostname": {
+			input:       "grafana.com",
+			expectError: false,
+		},
+
+		// localhost is valid
+		"localhost": {
+			input:       "localhost",
+			expectError: false,
+		},
+
+		// localhost. is valid
+		"localhost.": {
+			input:       "localhost.",
+			expectError: false,
+		},
+
+		// single label fully qualified dns name is valid
+		"org.": {
+			input:       "org.",
+			expectError: false,
+		},
+
+		// multi-label dns name is valid
+		"grafana.com.": {
+			input:       "grafana.com.",
+			expectError: false,
+		},
+
+		// single label is invalid
+		"org": {
+			input:       "org",
+			expectError: true,
+		},
+
+		// IP address is invalid
+		"127.0.0.1": {
+			input:       "127.0.0.1",
+			expectError: true,
+		},
+
+		// IP address disguised as multi-label fully qualified
+		// dns name is invalid
+		"127.0.0.1.": {
+			input:       "127.0.0.1.",
+			expectError: true,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			err := validateDnsTarget(testcase.input)
 			checkError(t, testcase.expectError, err, testcase.input)
 		})
 	}
