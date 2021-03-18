@@ -243,6 +243,7 @@ message HttpSettings {
 	repeated string       failIfBodyNotMatchesRegexp   = 205 [(gogoproto.jsontag) = "failIfBodyNotMatchesRegexp,omitempty"];
 	repeated HeaderMatch  failIfHeaderMatchesRegexp    = 206 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "failIfHeaderMatchesRegexp,omitempty"];
 	repeated HeaderMatch  failIfHeaderNotMatchesRegexp = 207 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "failIfHeaderNotMatchesRegexp,omitempty"];
+	CompressionAlgorithm  compression                  = 208 [(gogoproto.jsontag) = "compression,omitempty"];
 
 	// custom settings not present in blackbox-exporter
 
@@ -333,6 +334,15 @@ enum IpVersion {
 	Any = 0; // use IPv6 if supported and fall back to IPv4 otherwise
 	V4  = 1; // use IPv4 only
 	V6  = 2; // use IPv6 only
+}
+
+// CompressionAlgorithm represents the compression algorithm to use.
+enum CompressionAlgorithm {
+	none     = 0; // no compression algorithm
+	identity = 1; // no compression, passthru
+	gzip     = 2; // gzip
+	br       = 3; // br, brotli
+	deflate  = 4; // deflate
 }
 
 // TLSConfig represents the TLS data to be used when establishing a

@@ -807,6 +807,10 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 
 	m.HTTP.Headers = buildHttpHeaders(settings.Headers)
 
+	if settings.Compression != sm.CompressionAlgorithm_none {
+		m.HTTP.Compression = settings.Compression.String()
+	}
+
 	m.HTTP.ValidStatusCodes = make([]int, 0, len(settings.ValidStatusCodes))
 	for _, code := range settings.ValidStatusCodes {
 		m.HTTP.ValidStatusCodes = append(m.HTTP.ValidStatusCodes, int(code))
