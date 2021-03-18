@@ -2,7 +2,6 @@
 #
 # Generate all protobuf bindings.
 # Run from repository root.
-set -x
 set -e
 set -u
 
@@ -11,12 +10,12 @@ if test ! -e "scripts/genproto.sh" ; then
 	exit 255
 fi
 
-if ! command -v protoc 2> /dev/null ; then
+if ! command -v protoc &> /dev/null ; then
 	echo "could not find protoc 3.5.1, is it installed + in PATH?"
 	exit 255
 fi
 
-echo "installing plugins"
+echo "Installing Protocol Buffers plugins"
 GO111MODULE=on go mod download
 
 ### INSTALL_PKGS="github.com/gogo/protobuf/protoc-gen-gogofast github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger"
@@ -35,9 +34,8 @@ GOGO_GOOGLEAPIS_PATH="${GOGO_GOOGLEAPIS_ROOT}"
 
 DIRS="pkg/pb/synthetic_monitoring"
 
-echo "generating code"
 for dir in ${DIRS}; do
-	echo "===== ${dir}"
+	echo "Generating Protocol Buffers code in ${dir}"
 	pushd "${dir}" > /dev/null
 		protoc --gogofast_out=plugins=grpc:. \
 			-I=. \

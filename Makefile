@@ -200,12 +200,16 @@ docker-push:  docker
 	$(S) docker push $(DOCKER_TAG):$(BUILD_VERSION)
 
 .PHONY: generate
-generate: $(ROOTDIR)/pkg/accounting/data.go
+generate: $(ROOTDIR)/pkg/accounting/data.go $(ROOTDIR) $(ROOTDIR)/pkg/pb/synthetic_monitoring/checks.pb.go
 	$(S) true
 
 $(ROOTDIR)/pkg/accounting/data.go : $(ROOTDIR)/pkg/accounting/data.go.tmpl $(wildcard $(ROOTDIR)/internal/scraper/testdata/*.txt)
 	$(S) echo "Generating $@ ..."
 	$(GO) generate -v "$(@D)"
+
+$(ROOTDIR)/pkg/pb/synthetic_monitoring/%.pb.go : $(ROOTDIR)/pkg/pb/synthetic_monitoring/%.proto
+	$(S) echo "Generating $@ ..."
+	$(V) $(ROOTDIR)/scripts/genproto.sh
 
 define build_go_command
 	$(S) echo 'Building $(1)'
