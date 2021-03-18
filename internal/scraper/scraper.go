@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aeden/traceroute"
 	kitlog "github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/go-logfmt/logfmt"
@@ -32,12 +31,6 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 )
-
-func ProberTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
-	var options *traceroute.TracerouteOptions
-	traceroute.Traceroute("www.google.com", options)
-	return true
-}
 
 type ProbeFn func(ctx context.Context, target string, config ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool
 
@@ -64,7 +57,7 @@ var (
 		ScraperTypeTcp:        ProberTcp,
 		ScraperTypePing:       ProberPing,
 		ScraperTypeDNS:        ProberDNS,
-		ScraperTypeTraceroute: ProberTraceroute,
+		ScraperTypeTraceroute: ProbeTraceroute,
 	}
 )
 
@@ -75,20 +68,6 @@ const (
 	ScraperTypeTcp        = "tcp"
 	ScraperTypeTraceroute = "traceroute"
 )
-
-type TracerouteProbe struct {
-	FirstHop   int `yaml:"firstHop,omitempty"`
-	MaxHops    int `yaml:"maxHops,omitempty"`
-	PacketSize int `yaml:"packetSize,omitempty"`
-	Port       int `yaml:"port,omitempty"`
-	Retries    int `yaml:"retries,omitempty"`
-	Timeout    int `yaml:"timeout,omitempty"`
-}
-
-type ConfigModule struct {
-	bbeconfig.Module
-	Traceroute TracerouteProbe `yaml:"traceroute,omitempty"`
-}
 
 type Scraper struct {
 	publishCh     chan<- pusher.Payload
