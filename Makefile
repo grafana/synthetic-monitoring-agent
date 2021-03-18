@@ -211,6 +211,11 @@ $(ROOTDIR)/pkg/pb/synthetic_monitoring/%.pb.go : $(ROOTDIR)/pkg/pb/synthetic_mon
 	$(S) echo "Generating $@ ..."
 	$(V) $(ROOTDIR)/scripts/genproto.sh
 
+.PHONY: testdata
+testdata: ## Update golden files for tests.
+	# update scraper golden files
+	$(V) $(GO) go -v -run TestValidateMetrics ./internal/scraper -args -update-golden
+
 define build_go_command
 	$(S) echo 'Building $(1)'
 	$(S) mkdir -p dist
