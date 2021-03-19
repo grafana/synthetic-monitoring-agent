@@ -142,6 +142,20 @@ func getTestCases() map[string]struct {
 		"traceroute": {
 			input: synthetic_monitoring.Check{
 				Target:           "example.com",
+				BasicMetricsOnly: false,
+				Settings: synthetic_monitoring.CheckSettings{
+					Traceroute: &synthetic_monitoring.TracerouteSettings{
+						Timeout:  10,
+						FirstHop: 0,
+						MaxHops:  10,
+					},
+				},
+			},
+			class: "traceroute",
+		},
+		"traceroute_basic": {
+			input: synthetic_monitoring.Check{
+				Target:           "example.com",
 				BasicMetricsOnly: true,
 				Settings: synthetic_monitoring.CheckSettings{
 					Traceroute: &synthetic_monitoring.TracerouteSettings{
@@ -151,6 +165,7 @@ func getTestCases() map[string]struct {
 					},
 				},
 			},
+			class: "traceroute_basic",
 		},
 	}
 }
