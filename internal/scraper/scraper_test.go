@@ -174,7 +174,7 @@ func TestValidateMetrics(t *testing.T) {
 				Traceroute: TracerouteProbe{
 					Timeout:    10,
 					FirstHop:   1,
-					MaxHops:    10,
+					MaxHops:    25,
 					PacketSize: 32,
 					Port:       80,
 					Retries:    0,

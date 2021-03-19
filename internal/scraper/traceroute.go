@@ -18,20 +18,6 @@ type TracerouteProbe struct {
 	Timeout    int `yaml:"timeout,omitempty"`
 }
 
-func logHop(hop traceroute.TracerouteHop, logger kitlog.Logger) {
-	addr := fmt.Sprintf("%v.%v.%v.%v", hop.Address[0], hop.Address[1], hop.Address[2], hop.Address[3])
-	hostOrAddr := addr
-	logger.Log("Host or address", hostOrAddr)
-	if hop.Host != "" {
-		hostOrAddr = hop.Host
-	}
-	if hop.Success {
-		logger.Log(fmt.Printf("%-3d %v (%v)  %v\n", hop.TTL, hostOrAddr, addr, hop.ElapsedTime))
-	} else {
-		logger.Log(fmt.Printf("%-3d *\n", hop.TTL))
-	}
-}
-
 func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
 	options := traceroute.TracerouteOptions{}
 
@@ -49,31 +35,22 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 
 	registry.MustRegister(totalHopsGauge)
 
-	logger.Log("TARGET ***** ", target)
-
-	c := make(chan traceroute.TracerouteHop)
-
-	go func() {
-		for {
-			hop, ok := <-c
-			if !ok {
-				logger.Log("traceroute hop not OK")
-				fmt.Println()
-				return
-			}
-			logHop(hop, logger)
-		}
-	}()
-
 	result, err := traceroute.Traceroute(target, &options)
 
 	if err != nil {
 		logger.Log(err)
 		return false
 	}
-	logger.Log("Traceroute success", result)
 
 	totalHopsGauge.Set(float64(len(result.Hops)))
+	for _, hop := range result.Hops {
+		addr := fmt.Sprintf("%v.%v.%v.%v", hop.Address[0], hop.Address[1], hop.Address[2], hop.Address[3])
+		hostOrAddr := addr
+		if hop.Host != "" {
+			hostOrAddr = hop.Host
+		}
+		logger.Log("Host", hostOrAddr, "ElapsedTime", hop.ElapsedTime, "TTL", hop.TTL, "Success", hop.Success)
+	}
 
 	return true
 }
