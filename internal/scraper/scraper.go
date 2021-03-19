@@ -797,11 +797,17 @@ func tracerouteSettingsToConfigModule(ctx context.Context, logger zerolog.Logger
 
 	m.Prober = sm.CheckTypeTraceroute.String()
 
-	// m.ICMP.SourceIPAddress = settings.SourceIpAddress
+	m.Traceroute.Timeout = int(settings.Timeout)
 
-	// m.ICMP.PayloadSize = int(settings.PayloadSize)
+	m.Traceroute.FirstHop = int(settings.FirstHop)
 
-	// m.ICMP.DontFragment = settings.DontFragment
+	m.Traceroute.MaxHops = int(settings.MaxHops)
+
+	m.Traceroute.PacketSize = int(settings.MaxHops)
+
+	m.Traceroute.Retries = int(settings.Retries)
+
+	m.Traceroute.Port = int(settings.Port)
 
 	return m, nil
 }

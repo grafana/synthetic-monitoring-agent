@@ -35,7 +35,7 @@ func logHop(hop traceroute.TracerouteHop, logger kitlog.Logger) {
 func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
 	options := traceroute.TracerouteOptions{}
 
-	options.SetTimeoutMs(100)
+	options.SetTimeoutMs(module.Traceroute.Timeout)
 	options.SetFirstHop(module.Traceroute.FirstHop)
 	options.SetMaxHops(module.Traceroute.MaxHops)
 	options.SetPort(module.Traceroute.Port)
