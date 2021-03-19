@@ -186,6 +186,10 @@ func (c *Check) Validate() error {
 		settingsCount++
 	}
 
+	if c.Settings.Traceroute != nil {
+		settingsCount++
+	}
+
 	if settingsCount != 1 {
 		return ErrInvalidCheckSettings
 	}
@@ -224,6 +228,15 @@ func (c *Check) Validate() error {
 		}
 
 		if err := c.Settings.Tcp.Validate(); err != nil {
+			return err
+		}
+
+	case CheckTypeTraceroute:
+		if err := validateHost(c.Target); err != nil {
+			return ErrInvalidHostname
+		}
+
+		if err := c.Settings.Traceroute.Validate(); err != nil {
 			return err
 		}
 	}
@@ -282,6 +295,10 @@ func (s *DnsSettings) Validate() error {
 }
 
 func (s *TcpSettings) Validate() error {
+	return nil
+}
+
+func (s *TracerouteSettings) Validate() error {
 	return nil
 }
 
