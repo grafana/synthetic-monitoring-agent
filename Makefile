@@ -214,7 +214,7 @@ $(ROOTDIR)/pkg/pb/synthetic_monitoring/%.pb.go : $(ROOTDIR)/pkg/pb/synthetic_mon
 .PHONY: testdata
 testdata: ## Update golden files for tests.
 	# update scraper golden files
-	$(V) $(GO) go -v -run TestValidateMetrics ./internal/scraper -args -update-golden
+	$(V) $(GO) test -v -run TestValidateMetrics ./internal/scraper -args -update-golden
 
 define build_go_command
 	$(S) echo 'Building $(1)'
