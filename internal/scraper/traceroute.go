@@ -42,6 +42,13 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	options.SetPacketSize(module.Traceroute.PacketSize)
 	options.SetRetries(module.Traceroute.Retries)
 
+	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_traceroute_total_hops",
+		Help: "Total hops to reach a traceroute destination",
+	})
+
+	registry.MustRegister(totalHopsGauge)
+
 	logger.Log("TARGET ***** ", target)
 
 	c := make(chan traceroute.TracerouteHop)
@@ -66,12 +73,6 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	}
 	logger.Log("Traceroute success", result)
 
-	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_traceroute_total_hops",
-		Help: "Total hops to reach a traceroute destination",
-	})
-
-	registry.MustRegister(totalHopsGauge)
 	totalHopsGauge.Set(float64(len(result.Hops)))
 
 	return true
