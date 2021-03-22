@@ -75,8 +75,9 @@ var (
 )
 
 const (
-	MaxCheckLabels = 5
-	MaxProbeLabels = 3
+	MaxCheckLabels      = 5   // Loki allows a maximum of 15 labels, we reserve 7 for internal use
+	MaxProbeLabels      = 3   // and split the other 8 in 3 for the probes and 5 for the checks.
+	MaxLabelValueLength = 128 // Keep this number low so that the UI remains usable.
 )
 
 // CheckType represents the type of the associated check
@@ -307,7 +308,7 @@ func (p *Probe) Validate() error {
 }
 
 func (l Label) Validate() error {
-	if len(l.Name) == 0 {
+	if len(l.Name) == 0 || len(l.Name) > MaxLabelValueLength {
 		return ErrInvalidLabelName
 	}
 
@@ -321,7 +322,7 @@ func (l Label) Validate() error {
 		}
 	}
 
-	if len(l.Value) == 0 || len(l.Value) > 32 {
+	if len(l.Value) == 0 || len(l.Value) > MaxLabelValueLength {
 		return ErrInvalidLabelValue
 	}
 	return nil
