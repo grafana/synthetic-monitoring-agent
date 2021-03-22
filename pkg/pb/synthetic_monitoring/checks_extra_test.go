@@ -635,6 +635,15 @@ func TestValidateHttpUrl(t *testing.T) {
 }
 
 func TestValidateLabel(t *testing.T) {
+	genString := func(n int) string {
+		var s strings.Builder
+		s.Grow(n)
+		for i := 0; i < n; i++ {
+			_ = s.WriteByte('x')
+		}
+		return s.String()
+	}
+
 	testcases := map[string]struct {
 		input       Label
 		expectError bool
@@ -668,11 +677,11 @@ func TestValidateLabel(t *testing.T) {
 			expectError: true,
 		},
 		"long value": {
-			input:       Label{Name: "name", Value: "12345678901234567890123456789012"},
+			input:       Label{Name: "name", Value: genString(MaxLabelValueLength)},
 			expectError: false,
 		},
 		"value too long": {
-			input:       Label{Name: "name", Value: "123456789012345678901234567890123"},
+			input:       Label{Name: "name", Value: genString(MaxLabelValueLength + 1)},
 			expectError: true,
 		},
 	}
