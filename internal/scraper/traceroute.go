@@ -6,6 +6,7 @@ import (
 
 	"github.com/aeden/traceroute"
 	kitlog "github.com/go-kit/kit/log"
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -42,6 +43,8 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 		return false
 	}
 
+	traceID := uuid.New()
+
 	totalHopsGauge.Set(float64(len(result.Hops)))
 	for _, hop := range result.Hops {
 		addr := fmt.Sprintf("%v.%v.%v.%v", hop.Address[0], hop.Address[1], hop.Address[2], hop.Address[3])
@@ -49,7 +52,7 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 		if hop.Host != "" {
 			hostOrAddr = hop.Host
 		}
-		logger.Log("Host", hostOrAddr, "ElapsedTime", hop.ElapsedTime, "TTL", hop.TTL, "Success", hop.Success)
+		logger.Log("Host", hostOrAddr, "ElapsedTime", hop.ElapsedTime, "TTL", hop.TTL, "Success", hop.Success, "TraceID", traceID)
 	}
 
 	return true
