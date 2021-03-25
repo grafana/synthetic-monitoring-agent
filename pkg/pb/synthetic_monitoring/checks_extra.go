@@ -18,6 +18,7 @@ package synthetic_monitoring
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strconv"
@@ -36,6 +37,7 @@ var (
 	ErrInvalidCheckLabelValue = errors.New("invalid check label value")
 	ErrInvalidLabelName       = errors.New("invalid label name")
 	ErrInvalidLabelValue      = errors.New("invalid label value")
+	ErrDuplicateLabelName     = errors.New("duplicate label name")
 
 	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
@@ -156,14 +158,8 @@ func (c *Check) Validate() error {
 		return ErrInvalidCheckTimeout
 	}
 
-	if len(c.Labels) > MaxCheckLabels {
-		return ErrTooManyCheckLabels
-	}
-
-	for _, label := range c.Labels {
-		if err := label.Validate(); err != nil {
-			return err
-		}
+	if err := validateLabels(c.Labels); err != nil {
+		return err
 	}
 
 	settingsCount := 0
@@ -222,6 +218,28 @@ func (c *Check) Validate() error {
 		}
 
 		if err := c.Settings.Tcp.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateLabels(labels []Label) error {
+	if len(labels) > MaxCheckLabels {
+		return ErrTooManyCheckLabels
+	}
+
+	seenLabels := make(map[string]struct{})
+
+	for _, label := range labels {
+		if _, found := seenLabels[label.Name]; found {
+			return fmt.Errorf("label name %s: %w", label.Name, ErrDuplicateLabelName)
+		}
+
+		seenLabels[label.Name] = struct{}{}
+
+		if err := label.Validate(); err != nil {
 			return err
 		}
 	}
