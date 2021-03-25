@@ -54,6 +54,40 @@ func TestCheckValidate(t *testing.T) {
 			},
 			expectError: true,
 		},
+		"duplicate label names": {
+			input: Check{
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Ping: &PingSettings{},
+				},
+				Labels: []Label{
+					{Name: "name", Value: "1"},
+					{Name: "name", Value: "2"},
+				},
+			},
+			expectError: true,
+		},
+		"duplicate label values": {
+			input: Check{
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Ping: &PingSettings{},
+				},
+				Labels: []Label{
+					{Name: "name_1", Value: "1"},
+					{Name: "name_2", Value: "1"},
+				},
+			},
+			expectError: false,
+		},
 		"multiple settings": {
 			input: Check{
 				Target:    "127.0.0.1",
