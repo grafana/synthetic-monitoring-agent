@@ -2,8 +2,17 @@
 ## [Unreleased]
 
 
+<a name="v0.0.19"></a>
+## [v0.0.19] - 2021-03-25
+### Change
+- Increase the maximum label length to 128
+
+### Fix
+- check that there are no duplicate label names
+
+
 <a name="v0.0.18"></a>
-## [v0.0.18] - 2021-03-03
+## [v0.0.18] - 2021-03-04
 ### Feature
 - provide access to accounting map
 - provide number of active series per check type
@@ -102,7 +111,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.18...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.19...HEAD
+[v0.0.19]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.18...v0.0.19
 [v0.0.18]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.17...v0.0.18
 [v0.0.17]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.16...v0.0.17
 [v0.0.16]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.15...v0.0.16
