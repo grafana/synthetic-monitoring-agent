@@ -22,19 +22,18 @@ type TracerouteProbe struct {
 func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
 	options := traceroute.TracerouteOptions{}
 
-	options.SetTimeoutMs(module.Traceroute.Timeout)
+	timeout := int(module.Module.Timeout)
+
+	if timeout == 0 {
+		timeout = 30000
+	}
+
+	options.SetTimeoutMs(timeout)
 	options.SetFirstHop(module.Traceroute.FirstHop)
 	options.SetMaxHops(module.Traceroute.MaxHops)
 	options.SetPort(module.Traceroute.Port)
 	options.SetPacketSize(module.Traceroute.PacketSize)
 	options.SetRetries(module.Traceroute.Retries)
-
-	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_traceroute_total_hops",
-		Help: "Total hops to reach a traceroute destination",
-	})
-
-	registry.MustRegister(totalHopsGauge)
 
 	result, err := traceroute.Traceroute(target, &options)
 
@@ -44,7 +43,12 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	}
 
 	traceID := uuid.New()
+	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_traceroute_total_hops",
+		Help: "Total hops to reach a traceroute destination",
+	})
 
+	registry.MustRegister(totalHopsGauge)
 	totalHopsGauge.Set(float64(len(result.Hops)))
 	for _, hop := range result.Hops {
 		addr := fmt.Sprintf("%v.%v.%v.%v", hop.Address[0], hop.Address[1], hop.Address[2], hop.Address[3])

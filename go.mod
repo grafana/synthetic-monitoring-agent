@@ -9,6 +9,7 @@ require (
 	github.com/gogo/googleapis v1.3.2
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/snappy v0.0.1
+	github.com/google/uuid v1.2.0
 	github.com/grafana/loki v1.5.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.5 // indirect
 	github.com/miekg/dns v1.1.29
