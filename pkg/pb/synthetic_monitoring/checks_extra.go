@@ -18,6 +18,7 @@ package synthetic_monitoring
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strconv"
@@ -36,6 +37,7 @@ var (
 	ErrInvalidCheckLabelValue = errors.New("invalid check label value")
 	ErrInvalidLabelName       = errors.New("invalid label name")
 	ErrInvalidLabelValue      = errors.New("invalid label value")
+	ErrDuplicateLabelName     = errors.New("duplicate label name")
 
 	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
@@ -75,8 +77,9 @@ var (
 )
 
 const (
-	MaxCheckLabels = 5
-	MaxProbeLabels = 3
+	MaxCheckLabels      = 5   // Loki allows a maximum of 15 labels, we reserve 7 for internal use
+	MaxProbeLabels      = 3   // and split the other 8 in 3 for the probes and 5 for the checks.
+	MaxLabelValueLength = 128 // Keep this number low so that the UI remains usable.
 )
 
 // CheckType represents the type of the associated check
@@ -166,14 +169,8 @@ func (c *Check) Validate() error {
 		return ErrInvalidCheckTimeout
 	}
 
-	if len(c.Labels) > MaxCheckLabels {
-		return ErrTooManyCheckLabels
-	}
-
-	for _, label := range c.Labels {
-		if err := label.Validate(); err != nil {
-			return err
-		}
+	if err := validateLabels(c.Labels); err != nil {
+		return err
 	}
 
 	settingsCount := 0
@@ -245,6 +242,28 @@ func (c *Check) Validate() error {
 		}
 
 		if err := c.Settings.Traceroute.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateLabels(labels []Label) error {
+	if len(labels) > MaxCheckLabels {
+		return ErrTooManyCheckLabels
+	}
+
+	seenLabels := make(map[string]struct{})
+
+	for _, label := range labels {
+		if _, found := seenLabels[label.Name]; found {
+			return fmt.Errorf("label name %s: %w", label.Name, ErrDuplicateLabelName)
+		}
+
+		seenLabels[label.Name] = struct{}{}
+
+		if err := label.Validate(); err != nil {
 			return err
 		}
 	}
@@ -338,7 +357,7 @@ func (p *Probe) Validate() error {
 }
 
 func (l Label) Validate() error {
-	if len(l.Name) == 0 {
+	if len(l.Name) == 0 || len(l.Name) > MaxLabelValueLength {
 		return ErrInvalidLabelName
 	}
 
@@ -352,7 +371,7 @@ func (l Label) Validate() error {
 		}
 	}
 
-	if len(l.Value) == 0 || len(l.Value) > 32 {
+	if len(l.Value) == 0 || len(l.Value) > MaxLabelValueLength {
 		return ErrInvalidLabelValue
 	}
 	return nil
