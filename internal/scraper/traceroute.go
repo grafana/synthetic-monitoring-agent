@@ -2,7 +2,6 @@ package scraper
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aeden/traceroute"
 	kitlog "github.com/go-kit/kit/log"
@@ -25,7 +24,7 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	timeout := int(module.Module.Timeout)
 
 	if timeout == 0 {
-		timeout = 30000
+		timeout = 30
 	}
 
 	options.SetTimeoutMs(timeout)
@@ -51,8 +50,9 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	registry.MustRegister(totalHopsGauge)
 	totalHopsGauge.Set(float64(len(result.Hops)))
 	for _, hop := range result.Hops {
-		addr := fmt.Sprintf("%v.%v.%v.%v", hop.Address[0], hop.Address[1], hop.Address[2], hop.Address[3])
-		hostOrAddr := addr
+		// addr := fmt.Sprintf("%v.%v.%v.%v", hop.Address[0], hop.Address[1], hop.Address[2], hop.Address[3])
+		hostOrAddr := hop.AddressString()
+		// otherHost := hop.HostOrAddressString()
 		if hop.Host != "" {
 			hostOrAddr = hop.Host
 		}

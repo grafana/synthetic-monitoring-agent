@@ -157,11 +157,11 @@ func (c *Check) Validate() error {
 	// timeout must be in [1, 10] seconds, and it must be less than
 	// frequency (otherwise we can end up running overlapping
 	// checks)
-	if c.Type() == CheckTypeTraceroute && c.Timeout < 10*3000 {
+	if c.Type() == CheckTypeTraceroute && c.Timeout > 10*3000 {
 		return ErrInvalidCheckTimeout
 	}
 
-	if c.Type() != CheckTypeTraceroute && c.Timeout > 10*1000 {
+	if c.Type() != CheckTypeTraceroute && c.Timeout < 10*1000 {
 		return ErrInvalidCheckTimeout
 	}
 
