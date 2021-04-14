@@ -331,12 +331,15 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		target = addCacheBustParam(s.target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name)
 	}
 
+	s.logger.Info().Msg("Collecting data")
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
 	bl := kitlog.NewLogfmtLogger(&logs)
 	sl := kitlog.With(bl, "ts", kitlog.DefaultTimestampUTC, "target", target)
 
 	success, mfs, err := getProbeMetrics(ctx, prober, target, s.bbeModule, s.buildCheckInfoLabels(), s.summaries, s.histograms, sl, s.check.BasicMetricsOnly)
+
+	s.logger.Info().Msg("Collected metrics")
 	if err != nil {
 		return nil, err
 	}
