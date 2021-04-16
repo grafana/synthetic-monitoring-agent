@@ -200,13 +200,9 @@ message CheckSettings {
 }
 
 message TracerouteSettings {
-	int64 firstHop   = 1 [(gogoproto.jsontag) = "firstHop"]; 
-	int64 maxHops 	 = 2 [(gogoproto.jsontag) = "maxHops"]; 
-	int64 packetSize = 3 [(gogoproto.jsontag) = "packetSize"];
-	int64 port 			 = 4 [(gogoproto.jsontag) = "port"];
-	int64 retries 	 = 5 [(gogoproto.jsontag) = "retries"];
-	int64 timeout 	 = 6 [(gogoproto.jsontag) = "timeout"];
-
+	int64 maxHops 	 		 = 1 [(gogoproto.jsontag) = "maxHops"]; 
+	int64 maxUnknownHops = 2 [(gogoproto.jsontag) = "maxUnknownHops"];
+	bool  ptrLookup 		 = 3 [(gogoproto.jsontag) = "ptrLookup"];
 }
 
 // PingSettings provides the settings for a ping check.

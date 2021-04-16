@@ -25,7 +25,7 @@ var (
 	INTERVAL         = 100 * time.Millisecond
 	HOP_SLEEP        = time.Nanosecond
 	MAX_HOPS         = 64
-	MAX_UNKNOWN_HOPS = 10
+	MAX_UNKNOWN_HOPS = 30
 	RING_BUFFER_SIZE = 50
 	PTR_LOOKUP       = false
 	srcAddr          = ""
@@ -48,16 +48,30 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	m.Run(ch, COUNT)
 
 	traceID := uuid.New()
+	totalPacketsLost := float64(0)
+	totalPacketsSent := float64(0)
 	for _, hop := range m.Statistic {
-		logger.Log("Level", "info", "Destination", m.Address, "Host", hop.Target, "TTL", hop.TTL, "AvgMs", hop.Avg(), "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
+		totalPacketsLost += float64(hop.Lost)
+		totalPacketsSent += float64(hop.Sent)
+		avgElapsedTime := time.Duration(hop.Avg()) * time.Millisecond
+		logger.Log("Level", "info", "Destination", m.Address, "Host", hop.Target, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
 	}
 	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_traceroute_total_hops",
 		Help: "Total hops to reach a traceroute destination",
 	})
 
+	var overallPacketLossGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_traceroute_packet_loss_percent",
+		Help: "Overall percentage of packet loss during the traceroute",
+	})
+
 	registry.MustRegister(totalHopsGauge)
+	registry.MustRegister(overallPacketLossGauge)
+
 	totalHopsGauge.Set(float64((len(m.Statistic))))
+	overallPacketLoss := totalPacketsLost / totalPacketsSent
+	overallPacketLossGauge.Set(float64(overallPacketLoss))
 
 	// 	logger.Log("Host", hostOrAddr, "ElapsedTime", hop.ElapsedTime, "TTL", hop.TTL, "Success", hop.Success, "TraceID", traceID)
 	return true
@@ -96,6 +110,4 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	// 	}
 	// 	logger.Log("Host", hostOrAddr, "ElapsedTime", hop.ElapsedTime, "TTL", hop.TTL, "Success", hop.Success, "TraceID", traceID)
 	// }
-
-	return true
 }
