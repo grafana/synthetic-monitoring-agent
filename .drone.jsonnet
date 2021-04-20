@@ -11,7 +11,7 @@ local pipeline(name, steps=[]) = {
   steps: [step('runner identification', ['echo $DRONE_RUNNER_NAME'], 'alpine')] + steps,
   trigger+: {
     ref+: [
-      'refs/heads/master',
+      'refs/heads/main',
       'refs/pull/**',
       'refs/tags/v*.*.*',
     ],
@@ -21,7 +21,7 @@ local pipeline(name, steps=[]) = {
 local releaseOnly = {
   when: {
     ref+: [
-      'refs/heads/master',
+      'refs/heads/main',
       'refs/tags/v*.*.*',
     ],
   },
