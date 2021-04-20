@@ -203,6 +203,7 @@ message TracerouteSettings {
 	int64 maxHops 	 		 = 1 [(gogoproto.jsontag) = "maxHops"]; 
 	int64 maxUnknownHops = 2 [(gogoproto.jsontag) = "maxUnknownHops"];
 	bool  ptrLookup 		 = 3 [(gogoproto.jsontag) = "ptrLookup"];
+	int64 hopTimeout 		 = 4 [(gogoproto.jsontag) = "hopTimeout"];
 }
 
 // PingSettings provides the settings for a ping check.

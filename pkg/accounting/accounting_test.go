@@ -145,9 +145,7 @@ func getTestCases() map[string]struct {
 				BasicMetricsOnly: false,
 				Settings: synthetic_monitoring.CheckSettings{
 					Traceroute: &synthetic_monitoring.TracerouteSettings{
-						Timeout:  10,
-						FirstHop: 0,
-						MaxHops:  10,
+						MaxHops: 10,
 					},
 				},
 			},
@@ -159,9 +157,7 @@ func getTestCases() map[string]struct {
 				BasicMetricsOnly: true,
 				Settings: synthetic_monitoring.CheckSettings{
 					Traceroute: &synthetic_monitoring.TracerouteSettings{
-						Timeout:  10,
-						FirstHop: 0,
-						MaxHops:  10,
+						MaxHops: 10,
 					},
 				},
 			},

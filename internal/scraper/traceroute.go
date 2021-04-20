@@ -10,15 +10,6 @@ import (
 	"github.com/tonobo/mtr/pkg/mtr"
 )
 
-type TracerouteProbe struct {
-	FirstHop   int `yaml:"firstHop,omitempty"`
-	MaxHops    int `yaml:"maxHops,omitempty"`
-	PacketSize int `yaml:"packetSize,omitempty"`
-	Port       int `yaml:"port,omitempty"`
-	Retries    int `yaml:"retries,omitempty"`
-	Timeout    int `yaml:"timeout,omitempty"`
-}
-
 var (
 	COUNT            = 5
 	TIMEOUT          = 800 * time.Millisecond

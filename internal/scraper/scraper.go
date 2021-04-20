@@ -800,17 +800,7 @@ func tracerouteSettingsToConfigModule(ctx context.Context, logger zerolog.Logger
 
 	m.Prober = sm.CheckTypeTraceroute.String()
 
-	m.Traceroute.Timeout = int(settings.Timeout)
-
-	m.Traceroute.FirstHop = int(settings.FirstHop)
-
-	m.Traceroute.MaxHops = int(settings.MaxHops)
-
-	m.Traceroute.PacketSize = int(settings.MaxHops)
-
-	m.Traceroute.Retries = int(settings.Retries)
-
-	m.Traceroute.Port = int(settings.Port)
+	m.Traceroute = *settings
 
 	return m, nil
 }
