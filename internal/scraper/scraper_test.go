@@ -19,6 +19,7 @@ import (
 	"time"
 
 	kitlog "github.com/go-kit/kit/log"
+	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/miekg/dns"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
@@ -171,14 +172,7 @@ func TestValidateMetrics(t *testing.T) {
 				Module: bbeconfig.Module{
 					Prober: "traceroute",
 				},
-				Traceroute: TracerouteProbe{
-					Timeout:    10,
-					FirstHop:   1,
-					MaxHops:    25,
-					PacketSize: 32,
-					Port:       80,
-					Retries:    0,
-				},
+				Traceroute: synthetic_monitoring.TracerouteSettings{},
 			},
 		},
 	}
@@ -213,7 +207,7 @@ func verifyProberMetrics(t *testing.T, name string, prober ProbeFn, setup func(t
 	target, stop := setup(t)
 	defer stop()
 
-	success, mfs, err := getProbeMetrics(ctx, prober, target, &config, nil, summaries, histograms, logger, basicMetricsOnly)
+	success, mfs, err := getProbeMetrics(ctx, prober, target, &config, nil, summaries, histograms, logger, basicMetricsOnly, "test_probe")
 	if err != nil {
 		t.Fatalf("probe failed: %s", err.Error())
 	} else if !success {

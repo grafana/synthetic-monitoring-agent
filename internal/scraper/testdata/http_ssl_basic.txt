@@ -1,9 +1,9 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 1.5886e-05
+probe_dns_lookup_time_seconds 2.7109e-05
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.0055913
+probe_duration_seconds 0.002344388
 # HELP probe_failed_due_to_regex Indicates if probe failed due to regex
 # TYPE probe_failed_due_to_regex gauge
 probe_failed_due_to_regex 0
@@ -12,11 +12,11 @@ probe_failed_due_to_regex 0
 probe_http_content_length 0
 # HELP probe_http_duration_seconds Duration of http request by phase, summed over all redirects
 # TYPE probe_http_duration_seconds gauge
-probe_http_duration_seconds{phase="connect"} 0.000227798
-probe_http_duration_seconds{phase="processing"} 0.000337288
-probe_http_duration_seconds{phase="resolve"} 1.5886e-05
-probe_http_duration_seconds{phase="tls"} 0.003463949
-probe_http_duration_seconds{phase="transfer"} 0.000110692
+probe_http_duration_seconds{phase="connect"} 0.000376962
+probe_http_duration_seconds{phase="processing"} 0.000173556
+probe_http_duration_seconds{phase="resolve"} 2.7109e-05
+probe_http_duration_seconds{phase="tls"} 0.001749501
+probe_http_duration_seconds{phase="transfer"} 8.6648e-05
 # HELP probe_http_redirects The number of redirects
 # TYPE probe_http_redirects gauge
 probe_http_redirects 0
@@ -58,7 +58,7 @@ probe_tls_version_info{version="TLS 1.3"} 1
 sm_check_info 1
 # HELP probe_all_duration_seconds Returns how long the probe took to complete in seconds (histogram)
 # TYPE probe_all_duration_seconds histogram
-probe_all_duration_seconds_bucket{le="0.005"} 0
+probe_all_duration_seconds_bucket{le="0.005"} 1
 probe_all_duration_seconds_bucket{le="0.01"} 1
 probe_all_duration_seconds_bucket{le="0.025"} 1
 probe_all_duration_seconds_bucket{le="0.05"} 1
@@ -70,7 +70,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.0055913
+probe_all_duration_seconds_sum 0.002344388
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary

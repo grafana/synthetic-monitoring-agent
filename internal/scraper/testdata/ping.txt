@@ -1,14 +1,14 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 1.742e-06
+probe_dns_lookup_time_seconds 4.1071e-05
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.000129361
+probe_duration_seconds 0.000974644
 # HELP probe_icmp_duration_seconds Duration of icmp request by phase
 # TYPE probe_icmp_duration_seconds gauge
-probe_icmp_duration_seconds{phase="resolve"} 1.742e-06
-probe_icmp_duration_seconds{phase="rtt"} 6.0107e-05
-probe_icmp_duration_seconds{phase="setup"} 2.5008e-05
+probe_icmp_duration_seconds{phase="resolve"} 4.1071e-05
+probe_icmp_duration_seconds{phase="rtt"} 0.00031317
+probe_icmp_duration_seconds{phase="setup"} 0.000340032
 # HELP probe_icmp_reply_hop_limit Replied packet hop limit (TTL for ipv4)
 # TYPE probe_icmp_reply_hop_limit gauge
 probe_icmp_reply_hop_limit 64
@@ -38,7 +38,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.000129361
+probe_all_duration_seconds_sum 0.000974644
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
@@ -58,7 +58,7 @@ probe_dns_lookup_all_time_seconds_bucket{le="2.5"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="5"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="10"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="+Inf"} 1
-probe_dns_lookup_all_time_seconds_sum 1.742e-06
+probe_dns_lookup_all_time_seconds_sum 4.1071e-05
 probe_dns_lookup_all_time_seconds_count 1
 # HELP probe_icmp_all_duration_seconds Duration of icmp request by phase (histogram)
 # TYPE probe_icmp_all_duration_seconds histogram
@@ -74,7 +74,7 @@ probe_icmp_all_duration_seconds_bucket{phase="resolve",le="2.5"} 1
 probe_icmp_all_duration_seconds_bucket{phase="resolve",le="5"} 1
 probe_icmp_all_duration_seconds_bucket{phase="resolve",le="10"} 1
 probe_icmp_all_duration_seconds_bucket{phase="resolve",le="+Inf"} 1
-probe_icmp_all_duration_seconds_sum{phase="resolve"} 1.742e-06
+probe_icmp_all_duration_seconds_sum{phase="resolve"} 4.1071e-05
 probe_icmp_all_duration_seconds_count{phase="resolve"} 1
 probe_icmp_all_duration_seconds_bucket{phase="rtt",le="0.005"} 1
 probe_icmp_all_duration_seconds_bucket{phase="rtt",le="0.01"} 1
@@ -88,7 +88,7 @@ probe_icmp_all_duration_seconds_bucket{phase="rtt",le="2.5"} 1
 probe_icmp_all_duration_seconds_bucket{phase="rtt",le="5"} 1
 probe_icmp_all_duration_seconds_bucket{phase="rtt",le="10"} 1
 probe_icmp_all_duration_seconds_bucket{phase="rtt",le="+Inf"} 1
-probe_icmp_all_duration_seconds_sum{phase="rtt"} 6.0107e-05
+probe_icmp_all_duration_seconds_sum{phase="rtt"} 0.00031317
 probe_icmp_all_duration_seconds_count{phase="rtt"} 1
 probe_icmp_all_duration_seconds_bucket{phase="setup",le="0.005"} 1
 probe_icmp_all_duration_seconds_bucket{phase="setup",le="0.01"} 1
@@ -102,5 +102,5 @@ probe_icmp_all_duration_seconds_bucket{phase="setup",le="2.5"} 1
 probe_icmp_all_duration_seconds_bucket{phase="setup",le="5"} 1
 probe_icmp_all_duration_seconds_bucket{phase="setup",le="10"} 1
 probe_icmp_all_duration_seconds_bucket{phase="setup",le="+Inf"} 1
-probe_icmp_all_duration_seconds_sum{phase="setup"} 2.5008e-05
+probe_icmp_all_duration_seconds_sum{phase="setup"} 0.000340032
 probe_icmp_all_duration_seconds_count{phase="setup"} 1
