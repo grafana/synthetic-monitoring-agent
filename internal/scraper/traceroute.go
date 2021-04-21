@@ -22,7 +22,7 @@ var (
 	srcAddr          = ""
 )
 
-func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
+func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger, probeName string) bool {
 
 	m, ch, err := mtr.NewMTR(target, srcAddr, TIMEOUT, INTERVAL, HOP_SLEEP, MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE, PTR_LOOKUP)
 
@@ -41,11 +41,15 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	traceID := uuid.New()
 	totalPacketsLost := float64(0)
 	totalPacketsSent := float64(0)
+	success := false
 	for _, hop := range m.Statistic {
 		totalPacketsLost += float64(hop.Lost)
 		totalPacketsSent += float64(hop.Sent)
 		avgElapsedTime := time.Duration(hop.Avg()) * time.Millisecond
-		logger.Log("Level", "info", "Destination", m.Address, "Host", hop.Target, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
+		if hop.Target == m.Address {
+			success = true
+		}
+		logger.Log("Level", "info", "Destination", m.Address, "Host", hop.Target, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID, "Probe", probeName)
 	}
 	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_traceroute_total_hops",
@@ -65,7 +69,7 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	overallPacketLossGauge.Set(float64(overallPacketLoss))
 
 	// 	logger.Log("Host", hostOrAddr, "ElapsedTime", hop.ElapsedTime, "TTL", hop.TTL, "Success", hop.Success, "TraceID", traceID)
-	return true
+	return success
 
 	// m, ch, err := mtr.NewMTR(args[0], srcAddr, TIMEOUT, INTERVAL, HOP_SLEEP,
 	// 	MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE, PTR_LOOKUP)
