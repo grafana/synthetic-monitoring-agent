@@ -150,7 +150,7 @@ func (c *Check) Validate() error {
 	}
 
 	// frequency must be in [1, 120] seconds
-	if c.Frequency < 1*1000 || c.Frequency > 120*1000 {
+	if c.Type() != CheckTypeTraceroute && (c.Frequency < 1*1000 || c.Frequency > 120*1000) {
 		return ErrInvalidCheckFrequency
 	}
 
@@ -161,7 +161,7 @@ func (c *Check) Validate() error {
 		return ErrInvalidCheckTimeout
 	}
 
-	if c.Type() != CheckTypeTraceroute && c.Timeout < 10*1000 {
+	if c.Type() != CheckTypeTraceroute && c.Timeout > 10*1000 {
 		return ErrInvalidCheckTimeout
 	}
 
