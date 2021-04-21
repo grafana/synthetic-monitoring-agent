@@ -24,7 +24,7 @@ var (
 
 func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger, probeName string) bool {
 
-	m, ch, err := mtr.NewMTR(target, srcAddr, TIMEOUT, INTERVAL, HOP_SLEEP, MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE, PTR_LOOKUP)
+	m, ch, err := mtr.NewMTR(target, srcAddr, time.Duration(module.Traceroute.HopTimeout), INTERVAL, HOP_SLEEP, int(module.Traceroute.MaxHops), int(module.Traceroute.MaxUnknownHops), RING_BUFFER_SIZE, module.Traceroute.PtrLookup)
 
 	if err != nil {
 		logger.Log(err)
@@ -68,41 +68,5 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	overallPacketLoss := totalPacketsLost / totalPacketsSent
 	overallPacketLossGauge.Set(float64(overallPacketLoss))
 
-	// 	logger.Log("Host", hostOrAddr, "ElapsedTime", hop.ElapsedTime, "TTL", hop.TTL, "Success", hop.Success, "TraceID", traceID)
 	return success
-
-	// m, ch, err := mtr.NewMTR(args[0], srcAddr, TIMEOUT, INTERVAL, HOP_SLEEP,
-	// 	MAX_HOPS, MAX_UNKNOWN_HOPS, RING_BUFFER_SIZE, PTR_LOOKUP)
-
-	// timeout := int(module.Module.Timeout)
-
-	// if timeout == 0 {
-	// 	timeout = 30
-	// }
-
-	// options.SetTimeoutMs(timeout)
-	// options.SetFirstHop(module.Traceroute.FirstHop)
-	// options.SetMaxHops(module.Traceroute.MaxHops)
-	// options.SetPort(module.Traceroute.Port)
-	// options.SetPacketSize(module.Traceroute.PacketSize)
-	// options.SetRetries(module.Traceroute.Retries)
-
-	// result, err := traceroute.Traceroute(target, &options)
-
-	// if err != nil {
-	// 	logger.Log(err)
-	// 	return false
-	// }
-
-	// traceID := uuid.New()
-
-	// for _, hop := range result.Hops {
-	// 	// addr := fmt.Sprintf("%v.%v.%v.%v", hop.Address[0], hop.Address[1], hop.Address[2], hop.Address[3])
-	// 	hostOrAddr := hop.AddressString()
-	// 	// otherHost := hop.HostOrAddressString()
-	// 	if hop.Host != "" {
-	// 		hostOrAddr = hop.Host
-	// 	}
-	// 	logger.Log("Host", hostOrAddr, "ElapsedTime", hop.ElapsedTime, "TTL", hop.TTL, "Success", hop.Success, "TraceID", traceID)
-	// }
 }
