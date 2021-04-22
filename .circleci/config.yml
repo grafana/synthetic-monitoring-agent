@@ -60,36 +60,36 @@ workflows:
       - lint:
           filters:
             branches:
-              ignore: master
+              ignore: main
       - test:
           filters:
             branches:
-              ignore: master
+              ignore: main
       - build:
           requires:
             - test
             - lint
           filters:
             branches:
-              ignore: master
+              ignore: main
 
-  test-and-deploy-master:
+  test-and-deploy-main:
     jobs:
       - lint:
           filters:
             branches:
-              only: master
+              only: main
       - test:
           filters:
             branches:
-              only: master
+              only: main
       - deploy:
           requires:
             - test
             - lint
           filters:
             branches:
-              only: master
+              only: main
 
   test-and-deploy-tagged:
     jobs:

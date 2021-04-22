@@ -8,7 +8,7 @@
 
 Synthetic Monitoring Agent
 ==========================
-This is the 'worker' for Grafana's [Synthetic Monitoring application](https://github.com/grafana/synthetic-monitoring-app). The agent provides probe functionality and executes network [checks](https://github.com/grafana/synthetic-monitoring-app/blob/master/README.md#check-types) for monitoring remote targets. 
+This is the 'worker' for Grafana's [Synthetic Monitoring application](https://github.com/grafana/synthetic-monitoring-app). The agent provides probe functionality and executes network [checks](https://github.com/grafana/synthetic-monitoring-app/blob/main/README.md#check-types) for monitoring remote targets. 
 
 Please [install](https://grafana.com/grafana/plugins/grafana-synthetic-monitoring-app/installation) Synthetic Monitoring 
 in your Grafana Cloud or local Grafana instance before setting up your own private probe. You may need to generate a [new API key](https://grafana.com/profile/api-keys) to initialize the app.
@@ -16,7 +16,7 @@ in your Grafana Cloud or local Grafana instance before setting up your own priva
 
 Probes
 ------
-Probes run [checks](https://github.com/grafana/synthetic-monitoring-app/blob/master/README.md#check-types) from 
+Probes run [checks](https://github.com/grafana/synthetic-monitoring-app/blob/main/README.md#check-types) from 
 distributed locations around the world and send the resulting metrics and events directly to 
 [Grafana Cloud](https://grafana.com/products/cloud/) Prometheus and Loki services. 
 
