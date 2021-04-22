@@ -749,6 +749,12 @@ func TestHttpSettingsValidate(t *testing.T) {
 			},
 			expectError: false,
 		},
+		"empty header is not OK": {
+			input: HttpSettings{
+				Headers: []string{": value"},
+			},
+			expectError: true,
+		},
 		"empty": {
 			input: HttpSettings{
 				Headers: []string{""},
@@ -766,6 +772,24 @@ func TestHttpSettingsValidate(t *testing.T) {
 				Headers: []string{"hea;der: value"},
 			},
 			expectError: true,
+		},
+		"empty header/value": {
+			input: HttpSettings{
+				Headers: []string{":"},
+			},
+			expectError: true,
+		},
+		"blank header/value": {
+			input: HttpSettings{
+				Headers: []string{" : "},
+			},
+			expectError: true,
+		},
+		"non-ascii value": {
+			input: HttpSettings{
+				Headers: []string{"header: यूनिकोड टेक्स्ट"},
+			},
+			expectError: false,
 		},
 	}
 
