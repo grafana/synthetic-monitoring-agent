@@ -745,6 +745,79 @@ func TestValidateLabel(t *testing.T) {
 	}
 }
 
+func TestHttpSettingsValidate(t *testing.T) {
+	testcases := map[string]struct {
+		input       HttpSettings
+		expectError bool
+	}{
+		"trivial": {
+			input:       HttpSettings{},
+			expectError: false,
+		},
+		"valid headers": {
+			input: HttpSettings{
+				Headers: []string{"header: value"},
+			},
+			expectError: false,
+		},
+		"no value is OK": {
+			input: HttpSettings{
+				Headers: []string{"header:"},
+			},
+			expectError: false,
+		},
+		"empty header is not OK": {
+			input: HttpSettings{
+				Headers: []string{": value"},
+			},
+			expectError: true,
+		},
+		"empty": {
+			input: HttpSettings{
+				Headers: []string{""},
+			},
+			expectError: true,
+		},
+		"no colon": {
+			input: HttpSettings{
+				Headers: []string{"header"},
+			},
+			expectError: true,
+		},
+		"invalid name": {
+			input: HttpSettings{
+				Headers: []string{"hea;der: value"},
+			},
+			expectError: true,
+		},
+		"empty header/value": {
+			input: HttpSettings{
+				Headers: []string{":"},
+			},
+			expectError: true,
+		},
+		"blank header/value": {
+			input: HttpSettings{
+				Headers: []string{" : "},
+			},
+			expectError: true,
+		},
+		"non-ascii value": {
+			input: HttpSettings{
+				Headers: []string{"header: यूनिकोड टेक्स्ट"},
+			},
+			expectError: false,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			err := testcase.input.Validate()
+			checkError(t, testcase.expectError, err, testcase.input)
+		})
+	}
+}
+
 func checkError(t *testing.T, expectError bool, err error, input interface{}) {
 	switch {
 	case expectError && err == nil:

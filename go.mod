@@ -31,7 +31,8 @@ require (
 	github.com/rs/zerolog v1.18.0
 	github.com/stretchr/testify v1.5.1
 	github.com/tonobo/mtr v0.1.1-0.20210410081413-c8f9fe0b48b9
-	golang.org/x/net v0.0.0-20200822124328-c89045814202 // indirect
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
+	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a
 	google.golang.org/grpc v1.26.0
 )
