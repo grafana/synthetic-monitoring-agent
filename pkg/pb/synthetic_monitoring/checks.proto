@@ -192,18 +192,18 @@ message Check {
 // CheckSettings provides the settings for exactly one type of check.
 message CheckSettings {
 	option (gogoproto.onlyone) = true;
-	PingSettings ping 						= 1 [(gogoproto.jsontag) = "ping,omitempty"];
-	HttpSettings http 						= 2 [(gogoproto.jsontag) = "http,omitempty"];
-	DnsSettings  dns  						= 3 [(gogoproto.jsontag) = "dns,omitempty"];
-	TcpSettings  tcp  						= 4 [(gogoproto.jsontag) = "tcp,omitempty"];
+	PingSettings 			 ping 			= 1 [(gogoproto.jsontag) = "ping,omitempty"];
+	HttpSettings 	     http 			= 2 [(gogoproto.jsontag) = "http,omitempty"];
+	DnsSettings        dns  			= 3 [(gogoproto.jsontag) = "dns,omitempty"];
+	TcpSettings        tcp  			= 4 [(gogoproto.jsontag) = "tcp,omitempty"];
 	TracerouteSettings traceroute = 5 [(gogoproto.jsontag) = "traceroute,omitempty"];
 }
 
 message TracerouteSettings {
-	int64 maxHops 	 		 = 1 [(gogoproto.jsontag) = "maxHops"]; 
-	int64 maxUnknownHops = 2 [(gogoproto.jsontag) = "maxUnknownHops"];
-	bool  ptrLookup 		 = 3 [(gogoproto.jsontag) = "ptrLookup"];
-	int64 hopTimeout 		 = 4 [(gogoproto.jsontag) = "hopTimeout"];
+	int64 maxHops 	 		 = 1 [(gogoproto.jsontag) = "maxHops"];  			 // Maximimum hops to make in a traceroute before exiting
+	int64 maxUnknownHops = 2 [(gogoproto.jsontag) = "maxUnknownHops"]; // Maximum hops probe that give no response before giving up
+	bool  ptrLookup 		 = 3 [(gogoproto.jsontag) = "ptrLookup"];      // Include reverse DNS lookup
+	int64 hopTimeout 		 = 4 [(gogoproto.jsontag) = "hopTimeout"];		 // Timeout for individual hop pings
 }
 
 // PingSettings provides the settings for a ping check.
