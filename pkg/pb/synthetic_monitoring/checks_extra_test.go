@@ -199,19 +199,6 @@ func TestCheckType(t *testing.T) {
 			},
 			expected: CheckTypePing,
 		},
-		"tcp": {
-			input: Check{
-				Target:    "127.0.0.1:9000",
-				Job:       "job",
-				Frequency: 1000,
-				Timeout:   1000,
-				Probes:    []int64{1},
-				Settings: CheckSettings{
-					Tcp: &TcpSettings{},
-				},
-			},
-			expected: CheckTypeTcp,
-		},
 		"traceroute": {
 			input: Check{
 				Target:    "127.0.0.1",
@@ -224,6 +211,19 @@ func TestCheckType(t *testing.T) {
 				},
 			},
 			expected: CheckTypeTraceroute,
+		},
+		"tcp": {
+			input: Check{
+				Target:    "127.0.0.1:9000",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Tcp: &TcpSettings{},
+				},
+			},
+			expected: CheckTypeTcp,
 		},
 	}
 

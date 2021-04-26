@@ -209,6 +209,15 @@ func (c *Check) Validate() error {
 			return err
 		}
 
+	case CheckTypeTraceroute:
+		if err := validateHost(c.Target); err != nil {
+			return ErrInvalidHostname
+		}
+
+		if err := c.Settings.Traceroute.Validate(); err != nil {
+			return err
+		}
+
 	case CheckTypeHttp:
 		if err := validateHttpUrl(c.Target); err != nil {
 			return err
@@ -233,15 +242,6 @@ func (c *Check) Validate() error {
 		}
 
 		if err := c.Settings.Tcp.Validate(); err != nil {
-			return err
-		}
-
-	case CheckTypeTraceroute:
-		if err := validateHost(c.Target); err != nil {
-			return ErrInvalidHostname
-		}
-
-		if err := c.Settings.Traceroute.Validate(); err != nil {
 			return err
 		}
 	}

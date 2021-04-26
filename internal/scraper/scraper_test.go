@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -18,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	kitlog "github.com/go-kit/kit/log"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/miekg/dns"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
@@ -200,9 +200,7 @@ func verifyProberMetrics(t *testing.T, name string, prober ProbeFn, setup func(t
 
 	summaries := make(map[uint64]prometheus.Summary)
 	histograms := make(map[uint64]prometheus.Histogram)
-	// logger := &testLogger{w: ioutil.Discard}
-
-	logger := kitlog.NewJSONLogger(kitlog.NewSyncWriter(os.Stdout))
+	logger := &testLogger{w: ioutil.Discard}
 
 	target, stop := setup(t)
 	defer stop()
