@@ -20,6 +20,7 @@ import (
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mmcloughlin/geohash"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
@@ -804,17 +805,7 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 
 	m.HTTP.NoFollowRedirects = settings.NoFollowRedirects
 
-	if len(settings.Headers) > 0 {
-		m.HTTP.Headers = make(map[string]string)
-	}
-	for _, header := range settings.Headers {
-		parts := strings.SplitN(header, ":", 2)
-		var value string
-		if len(parts) == 2 {
-			value = strings.TrimLeft(parts[1], " ")
-		}
-		m.HTTP.Headers[parts[0]] = value
-	}
+	m.HTTP.Headers = buildHttpHeaders(settings.Headers)
 
 	m.HTTP.ValidStatusCodes = make([]int, 0, len(settings.ValidStatusCodes))
 	for _, code := range settings.ValidStatusCodes {
@@ -874,6 +865,36 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 	}
 
 	return m, nil
+}
+
+func buildHttpHeaders(headers []string) map[string]string {
+	userAgentHeader := "user-agent"
+
+	h := map[string]string{
+		userAgentHeader: version.UserAgent(), // default user-agent header
+	}
+
+	for _, header := range headers {
+		parts := strings.SplitN(header, ":", 2)
+
+		var value string
+		if len(parts) == 2 {
+			value = strings.TrimLeft(parts[1], " ")
+		}
+
+		if strings.ToLower(parts[0]) == userAgentHeader {
+			// Remove the default user-agent header and
+			// replace it with the one the user is
+			// specifying, so that we respect whatever case
+			// they chose (e.g. "user-agent" vs
+			// "User-Agent").
+			delete(h, userAgentHeader)
+		}
+
+		h[parts[0]] = value
+	}
+
+	return h
 }
 
 func dnsSettingsToBBEModule(ctx context.Context, settings *sm.DnsSettings, target string) bbeconfig.Module {
