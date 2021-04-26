@@ -69,7 +69,7 @@ type Scraper struct {
 	logger        zerolog.Logger
 	check         sm.Check
 	probe         sm.Probe
-	bbeModule     *ConfigModule
+	configModule  *ConfigModule
 	stop          chan struct{}
 	scrapeCounter prometheus.Counter
 	errorCounter  *prometheus.CounterVec
@@ -123,7 +123,7 @@ func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, p
 		logger:        logger.With().Str("check", configModule.Prober).Logger(),
 		check:         check,
 		probe:         probe,
-		bbeModule:     &configModule,
+		configModule:  &configModule,
 		stop:          make(chan struct{}),
 		scrapeCounter: scrapeCounter,
 		errorCounter:  errorCounter,
@@ -312,9 +312,9 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
-	prober, ok := probers[s.bbeModule.Prober]
+	prober, ok := probers[s.configModule.Prober]
 	if !ok {
-		return nil, fmt.Errorf("Unknown prober %q", s.bbeModule.Prober)
+		return nil, fmt.Errorf("Unknown prober %q", s.configModule.Prober)
 	}
 	target := s.target
 
@@ -327,7 +327,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// and it IS NOT part of s.check.Target because that would cause
 	// it to end up in the instance label that is added to every
 	// metric (see below).
-	if s.bbeModule.Prober == sm.CheckTypeHttp.String() && s.check.Settings.Http.CacheBustingQueryParamName != "" {
+	if s.configModule.Prober == sm.CheckTypeHttp.String() && s.check.Settings.Http.CacheBustingQueryParamName != "" {
 		target = addCacheBustParam(s.target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name)
 	}
 
@@ -336,7 +336,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	bl := kitlog.NewLogfmtLogger(&logs)
 	sl := kitlog.With(bl, "ts", kitlog.DefaultTimestampUTC, "target", target)
 
-	success, mfs, err := getProbeMetrics(ctx, prober, target, s.bbeModule, s.buildCheckInfoLabels(), s.summaries, s.histograms, sl, s.check.BasicMetricsOnly)
+	success, mfs, err := getProbeMetrics(ctx, prober, target, s.configModule, s.buildCheckInfoLabels(), s.summaries, s.histograms, sl, s.check.BasicMetricsOnly)
 
 	if err != nil {
 		return nil, err

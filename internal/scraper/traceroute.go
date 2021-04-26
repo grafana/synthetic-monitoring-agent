@@ -19,12 +19,12 @@ var (
 	MAX_UNKNOWN_HOPS = 30
 	RING_BUFFER_SIZE = 50
 	PTR_LOOKUP       = false
-	srcAddr          = ""
+	SRCADDR          = ""
 )
 
 func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
 
-	m, ch, err := mtr.NewMTR(target, srcAddr, time.Duration(module.Traceroute.HopTimeout), INTERVAL, HOP_SLEEP, int(module.Traceroute.MaxHops), int(module.Traceroute.MaxUnknownHops), RING_BUFFER_SIZE, module.Traceroute.PtrLookup)
+	m, ch, err := mtr.NewMTR(target, SRCADDR, time.Duration(module.Traceroute.HopTimeout), INTERVAL, HOP_SLEEP, int(module.Traceroute.MaxHops), int(module.Traceroute.MaxUnknownHops), RING_BUFFER_SIZE, module.Traceroute.PtrLookup)
 
 	if err != nil {
 		logger.Log(err)
