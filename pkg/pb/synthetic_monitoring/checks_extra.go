@@ -138,44 +138,7 @@ func CheckTypeFromString(in string) (CheckType, bool) {
 	return 0, false
 }
 
-func (c *Check) Validate() error {
-	if c.TenantId < 0 {
-		return ErrInvalidTenantId
-	}
-	if len(c.Probes) == 0 {
-		return ErrInvalidCheckProbes
-	}
-	if len(c.Target) == 0 {
-		return ErrInvalidCheckTarget
-	}
-	if len(c.Job) == 0 {
-		return ErrInvalidCheckJob
-	}
-
-	// frequency must be in [1, 120] seconds
-	if c.Type() != CheckTypeTraceroute && (c.Frequency < 1*1000 || c.Frequency > 120*1000) {
-		return ErrInvalidCheckFrequency
-	}
-
-	// timeout must be in [1, 10] seconds, and it must be less than
-	// frequency (otherwise we can end up running overlapping
-	// checks)
-	if c.Type() == CheckTypeTraceroute && c.Timeout > 10*3000 {
-		return ErrInvalidCheckTimeout
-	}
-
-	if c.Type() != CheckTypeTraceroute && c.Timeout > 10*1000 {
-		return ErrInvalidCheckTimeout
-	}
-
-	if c.Timeout < 1*1000 || c.Timeout > c.Frequency {
-		return ErrInvalidCheckTimeout
-	}
-
-	if err := validateLabels(c.Labels); err != nil {
-		return err
-	}
-
+func ensureSettingsExist(c *Check) error {
 	settingsCount := 0
 
 	if c.Settings.Ping != nil {
@@ -200,6 +163,74 @@ func (c *Check) Validate() error {
 
 	if settingsCount != 1 {
 		return ErrInvalidCheckSettings
+	}
+
+	return nil
+}
+
+func validateFrequency(checkType CheckType, frequency int64) error {
+	switch checkType {
+	case CheckTypeTraceroute:
+		// frequency must be in [30, 240] seconds
+		if frequency < 30*1000 || frequency > 240*1000 {
+			return ErrInvalidCheckFrequency
+		}
+	default:
+		// frequency must be in [1, 120] seconds
+		if frequency < 1*1000 || frequency > 120*1000 {
+			return ErrInvalidCheckFrequency
+		}
+	}
+	return nil
+}
+
+func validateTimeout(checkType CheckType, timeout int64, frequency int64) error {
+	// timeout for traceroute checks can be higher than for other check types
+	if checkType == CheckTypeTraceroute && timeout > 10*3000 {
+		return ErrInvalidCheckTimeout
+	}
+	// timeout must be in [1, 10] seconds, and it must be less than
+	// frequency (otherwise we can end up running overlapping
+	// checks
+	if checkType != CheckTypeTraceroute && timeout > 10*1000 {
+		return ErrInvalidCheckTimeout
+	}
+
+	if timeout < 1*1000 || timeout > frequency {
+		return ErrInvalidCheckTimeout
+	}
+
+	return nil
+}
+
+func (c *Check) Validate() error {
+	if c.TenantId < 0 {
+		return ErrInvalidTenantId
+	}
+	if len(c.Probes) == 0 {
+		return ErrInvalidCheckProbes
+	}
+	if len(c.Target) == 0 {
+		return ErrInvalidCheckTarget
+	}
+	if len(c.Job) == 0 {
+		return ErrInvalidCheckJob
+	}
+
+	if err := validateFrequency(c.Type(), c.Frequency); err != nil {
+		return err
+	}
+
+	if err := validateTimeout(c.Type(), c.Timeout, c.Frequency); err != nil {
+		return err
+	}
+
+	if err := validateLabels(c.Labels); err != nil {
+		return err
+	}
+
+	if err := ensureSettingsExist(c); err != nil {
+		return err
 	}
 
 	switch c.Type() {

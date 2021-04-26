@@ -5,6 +5,7 @@ import (
 	"time"
 
 	kitlog "github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/tonobo/mtr/pkg/mtr"
@@ -23,11 +24,13 @@ var (
 )
 
 func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
-
 	m, ch, err := mtr.NewMTR(target, SRCADDR, time.Duration(module.Traceroute.HopTimeout), INTERVAL, HOP_SLEEP, int(module.Traceroute.MaxHops), int(module.Traceroute.MaxUnknownHops), RING_BUFFER_SIZE, module.Traceroute.PtrLookup)
 
 	if err != nil {
-		logger.Log(err)
+		logErr := level.Error(logger).Log(err)
+		if logErr != nil {
+			return false
+		}
 		return false
 	}
 
@@ -49,7 +52,10 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 		if hop.Target == m.Address {
 			success = true
 		}
-		logger.Log("Level", "info", "Destination", m.Address, "Host", hop.Target, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
+		err := level.Info(logger).Log("Level", "info", "Destination", m.Address, "Host", hop.Target, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
+		if err != nil {
+			continue
+		}
 	}
 	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_traceroute_total_hops",
@@ -66,7 +72,7 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 
 	totalHopsGauge.Set(float64((len(m.Statistic))))
 	overallPacketLoss := totalPacketsLost / totalPacketsSent
-	overallPacketLossGauge.Set(float64(overallPacketLoss))
+	overallPacketLossGauge.Set(overallPacketLoss)
 
 	return success
 }
