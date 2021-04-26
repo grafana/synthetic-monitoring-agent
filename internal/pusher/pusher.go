@@ -11,16 +11,14 @@ import (
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/loki"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
+	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 )
 
-const (
-	defaultBufferCapacity = 10 * 1024
-	userAgent             = "synthetic-monitoring-agent/0.0.1"
-)
+const defaultBufferCapacity = 10 * 1024
 
 var bufPool = sync.Pool{
 	New: func() interface{} {
@@ -270,7 +268,7 @@ func clientFromRemoteInfo(tenantId int64, remote *sm.RemoteInfo) (*prom.ClientCo
 	clientCfg := prom.ClientConfig{
 		URL:       u,
 		Timeout:   5 * time.Second,
-		UserAgent: userAgent,
+		UserAgent: version.UserAgent(),
 	}
 
 	if remote.Username != "" {
