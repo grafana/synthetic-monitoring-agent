@@ -207,7 +207,7 @@ func verifyProberMetrics(t *testing.T, name string, prober ProbeFn, setup func(t
 	target, stop := setup(t)
 	defer stop()
 
-	success, mfs, err := getProbeMetrics(ctx, prober, target, &config, nil, summaries, histograms, logger, basicMetricsOnly, "test_probe")
+	success, mfs, err := getProbeMetrics(ctx, prober, target, &config, nil, summaries, histograms, logger, basicMetricsOnly)
 	if err != nil {
 		t.Fatalf("probe failed: %s", err.Error())
 	} else if !success {

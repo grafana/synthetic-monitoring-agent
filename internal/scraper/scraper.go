@@ -32,19 +32,19 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type ProbeFn func(ctx context.Context, target string, config ConfigModule, registry *prometheus.Registry, logger kitlog.Logger, probeName string) bool
+type ProbeFn func(ctx context.Context, target string, config ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool
 
-func ProberHTTP(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger, probeName string) bool {
+func ProberHTTP(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
 	return prober.ProbeHTTP(ctx, target, module.Module, registry, logger)
 }
 
-func ProberTcp(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger, probeName string) bool {
+func ProberTcp(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
 	return prober.ProbeTCP(ctx, target, module.Module, registry, logger)
 }
-func ProberPing(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger, probeName string) bool {
+func ProberPing(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
 	return prober.ProbeICMP(ctx, target, module.Module, registry, logger)
 }
-func ProberDNS(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger, probeName string) bool {
+func ProberDNS(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
 	return prober.ProbeDNS(ctx, target, module.Module, registry, logger)
 }
 
@@ -331,15 +331,13 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		target = addCacheBustParam(s.target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name)
 	}
 
-	s.logger.Info().Msg("Collecting data")
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
 	bl := kitlog.NewLogfmtLogger(&logs)
 	sl := kitlog.With(bl, "ts", kitlog.DefaultTimestampUTC, "target", target)
 
-	success, mfs, err := getProbeMetrics(ctx, prober, target, s.bbeModule, s.buildCheckInfoLabels(), s.summaries, s.histograms, sl, s.check.BasicMetricsOnly, s.probe.Name)
+	success, mfs, err := getProbeMetrics(ctx, prober, target, s.bbeModule, s.buildCheckInfoLabels(), s.summaries, s.histograms, sl, s.check.BasicMetricsOnly)
 
-	s.logger.Info().Msg("Collected metrics")
 	if err != nil {
 		return nil, err
 	}
@@ -380,10 +378,10 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, nil
 }
 
-func getProbeMetrics(ctx context.Context, prober ProbeFn, target string, module *ConfigModule, checkInfoLabels map[string]string, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger kitlog.Logger, basicMetricsOnly bool, probeName string) (bool, []*dto.MetricFamily, error) {
+func getProbeMetrics(ctx context.Context, prober ProbeFn, target string, module *ConfigModule, checkInfoLabels map[string]string, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger kitlog.Logger, basicMetricsOnly bool) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
-	success := runProber(ctx, prober, target, module, registry, checkInfoLabels, logger, probeName)
+	success := runProber(ctx, prober, target, module, registry, checkInfoLabels, logger)
 
 	mfs, err := registry.Gather()
 	if err != nil {
@@ -406,7 +404,7 @@ func getProbeMetrics(ctx context.Context, prober ProbeFn, target string, module 
 	return success, mfs, nil
 }
 
-func runProber(ctx context.Context, prober ProbeFn, target string, module *ConfigModule, registry *prometheus.Registry, checkInfoLabels map[string]string, logger kitlog.Logger, probeName string) bool {
+func runProber(ctx context.Context, prober ProbeFn, target string, module *ConfigModule, registry *prometheus.Registry, checkInfoLabels map[string]string, logger kitlog.Logger) bool {
 	start := time.Now()
 
 	_ = level.Info(logger).Log("msg", "Beginning check", "type", module.Prober, "timeout_seconds", module.Timeout.Seconds())
@@ -414,7 +412,7 @@ func runProber(ctx context.Context, prober ProbeFn, target string, module *Confi
 	checkCtx, cancel := context.WithTimeout(ctx, module.Timeout)
 	defer cancel()
 
-	success := prober(checkCtx, target, *module, registry, logger, probeName)
+	success := prober(checkCtx, target, *module, registry, logger)
 
 	duration := time.Since(start).Seconds()
 
