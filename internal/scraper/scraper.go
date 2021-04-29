@@ -20,6 +20,7 @@ import (
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mmcloughlin/geohash"
 	bbeconfig "github.com/prometheus/blackbox_exporter/config"
@@ -836,16 +837,10 @@ func httpSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, sett
 
 	m.HTTP.NoFollowRedirects = settings.NoFollowRedirects
 
-	if len(settings.Headers) > 0 {
-		m.HTTP.Headers = make(map[string]string)
-	}
-	for _, header := range settings.Headers {
-		parts := strings.SplitN(header, ":", 2)
-		var value string
-		if len(parts) == 2 {
-			value = strings.TrimLeft(parts[1], " ")
-		}
-		m.HTTP.Headers[parts[0]] = value
+	m.HTTP.Headers = buildHttpHeaders(settings.Headers)
+
+	if settings.Compression != sm.CompressionAlgorithm_none {
+		m.HTTP.Compression = settings.Compression.String()
 	}
 
 	m.HTTP.ValidStatusCodes = make([]int, 0, len(settings.ValidStatusCodes))
@@ -856,26 +851,50 @@ func httpSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, sett
 	m.HTTP.ValidHTTPVersions = make([]string, len(settings.ValidHTTPVersions))
 	copy(m.HTTP.ValidHTTPVersions, settings.ValidHTTPVersions)
 
-	m.HTTP.FailIfBodyMatchesRegexp = make([]string, len(settings.FailIfBodyMatchesRegexp))
-	copy(m.HTTP.FailIfBodyMatchesRegexp, settings.FailIfBodyMatchesRegexp)
+	m.HTTP.FailIfBodyMatchesRegexp = make([]bbeconfig.Regexp, 0, len(settings.FailIfBodyMatchesRegexp))
+	for _, str := range settings.FailIfBodyMatchesRegexp {
+		re, err := bbeconfig.NewRegexp(str)
+		if err != nil {
+			return m, err
+		}
 
-	m.HTTP.FailIfBodyNotMatchesRegexp = make([]string, len(settings.FailIfBodyNotMatchesRegexp))
-	copy(m.HTTP.FailIfBodyNotMatchesRegexp, settings.FailIfBodyNotMatchesRegexp)
+		m.HTTP.FailIfBodyMatchesRegexp = append(m.HTTP.FailIfBodyMatchesRegexp, re)
+	}
+
+	m.HTTP.FailIfBodyNotMatchesRegexp = make([]bbeconfig.Regexp, 0, len(settings.FailIfBodyNotMatchesRegexp))
+	for _, str := range settings.FailIfBodyNotMatchesRegexp {
+		re, err := bbeconfig.NewRegexp(str)
+		if err != nil {
+			return m, err
+		}
+
+		m.HTTP.FailIfBodyNotMatchesRegexp = append(m.HTTP.FailIfBodyNotMatchesRegexp, re)
+	}
 
 	m.HTTP.FailIfHeaderMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(settings.FailIfHeaderMatchesRegexp))
 	for _, match := range settings.FailIfHeaderMatchesRegexp {
+		re, err := bbeconfig.NewRegexp(match.Regexp)
+		if err != nil {
+			return m, err
+		}
+
 		m.HTTP.FailIfHeaderMatchesRegexp = append(m.HTTP.FailIfHeaderMatchesRegexp, bbeconfig.HeaderMatch{
 			Header:       match.Header,
-			Regexp:       match.Regexp,
+			Regexp:       re,
 			AllowMissing: match.AllowMissing,
 		})
 	}
 
 	m.HTTP.FailIfHeaderNotMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(settings.FailIfHeaderNotMatchesRegexp))
 	for _, match := range settings.FailIfHeaderNotMatchesRegexp {
+		re, err := bbeconfig.NewRegexp(match.Regexp)
+		if err != nil {
+			return m, err
+		}
+
 		m.HTTP.FailIfHeaderNotMatchesRegexp = append(m.HTTP.FailIfHeaderNotMatchesRegexp, bbeconfig.HeaderMatch{
 			Header:       match.Header,
-			Regexp:       match.Regexp,
+			Regexp:       re,
 			AllowMissing: match.AllowMissing,
 		})
 	}
@@ -906,6 +925,36 @@ func httpSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, sett
 	}
 
 	return m, nil
+}
+
+func buildHttpHeaders(headers []string) map[string]string {
+	userAgentHeader := "user-agent"
+
+	h := map[string]string{
+		userAgentHeader: version.UserAgent(), // default user-agent header
+	}
+
+	for _, header := range headers {
+		parts := strings.SplitN(header, ":", 2)
+
+		var value string
+		if len(parts) == 2 {
+			value = strings.TrimLeft(parts[1], " ")
+		}
+
+		if strings.ToLower(parts[0]) == userAgentHeader {
+			// Remove the default user-agent header and
+			// replace it with the one the user is
+			// specifying, so that we respect whatever case
+			// they chose (e.g. "user-agent" vs
+			// "User-Agent").
+			delete(h, userAgentHeader)
+		}
+
+		h[parts[0]] = value
+	}
+
+	return h
 }
 
 func dnsSettingsToConfigModule(ctx context.Context, settings *sm.DnsSettings, target string) ConfigModule {
@@ -959,8 +1008,13 @@ func tcpSettingsToConfigModule(ctx context.Context, logger zerolog.Logger, setti
 	m.TCP.QueryResponse = make([]bbeconfig.QueryResponse, len(settings.QueryResponse))
 
 	for _, qr := range settings.QueryResponse {
+		re, err := bbeconfig.NewRegexp(string(qr.Expect))
+		if err != nil {
+			return m, err
+		}
+
 		m.TCP.QueryResponse = append(m.TCP.QueryResponse, bbeconfig.QueryResponse{
-			Expect: string(qr.Expect),
+			Expect: re,
 			Send:   string(qr.Send),
 		})
 	}

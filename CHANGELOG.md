@@ -2,8 +2,17 @@
 ## [Unreleased]
 
 
+<a name="v0.0.20"></a>
+## [v0.0.20] - 2021-03-17
+### Feature
+- validate HTTP headers
+
+### Fix
+- Add extra header validation tests
+
+
 <a name="v0.0.19"></a>
-## [v0.0.19] - 2021-03-25
+## [v0.0.19] - 2021-03-30
 ### Change
 - Increase the maximum label length to 128
 
@@ -111,7 +120,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.19...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.20...HEAD
+[v0.0.20]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.19...v0.0.20
 [v0.0.19]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.18...v0.0.19
 [v0.0.18]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.17...v0.0.18
 [v0.0.17]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.0.16...v0.0.17

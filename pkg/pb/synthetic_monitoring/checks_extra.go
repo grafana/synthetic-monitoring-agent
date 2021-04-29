@@ -70,6 +70,9 @@ var (
 	ErrInvalidIpVersionString = errors.New("invalid ip version string")
 	ErrInvalidIpVersionValue  = errors.New("invalid ip version value")
 
+	ErrInvalidCompressionAlgorithmString = errors.New("invalid compression algorithm string")
+	ErrInvalidCompressionAlgorithmValue  = errors.New("invalid compression algorithm value")
+
 	ErrInvalidProbeName              = errors.New("invalid probe name")
 	ErrInvalidProbeReservedLabelName = errors.New("invalid probe, reserved label name")
 	ErrInvalidProbeLabelName         = errors.New("invalid probe label name")
@@ -438,7 +441,18 @@ func lookupValue(v int32, m map[int32]string) []byte {
 }
 
 func lookupString(b []byte, m map[string]int32) (int32, bool) {
-	in, err := strconv.Unquote(string(b))
+	str := string(b)
+
+	switch str {
+	case ``:
+		return 0, true
+	case `""`:
+		return 0, true
+	case `null`:
+		return 0, true
+	}
+
+	in, err := strconv.Unquote(str)
 	if err != nil {
 		return 0, false
 	}
@@ -476,6 +490,23 @@ func (out *IpVersion) UnmarshalJSON(b []byte) error {
 	}
 
 	return ErrInvalidIpVersionString
+}
+
+func (v CompressionAlgorithm) MarshalJSON() ([]byte, error) {
+	if b := lookupValue(int32(v), CompressionAlgorithm_name); b != nil {
+		return b, nil
+	}
+
+	return nil, ErrInvalidCompressionAlgorithmValue
+}
+
+func (out *CompressionAlgorithm) UnmarshalJSON(b []byte) error {
+	if v, found := lookupString(b, CompressionAlgorithm_value); found {
+		*out = CompressionAlgorithm(v)
+		return nil
+	}
+
+	return ErrInvalidCompressionAlgorithmString
 }
 
 func (v HttpMethod) MarshalJSON() ([]byte, error) {

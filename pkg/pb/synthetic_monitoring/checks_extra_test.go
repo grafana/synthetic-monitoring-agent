@@ -1,9 +1,12 @@
 package synthetic_monitoring
 
 import (
+	"encoding/json"
 	"flag"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 var testDebugOutput = flag.Bool("test.debug-output", false, "include test debug output")
@@ -814,6 +817,119 @@ func TestHttpSettingsValidate(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			err := testcase.input.Validate()
 			checkError(t, testcase.expectError, err, testcase.input)
+		})
+	}
+}
+
+func TestCompressionAlgorithmMarshal(t *testing.T) {
+	type testStruct struct {
+		Compression CompressionAlgorithm `json:"compression,omitempty"`
+	}
+
+	testcases := map[string]struct {
+		unserialized testStruct
+		serialized   []byte
+	}{
+		"none": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_none,
+			},
+			serialized: []byte(`{}`),
+		},
+		"gzip": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_gzip,
+			},
+			serialized: []byte(`{"compression":"gzip"}`),
+		},
+		"br": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_br,
+			},
+			serialized: []byte(`{"compression":"br"}`),
+		},
+		"deflate": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_deflate,
+			},
+			serialized: []byte(`{"compression":"deflate"}`),
+		},
+		"identity": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_identity,
+			},
+			serialized: []byte(`{"compression":"identity"}`),
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual, err := json.Marshal(tc.unserialized)
+			require.NoError(t, err)
+			require.Equal(t, tc.serialized, actual)
+		})
+	}
+}
+
+func TestCompressionAlgorithmUnmarshal(t *testing.T) {
+	type testStruct struct {
+		Compression CompressionAlgorithm `json:"compression,omitempty"`
+	}
+
+	testcases := map[string]struct {
+		unserialized testStruct
+		serialized   []byte
+	}{
+		"none": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_none,
+			},
+			serialized: []byte(`{}`),
+		},
+		"empty": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_none,
+			},
+			serialized: []byte(`{"compression":""}`),
+		},
+		"null": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_none,
+			},
+			serialized: []byte(`{"compression":null}`),
+		},
+		"gzip": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_gzip,
+			},
+			serialized: []byte(`{"compression":"gzip"}`),
+		},
+		"br": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_br,
+			},
+			serialized: []byte(`{"compression":"br"}`),
+		},
+		"deflate": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_deflate,
+			},
+			serialized: []byte(`{"compression":"deflate"}`),
+		},
+		"identity": {
+			unserialized: testStruct{
+				Compression: CompressionAlgorithm_identity,
+			},
+			serialized: []byte(`{"compression":"identity"}`),
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			var actual testStruct
+			err := json.Unmarshal(tc.serialized, &actual)
+			require.NoError(t, err)
+			require.Equal(t, tc.unserialized, actual)
 		})
 	}
 }
