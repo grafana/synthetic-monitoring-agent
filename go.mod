@@ -30,7 +30,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20200213233353-b90be6f32a33
 	github.com/rs/zerolog v1.18.0
 	github.com/stretchr/testify v1.5.1
-	github.com/tonobo/mtr v0.1.1-0.20210410081413-c8f9fe0b48b9
+	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9 // indirect
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
 	golang.org/x/sync v0.0.0-20200317015054-43a5402ce75a

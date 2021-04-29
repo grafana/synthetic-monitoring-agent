@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	kitlog "github.com/go-kit/kit/log"
@@ -17,14 +18,24 @@ var (
 	INTERVAL         = 100 * time.Millisecond
 	HOP_SLEEP        = time.Nanosecond
 	MAX_HOPS         = 64
-	MAX_UNKNOWN_HOPS = 30
+	MAX_UNKNOWN_HOPS = 15
 	RING_BUFFER_SIZE = 50
 	PTR_LOOKUP       = false
 	SRCADDR          = ""
 )
 
 func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, registry *prometheus.Registry, logger kitlog.Logger) bool {
-	m, ch, err := mtr.NewMTR(target, SRCADDR, time.Duration(module.Traceroute.HopTimeout), INTERVAL, HOP_SLEEP, int(module.Traceroute.MaxHops), int(module.Traceroute.MaxUnknownHops), RING_BUFFER_SIZE, module.Traceroute.PtrLookup)
+	var maxUnknownHops = int(module.Traceroute.MaxUnknownHops)
+	if maxUnknownHops < 1 {
+		maxUnknownHops = MAX_UNKNOWN_HOPS
+	}
+
+	var hopTimeout = time.Duration(module.Traceroute.HopTimeout)
+	if hopTimeout < 1 {
+		hopTimeout = TIMEOUT
+	}
+
+	m, ch, err := mtr.NewMTR(target, SRCADDR, hopTimeout, INTERVAL, HOP_SLEEP, int(module.Traceroute.MaxHops), maxUnknownHops, RING_BUFFER_SIZE, module.Traceroute.PtrLookup)
 
 	if err != nil {
 		logErr := level.Error(logger).Log(err)
@@ -49,14 +60,15 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 		totalPacketsLost += float64(hop.Lost)
 		totalPacketsSent += float64(hop.Sent)
 		avgElapsedTime := time.Duration(hop.Avg()) * time.Millisecond
-		if hop.Target == m.Address {
+		if hop.Dest.IP.String() == m.Address {
 			success = true
 		}
-		err := level.Info(logger).Log("Level", "info", "Destination", m.Address, "Host", hop.Target, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
+		err := level.Info(logger).Log("Level", "info", "Destination", m.Address, "Hosts", strings.Join(hop.Targets, ","), "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
 		if err != nil {
 			continue
 		}
 	}
+
 	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_traceroute_total_hops",
 		Help: "Total hops to reach a traceroute destination",
