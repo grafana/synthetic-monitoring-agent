@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"context"
+	"hash/fnv"
 	"strings"
 	"time"
 
@@ -56,6 +57,7 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 	totalPacketsLost := float64(0)
 	totalPacketsSent := float64(0)
 	success := false
+	hosts := ""
 	for _, hop := range m.Statistic {
 		totalPacketsLost += float64(hop.Lost)
 		totalPacketsSent += float64(hop.Sent)
@@ -63,11 +65,21 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 		if hop.Dest.IP.String() == m.Address {
 			success = true
 		}
-		err := level.Info(logger).Log("Level", "info", "Destination", m.Address, "Hosts", strings.Join(hop.Targets, ","), "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
+		targets := strings.Join(hop.Targets, ",")
+		hosts += targets
+		err := level.Info(logger).Log("Level", "info", "Destination", m.Address, "Hosts", targets, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
 		if err != nil {
 			continue
 		}
 	}
+
+	traceHash := fnv.New32()
+	traceHash.Write([]byte(hosts))
+
+	var traceHashGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "probe_traceroute_route_hash",
+		Help: "Hash of all the hosts in a traceroute path. Used to determine route volatility.",
+	})
 
 	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_traceroute_total_hops",
@@ -79,9 +91,11 @@ func ProbeTraceroute(ctx context.Context, target string, module ConfigModule, re
 		Help: "Overall percentage of packet loss during the traceroute",
 	})
 
+	registry.MustRegister(traceHashGauge)
 	registry.MustRegister(totalHopsGauge)
 	registry.MustRegister(overallPacketLossGauge)
 
+	traceHashGauge.Set(float64(traceHash.Sum32()))
 	totalHopsGauge.Set(float64((len(m.Statistic))))
 	overallPacketLoss := totalPacketsLost / totalPacketsSent
 	overallPacketLossGauge.Set(overallPacketLoss)
