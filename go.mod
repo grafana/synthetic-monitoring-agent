@@ -11,7 +11,7 @@ require (
 	github.com/grafana/loki v1.5.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.5 // indirect
 	github.com/miekg/dns v1.1.40
-	github.com/mmcloughlin/geohash v0.9.0
+	github.com/mmcloughlin/geohash v0.10.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/blackbox_exporter v0.18.1-0.20210419222326-cdab0e75102f
