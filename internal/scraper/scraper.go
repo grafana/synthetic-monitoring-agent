@@ -803,8 +803,6 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 
 	m.HTTP.FailIfNotSSL = settings.FailIfNotSSL
 
-	m.HTTP.NoFollowRedirects = settings.NoFollowRedirects
-
 	m.HTTP.Headers = buildHttpHeaders(settings.Headers)
 
 	if settings.Compression != sm.CompressionAlgorithm_none {
@@ -866,6 +864,8 @@ func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, setting
 			AllowMissing: match.AllowMissing,
 		})
 	}
+
+	m.HTTP.HTTPClientConfig.FollowRedirects = !settings.NoFollowRedirects
 
 	if settings.TlsConfig != nil {
 		var err error
