@@ -10,7 +10,7 @@ require (
 	github.com/golang/snappy v0.0.1
 	github.com/grafana/loki v1.5.0
 	github.com/grpc-ecosystem/grpc-gateway v1.14.5 // indirect
-	github.com/miekg/dns v1.1.40
+	github.com/miekg/dns v1.1.42
 	github.com/mmcloughlin/geohash v0.10.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/pkg/errors v0.9.1
@@ -30,7 +30,7 @@ require (
 	github.com/rs/zerolog v1.21.0
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
-	golang.org/x/sync v0.0.0-20201207232520-09787c993a3a
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/grpc v1.37.0
 )
 
