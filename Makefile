@@ -115,6 +115,7 @@ test-go: $(GOTESTSUM) ## Run Go tests.
 		-coverprofile=$(TEST_OUTPUT).cov \
 		-race \
 		$(GO_TEST_ARGS)
+	$(S) $(ROOTDIR)/scripts/report-test-coverage $(TEST_OUTPUT).cov
 
 .PHONY: test
 test: test-go ## Run all tests.

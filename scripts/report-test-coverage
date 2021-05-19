@@ -1,0 +1,8 @@
+#!/bin/sh
+
+echo -n 'Overall test coverage: '
+go tool cover -func "$1" |
+grep ^total: |
+expand |
+tr -s ' ' |
+cut -d ' ' -f3
