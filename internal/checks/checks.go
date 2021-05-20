@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grafana/loki/pkg/logproto"
+	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
@@ -33,6 +34,7 @@ var (
 type Updater struct {
 	api           apiInfo
 	logger        zerolog.Logger
+	features      feature.Collection
 	publishCh     chan<- pusher.Payload
 	tenantCh      chan<- sm.Tenant
 	probe         *sm.Probe
@@ -57,7 +59,16 @@ type metrics struct {
 type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
-func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- pusher.Payload, tenantCh chan<- sm.Tenant, promRegisterer prometheus.Registerer) (*Updater, error) {
+type UpdaterOptions struct {
+	Conn           *grpc.ClientConn
+	Logger         zerolog.Logger
+	PublishCh      chan<- pusher.Payload
+	TenantCh       chan<- sm.Tenant
+	PromRegisterer prometheus.Registerer
+	Features       feature.Collection
+}
+
+func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "sm_agent",
 		Subsystem: "updater",
@@ -67,7 +78,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 		"type",
 	})
 
-	if err := promRegisterer.Register(changesCounter); err != nil {
+	if err := opts.PromRegisterer.Register(changesCounter); err != nil {
 		return nil, err
 	}
 
@@ -80,7 +91,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 		"type",
 	})
 
-	if err := promRegisterer.Register(changeErrorsCounter); err != nil {
+	if err := opts.PromRegisterer.Register(changeErrorsCounter); err != nil {
 		return nil, err
 	}
 
@@ -93,7 +104,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 		"type",
 	})
 
-	if err := promRegisterer.Register(runningScrapers); err != nil {
+	if err := opts.PromRegisterer.Register(runningScrapers); err != nil {
 		return nil, err
 	}
 
@@ -107,7 +118,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 		"probe",
 	})
 
-	if err := promRegisterer.Register(scrapesCounter); err != nil {
+	if err := opts.PromRegisterer.Register(scrapesCounter); err != nil {
 		return nil, err
 	}
 
@@ -122,7 +133,7 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 		"type",
 	})
 
-	if err := promRegisterer.Register(scrapeErrorCounter); err != nil {
+	if err := opts.PromRegisterer.Register(scrapeErrorCounter); err != nil {
 		return nil, err
 	}
 
@@ -138,17 +149,18 @@ func NewUpdater(conn *grpc.ClientConn, logger zerolog.Logger, publishCh chan<- p
 		"buildstamp",
 	})
 
-	if err := promRegisterer.Register(probeInfoGauge); err != nil {
+	if err := opts.PromRegisterer.Register(probeInfoGauge); err != nil {
 		return nil, err
 	}
 
 	return &Updater{
 		api: apiInfo{
-			conn: conn,
+			conn: opts.Conn,
 		},
-		logger:    logger,
-		publishCh: publishCh,
-		tenantCh:  tenantCh,
+		logger:    opts.Logger,
+		features:  opts.Features,
+		publishCh: opts.PublishCh,
+		tenantCh:  opts.TenantCh,
 		scrapers:  make(map[int64]*scraper.Scraper),
 		metrics: metrics{
 			changesCounter:      changesCounter,
@@ -528,6 +540,16 @@ func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, fi
 //
 // This MUST be called with the scrapersMutex held.
 func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check) error {
+	// This is a good place to filter out checks by feature flags.
+	//
+	// If we need to accept checks based on whether a feature flag
+	// is enabled or not, we can "accept" the check from the point
+	// of view of the API, and skip running it here, e.g.
+	//
+	// if !c.features.IsSet(features.NEW_CHECK_TYPE) {
+	// 	return nil
+	// }
+
 	scrapeCounter := c.metrics.scrapesCounter.With(prometheus.Labels{
 		"check_id": strconv.FormatInt(check.Id, 10),
 		"probe":    c.probe.Name,

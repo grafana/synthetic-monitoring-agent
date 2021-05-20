@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
+	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
@@ -29,6 +30,7 @@ func run(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet(args[0], flag.ExitOnError)
 
 	var (
+		features          = feature.NewCollection()
 		debug             = flags.Bool("debug", false, "debug output (enables verbose)")
 		verbose           = flags.Bool("verbose", false, "verbose logging")
 		grpcApiServerAddr = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
@@ -36,6 +38,8 @@ func run(args []string, stdout io.Writer) error {
 		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
 		apiToken          = flags.String("api-token", "", "synthetic monitoring probe authentication token")
 	)
+
+	flags.Var(&features, "features", "optional feature flags")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -71,7 +75,12 @@ func run(args []string, stdout io.Writer) error {
 		return signalHandler(ctx, zl.With().Str("subsystem", "signal handler").Logger())
 	})
 
-	zl.Info().Str("version", version.Short()).Str("commit", version.Commit()).Str("buildstamp", version.Buildstamp()).Msg("starting")
+	zl.Info().
+		Str("version", version.Short()).
+		Str("commit", version.Commit()).
+		Str("buildstamp", version.Buildstamp()).
+		Str("features", features.String()).
+		Msg("starting")
 
 	promRegisterer := prometheus.NewRegistry()
 
@@ -122,7 +131,14 @@ func run(args []string, stdout io.Writer) error {
 	}
 	defer conn.Close()
 
-	checksUpdater, err := checks.NewUpdater(conn, zl.With().Str("subsystem", "updater").Logger(), publishCh, tenantCh, promRegisterer)
+	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
+		Conn:           conn,
+		Logger:         zl.With().Str("subsystem", "updater").Logger(),
+		PublishCh:      publishCh,
+		TenantCh:       tenantCh,
+		PromRegisterer: promRegisterer,
+		Features:       features,
+	})
 	if err != nil {
 		log.Fatalf("Cannot create checks updater: %s", err)
 	}
