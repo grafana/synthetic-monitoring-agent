@@ -5,12 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"hash/fnv"
-	"io/ioutil"
 	"math"
 	"math/rand"
-	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -19,15 +15,12 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/loki/pkg/logproto"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
-	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mmcloughlin/geohash"
-	bbeconfig "github.com/prometheus/blackbox_exporter/config"
-	"github.com/prometheus/blackbox_exporter/prober"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -36,13 +29,6 @@ import (
 var (
 	staleNaN    uint64  = 0x7ff0000000000002
 	staleMarker float64 = math.Float64frombits(staleNaN)
-
-	probers = map[string]prober.ProbeFn{
-		sm.CheckTypeHttp.String(): prober.ProbeHTTP,
-		sm.CheckTypeTcp.String():  prober.ProbeTCP,
-		sm.CheckTypePing.String(): prober.ProbeICMP,
-		sm.CheckTypeDns.String():  prober.ProbeDNS,
-	}
 )
 
 type Scraper struct {
@@ -53,7 +39,7 @@ type Scraper struct {
 	logger        zerolog.Logger
 	check         sm.Check
 	probe         sm.Probe
-	bbeModule     *bbeconfig.Module
+	prober        prober.Prober
 	stop          chan struct{}
 	scrapeCounter prometheus.Counter
 	errorCounter  *prometheus.CounterVec
@@ -91,23 +77,23 @@ func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, p
 		Logger()
 
 	sctx, cancel := context.WithCancel(ctx)
-	bbeModule, target, err := mapSettings(sctx, logger, check)
+	smProber, target, err := prober.NewFromCheck(sctx, logger, check)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 
-	bbeModule.Timeout = time.Duration(check.Timeout) * time.Millisecond
+	checkName := check.Type().String()
 
 	return &Scraper{
 		publishCh:     publishCh,
 		cancel:        cancel,
-		checkName:     bbeModule.Prober,
+		checkName:     checkName,
 		target:        target,
-		logger:        logger.With().Str("check", bbeModule.Prober).Logger(),
+		logger:        logger.With().Str("check", checkName).Logger(),
 		check:         check,
 		probe:         probe,
-		bbeModule:     &bbeModule,
+		prober:        smProber,
 		stop:          make(chan struct{}),
 		scrapeCounter: scrapeCounter,
 		errorCounter:  errorCounter,
@@ -296,31 +282,23 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
-	prober, ok := probers[s.bbeModule.Prober]
-	if !ok {
-		return nil, fmt.Errorf("Unknown prober %q", s.bbeModule.Prober)
-	}
 	target := s.target
-
-	// This is special-casing HTTP because we need to modify the
-	// target to append a cache-busting parameter that includes the
-	// current timestamp.
-	//
-	// This parameter IS NOT part of the target specified by the
-	// user because it needs to change every time the check runs,
-	// and it IS NOT part of s.check.Target because that would cause
-	// it to end up in the instance label that is added to every
-	// metric (see below).
-	if s.bbeModule.Prober == sm.CheckTypeHttp.String() && s.check.Settings.Http.CacheBustingQueryParamName != "" {
-		target = addCacheBustParam(s.target, s.check.Settings.Http.CacheBustingQueryParamName, s.probe.Name)
-	}
 
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
 	bl := kitlog.NewLogfmtLogger(&logs)
 	sl := kitlog.With(bl, "ts", kitlog.DefaultTimestampUTC, "target", target)
 
-	success, mfs, err := getProbeMetrics(ctx, prober, target, s.bbeModule, s.buildCheckInfoLabels(), s.summaries, s.histograms, sl, s.check.BasicMetricsOnly)
+	success, mfs, err := getProbeMetrics(
+		ctx,
+		s.prober,
+		target,
+		time.Duration(s.check.Timeout)*time.Millisecond,
+		s.buildCheckInfoLabels(),
+		s.summaries, s.histograms,
+		sl,
+		s.check.BasicMetricsOnly,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -361,10 +339,20 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, nil
 }
 
-func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, module *bbeconfig.Module, checkInfoLabels map[string]string, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger kitlog.Logger, basicMetricsOnly bool) (bool, []*dto.MetricFamily, error) {
+func getProbeMetrics(
+	ctx context.Context,
+	prober prober.Prober,
+	target string,
+	timeout time.Duration,
+	checkInfoLabels map[string]string,
+	summaries map[uint64]prometheus.Summary,
+	histograms map[uint64]prometheus.Histogram,
+	logger kitlog.Logger,
+	basicMetricsOnly bool,
+) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
-	success := runProber(ctx, prober, target, module, registry, checkInfoLabels, logger)
+	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger)
 
 	mfs, err := registry.Gather()
 	if err != nil {
@@ -387,15 +375,23 @@ func getProbeMetrics(ctx context.Context, prober prober.ProbeFn, target string, 
 	return success, mfs, nil
 }
 
-func runProber(ctx context.Context, prober prober.ProbeFn, target string, module *bbeconfig.Module, registry *prometheus.Registry, checkInfoLabels map[string]string, logger kitlog.Logger) bool {
+func runProber(
+	ctx context.Context,
+	prober prober.Prober,
+	target string,
+	timeout time.Duration,
+	registry *prometheus.Registry,
+	checkInfoLabels map[string]string,
+	logger kitlog.Logger,
+) bool {
 	start := time.Now()
 
-	_ = level.Info(logger).Log("msg", "Beginning check", "type", module.Prober, "timeout_seconds", module.Timeout.Seconds())
+	_ = level.Info(logger).Log("msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
 
-	checkCtx, cancel := context.WithTimeout(ctx, module.Timeout)
+	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	success := prober(checkCtx, target, *module, registry, logger)
+	success := prober.Probe(checkCtx, target, registry, logger)
 
 	duration := time.Since(start).Seconds()
 
@@ -729,351 +725,6 @@ func fmtLabels(labels []labelPair) string {
 	return s.String()
 }
 
-func mapSettings(ctx context.Context, logger zerolog.Logger, check sm.Check) (bbeconfig.Module, string, error) {
-	// Map the check to a blackbox exporter module
-	switch checkType := check.Type(); checkType {
-	case sm.CheckTypePing:
-		m := pingSettingsToBBEModule(check.Settings.Ping)
-		return m, check.Target, nil
-
-	case sm.CheckTypeHttp:
-		m, err := httpSettingsToBBEModule(ctx, logger, check.Settings.Http)
-		return m, check.Target, err
-
-	case sm.CheckTypeDns:
-		m := dnsSettingsToBBEModule(ctx, check.Settings.Dns, check.Target)
-		return m, check.Settings.Dns.Server, nil
-
-	case sm.CheckTypeTcp:
-		m, err := tcpSettingsToBBEModule(ctx, logger, check.Settings.Tcp)
-		return m, check.Target, err
-
-	default:
-		return bbeconfig.Module{}, "", fmt.Errorf("unsupported change")
-	}
-}
-
-func ipVersionToIpProtocol(v sm.IpVersion) (string, bool) {
-	switch v {
-	case sm.IpVersion_V4:
-		// preferred_ip_protocol = ip4
-		// ip_protocol_fallback = false
-		return "ip4", false
-	case sm.IpVersion_V6:
-		// preferred_ip_protocol = ip6
-		// ip_protocol_fallback = false
-		return "ip6", false
-	case sm.IpVersion_Any:
-		// preferred_ip_protocol = ip6
-		// ip_protocol_fallback = true
-		return "ip6", true
-	}
-
-	return "", false
-}
-
-func pingSettingsToBBEModule(settings *sm.PingSettings) bbeconfig.Module {
-	var m bbeconfig.Module
-
-	m.Prober = sm.CheckTypePing.String()
-
-	m.ICMP.IPProtocol, m.ICMP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
-
-	m.ICMP.SourceIPAddress = settings.SourceIpAddress
-
-	m.ICMP.PayloadSize = int(settings.PayloadSize)
-
-	m.ICMP.DontFragment = settings.DontFragment
-
-	return m
-}
-
-func httpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *sm.HttpSettings) (bbeconfig.Module, error) {
-	var m bbeconfig.Module
-
-	m.Prober = sm.CheckTypeHttp.String()
-
-	m.HTTP.IPProtocol, m.HTTP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
-
-	m.HTTP.Body = settings.Body
-
-	m.HTTP.Method = settings.Method.String()
-
-	m.HTTP.FailIfSSL = settings.FailIfSSL
-
-	m.HTTP.FailIfNotSSL = settings.FailIfNotSSL
-
-	m.HTTP.Headers = buildHttpHeaders(settings.Headers)
-
-	if settings.Compression != sm.CompressionAlgorithm_none {
-		m.HTTP.Compression = settings.Compression.String()
-	}
-
-	m.HTTP.ValidStatusCodes = make([]int, 0, len(settings.ValidStatusCodes))
-	for _, code := range settings.ValidStatusCodes {
-		m.HTTP.ValidStatusCodes = append(m.HTTP.ValidStatusCodes, int(code))
-	}
-
-	m.HTTP.ValidHTTPVersions = make([]string, len(settings.ValidHTTPVersions))
-	copy(m.HTTP.ValidHTTPVersions, settings.ValidHTTPVersions)
-
-	m.HTTP.FailIfBodyMatchesRegexp = make([]bbeconfig.Regexp, 0, len(settings.FailIfBodyMatchesRegexp))
-	for _, str := range settings.FailIfBodyMatchesRegexp {
-		re, err := bbeconfig.NewRegexp(str)
-		if err != nil {
-			return m, err
-		}
-
-		m.HTTP.FailIfBodyMatchesRegexp = append(m.HTTP.FailIfBodyMatchesRegexp, re)
-	}
-
-	m.HTTP.FailIfBodyNotMatchesRegexp = make([]bbeconfig.Regexp, 0, len(settings.FailIfBodyNotMatchesRegexp))
-	for _, str := range settings.FailIfBodyNotMatchesRegexp {
-		re, err := bbeconfig.NewRegexp(str)
-		if err != nil {
-			return m, err
-		}
-
-		m.HTTP.FailIfBodyNotMatchesRegexp = append(m.HTTP.FailIfBodyNotMatchesRegexp, re)
-	}
-
-	m.HTTP.FailIfHeaderMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(settings.FailIfHeaderMatchesRegexp))
-	for _, match := range settings.FailIfHeaderMatchesRegexp {
-		re, err := bbeconfig.NewRegexp(match.Regexp)
-		if err != nil {
-			return m, err
-		}
-
-		m.HTTP.FailIfHeaderMatchesRegexp = append(m.HTTP.FailIfHeaderMatchesRegexp, bbeconfig.HeaderMatch{
-			Header:       match.Header,
-			Regexp:       re,
-			AllowMissing: match.AllowMissing,
-		})
-	}
-
-	m.HTTP.FailIfHeaderNotMatchesRegexp = make([]bbeconfig.HeaderMatch, 0, len(settings.FailIfHeaderNotMatchesRegexp))
-	for _, match := range settings.FailIfHeaderNotMatchesRegexp {
-		re, err := bbeconfig.NewRegexp(match.Regexp)
-		if err != nil {
-			return m, err
-		}
-
-		m.HTTP.FailIfHeaderNotMatchesRegexp = append(m.HTTP.FailIfHeaderNotMatchesRegexp, bbeconfig.HeaderMatch{
-			Header:       match.Header,
-			Regexp:       re,
-			AllowMissing: match.AllowMissing,
-		})
-	}
-
-	m.HTTP.HTTPClientConfig.FollowRedirects = !settings.NoFollowRedirects
-
-	if settings.TlsConfig != nil {
-		var err error
-		m.HTTP.HTTPClientConfig.TLSConfig, err = smTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
-		if err != nil {
-			return m, err
-		}
-	}
-
-	m.HTTP.HTTPClientConfig.BearerToken = promconfig.Secret(settings.BearerToken)
-
-	if settings.BasicAuth != nil {
-		m.HTTP.HTTPClientConfig.BasicAuth = &promconfig.BasicAuth{
-			Username: settings.BasicAuth.Username,
-			Password: promconfig.Secret(settings.BasicAuth.Password),
-		}
-	}
-
-	if settings.ProxyURL != "" {
-		var err error
-		m.HTTP.HTTPClientConfig.ProxyURL.URL, err = url.Parse(settings.ProxyURL)
-		if err != nil {
-			return m, fmt.Errorf("parsing proxy URL: %w", err)
-		}
-	}
-
-	return m, nil
-}
-
-func buildHttpHeaders(headers []string) map[string]string {
-	userAgentHeader := "user-agent"
-
-	h := map[string]string{
-		userAgentHeader: version.UserAgent(), // default user-agent header
-	}
-
-	for _, header := range headers {
-		parts := strings.SplitN(header, ":", 2)
-
-		var value string
-		if len(parts) == 2 {
-			value = strings.TrimLeft(parts[1], " ")
-		}
-
-		if strings.ToLower(parts[0]) == userAgentHeader {
-			// Remove the default user-agent header and
-			// replace it with the one the user is
-			// specifying, so that we respect whatever case
-			// they chose (e.g. "user-agent" vs
-			// "User-Agent").
-			delete(h, userAgentHeader)
-		}
-
-		h[parts[0]] = value
-	}
-
-	return h
-}
-
-func dnsSettingsToBBEModule(ctx context.Context, settings *sm.DnsSettings, target string) bbeconfig.Module {
-	var m bbeconfig.Module
-
-	m.Prober = sm.CheckTypeDns.String()
-	m.DNS.IPProtocol, m.DNS.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
-
-	// BBE dns_probe actually tests the DNS server, so we
-	// need to pass the query (e.g. www.grafana.com) as part
-	// of the configuration and the server as the target
-	// parameter.
-	m.DNS.QueryName = target
-	m.DNS.QueryType = settings.RecordType.String()
-	m.DNS.SourceIPAddress = settings.SourceIpAddress
-	// In the protobuffer definition the protocol is either
-	// "TCP" or "UDP", but blackbox-exporter wants "tcp" or
-	// "udp".
-	m.DNS.TransportProtocol = strings.ToLower(settings.Protocol.String())
-
-	m.DNS.ValidRcodes = settings.ValidRCodes
-
-	if settings.ValidateAnswer != nil {
-		m.DNS.ValidateAnswer.FailIfMatchesRegexp = settings.ValidateAnswer.FailIfMatchesRegexp
-		m.DNS.ValidateAnswer.FailIfNotMatchesRegexp = settings.ValidateAnswer.FailIfNotMatchesRegexp
-	}
-
-	if settings.ValidateAuthority != nil {
-		m.DNS.ValidateAuthority.FailIfMatchesRegexp = settings.ValidateAuthority.FailIfMatchesRegexp
-		m.DNS.ValidateAuthority.FailIfNotMatchesRegexp = settings.ValidateAuthority.FailIfNotMatchesRegexp
-	}
-
-	if settings.ValidateAdditional != nil {
-		m.DNS.ValidateAdditional.FailIfMatchesRegexp = settings.ValidateAdditional.FailIfMatchesRegexp
-		m.DNS.ValidateAdditional.FailIfNotMatchesRegexp = settings.ValidateAdditional.FailIfNotMatchesRegexp
-	}
-
-	return m
-}
-
-func tcpSettingsToBBEModule(ctx context.Context, logger zerolog.Logger, settings *sm.TcpSettings) (bbeconfig.Module, error) {
-	var m bbeconfig.Module
-
-	m.Prober = sm.CheckTypeTcp.String()
-	m.TCP.IPProtocol, m.TCP.IPProtocolFallback = ipVersionToIpProtocol(settings.IpVersion)
-
-	m.TCP.SourceIPAddress = settings.SourceIpAddress
-
-	m.TCP.TLS = settings.Tls
-
-	m.TCP.QueryResponse = make([]bbeconfig.QueryResponse, len(settings.QueryResponse))
-
-	for _, qr := range settings.QueryResponse {
-		re, err := bbeconfig.NewRegexp(string(qr.Expect))
-		if err != nil {
-			return m, err
-		}
-
-		m.TCP.QueryResponse = append(m.TCP.QueryResponse, bbeconfig.QueryResponse{
-			Expect: re,
-			Send:   string(qr.Send),
-		})
-	}
-
-	if settings.TlsConfig != nil {
-		var err error
-		m.TCP.TLSConfig, err = smTLSConfigToBBE(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
-		if err != nil {
-			return m, err
-		}
-	}
-
-	return m, nil
-}
-
-func smTLSConfigToBBE(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfig) (promconfig.TLSConfig, error) {
-	c := promconfig.TLSConfig{
-		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
-		ServerName:         tlsConfig.ServerName,
-	}
-
-	if len(tlsConfig.CACert) > 0 {
-		fn, err := newDataProvider(ctx, logger, "ca_cert", tlsConfig.CACert)
-		if err != nil {
-			return promconfig.TLSConfig{}, err
-		}
-		c.CAFile = fn
-	}
-
-	if len(tlsConfig.ClientCert) > 0 {
-		fn, err := newDataProvider(ctx, logger, "client_cert", tlsConfig.ClientCert)
-		if err != nil {
-			return promconfig.TLSConfig{}, err
-		}
-		c.CertFile = fn
-	}
-
-	if len(tlsConfig.ClientKey) > 0 {
-		fn, err := newDataProvider(ctx, logger, "client_key", tlsConfig.ClientKey)
-		if err != nil {
-			return promconfig.TLSConfig{}, err
-		}
-		c.KeyFile = fn
-	}
-
-	return c, nil
-}
-
-// newDataProvider creates a filesystem object that provides the
-// specified data as often as needed. It returns the name under which
-// the data can be accessed.
-//
-// It does NOT try to make guarantees about partial reads. If the reader
-// goes away before reaching the end of the data, the next time the
-// reader shows up, the writer might continue from the previous
-// prosition.
-func newDataProvider(ctx context.Context, logger zerolog.Logger, basename string, data []byte) (string, error) {
-	fh, err := ioutil.TempFile("", basename+".")
-	if err != nil {
-		logger.Error().Err(err).Str("basename", basename).Msg("creating temporary file")
-		return "", fmt.Errorf("creating temporary file: %w", err)
-	}
-	defer func() {
-		if err := fh.Close(); err != nil {
-			// close errors should never happen, but if they
-			// do, the most we can do is log them to be able
-			// to debug the issue.
-			logger.Error().Err(err).Str("filename", fh.Name()).Msg("closing temporary file")
-		}
-	}()
-
-	fn := fh.Name()
-
-	if n, err := fh.Write(data); err != nil {
-		logger.Error().Err(err).Str("filename", fn).Int("bytes", n).Int("data", len(data)).Msg("writing temporary file")
-		return "", fmt.Errorf("writing temporary file for %s: %w", basename, err)
-	}
-
-	// play nice and make sure this file gets deleted once the
-	// context is cancelled, which could be when the program is
-	// shutting down or when the scraper stops.
-	go func() {
-		<-ctx.Done()
-		if err := os.Remove(fn); err != nil {
-			logger.Error().Err(err).Str("filename", fn).Msg("removing temporary file")
-		}
-	}()
-
-	return fn, nil
-}
-
 func updateSummaryFromMetric(mName, help string, m *dto.Metric, summaries map[uint64]prometheus.Summary, registry *prometheus.Registry) (prometheus.Summary, error) {
 	var value float64
 
@@ -1171,21 +822,4 @@ func getLabels(m *dto.Metric) map[string]string {
 	}
 
 	return labels
-}
-
-func addCacheBustParam(target, paramName, salt string) string {
-	// we already know this URL is valid
-	u, _ := url.Parse(target)
-	q := u.Query()
-	value := hashString(salt, strconv.FormatInt(time.Now().UnixNano(), 10))
-	q.Set(paramName, value)
-	u.RawQuery = q.Encode()
-	return u.String()
-}
-
-func hashString(salt, str string) string {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(salt))
-	_, _ = h.Write([]byte(str))
-	return strconv.FormatUint(h.Sum64(), 16)
 }
