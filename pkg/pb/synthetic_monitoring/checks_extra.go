@@ -430,6 +430,23 @@ func (out *IpVersion) UnmarshalJSON(b []byte) error {
 	return ErrInvalidIpVersionString
 }
 
+// ToIpProtocol converts the IpVersion setting into a pair of IP
+// protocol and fallback option.
+func (v IpVersion) ToIpProtocol() (string, bool) {
+	switch v {
+	case IpVersion_V4:
+		return "ip4", false
+
+	case IpVersion_V6:
+		return "ip6", false
+
+	case IpVersion_Any:
+		return "ip6", true
+	}
+
+	return "", false
+}
+
 func (v CompressionAlgorithm) MarshalJSON() ([]byte, error) {
 	if b := lookupValue(int32(v), CompressionAlgorithm_name); b != nil {
 		return b, nil

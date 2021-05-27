@@ -19,14 +19,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/version"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
+	dnsProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
+	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/miekg/dns"
-	bbeconfig "github.com/prometheus/blackbox_exporter/config"
-	"github.com/prometheus/blackbox_exporter/prober"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	promconfig "github.com/prometheus/common/config"
 	"github.com/prometheus/common/expfmt"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -44,237 +47,175 @@ var updateGolden = flag.Bool("update-golden", false, "update golden files")
 // go test -v -race -run TestValidateMetrics ./internal/scraper/
 func TestValidateMetrics(t *testing.T) {
 	testcases := map[string]struct {
-		setup  func(t *testing.T) (string, func())
-		config bbeconfig.Module
-		prober prober.ProbeFn
+		setup func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func())
 	}{
 		"ping": {
-			prober: prober.ProbeICMP,
-			setup: func(*testing.T) (string, func()) {
-				return "127.0.0.1", func() {}
-			},
-			config: bbeconfig.Module{
-				Prober:  "icmp",
-				Timeout: 2 * time.Second,
-				ICMP: bbeconfig.ICMPProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: false,
-				},
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+				check := sm.Check{
+					Target:  "127.0.0.1",
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						Ping: &sm.PingSettings{
+							IpVersion: sm.IpVersion_V4,
+						},
+					},
+				}
+
+				prober, err := icmp.NewProber(check)
+				if err != nil {
+					t.Fatalf("cannot create ICMP prober: %s", err)
+				}
+
+				return prober, check, func() {}
 			},
 		},
 
 		"http": {
-			prober: prober.ProbeHTTP,
-			setup: func(*testing.T) (string, func()) {
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
 				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.WriteHeader(http.StatusOK)
 				}))
 				httpSrv.Start()
-				return httpSrv.URL, httpSrv.Close
-			},
-			config: bbeconfig.Module{
-				Prober:  "http",
-				Timeout: 2 * time.Second,
-				HTTP: bbeconfig.HTTPProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: false,
-					HTTPClientConfig:   promconfig.HTTPClientConfig{},
-				},
+
+				check := sm.Check{
+					Target:  httpSrv.URL,
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						Http: &sm.HttpSettings{
+							IpVersion: sm.IpVersion_V4,
+						},
+					},
+				}
+
+				prober, err := httpProber.NewProber(
+					ctx,
+					check,
+					zerolog.New(io.Discard),
+				)
+				if err != nil {
+					t.Fatalf("cannot create HTTP prober: %s", err)
+				}
+
+				return prober, check, httpSrv.Close
 			},
 		},
 
 		"http_ssl": {
-			prober: prober.ProbeHTTP,
-			setup: func(*testing.T) (string, func()) {
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
 				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.WriteHeader(http.StatusOK)
 				}))
 				httpSrv.StartTLS()
-				return httpSrv.URL, httpSrv.Close
-			},
-			config: bbeconfig.Module{
-				Prober:  "http",
-				Timeout: 2 * time.Second,
-				HTTP: bbeconfig.HTTPProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: false,
-					HTTPClientConfig: promconfig.HTTPClientConfig{
-						TLSConfig: promconfig.TLSConfig{
-							InsecureSkipVerify: true,
+
+				check := sm.Check{
+					Target:  httpSrv.URL,
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						Http: &sm.HttpSettings{
+							IpVersion: sm.IpVersion_V4,
+							TlsConfig: &sm.TLSConfig{
+								InsecureSkipVerify: true,
+							},
 						},
 					},
-				},
+				}
+
+				prober, err := httpProber.NewProber(
+					ctx,
+					check,
+					zerolog.New(io.Discard),
+				)
+				if err != nil {
+					t.Fatalf("cannot create HTTP prober: %s", err)
+				}
+
+				return prober, check, httpSrv.Close
 			},
 		},
 
 		"dns": {
-			prober: prober.ProbeDNS,
-			setup:  setupDNSServer,
-			config: bbeconfig.Module{
-				Prober:  "dns",
-				Timeout: 2 * time.Second,
-				DNS: bbeconfig.DNSProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: true,
-					QueryName:          "example.com",
-					TransportProtocol:  "udp",
-				},
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+				srv, clean := setupDNSServer(t)
+				check := sm.Check{
+					Target:  "example.org",
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						// target is "example.com"
+						Dns: &sm.DnsSettings{
+							Server:    srv,
+							IpVersion: sm.IpVersion_V4,
+							Protocol:  sm.DnsProtocol_UDP,
+						},
+					},
+				}
+				prober, err := dnsProber.NewProber(check)
+				if err != nil {
+					clean()
+					t.Fatalf("cannot create DNS prober: %s", err)
+				}
+				return prober, check, clean
 			},
 		},
 
 		"tcp": {
-			prober: prober.ProbeTCP,
-			setup:  setupTCPServer,
-			config: bbeconfig.Module{
-				Prober:  "tcp",
-				Timeout: 2 * time.Second,
-				TCP: bbeconfig.TCPProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: true,
-				},
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+				srv, clean := setupTCPServer(t)
+				check := sm.Check{
+					Target:  srv,
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						Tcp: &sm.TcpSettings{
+							IpVersion: sm.IpVersion_V4,
+						},
+					},
+				}
+				prober, err := tcp.NewProber(
+					ctx,
+					check,
+					zerolog.New(io.Discard))
+				if err != nil {
+					clean()
+					t.Fatalf("cannot create TCP prober: %s", err)
+				}
+				return prober, check, clean
 			},
 		},
 
 		"tcp_ssl": {
-			prober: prober.ProbeTCP,
-			setup:  setupTCPServerWithSSL,
-			config: bbeconfig.Module{
-				Prober:  "tcp",
-				Timeout: 2 * time.Second,
-				TCP: bbeconfig.TCPProbe{
-					IPProtocol:         "ip4",
-					IPProtocolFallback: true,
-					TLS:                true,
-					TLSConfig: promconfig.TLSConfig{
-						InsecureSkipVerify: true,
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+				srv, clean := setupTCPServerWithSSL(t)
+				check := sm.Check{
+					Target:  srv,
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						Tcp: &sm.TcpSettings{
+							IpVersion: sm.IpVersion_V4,
+							Tls:       true,
+							TlsConfig: &sm.TLSConfig{
+								InsecureSkipVerify: true,
+							},
+						},
 					},
-				},
+				}
+				prober, err := tcp.NewProber(
+					ctx,
+					check,
+					zerolog.New(io.Discard))
+				if err != nil {
+					clean()
+					t.Fatalf("cannot create TCP prober: %s", err)
+				}
+				return prober, check, clean
 			},
 		},
 	}
 
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
-			verifyProberMetrics(t, name, testcase.prober, testcase.setup, testcase.config, false)
+			verifyProberMetrics(t, name, testcase.setup, false)
 		})
 		t.Run(name+"_basic", func(t *testing.T) {
-			verifyProberMetrics(t, name+"_basic", testcase.prober, testcase.setup, testcase.config, true)
-		})
-	}
-}
-
-func TestBuildHeaders(t *testing.T) {
-	testcases := map[string]struct {
-		input    []string
-		expected map[string]string
-	}{
-		"nil": {
-			input: nil,
-			expected: map[string]string{
-				"user-agent": version.UserAgent(),
-			},
-		},
-
-		"empty": {
-			input: []string{},
-			expected: map[string]string{
-				"user-agent": version.UserAgent(),
-			},
-		},
-
-		"trivial": {
-			input: []string{
-				"foo: bar",
-			},
-			expected: map[string]string{
-				"foo":        "bar",
-				"user-agent": version.UserAgent(),
-			},
-		},
-
-		"multiple headers": {
-			input: []string{
-				"h1: v1",
-				"h2: v2",
-			},
-			expected: map[string]string{
-				"h1":         "v1",
-				"h2":         "v2",
-				"user-agent": version.UserAgent(),
-			},
-		},
-
-		"compact": {
-			input: []string{
-				"h1:v1",
-				"h2:v2",
-			},
-			expected: map[string]string{
-				"h1":         "v1",
-				"h2":         "v2",
-				"user-agent": version.UserAgent(),
-			},
-		},
-
-		"trim leading whitespace": {
-			input: []string{
-				"h1:   v1",
-				"h2:      v2",
-			},
-			expected: map[string]string{
-				"h1":         "v1",
-				"h2":         "v2",
-				"user-agent": version.UserAgent(),
-			},
-		},
-
-		"keep trailing whitespace": {
-			input: []string{
-				"h1: v1   ",
-				"h2: v2 ",
-			},
-			expected: map[string]string{
-				"h1":         "v1   ",
-				"h2":         "v2 ",
-				"user-agent": version.UserAgent(),
-			},
-		},
-
-		"empty values": {
-			input: []string{
-				"h1: ",
-				"h2:",
-			},
-			expected: map[string]string{
-				"h1":         "",
-				"h2":         "",
-				"user-agent": version.UserAgent(),
-			},
-		},
-
-		"custom user agent": {
-			input: []string{
-				"User-Agent: test agent",
-			},
-			expected: map[string]string{
-				"User-Agent": "test agent",
-			},
-		},
-
-		"custom user agent, weird header capitalization": {
-			input: []string{
-				"uSEr-AGenT: test agent",
-			},
-			expected: map[string]string{
-				"uSEr-AGenT": "test agent",
-			},
-		},
-	}
-
-	for name, testcase := range testcases {
-		t.Run(name, func(t *testing.T) {
-			actual := buildHttpHeaders(testcase.input)
-			require.Equal(t, testcase.expected, actual)
+			verifyProberMetrics(t, name+"_basic", testcase.setup, true)
 		})
 	}
 }
@@ -286,18 +227,34 @@ func TestBuildHeaders(t *testing.T) {
 //
 // Optionally, this function will update the golden files if the
 // -update-golden flag was passed to the test.
-func verifyProberMetrics(t *testing.T, name string, prober prober.ProbeFn, setup func(t *testing.T) (string, func()), config bbeconfig.Module, basicMetricsOnly bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func verifyProberMetrics(
+	t *testing.T,
+	name string,
+	setup func(context.Context, *testing.T) (prober.Prober, sm.Check, func()),
+	basicMetricsOnly bool,
+) {
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	summaries := make(map[uint64]prometheus.Summary)
 	histograms := make(map[uint64]prometheus.Histogram)
 	logger := &testLogger{w: ioutil.Discard}
 
-	target, stop := setup(t)
+	prober, check, stop := setup(ctx, t)
 	defer stop()
 
-	success, mfs, err := getProbeMetrics(ctx, prober, target, &config, nil, summaries, histograms, logger, basicMetricsOnly)
+	success, mfs, err := getProbeMetrics(
+		ctx,
+		prober,
+		check.Target,
+		timeout,
+		nil,
+		summaries,
+		histograms,
+		logger,
+		basicMetricsOnly,
+	)
 	if err != nil {
 		t.Fatalf("probe failed: %s", err.Error())
 	} else if !success {
