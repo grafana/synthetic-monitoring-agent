@@ -305,7 +305,7 @@ message DnsSettings {
 	repeated string  validRCodes        = 200 [(gogoproto.jsontag) = "validRCodes,omitempty"];
 	DNSRRValidator   validateAnswer     = 201 [(gogoproto.jsontag) = "validateAnswerRRS,omitempty"];
 	DNSRRValidator   validateAuthority  = 202 [(gogoproto.jsontag) = "validateAuthorityRRS,omitempty"];
-	DNSRRValidator   validateAdditional = 203 [(gogoproto.jsontag) = "validateAditionalRRS,omitempty"];
+	DNSRRValidator   validateAdditional = 203 [(gogoproto.jsontag) = "validateAdditionalRRS,omitempty"];
 }
 
 // TcpSettings provides the settings for a TCP check.
