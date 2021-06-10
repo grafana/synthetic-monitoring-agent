@@ -6,7 +6,7 @@ set -x
 BASE=$(dirname $0)
 CODE_DIR=$(readlink -e "$BASE/../../")
 BUILD_DEB_DIR=${CODE_DIR}/dist
-BUILD_RMP_DIR=${CODE_DIR}/dist
+BUILD_RPM_DIR=${CODE_DIR}/dist
 GCS_KEY_DIR=${GCS_KEY_DIR:-/keys}
 
 SUDO=""
@@ -14,13 +14,16 @@ if [ $(id -u) -gt 0 ]; then
   SUDO="sudo"
 fi
 
-# Setup directories 
 PUBLISH_ROOT=${CODE_DIR}/dist/publish
 mkdir -p ${PUBLISH_ROOT}
-APTLY_REPO=${PUBLISH_ROOT}/deb/repo
-mkdir -p ${APTLY_REPO}
+
+### Start deb handling
+
+# Setup directories 
 APTLY_DIR=${PUBLISH_ROOT}/deb
 mkdir -p ${APTLY_DIR}
+APTLY_REPO=${PUBLISH_ROOT}/deb/repo
+mkdir -p ${APTLY_REPO}
 APTLY_DB=${PUBLISH_ROOT}/deb/db
 mkdir -p ${APTLY_DB}
 APTLY_POOL=${PUBLISH_ROOT}/deb/pool
@@ -142,9 +145,36 @@ if [ -z "${DISABLE_REPO_PUB}" ] ; then
 
 fi
 
-### TODO: RPM
-#$SUDO apt-get install -y rpm
+### End deb handling
 
+### Start rpm handling
+
+$SUDO apt-get install -y createrepo-c
+
+# Setup directories 
+RPM_REPO_DIR=${PUBLISH_ROOT}/rpm
+mkdir -p "${RPM_REPO_DIR}"
+RPM_DATA_DIR=${PUBLISH_ROOT}/rpm/repodata
+mkdir -p "${RPM_DATA_DIR}"
+RPM_POOL_DIR=${PUBLISH_ROOT}/rpm/pool
+mkdir -p "${RPM_POOL_DIR}"
+
+for rpm in "${BUILD_RPM_DIR}"/*.rpm ; do
+	rpm_hash=$(sha256sum "${rpm}" | cut -d' ' -f1)
+	rpm_dir="${RPM_POOL_DIR}"/$(echo "${rpm_hash}" | cut -c1-2)/$(echo "${rpm_hash}" | cut -c3-4)/$(echo "${rpm_hash}" | cut -c5-)
+	mkdir -p "${rpm_dir}"
+	cp "${rpm}" "${rpm_dir}"
+done
+
+createrepo_c "${RPM_REPO_DIR}"
+
+if [ -z "${DISABLE_REPO_PUB}" ] ; then
+  # Push binaries before the db
+  gsutil -m rsync -r ${RPM_POOL_DIR} gs://${REPO_BUCKET}/rpm/pool
+  gsutil -m rsync -r ${RPM_DATA_DIR} gs://${REPO_BUCKET}/rpm/repodata
+fi
+
+### End rpm handling
 
 # Done, cleanup and exit
 cleanup () {
