@@ -149,7 +149,7 @@ fi
 
 ### Start rpm handling
 
-$SUDO apt-get install -y createrepo-c
+$SUDO apt-get install -y createrepo
 
 # Setup directories 
 RPM_REPO_DIR=${PUBLISH_ROOT}/rpm
@@ -166,7 +166,7 @@ for rpm in "${BUILD_RPM_DIR}"/*.rpm ; do
 	cp "${rpm}" "${rpm_dir}"
 done
 
-createrepo_c "${RPM_REPO_DIR}"
+createrepo "${RPM_REPO_DIR}"
 
 if [ -z "${DISABLE_REPO_PUB}" ] ; then
   # Push binaries before the db
