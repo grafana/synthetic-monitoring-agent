@@ -12,7 +12,7 @@ REPO_URL=${TEST_REPO}
 
 SUDO=""
 if [ $(id -u) -gt 0 ]; then
-  SUDO="sudo"
+	SUDO="sudo"
 fi
 
 # Setup
@@ -28,9 +28,9 @@ $SUDO add-apt-repository "deb ${REPO_URL}/deb stable main"
 $SUDO apt-get install synthetic-monitoring-agent
 
 # Test if things were installed
-if [ ! -x "$(which synthetic-monitoring-agent)" ] ; then
-  echo "ERROR: synthetic-monitoring-agent not installed."
-  exit 1
+if [ ! -x "$(which synthetic-monitoring-agent)" ]; then
+	echo "ERROR: synthetic-monitoring-agent not installed."
+	exit 1
 fi
 
 echo "Success"
