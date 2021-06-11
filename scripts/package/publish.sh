@@ -3,34 +3,33 @@
 # Publish the artifacts from package.sh to GCS.
 #
 set -x
-BASE=$(dirname $0)
+BASE=$(dirname "$0")
 CODE_DIR=$(readlink -e "$BASE/../../")
-BUILD_DEB_DIR=${CODE_DIR}/dist
-BUILD_RPM_DIR=${CODE_DIR}/dist
-GCS_KEY_DIR=${GCS_KEY_DIR:-/keys}
+BUILD_DEB_DIR="${CODE_DIR}/dist"
+BUILD_RPM_DIR="${CODE_DIR}/dist"
+GCS_KEY_DIR="${GCS_KEY_DIR:-/keys}"
 
 SUDO=""
-if [ $(id -u) -gt 0 ]; then
+if [ "$(id -u)" -ne 0 ]; then
 	SUDO="sudo"
 fi
 
-PUBLISH_ROOT=${CODE_DIR}/dist/publish
-mkdir -p ${PUBLISH_ROOT}
+PUBLISH_ROOT="${CODE_DIR}/dist/publish"
+mkdir -p "${PUBLISH_ROOT}"
 
 ### Start deb handling
 
 # Setup directories
-APTLY_DIR=${PUBLISH_ROOT}/deb
-mkdir -p ${APTLY_DIR}
-APTLY_REPO=${PUBLISH_ROOT}/deb/repo
-mkdir -p ${APTLY_REPO}
-APTLY_DB=${PUBLISH_ROOT}/deb/db
-mkdir -p ${APTLY_DB}
-APTLY_POOL=${PUBLISH_ROOT}/deb/pool
-mkdir -p ${APTLY_POOL}
-APTLY_STAGE=${PUBLISH_ROOT}/tmp
-mkdir -p ${APTLY_STAGE}
-ARCH="$(uname -m)"
+APTLY_DIR="${PUBLISH_ROOT}/deb"
+mkdir -p "${APTLY_DIR}"
+APTLY_REPO="${PUBLISH_ROOT}/deb/repo"
+mkdir -p "${APTLY_REPO}"
+APTLY_DB="${PUBLISH_ROOT}/deb/db"
+mkdir -p "${APTLY_DB}"
+APTLY_POOL="${PUBLISH_ROOT}/deb/pool"
+mkdir -p "${APTLY_POOL}"
+APTLY_STAGE="${PUBLISH_ROOT}/tmp"
+mkdir -p "${APTLY_STAGE}"
 
 # Only publish to prod if env explicitly set.
 if [ -n "${PUBLISH_PROD_PKGS}" ]; then
@@ -43,13 +42,13 @@ else
 	REPO_BUCKET=sm-testing-repo
 fi
 
-APTLY_CONF_FILE=${PUBLISH_ROOT}/aptly.conf
+APTLY_CONF_FILE="${PUBLISH_ROOT}/aptly.conf"
 
 # avoid printing our gpg key to stdout
 #set +x
 
 # UNCOMMENT to use test GPG keys
-#source ${BASE}/gpg-test-vars.sh
+#source "${BASE}/gpg-test-vars.sh"
 if [ -z "${GPG_PRIV_KEY}" ]; then
 	echo "Error: GPG_PRIV_KEY not set."
 	exit 1
@@ -60,9 +59,9 @@ if [ ! -x "$(which gpg2)" ]; then
 fi
 
 # Import GPG keys
-GPG_PRIV_KEY_FILE=${BASE}/priv.key
-echo "$GPG_PRIV_KEY" | base64 -d >${GPG_PRIV_KEY_FILE}
-gpg2 --batch --yes --no-tty --allow-secret-key-import --import ${GPG_PRIV_KEY_FILE}
+GPG_PRIV_KEY_FILE="${BASE}/priv.key"
+echo "$GPG_PRIV_KEY" | base64 -d >"${GPG_PRIV_KEY_FILE}"
+gpg2 --batch --yes --no-tty --allow-secret-key-import --import "${GPG_PRIV_KEY_FILE}"
 
 #set -x
 
@@ -79,7 +78,7 @@ if [ ! -x "$(which gcloud)" ]; then
 fi
 
 # Activate GCS service account
-gcloud auth activate-service-account --key-file=${GCS_KEY_DIR}/gcs-key.json
+gcloud auth activate-service-account --key-file="${GCS_KEY_DIR}/gcs-key.json"
 
 ### DEBIAN
 
@@ -93,7 +92,7 @@ if [ ! -x "$(which aptly)" ]; then
 fi
 
 # write the aptly.conf file, will be rewritten if exists
-cat <<EOF >${APTLY_CONF_FILE}
+cat <<EOF >"${APTLY_CONF_FILE}"
 {
   "rootDir": "${APTLY_DIR}",
   "downloadConcurrency": 4,
@@ -124,24 +123,24 @@ cat <<EOF >${APTLY_CONF_FILE}
 EOF
 
 # Pull deb database
-gsutil -m rsync -d -r gs://${APTLY_DB_BUCKET} ${APTLY_DIR}
+gsutil -m rsync -d -r gs://"${APTLY_DB_BUCKET}" "${APTLY_DIR}"
 
 # Copy packages to the repo
-cp ${BUILD_DEB_DIR}/*.deb ${APTLY_STAGE}
+cp "${BUILD_DEB_DIR}/"*.deb "${APTLY_STAGE}"
 
 # Add packages to deb repo
-aptly -config=${APTLY_CONF_FILE} repo add -force-replace synthetic-monitoring ${APTLY_STAGE}
+aptly -config="${APTLY_CONF_FILE}" repo add -force-replace synthetic-monitoring "${APTLY_STAGE}"
 
 # Update local deb repo
-aptly -config=${APTLY_CONF_FILE} publish update -batch -force-overwrite stable filesystem:repo:synthetic-monitoring
+aptly -config="${APTLY_CONF_FILE}" publish update -batch -force-overwrite stable filesystem:repo:synthetic-monitoring
 
 # Can set DISABLE_REPO_PUB=1 for testing to skip publishing to buckets.
 if [ -z "${DISABLE_REPO_PUB}" ]; then
 
 	# Push binaries before the db
-	gsutil -m rsync -r ${APTLY_POOL} gs://${REPO_BUCKET}/deb/pool
+	gsutil -m rsync -r "${APTLY_POOL}" gs://"${REPO_BUCKET}/deb/pool"
 	# Push the deb db
-	gsutil -m rsync -r ${APTLY_REPO}/synthetic-monitoring gs://${REPO_BUCKET}/deb
+	gsutil -m rsync -r "${APTLY_REPO}/synthetic-monitoring" gs://"${REPO_BUCKET}/deb"
 
 fi
 
@@ -152,11 +151,11 @@ fi
 $SUDO apt-get install -y createrepo
 
 # Setup directories
-RPM_REPO_DIR=${PUBLISH_ROOT}/rpm
+RPM_REPO_DIR="${PUBLISH_ROOT}/rpm"
 mkdir -p "${RPM_REPO_DIR}"
-RPM_DATA_DIR=${PUBLISH_ROOT}/rpm/repodata
+RPM_DATA_DIR="${PUBLISH_ROOT}/rpm/repodata"
 mkdir -p "${RPM_DATA_DIR}"
-RPM_POOL_DIR=${PUBLISH_ROOT}/rpm/pool
+RPM_POOL_DIR="${PUBLISH_ROOT}/rpm/pool"
 mkdir -p "${RPM_POOL_DIR}"
 
 for rpm in "${BUILD_RPM_DIR}"/*.rpm; do
@@ -170,15 +169,15 @@ createrepo "${RPM_REPO_DIR}"
 
 if [ -z "${DISABLE_REPO_PUB}" ]; then
 	# Push binaries before the db
-	gsutil -m rsync -r ${RPM_POOL_DIR} gs://${REPO_BUCKET}/rpm/pool
-	gsutil -m rsync -r ${RPM_DATA_DIR} gs://${REPO_BUCKET}/rpm/repodata
+	gsutil -m rsync -r "${RPM_POOL_DIR}" gs://"${REPO_BUCKET}/rpm/pool"
+	gsutil -m rsync -r "${RPM_DATA_DIR}" gs://"${REPO_BUCKET}/rpm/repodata"
 fi
 
 ### End rpm handling
 
 # Done, cleanup and exit
 cleanup() {
-	rm ${GPG_PRIV_KEY_FILE}
+	rm "${GPG_PRIV_KEY_FILE}"
 	exit 0
 }
 cleanup
