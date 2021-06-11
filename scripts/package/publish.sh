@@ -14,12 +14,20 @@ if [ "$(id -u)" -ne 0 ]; then
 	SUDO="sudo"
 fi
 
+cleanup() {
+	rm -rf "${WORKDIR}"
+}
+
+trap cleanup EXIT
+
 PUBLISH_ROOT="${CODE_DIR}/dist/publish"
 mkdir -p "${PUBLISH_ROOT}"
 
 ### Start deb handling
 
 # Setup directories
+WORKDIR=$(mktemp --directory)
+
 APTLY_DIR="${PUBLISH_ROOT}/deb"
 mkdir -p "${APTLY_DIR}"
 APTLY_REPO="${PUBLISH_ROOT}/deb/repo"
@@ -59,7 +67,7 @@ if [ ! -x "$(which gpg2)" ]; then
 fi
 
 # Import GPG keys
-GPG_PRIV_KEY_FILE="${BASE}/priv.key"
+GPG_PRIV_KEY_FILE="${WORKDIR}/priv.key"
 echo "$GPG_PRIV_KEY" | base64 -d >"${GPG_PRIV_KEY_FILE}"
 gpg2 --batch --yes --no-tty --allow-secret-key-import --import "${GPG_PRIV_KEY_FILE}"
 
@@ -148,7 +156,24 @@ fi
 
 ### Start rpm handling
 
-$SUDO apt-get install -y createrepo
+if command -v createrepo 2>/dev/null; then
+	CREATEREPO=createrepo
+elif command -v createrepo_c 2>/dev/null; then
+	CREATEREPO=createrepo_c
+else
+	$SUDO apt-get install -y createrepo || true
+	if command -v createrepo 2>/dev/null; then
+		CREATEREPO=createrepo
+	else
+		$SUDO apt-get install -y createrepo-c || true
+		if command -v createrepo_c 2>/dev/null; then
+			CREATEREPO=createrepo_c
+		else
+			echo "E: Cannot find createrepo. Abort."
+			exit 1
+		fi
+	fi
+fi
 
 # Setup directories
 RPM_REPO_DIR="${PUBLISH_ROOT}/rpm"
@@ -159,13 +184,20 @@ RPM_POOL_DIR="${PUBLISH_ROOT}/rpm/pool"
 mkdir -p "${RPM_POOL_DIR}"
 
 for rpm in "${BUILD_RPM_DIR}"/*.rpm; do
-	rpm_hash=$(sha256sum "${rpm}" | cut -d' ' -f1)
+	tmp_rpm="${WORKDIR}/$(basename "${rpm}")"
+
+	cp -v "${rpm}" "${tmp_rpm}"
+	rpmsign --addsign --key-id=hello@grafana.com "${tmp_rpm}"
+
+	rpm_hash=$(sha256sum "${tmp_rpm}" | cut -d' ' -f1)
 	rpm_dir="${RPM_POOL_DIR}"/$(echo "${rpm_hash}" | cut -c1-2)/$(echo "${rpm_hash}" | cut -c3-4)/$(echo "${rpm_hash}" | cut -c5-)
 	mkdir -p "${rpm_dir}"
-	cp "${rpm}" "${rpm_dir}"
+	cp "${tmp_rpm}" "${rpm_dir}"
 done
 
-createrepo "${RPM_REPO_DIR}"
+"${CREATEREPO}" "${RPM_REPO_DIR}"
+
+gpg2 --batch --yes --no-tty --detach-sign --armor "${RPM_DATA_DIR}/repomd.xml"
 
 if [ -z "${DISABLE_REPO_PUB}" ]; then
 	# Push binaries before the db
@@ -175,9 +207,5 @@ fi
 
 ### End rpm handling
 
-# Done, cleanup and exit
-cleanup() {
-	rm "${GPG_PRIV_KEY_FILE}"
-	exit 0
-}
-cleanup
+# Done
+exit 0
