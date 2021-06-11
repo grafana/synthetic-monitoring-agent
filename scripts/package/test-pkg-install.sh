@@ -4,14 +4,14 @@
 # are installed and in the path.
 
 # Repo url's for prod and test
-PROD_REPO="https://packages-sm.grafana.com"
+# PROD_REPO="https://packages-sm.grafana.com"
 TEST_REPO="https://sm-testing-repo.storage.googleapis.com"
 
 # Set repo to test
-REPO_URL=${TEST_REPO}
+REPO_URL="${TEST_REPO}"
 
 SUDO=""
-if [ $(id -u) -gt 0 ]; then
+if [ "$(id -u)" -ne 0 ]; then
 	SUDO="sudo"
 fi
 
@@ -21,7 +21,7 @@ $SUDO apt-get install -y apt-transport-https
 $SUDO apt-get install -y software-properties-common wget
 
 # Add synthetic-monitoring test repo to apt
-wget -q -O - ${REPO_URL}/gpg.key | $SUDO apt-key add -
+wget -q -O - "${REPO_URL}/gpg.key" | $SUDO apt-key add -
 $SUDO add-apt-repository "deb ${REPO_URL}/deb stable main"
 
 # Try installing
