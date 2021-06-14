@@ -28,7 +28,7 @@ require (
 	// If you add the +incompatible bit that the error message hints
 	// at, you get a different error (see below).
 	github.com/prometheus/prometheus v1.8.2-0.20200213233353-b90be6f32a33
-	github.com/rs/zerolog v1.22.0
+	github.com/rs/zerolog v1.23.0
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
