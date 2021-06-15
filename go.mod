@@ -9,8 +9,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.3
-	github.com/grafana/loki v1.5.0
-	github.com/grpc-ecosystem/grpc-gateway v1.14.5 // indirect
+	github.com/grafana/loki v1.6.1
 	github.com/miekg/dns v1.1.42
 	github.com/mmcloughlin/geohash v0.10.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
@@ -27,7 +26,7 @@ require (
 	//
 	// If you add the +incompatible bit that the error message hints
 	// at, you get a different error (see below).
-	github.com/prometheus/prometheus v1.8.2-0.20200213233353-b90be6f32a33
+	github.com/prometheus/prometheus v1.8.2-0.20200727090838-6f296594a852
 	github.com/rs/zerolog v1.23.0
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
