@@ -1,0 +1,46 @@
+#!/bin/sh
+
+for req in git git-chglog ; do
+	if ! command -v "${req}" > /dev/null 2>&1 ; then
+		echo "E: '${req}' is needed to run this script. Abort."
+		exit 1
+	fi
+done
+
+next_version=$1
+
+cd "$(git rev-parse --show-toplevel)" || exit 2
+
+if test ! -e CHANGELOG.md ; then
+	echo "E: Expecting a CHANGELOG.md file in $PWD, none found. Abort."
+	exit 3
+fi
+
+if test -z "${next_version}" ; then
+	echo "E: Next version argument required. Abort."
+	exit 4
+fi
+
+commit_msg=$(mktemp)
+
+cleanup() {
+	rm -f "${commit_msg}"
+}
+
+trap cleanup EXIT
+
+cur_version=$(git describe --tags | cut -d- -f1)
+
+git chglog --next-tag "${next_version}" > CHANGELOG.md
+
+git add CHANGELOG.md
+
+cat > "${commit_msg}" <<EOT
+Release ${next_version}
+
+$(git log --oneline "${cur_version}".. | cut -d' ' -f2- | sed -e 's,^,* ,')
+EOT
+
+git commit --signoff --file="${commit_msg}"
+
+git tag --annotate --file="${commit_msg}" "${next_version}"
