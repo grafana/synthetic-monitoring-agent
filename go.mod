@@ -9,6 +9,7 @@ require (
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.3
+	github.com/google/uuid v1.1.2 // indirect
 	github.com/grafana/loki v1.6.1
 	github.com/miekg/dns v1.1.42
 	github.com/mmcloughlin/geohash v0.10.0
@@ -29,6 +30,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20200727090838-6f296594a852
 	github.com/rs/zerolog v1.23.0
 	github.com/stretchr/testify v1.7.0
+	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/appengine v1.6.7 // indirect

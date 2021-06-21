@@ -92,10 +92,11 @@ const (
 type CheckType int32
 
 const (
-	CheckTypeDns  CheckType = 0
-	CheckTypeHttp CheckType = 1
-	CheckTypePing CheckType = 2
-	CheckTypeTcp  CheckType = 3
+	CheckTypeDns        CheckType = 0
+	CheckTypeHttp       CheckType = 1
+	CheckTypePing       CheckType = 2
+	CheckTypeTcp        CheckType = 3
+	CheckTypeTraceroute CheckType = 4
 )
 
 var (

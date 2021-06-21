@@ -191,11 +191,12 @@ message Check {
 
 // CheckSettings provides the settings for exactly one type of check.
 message CheckSettings {
-	option (gogoproto.onlyone) = true;
-	PingSettings ping = 1 [(gogoproto.jsontag) = "ping,omitempty"];
-	HttpSettings http = 2 [(gogoproto.jsontag) = "http,omitempty"];
-	DnsSettings  dns  = 3 [(gogoproto.jsontag) = "dns,omitempty"];
-	TcpSettings  tcp  = 4 [(gogoproto.jsontag) = "tcp,omitempty"];
+	option (gogoproto.onlyone) 		= true;
+	PingSettings ping 						= 1 [(gogoproto.jsontag) = "ping,omitempty"];
+	HttpSettings http 						= 2 [(gogoproto.jsontag) = "http,omitempty"];
+	DnsSettings  dns  						= 3 [(gogoproto.jsontag) = "dns,omitempty"];
+	TcpSettings  tcp  						= 4 [(gogoproto.jsontag) = "tcp,omitempty"];
+	TracerouteSettings traceroute = 5 [(gogoproto.jsontag) = "traceroute,omitempty"];
 }
 
 // PingSettings provides the settings for a ping check.
@@ -203,7 +204,7 @@ message PingSettings {
 	IpVersion  ipVersion       = 1 [(gogoproto.jsontag) = "ipVersion"];                 // IP version used in the IP layer
 	string     sourceIpAddress = 2 [(gogoproto.jsontag) = "sourceIpAddress,omitempty"]; // source IP address for the packets
 	int64      payloadSize     = 3 [(gogoproto.jsontag) = "payloadSize,omitempty"];     // size of the ICMP packet's data portion
-	bool       dontFragment    = 4 [(gogoproto.jsontag) = "dontFragment"];              // set the IP "don't fragment" option
+	bool       dontFragment    = 4 [(gogoproto.jsontag) = "dontFragment"];              // set the IP don't fragment option
 }
 
 // HttpMethod represents the HTTP method used when making HTTP requests.
@@ -360,4 +361,11 @@ message TLSConfig {
 message BasicAuth {
 	string username = 1 [(gogoproto.jsontag) = "username,omitempty"];
 	string password = 2 [(gogoproto.jsontag) = "password,omitempty"];
+}
+
+message TracerouteSettings {
+	int64 maxHops 	 		 = 1 [(gogoproto.jsontag) = "maxHops"];  			 // Maximimum hops to make in a traceroute before exiting
+	int64 maxUnknownHops = 2 [(gogoproto.jsontag) = "maxUnknownHops"]; // Maximum hops probe that give no response before giving up
+	bool  ptrLookup 		 = 3 [(gogoproto.jsontag) = "ptrLookup"];      // Include reverse DNS lookup
+	int64 hopTimeout 		 = 4 [(gogoproto.jsontag) = "hopTimeout"];		 // Timeout for individual hop pings
 }
