@@ -14,18 +14,6 @@ import (
 	"github.com/tonobo/mtr/pkg/mtr"
 )
 
-var (
-	COUNT            = 5
-	TIMEOUT          = 800 * time.Millisecond
-	INTERVAL         = 100 * time.Millisecond
-	HOP_SLEEP        = time.Nanosecond
-	MAX_HOPS         = 64
-	MAX_UNKNOWN_HOPS = 15
-	RING_BUFFER_SIZE = 50
-	PTR_LOOKUP       = false
-	SRCADDR          = ""
-)
-
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Module struct {
@@ -37,6 +25,7 @@ type Module struct {
 	maxUnknownHops int
 	ptrLookup      bool
 	srcAddr        string
+	ringBufferSize int
 }
 
 type Prober struct {
@@ -60,7 +49,7 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
-	m, ch, err := mtr.NewMTR(target, p.config.srcAddr, p.config.timeout, p.config.interval, p.config.hopSleep, p.config.maxHops, p.config.maxUnknownHops, RING_BUFFER_SIZE, p.config.ptrLookup)
+	m, ch, err := mtr.NewMTR(target, p.config.srcAddr, p.config.timeout, p.config.interval, p.config.hopSleep, p.config.maxHops, p.config.maxUnknownHops, p.config.ringBufferSize, p.config.ptrLookup)
 
 	if err != nil {
 		logErr := logger.Log(err)
@@ -75,7 +64,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 			<-ch
 		}
 	}(ch)
-	m.Run(ch, COUNT)
+	m.Run(ch, p.config.count)
 
 	traceID := uuid.New()
 	totalPacketsLost := float64(0)
@@ -144,6 +133,7 @@ func settingsToModule(settings *sm.TracerouteSettings) Module {
 		maxHops:        64,
 		maxUnknownHops: 15,
 		ptrLookup:      false,
+		ringBufferSize: 50,
 		srcAddr:        "",
 	}
 
