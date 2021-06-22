@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grafana/loki/pkg/logproto"
+	"github.com/grafana/synthetic-monitoring-agent/internal/backoff"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
@@ -174,6 +175,9 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 }
 
 func (c *Updater) Run(ctx context.Context) error {
+	// use a 2 second base with a maximum of 64 seconds.
+	b := backoff.NewBinary(2*time.Second, 5)
+
 	for {
 		err := c.loop(ctx)
 		switch {
@@ -194,7 +198,6 @@ func (c *Updater) Run(ctx context.Context) error {
 				Err(err).
 				Str("connection_state", c.api.conn.GetState().String()).
 				Msg("the other end closed the connection, trying to reconnect")
-			continue
 
 		case errors.Is(err, context.Canceled):
 			// context was cancelled, clean up
@@ -212,9 +215,11 @@ func (c *Updater) Run(ctx context.Context) error {
 			// TODO(mem): this might be a transient error (e.g. bad connection). We probably need to
 			// fine-tune GRPPC's backoff parameters. We might also need to keep count of the reconnects, and
 			// give up if they hit some threshold?
-			time.Sleep(2 * time.Second)
-			continue
 		}
+
+		dur := b.Get()
+		c.logger.Info().Dur("duration", dur).Msg("sleeping...")
+		time.Sleep(dur)
 	}
 }
 
