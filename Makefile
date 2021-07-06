@@ -219,6 +219,12 @@ testdata: ## Update golden files for tests.
 	# update scraper golden files
 	$(V) $(GO) test -v -run TestValidateMetrics ./internal/scraper -args -update-golden
 
+.PHONY: drone
+drone:
+	drone jsonnet --stream --source .drone/drone.jsonnet --target .drone/drone.yml
+	drone lint .drone/drone.yml
+	drone sign --save grafana/synthetic-monitoring-agent .drone/drone.yml
+
 define build_go_command
 	$(S) echo 'Building $(1)'
 	$(S) mkdir -p dist
