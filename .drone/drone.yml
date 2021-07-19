@@ -1,0 +1,123 @@
+---
+kind: pipeline
+type: docker
+name: build
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: runner identification
+  image: alpine
+  commands:
+  - echo $DRONE_RUNNER_NAME
+
+- name: lint
+  image: golang:1.16
+  commands:
+  - make lint
+
+- name: test
+  image: golang:1.16
+  commands:
+  - make test
+
+- name: build
+  image: golang:1.16
+  commands:
+  - git fetch origin --tags
+  - git status --porcelain --untracked-files=no
+  - git diff --no-ext-diff --quiet
+  - ./scripts/version
+  - "{ echo -n latest, ; ./scripts/version ; } > .tags"
+  - make build
+
+- name: docker build
+  image: plugins/docker
+  settings:
+    dry_run: true
+    repo: grafana/synthetic-monitoring-agent
+
+- name: docker push
+  image: plugins/docker
+  settings:
+    password:
+      from_secret: docker_password
+    repo: grafana/synthetic-monitoring-agent
+    username:
+      from_secret: docker_username
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
+
+- name: package
+  image: golang:1.16
+  commands:
+  - make package
+  when:
+    event:
+    - pull_request
+
+- name: publish packages
+  image: golang:1.16
+  commands:
+  - export GCS_KEY_DIR=$(pwd)/keys
+  - mkdir -p $GCS_KEY_DIR
+  - echo "$GCS_KEY" | base64 -d > $GCS_KEY_DIR/gcs-key.json
+  - make publish-packages
+  environment:
+    GCS_KEY:
+      from_secret: gcs_key
+    GPG_PRIV_KEY:
+      from_secret: gpg_priv_key
+    PUBLISH_PROD_PKGS: 1
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
+
+trigger:
+  ref:
+  - refs/heads/main
+  - refs/pull/**
+  - refs/tags/v*.*.*
+
+---
+kind: secret
+name: docker_username
+
+get:
+  path: infra/data/ci/docker_hub
+  name: username
+
+---
+kind: secret
+name: docker_password
+
+get:
+  path: infra/data/ci/docker_hub
+  name: password
+
+---
+kind: secret
+name: gcs_key
+
+get:
+  path: infra/data/ci/gcp/synthetic-mon-publish-pkgs
+  name: key
+
+---
+kind: secret
+name: gpg_priv_key
+
+get:
+  path: infra/data/ci/gcp/synthetic-mon-publish-pkgs
+  name: gpg_priv_key
+
+---
+kind: signature
+hmac: b7accacbe61efdfbfdc554ff0fe86e36358bf3127601eb5b5224b874538c4229
+
+...
