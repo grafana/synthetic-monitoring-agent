@@ -101,17 +101,19 @@ const (
 
 var (
 	checkType_name = map[CheckType]string{
-		CheckTypeDns:  "dns",
-		CheckTypeHttp: "http",
-		CheckTypePing: "ping",
-		CheckTypeTcp:  "tcp",
+		CheckTypeDns:        "dns",
+		CheckTypeHttp:       "http",
+		CheckTypePing:       "ping",
+		CheckTypeTcp:        "tcp",
+		CheckTypeTraceroute: "traceroute",
 	}
 
 	checkType_value = map[string]CheckType{
-		"dns":  CheckTypeDns,
-		"http": CheckTypeHttp,
-		"ping": CheckTypePing,
-		"tcp":  CheckTypeTcp,
+		"dns":        CheckTypeDns,
+		"http":       CheckTypeHttp,
+		"ping":       CheckTypePing,
+		"tcp":        CheckTypeTcp,
+		"traceroute": CheckTypeTraceroute,
 	}
 )
 
@@ -184,6 +186,10 @@ func (c *Check) Validate() error {
 	}
 
 	if c.Settings.Tcp != nil {
+		settingsCount++
+	}
+
+	if c.Settings.Traceroute != nil {
 		settingsCount++
 	}
 
@@ -268,6 +274,9 @@ func (c Check) Type() CheckType {
 	case c.Settings.Tcp != nil:
 		return CheckTypeTcp
 
+	case c.Settings.Traceroute != nil:
+		return CheckTypeTraceroute
+
 	default:
 		panic("unhandled check type")
 	}
@@ -320,6 +329,10 @@ func (s *DnsSettings) Validate() error {
 }
 
 func (s *TcpSettings) Validate() error {
+	return nil
+}
+
+func (s *TracerouteSettings) Validate() error {
 	return nil
 }
 
