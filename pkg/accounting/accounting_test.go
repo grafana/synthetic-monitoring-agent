@@ -139,6 +139,32 @@ func getTestCases() map[string]struct {
 			},
 			class: "tcp_ssl_basic",
 		},
+		"traceroute": {
+			input: synthetic_monitoring.Check{
+				Target:           "127.0.0.1",
+				BasicMetricsOnly: true,
+				Settings: synthetic_monitoring.CheckSettings{
+					Traceroute: &synthetic_monitoring.TracerouteSettings{
+						MaxHops:    64,
+						HopTimeout: 100,
+					},
+				},
+			},
+			class: "traceroute_basic",
+		},
+		"traceroute_basic": {
+			input: synthetic_monitoring.Check{
+				Target:           "127.0.0.1",
+				BasicMetricsOnly: true,
+				Settings: synthetic_monitoring.CheckSettings{
+					Traceroute: &synthetic_monitoring.TracerouteSettings{
+						MaxHops:    64,
+						HopTimeout: 100,
+					},
+				},
+			},
+			class: "traceroute_basic",
+		},
 	}
 }
 

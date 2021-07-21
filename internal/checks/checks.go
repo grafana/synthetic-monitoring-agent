@@ -550,6 +550,10 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 	// 	return nil
 	// }
 
+	if !c.features.IsSet(feature.Traceroute) {
+		return nil
+	}
+
 	scrapeCounter := c.metrics.scrapesCounter.With(prometheus.Labels{
 		"check_id": strconv.FormatInt(check.Id, 10),
 		"probe":    c.probe.Name,
