@@ -224,7 +224,7 @@ func TestValidateMetrics(t *testing.T) {
 					},
 				}
 
-				p, err := traceroute.NewProber(check)
+				p, err := traceroute.NewProber(check, zerolog.New(io.Discard))
 				if err != nil {
 					t.Fatalf("cannot create traceroute prober %s", err)
 				}

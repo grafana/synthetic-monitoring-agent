@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 	"github.com/tonobo/mtr/pkg/mtr"
 )
 
@@ -30,9 +31,10 @@ type Module struct {
 
 type Prober struct {
 	config Module
+	logger zerolog.Logger
 }
 
-func NewProber(check sm.Check) (Prober, error) {
+func NewProber(check sm.Check, logger zerolog.Logger) (Prober, error) {
 	if check.Settings.Traceroute == nil {
 		return Prober{}, errUnsupportedCheck
 	}
@@ -41,6 +43,7 @@ func NewProber(check sm.Check) (Prober, error) {
 
 	return Prober{
 		config: c,
+		logger: logger,
 	}, nil
 }
 
@@ -82,6 +85,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		hosts += targets
 		err := logger.Log("Level", "info", "Destination", m.Address, "Hosts", targets, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
 		if err != nil {
+			p.logger.Error().Err(err)
 			continue
 		}
 	}
@@ -90,10 +94,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	_, err = traceHash.Write([]byte(hosts))
 
 	if err != nil {
-		logErr := logger.Log(err)
-		if logErr != nil {
-			return false
-		}
+		p.logger.Error().Err(err)
 		return false
 	}
 
@@ -112,6 +113,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		Help: "Overall percentage of packet loss during the traceroute",
 	})
 
+	// It shouldn't be possible for these registrations to fail
 	registry.MustRegister(traceHashGauge)
 	registry.MustRegister(totalHopsGauge)
 	registry.MustRegister(overallPacketLossGauge)

@@ -49,7 +49,7 @@ func NewFromCheck(ctx context.Context, logger zerolog.Logger, check sm.Check) (P
 		target = check.Target
 
 	case sm.CheckTypeTraceroute:
-		p, err = traceroute.NewProber(check)
+		p, err = traceroute.NewProber(check, logger)
 		target = check.Target
 
 	default:
