@@ -27,12 +27,13 @@ import (
 const exitFail = 1
 
 func run(args []string, stdout io.Writer) error {
-	flags := flag.NewFlagSet(args[0], flag.ExitOnError)
+	flags := flag.NewFlagSet(filepath.Base(args[0]), flag.ExitOnError)
 
 	var (
 		features          = feature.NewCollection()
 		debug             = flags.Bool("debug", false, "debug output (enables verbose)")
 		verbose           = flags.Bool("verbose", false, "verbose logging")
+		reportVersion     = flags.Bool("version", false, "report version and exit")
 		grpcApiServerAddr = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
 		grpcInsecure      = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
 		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
@@ -43,6 +44,17 @@ func run(args []string, stdout io.Writer) error {
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
+	}
+
+	if *reportVersion {
+		fmt.Printf(
+			"%s version=\"%s\" buildstamp=\"%s\" commit=\"%s\"\n",
+			flags.Name(),
+			version.Short(),
+			version.Buildstamp(),
+			version.Commit(),
+		)
+		return nil
 	}
 
 	if *apiToken == "" {
