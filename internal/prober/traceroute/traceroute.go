@@ -57,17 +57,21 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	if err != nil {
 		logErr := logger.Log(err)
 		if logErr != nil {
+			p.logger.Error().Err(logErr)
 			return false
 		}
 		return false
 	}
 
-	go func(ch chan struct{}) {
+	go func(ch <-chan struct{}) {
 		for {
-			<-ch
+			_, isOpen := <-ch
+			if !isOpen {
+				return
+			}
 		}
 	}(ch)
-	m.Run(ch, p.config.count)
+	m.Run(p.config.count)
 
 	traceID := uuid.New()
 	totalPacketsLost := float64(0)
