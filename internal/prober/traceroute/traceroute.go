@@ -71,7 +71,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 			}
 		}
 	}(ch)
-	m.Run(p.config.count)
+	m.RunWithContext(ctx, p.config.count)
 
 	traceID := uuid.New()
 	totalPacketsLost := float64(0)
@@ -133,7 +133,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 func settingsToModule(settings *sm.TracerouteSettings) Module {
 	m := Module{
 		count:          5,
-		timeout:        800 * time.Millisecond,
+		timeout:        30 * time.Second,
 		interval:       100 * time.Millisecond,
 		hopSleep:       time.Nanosecond,
 		maxHops:        64,

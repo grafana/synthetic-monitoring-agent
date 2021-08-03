@@ -156,15 +156,25 @@ func (c *Check) Validate() error {
 	}
 
 	// frequency must be in [1, 120] seconds
-	if c.Frequency < 1*1000 || c.Frequency > 120*1000 {
-		return ErrInvalidCheckFrequency
+	if c.Settings.Traceroute == nil {
+		if c.Frequency < 1*1000 || c.Frequency > 120*1000 {
+			return ErrInvalidCheckFrequency
+		}
+		// timeout must be in [1, 10] seconds, and it must be less than
+		// frequency (otherwise we can end up running overlapping
+		// checks)
+		if c.Timeout < 1*1000 || c.Timeout > 10*1000 || c.Timeout > c.Frequency {
+			return ErrInvalidCheckTimeout
+		}
 	}
-
-	// timeout must be in [1, 10] seconds, and it must be less than
-	// frequency (otherwise we can end up running overlapping
-	// checks)
-	if c.Timeout < 1*1000 || c.Timeout > 10*1000 || c.Timeout > c.Frequency {
-		return ErrInvalidCheckTimeout
+	if c.Settings.Traceroute != nil {
+		// We are hardcoding traceroute frequency and timeout until we can get data on what the boundaries should be
+		if c.Frequency != 120*1000 {
+			return ErrInvalidCheckFrequency
+		}
+		if c.Timeout != 30*1000 {
+			return ErrInvalidCheckTimeout
+		}
 	}
 
 	if err := validateLabels(c.Labels); err != nil {
