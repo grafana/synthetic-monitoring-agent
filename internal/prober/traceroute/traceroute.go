@@ -71,20 +71,21 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 			}
 		}
 	}(ch)
-	m.RunWithContext(ctx, p.config.count)
+	var success = true
+	err = m.RunWithContext(ctx, p.config.count)
 
+	if err != nil {
+		logger.Log("Level", "error", "msg", err.Error())
+		success = false
+	}
 	traceID := uuid.New()
 	totalPacketsLost := float64(0)
 	totalPacketsSent := float64(0)
-	success := false
 	hosts := ""
 	for _, hop := range m.Statistic {
 		totalPacketsLost += float64(hop.Lost)
 		totalPacketsSent += float64(hop.Sent)
 		avgElapsedTime := time.Duration(hop.Avg()) * time.Millisecond
-		if hop.Dest.IP.String() == m.Address {
-			success = true
-		}
 		targets := strings.Join(hop.Targets, ",")
 		hosts += targets
 		err := logger.Log("Level", "info", "Destination", m.Address, "Hosts", targets, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
