@@ -686,6 +686,13 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 					}
 					ts = append(ts, makeTimeseries(t, float64(v.GetCumulativeCount()), hLabels...))
 				}
+
+				// Add the +Inf bucket, which corresponds to the sample count.
+				hLabels[len(hLabels)-1] = prompb.Label{
+					Name:  "le",
+					Value: "+Inf",
+				}
+				ts = append(ts, makeTimeseries(t, float64(h.GetSampleCount()), hLabels...))
 			}
 		}
 	}
