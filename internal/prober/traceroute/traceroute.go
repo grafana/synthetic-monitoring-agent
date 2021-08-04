@@ -20,6 +20,7 @@ var errUnsupportedCheck = errors.New("unsupported check")
 type Module struct {
 	count          int
 	timeout        time.Duration
+	hopTimeout     time.Duration
 	interval       time.Duration
 	hopSleep       time.Duration
 	maxHops        int
@@ -52,7 +53,17 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
-	m, ch, err := mtr.NewMTR(target, p.config.srcAddr, p.config.timeout, p.config.interval, p.config.hopSleep, p.config.maxHops, p.config.maxUnknownHops, p.config.ringBufferSize, p.config.ptrLookup)
+	m, ch, err := mtr.NewMTR(
+		target,
+		p.config.srcAddr,
+		p.config.hopTimeout,
+		1*time.Nanosecond, // hardcode interval between mtr runs
+		1*time.Nanosecond, // hardcode interval between hop executions
+		p.config.maxHops,
+		p.config.maxUnknownHops,
+		p.config.ringBufferSize,
+		p.config.ptrLookup,
+	)
 
 	if err != nil {
 		logErr := logger.Log(err)
@@ -135,6 +146,7 @@ func settingsToModule(settings *sm.TracerouteSettings) Module {
 	m := Module{
 		count:          5,
 		timeout:        30 * time.Second,
+		hopTimeout:     500 * time.Millisecond,
 		interval:       100 * time.Millisecond,
 		hopSleep:       time.Nanosecond,
 		maxHops:        64,
@@ -153,7 +165,7 @@ func settingsToModule(settings *sm.TracerouteSettings) Module {
 	}
 
 	if settings.HopTimeout > 0 {
-		m.timeout = time.Duration(settings.HopTimeout)
+		m.hopTimeout = time.Duration(settings.HopTimeout)
 	}
 
 	return m
