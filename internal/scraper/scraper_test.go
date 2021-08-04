@@ -29,6 +29,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
@@ -489,6 +490,284 @@ func setupTCPServerWithSSL(t *testing.T) (string, func()) {
 	return ln.Addr().String(), func() {
 		<-done
 		ln.Close()
+	}
+}
+
+func TestMakeTimeseries(t *testing.T) {
+	testTime := time.Now()
+	testValue := 42.0
+	testcases := map[string]struct {
+		t      time.Time
+		value  float64
+		labels []prompb.Label
+	}{
+		"no labels": {
+			t:      testTime,
+			value:  testValue,
+			labels: []prompb.Label{},
+		},
+		"one label": {
+			t:     testTime,
+			value: testValue,
+			labels: []prompb.Label{
+				{Name: "name", Value: "value"},
+			},
+		},
+		"many labels": {
+			t:     testTime,
+			value: testValue,
+			labels: []prompb.Label{
+				{Name: "name 1", Value: "value 1"},
+				{Name: "name 2", Value: "value 2"},
+				{Name: "name 3", Value: "value 3"},
+				{Name: "name 4", Value: "value 4"},
+			},
+		},
+	}
+
+	for name, tc := range testcases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			actual := makeTimeseries(tc.t, tc.value, tc.labels...)
+			require.Equal(t, len(tc.labels), len(actual.Labels))
+			require.Equal(t, tc.labels, actual.Labels)
+			require.Equal(t, 1, len(actual.Samples))
+			require.Equal(t, tc.t.UnixNano()/1e6, actual.Samples[0].Timestamp)
+			require.Equal(t, tc.value, actual.Samples[0].Value)
+		})
+	}
+}
+
+func TestAppendDtoToTimeseries(t *testing.T) {
+	makeUint64Ptr := func(n uint64) *uint64 {
+		return &n
+	}
+
+	makeFloat64Ptr := func(n float64) *float64 {
+		return &n
+	}
+
+	testTime := time.Now()
+	testTimestamp := testTime.UnixNano() / 1e6
+	testValue := 42.0
+	testcases := map[string]struct {
+		t            time.Time
+		mName        string
+		sharedLabels []prompb.Label
+		mType        dto.MetricType
+		metric       *dto.Metric
+		expected     []prompb.TimeSeries
+	}{
+		"counter": {
+			t:     testTime,
+			mName: "test",
+			sharedLabels: []prompb.Label{
+				{Name: "label 1", Value: "value 1"},
+			},
+			mType: dto.MetricType_COUNTER,
+			metric: &dto.Metric{
+				Counter: &dto.Counter{
+					Value: &testValue,
+				},
+			},
+			expected: []prompb.TimeSeries{
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test"},
+						{Name: "label 1", Value: "value 1"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: testValue},
+					},
+				},
+			},
+		},
+		"gauge": {
+			t:     testTime,
+			mName: "test",
+			sharedLabels: []prompb.Label{
+				{Name: "label 1", Value: "value 1"},
+			},
+			mType: dto.MetricType_GAUGE,
+			metric: &dto.Metric{
+				Gauge: &dto.Gauge{
+					Value: &testValue,
+				},
+			},
+			expected: []prompb.TimeSeries{
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test"},
+						{Name: "label 1", Value: "value 1"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: testValue},
+					},
+				},
+			},
+		},
+		"untyped": {
+			t:     testTime,
+			mName: "test",
+			sharedLabels: []prompb.Label{
+				{Name: "label 1", Value: "value 1"},
+			},
+			mType: dto.MetricType_UNTYPED,
+			metric: &dto.Metric{
+				Untyped: &dto.Untyped{
+					Value: &testValue,
+				},
+			},
+			expected: []prompb.TimeSeries{
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test"},
+						{Name: "label 1", Value: "value 1"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: testValue},
+					},
+				},
+			},
+		},
+		"summary": {
+			t:     testTime,
+			mName: "test",
+			sharedLabels: []prompb.Label{
+				{Name: "label 1", Value: "value 1"},
+			},
+			mType: dto.MetricType_SUMMARY,
+			metric: &dto.Metric{
+				Summary: &dto.Summary{
+					SampleCount: makeUint64Ptr(7),
+					SampleSum:   makeFloat64Ptr(0.25),
+				},
+			},
+			expected: []prompb.TimeSeries{
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test_sum"},
+						{Name: "label 1", Value: "value 1"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: 0.25},
+					},
+				},
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test_count"},
+						{Name: "label 1", Value: "value 1"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: 7},
+					},
+				},
+			},
+		},
+		"histogram": {
+			t:     testTime,
+			mName: "test",
+			sharedLabels: []prompb.Label{
+				{Name: "label 1", Value: "value 1"},
+			},
+			mType: dto.MetricType_HISTOGRAM,
+			metric: &dto.Metric{
+				Histogram: &dto.Histogram{
+					SampleCount: makeUint64Ptr(17),
+					SampleSum:   makeFloat64Ptr(120),
+					Bucket: []*dto.Bucket{
+						{
+							CumulativeCount: makeUint64Ptr(1),
+							UpperBound:      makeFloat64Ptr(0.1),
+						},
+						{
+							CumulativeCount: makeUint64Ptr(5),
+							UpperBound:      makeFloat64Ptr(1.0),
+						},
+						{
+							CumulativeCount: makeUint64Ptr(11),
+							UpperBound:      makeFloat64Ptr(10.0),
+						},
+					},
+				},
+			},
+			expected: []prompb.TimeSeries{
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test_sum"},
+						{Name: "label 1", Value: "value 1"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: 120},
+					},
+				},
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test_count"},
+						{Name: "label 1", Value: "value 1"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: 17},
+					},
+				},
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test_bucket"},
+						{Name: "label 1", Value: "value 1"},
+						{Name: "le", Value: "0.1"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: 1},
+					},
+				},
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test_bucket"},
+						{Name: "label 1", Value: "value 1"},
+						{Name: "le", Value: "1"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: 5},
+					},
+				},
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test_bucket"},
+						{Name: "label 1", Value: "value 1"},
+						{Name: "le", Value: "10"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: 11},
+					},
+				},
+				{
+					Labels: []prompb.Label{
+						{Name: "__name__", Value: "test_bucket"},
+						{Name: "label 1", Value: "value 1"},
+						{Name: "le", Value: "+Inf"},
+					},
+					Samples: []prompb.Sample{
+						{Timestamp: testTimestamp, Value: 17},
+					},
+				},
+			},
+		},
+	}
+
+	for name, tc := range testcases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			actual := appendDtoToTimeseries(
+				nil,
+				tc.t,
+				tc.mName,
+				tc.sharedLabels,
+				tc.mType,
+				tc.metric,
+			)
+
+			require.Equal(t, tc.expected, actual)
+		})
 	}
 }
 
