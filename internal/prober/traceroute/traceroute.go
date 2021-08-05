@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"hash/fnv"
+	"sort"
 	"strings"
 	"time"
 
@@ -92,13 +93,14 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	traceID := uuid.New()
 	totalPacketsLost := float64(0)
 	totalPacketsSent := float64(0)
-	hosts := ""
-	for _, hop := range m.Statistic {
+	var hosts = make(map[int]string)
+	for ttl, hop := range m.Statistic {
 		totalPacketsLost += float64(hop.Lost)
 		totalPacketsSent += float64(hop.Sent)
 		avgElapsedTime := time.Duration(hop.Avg()) * time.Millisecond
+		sort.Strings(hop.Targets)
 		targets := strings.Join(hop.Targets, ",")
-		hosts += targets
+		hosts[ttl] = targets
 		err := logger.Log("Level", "info", "Destination", m.Address, "Hosts", targets, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
 		if err != nil {
 			p.logger.Error().Err(err)
@@ -106,8 +108,18 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		}
 	}
 
+	hostsKeys := make([]int, 0, len(hosts))
+	for ttl := range hosts {
+		hostsKeys = append(hostsKeys, ttl)
+	}
+	sort.Ints(hostsKeys)
+	hostsString := ""
+	for _, ttl := range hostsKeys {
+		hostsString += hosts[ttl]
+	}
+
 	traceHash := fnv.New32()
-	_, err = traceHash.Write([]byte(hosts))
+	_, err = traceHash.Write([]byte(hostsString))
 
 	if err != nil {
 		p.logger.Error().Err(err)
