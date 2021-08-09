@@ -52,4 +52,4 @@ replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.0+inc
 
 replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
 
-replace github.com/tonobo/mtr => github.com/grafana/mtr v0.1.1-0.20210802190936-10a70320630f
+replace github.com/tonobo/mtr => github.com/grafana/mtr v0.1.1-0.20210809164814-89d6b88ec4ef

@@ -87,7 +87,10 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	err = m.RunWithContext(ctx, p.config.count)
 
 	if err != nil {
-		logger.Log("Level", "error", "msg", err.Error())
+		err = logger.Log("Level", "error", "msg", err.Error())
+		if err != nil {
+			p.logger.Err(err)
+		}
 		success = false
 	}
 	traceID := uuid.New()
