@@ -58,8 +58,8 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		target,
 		p.config.srcAddr,
 		p.config.hopTimeout,
-		1*time.Nanosecond, // hardcode interval between mtr runs
-		1*time.Nanosecond, // hardcode interval between hop executions
+		p.config.interval,
+		p.config.hopSleep,
 		p.config.maxHops,
 		p.config.maxUnknownHops,
 		p.config.ringBufferSize,
@@ -162,11 +162,11 @@ func settingsToModule(settings *sm.TracerouteSettings) Module {
 		count:          5,
 		timeout:        30 * time.Second,
 		hopTimeout:     500 * time.Millisecond,
-		interval:       100 * time.Millisecond,
+		interval:       time.Nanosecond,
 		hopSleep:       time.Nanosecond,
 		maxHops:        64,
 		maxUnknownHops: 15,
-		ptrLookup:      false,
+		ptrLookup:      true,
 		ringBufferSize: 50,
 		srcAddr:        "",
 	}
