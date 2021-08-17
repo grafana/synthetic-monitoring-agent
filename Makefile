@@ -221,7 +221,7 @@ testdata: ## Update golden files for tests.
 
 .PHONY: drone
 drone:
-	drone jsonnet --stream --source .drone/drone.jsonnet --target .drone/drone.yml
+	drone jsonnet --stream --source .drone/drone.jsonnet --target .drone/drone.yml --format
 	drone lint .drone/drone.yml
 	drone sign --save grafana/synthetic-monitoring-agent .drone/drone.yml
 
