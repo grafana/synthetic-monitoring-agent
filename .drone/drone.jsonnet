@@ -21,7 +21,6 @@ local pipeline(name, steps=[]) = {
 local releaseOnly = {
   when: {
     ref+: [
-      'refs/heads/main',
       'refs/tags/v*.*.*',
     ],
   },
