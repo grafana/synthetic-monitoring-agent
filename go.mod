@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/go-kit/kit v0.11.0
-	github.com/go-logfmt/logfmt v0.5.0
+	github.com/go-logfmt/logfmt v0.5.1
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/snappy v0.0.4
