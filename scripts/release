@@ -16,8 +16,44 @@ if test ! -e CHANGELOG.md ; then
 	exit 3
 fi
 
+current_version() {
+	git describe --tags HEAD | cut -d- -f1 | tr -d v
+}
+
+next_version_patch() {
+	parts=$(current_version)
+	major=$(echo "${parts}" | cut -d. -f1)
+	minor=$(echo "${parts}" | cut -d. -f2)
+	patch=$(echo "${parts}" | cut -d. -f3)
+	echo "${major}.${minor}.$((${patch}+1))"
+}
+
+next_version_minor() {
+	parts=$(current_version)
+	major=$(echo "${parts}" | cut -d. -f1)
+	minor=$(echo "${parts}" | cut -d. -f2)
+	echo "${major}.$((${minor}+1)).0"
+}
+
+next_version_major() {
+	parts=$(current_version)
+	major=$(echo "${parts}" | cut -d. -f1)
+	echo "$((${major}+1)).0.0"
+}
+
 if test -z "${next_version}" ; then
-	echo "E: Next version argument required. Abort."
+	cv=$(current_version)
+	next_patch=$(next_version_patch)
+	next_minor=$(next_version_minor)
+	next_major=$(next_version_major)
+	cat <<-EOT
+	I: Current version: v${cv}
+	I: Next fix: v${next_patch}
+	I: Next feature: v${next_minor}
+	I: Next breaking change: v${next_major}
+
+	E: Next version argument required. Abort.
+	EOT
 	exit 4
 fi
 
