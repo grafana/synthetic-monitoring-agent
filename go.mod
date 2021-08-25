@@ -8,7 +8,7 @@ require (
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/snappy v0.0.4
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.3.0
 	github.com/grafana/loki v1.6.1
 	github.com/miekg/dns v1.1.43
 	github.com/mmcloughlin/geohash v0.10.0
