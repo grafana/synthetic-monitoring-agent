@@ -93,7 +93,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		}
 		success = false
 	}
-	traceID := uuid.New()
+	tracerouteID := uuid.New()
 	totalPacketsLost := float64(0)
 	totalPacketsSent := float64(0)
 	var hosts = make(map[int]string)
@@ -104,7 +104,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		sort.Strings(hop.Targets)
 		targets := strings.Join(hop.Targets, ",")
 		hosts[ttl] = targets
-		err := logger.Log("Level", "info", "Destination", m.Address, "Hosts", targets, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TraceID", traceID)
+		err := logger.Log("Level", "info", "Destination", m.Address, "Hosts", targets, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TracerouteID", tracerouteID)
 		if err != nil {
 			p.logger.Error().Err(err)
 			continue
