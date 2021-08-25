@@ -55,6 +55,8 @@ func GetCheckAccountingClass(check synthetic_monitoring.Check) (string, error) {
 			key += "_ssl"
 		}
 
+	case synthetic_monitoring.CheckTypeTraceroute:
+
 	default:
 		return "", ErrUnhandledCheck
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
@@ -45,6 +46,10 @@ func NewFromCheck(ctx context.Context, logger zerolog.Logger, check sm.Check) (P
 
 	case sm.CheckTypeTcp:
 		p, err = tcp.NewProber(ctx, check, logger)
+		target = check.Target
+
+	case sm.CheckTypeTraceroute:
+		p, err = traceroute.NewProber(check, logger)
 		target = check.Target
 
 	default:

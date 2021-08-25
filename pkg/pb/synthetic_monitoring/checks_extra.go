@@ -92,25 +92,28 @@ const (
 type CheckType int32
 
 const (
-	CheckTypeDns  CheckType = 0
-	CheckTypeHttp CheckType = 1
-	CheckTypePing CheckType = 2
-	CheckTypeTcp  CheckType = 3
+	CheckTypeDns        CheckType = 0
+	CheckTypeHttp       CheckType = 1
+	CheckTypePing       CheckType = 2
+	CheckTypeTcp        CheckType = 3
+	CheckTypeTraceroute CheckType = 4
 )
 
 var (
 	checkType_name = map[CheckType]string{
-		CheckTypeDns:  "dns",
-		CheckTypeHttp: "http",
-		CheckTypePing: "ping",
-		CheckTypeTcp:  "tcp",
+		CheckTypeDns:        "dns",
+		CheckTypeHttp:       "http",
+		CheckTypePing:       "ping",
+		CheckTypeTcp:        "tcp",
+		CheckTypeTraceroute: "traceroute",
 	}
 
 	checkType_value = map[string]CheckType{
-		"dns":  CheckTypeDns,
-		"http": CheckTypeHttp,
-		"ping": CheckTypePing,
-		"tcp":  CheckTypeTcp,
+		"dns":        CheckTypeDns,
+		"http":       CheckTypeHttp,
+		"ping":       CheckTypePing,
+		"tcp":        CheckTypeTcp,
+		"traceroute": CheckTypeTraceroute,
 	}
 )
 
@@ -152,16 +155,12 @@ func (c *Check) Validate() error {
 		return ErrInvalidCheckJob
 	}
 
-	// frequency must be in [1, 120] seconds
-	if c.Frequency < 1*1000 || c.Frequency > 120*1000 {
-		return ErrInvalidCheckFrequency
+	if err := c.validateFrequency(); err != nil {
+		return err
 	}
 
-	// timeout must be in [1, 10] seconds, and it must be less than
-	// frequency (otherwise we can end up running overlapping
-	// checks)
-	if c.Timeout < 1*1000 || c.Timeout > 10*1000 || c.Timeout > c.Frequency {
-		return ErrInvalidCheckTimeout
+	if err := c.validateTimeout(); err != nil {
+		return err
 	}
 
 	if err := validateLabels(c.Labels); err != nil {
@@ -183,6 +182,10 @@ func (c *Check) Validate() error {
 	}
 
 	if c.Settings.Tcp != nil {
+		settingsCount++
+	}
+
+	if c.Settings.Traceroute != nil {
 		settingsCount++
 	}
 
@@ -231,6 +234,37 @@ func (c *Check) Validate() error {
 	return nil
 }
 
+func (c *Check) validateFrequency() error {
+	// frequency must be in [1, 120] seconds
+	if c.Settings.Traceroute != nil {
+		if c.Frequency != 120*1000 {
+			return ErrInvalidCheckFrequency
+		}
+	} else {
+		if c.Frequency < 1*1000 || c.Frequency > 120*1000 {
+			return ErrInvalidCheckFrequency
+		}
+	}
+	return nil
+}
+
+func (c *Check) validateTimeout() error {
+	if c.Settings.Traceroute != nil {
+		// We are hardcoding traceroute frequency and timeout until we can get data on what the boundaries should be
+		if c.Timeout != 30*1000 {
+			return ErrInvalidCheckTimeout
+		}
+	} else {
+		// timeout must be in [1, 10] seconds, and it must be less than
+		// frequency (otherwise we can end up running overlapping
+		// checks)
+		if c.Timeout < 1*1000 || c.Timeout > 10*1000 || c.Timeout > c.Frequency {
+			return ErrInvalidCheckTimeout
+		}
+	}
+	return nil
+}
+
 func validateLabels(labels []Label) error {
 	if len(labels) > MaxCheckLabels {
 		return ErrTooManyCheckLabels
@@ -266,6 +300,9 @@ func (c Check) Type() CheckType {
 
 	case c.Settings.Tcp != nil:
 		return CheckTypeTcp
+
+	case c.Settings.Traceroute != nil:
+		return CheckTypeTraceroute
 
 	default:
 		panic("unhandled check type")
@@ -319,6 +356,10 @@ func (s *DnsSettings) Validate() error {
 }
 
 func (s *TcpSettings) Validate() error {
+	return nil
+}
+
+func (s *TracerouteSettings) Validate() error {
 	return nil
 }
 

@@ -24,6 +24,7 @@ import (
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
@@ -209,6 +210,28 @@ func TestValidateMetrics(t *testing.T) {
 				return prober, check, clean
 			},
 		},
+
+		"traceroute": {
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}))
+				httpSrv.Start()
+
+				check := sm.Check{
+					Target: httpSrv.URL,
+					Settings: sm.CheckSettings{
+						Traceroute: &sm.TracerouteSettings{},
+					},
+				}
+
+				p, err := traceroute.NewProber(check, zerolog.New(io.Discard))
+				if err != nil {
+					t.Fatalf("cannot create traceroute prober %s", err)
+				}
+				return p, check, func() {}
+			},
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -259,7 +282,7 @@ func verifyProberMetrics(
 	if err != nil {
 		t.Fatalf("probe failed: %s", err.Error())
 	} else if !success {
-		t.Log("probe failed")
+		t.Logf("probe failed: %s", prober.Name())
 	}
 
 	fn := filepath.Join("testdata", name+".txt")

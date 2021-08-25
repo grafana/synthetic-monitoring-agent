@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+// TODO: this doesn't seem like the right place for this
+const Traceroute = "traceroute"
+
 // ErrInvalidCollection is returned when you try to set a flag in an
 // invalid collection.
 var ErrInvalidCollection = errors.New("invalid feature collection")

@@ -8,6 +8,7 @@ require (
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/snappy v0.0.4
+	github.com/google/uuid v1.1.2
 	github.com/grafana/loki v1.6.1
 	github.com/miekg/dns v1.1.43
 	github.com/mmcloughlin/geohash v0.10.0
@@ -28,6 +29,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20200727090838-6f296594a852
 	github.com/rs/zerolog v1.23.0
 	github.com/stretchr/testify v1.7.0
+	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/appengine v1.6.7 // indirect
@@ -49,3 +51,5 @@ replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.0+inc
 // 78d2af792bab is the commit tagged as v12.0.0.
 
 replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
+
+replace github.com/tonobo/mtr => github.com/grafana/mtr v0.1.1-0.20210809164814-89d6b88ec4ef
