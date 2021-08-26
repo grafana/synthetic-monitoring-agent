@@ -17,11 +17,15 @@ steps:
   image: golang:1.16
   commands:
   - make lint
+  depends_on:
+  - runner identification
 
 - name: test
   image: golang:1.16
   commands:
   - make test
+  depends_on:
+  - lint
 
 - name: build
   image: golang:1.16
@@ -32,12 +36,16 @@ steps:
   - ./scripts/version
   - "{ echo -n latest, ; ./scripts/version ; } > .tags"
   - make build
+  depends_on:
+  - test
 
 - name: docker build
   image: plugins/docker
   settings:
     dry_run: true
     repo: grafana/synthetic-monitoring-agent
+  depends_on:
+  - build
 
 - name: docker push to docker.com
   image: plugins/docker
@@ -50,26 +58,32 @@ steps:
   when:
     ref:
     - refs/tags/v*.*.*
+  depends_on:
+  - docker build
 
 - name: docker push to gcr.io (dev)
   image: plugins/docker
   settings:
     config:
       from_secret: docker_config_json
-    repo: grafana/synthetic-monitoring-agent
+    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
   when:
     ref:
     - refs/heads/main
+  depends_on:
+  - docker build
 
 - name: docker push to gcr.io (release)
   image: plugins/docker
   settings:
     config:
       from_secret: docker_config_json
-    repo: grafana/synthetic-monitoring-agent
+    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
   when:
     ref:
     - refs/tags/v*.*.*
+  depends_on:
+  - docker build
 
 - name: package
   image: golang:1.16
@@ -78,6 +92,8 @@ steps:
   when:
     event:
     - pull_request
+  depends_on:
+  - docker build
 
 - name: publish packages
   image: golang:1.16
@@ -95,6 +111,8 @@ steps:
   when:
     ref:
     - refs/tags/v*.*.*
+  depends_on:
+  - docker push to docker.com
 
 trigger:
   ref:
@@ -144,6 +162,6 @@ get:
 
 ---
 kind: signature
-hmac: dc364707b0ab0e61c72335f54e635f37be073113f2850a450059b8691877d824
+hmac: 864ff21cca015275d0bcb105081ba4029951c8754bd6112f48ee9e9f2b7bddba
 
 ...
