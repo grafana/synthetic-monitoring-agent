@@ -18,6 +18,10 @@ local pipeline(name, steps=[]) = {
   },
 };
 
+local dependsOn(steps=[]) = {
+  depends_on: steps,
+};
+
 local releaseOnly = {
   when: {
     ref+: [
@@ -40,7 +44,7 @@ local devOnly = {
 
 
 local docker_repo = 'grafana/synthetic-monitoring-agent';
-local gcrio_repo = 'grafana/synthetic-monitoring-agent';
+local gcrio_repo = 'us.gcr.io/kubernetes-dev/synthetic-monitoring-agent';
 
 local vault_secret(name, vault_path, key) = {
   kind: 'secret',
@@ -53,9 +57,11 @@ local vault_secret(name, vault_path, key) = {
 
 [
   pipeline('build', [
-    step('lint', ['make lint']),
+    step('lint', ['make lint'])
+    + dependsOn(['runner identification']),
 
-    step('test', ['make test']),
+    step('test', ['make test'])
+    + dependsOn(['lint']),
 
     step('build', [
       'git fetch origin --tags',
@@ -64,7 +70,8 @@ local vault_secret(name, vault_path, key) = {
       './scripts/version',
       '{ echo -n latest, ; ./scripts/version ; } > .tags',  // save version in special file for docker plugin
       'make build',
-    ]),
+    ])
+    + dependsOn(['test']),
 
     // We can't use 'make docker' without making this repo priveleged in drone
     // so we will use the native docker plugin instead for security.
@@ -74,7 +81,8 @@ local vault_secret(name, vault_path, key) = {
         repo: docker_repo,
         dry_run: 'true',
       },
-    },
+    }
+    + dependsOn(['build']),
 
     step('docker push to docker.com', [], 'plugins/docker')
     + {
@@ -84,6 +92,7 @@ local vault_secret(name, vault_path, key) = {
         password: { from_secret: 'docker_password' },
       },
     }
+    + dependsOn(['docker build'])
     + releaseOnly,
 
     step('docker push to gcr.io (dev)', [], 'plugins/docker')
@@ -93,6 +102,7 @@ local vault_secret(name, vault_path, key) = {
         config: {from_secret: 'docker_config_json'},
       },
     }
+    + dependsOn(['docker build'])
     + devOnly,
 
     step('docker push to gcr.io (release)', [], 'plugins/docker')
@@ -102,9 +112,11 @@ local vault_secret(name, vault_path, key) = {
         config: {from_secret: 'docker_config_json'},
       },
     }
+    + dependsOn(['docker build'])
     + releaseOnly,
 
     step('package', ['make package'])
+    + dependsOn(['docker build'])
     + prOnly,
 
     step('publish packages', [
@@ -120,6 +132,7 @@ local vault_secret(name, vault_path, key) = {
         PUBLISH_PROD_PKGS: '1',
       },
     }
+    + dependsOn(['docker push to docker.com'])
     + releaseOnly,
   ]),
 
