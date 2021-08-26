@@ -30,7 +30,17 @@ local prOnly = {
   when: { event: ['pull_request'] },
 };
 
-local repo = 'grafana/synthetic-monitoring-agent';
+local devOnly = {
+  when: {
+    ref+: [
+      'refs/heads/main',
+    ],
+  },
+};
+
+
+local docker_repo = 'grafana/synthetic-monitoring-agent';
+local gcrio_repo = 'grafana/synthetic-monitoring-agent';
 
 local vault_secret(name, vault_path, key) = {
   kind: 'secret',
@@ -61,17 +71,35 @@ local vault_secret(name, vault_path, key) = {
     step('docker build', [], 'plugins/docker')
     + {
       settings: {
-        repo: repo,
+        repo: docker_repo,
         dry_run: 'true',
       },
     },
 
-    step('docker push', [], 'plugins/docker')
+    step('docker push to docker.com', [], 'plugins/docker')
     + {
       settings: {
-        repo: repo,
+        repo: docker_repo,
         username: { from_secret: 'docker_username' },
         password: { from_secret: 'docker_password' },
+      },
+    }
+    + releaseOnly,
+
+    step('docker push to gcr.io (dev)', [], 'plugins/docker')
+    + {
+      settings: {
+        repo: gcrio_repo,
+        config: {from_secret: 'docker_config_json'},
+      },
+    }
+    + devOnly,
+
+    step('docker push to gcr.io (release)', [], 'plugins/docker')
+    + {
+      settings: {
+        repo: gcrio_repo,
+        config: {from_secret: 'docker_config_json'},
       },
     }
     + releaseOnly,
@@ -99,4 +127,5 @@ local vault_secret(name, vault_path, key) = {
   vault_secret('docker_password', 'infra/data/ci/docker_hub', 'password'),
   vault_secret('gcs_key', 'infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'key'),
   vault_secret('gpg_priv_key', 'infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'gpg_priv_key'),
+  vault_secret('docker_config_json', 'infra/data/ci/gcr-admin', '.dockerconfigjson'),
 ]
