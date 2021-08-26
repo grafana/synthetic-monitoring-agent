@@ -39,7 +39,7 @@ steps:
     dry_run: true
     repo: grafana/synthetic-monitoring-agent
 
-- name: docker push
+- name: docker push to docker.com
   image: plugins/docker
   settings:
     password:
@@ -47,6 +47,26 @@ steps:
     repo: grafana/synthetic-monitoring-agent
     username:
       from_secret: docker_username
+  when:
+    ref:
+    - refs/tags/v*.*.*
+
+- name: docker push to gcr.io (dev)
+  image: plugins/docker
+  settings:
+    config:
+      from_secret: docker_config_json
+    repo: grafana/synthetic-monitoring-agent
+  when:
+    ref:
+    - refs/heads/main
+
+- name: docker push to gcr.io (release)
+  image: plugins/docker
+  settings:
+    config:
+      from_secret: docker_config_json
+    repo: grafana/synthetic-monitoring-agent
   when:
     ref:
     - refs/tags/v*.*.*
@@ -115,7 +135,15 @@ get:
   name: gpg_priv_key
 
 ---
+kind: secret
+name: docker_config_json
+
+get:
+  path: infra/data/ci/gcr-admin
+  name: .dockerconfigjson
+
+---
 kind: signature
-hmac: e57776d44d6aab3430663bd6a06c38312dac5621fc8d2b07325843fe5b597d84
+hmac: dc364707b0ab0e61c72335f54e635f37be073113f2850a450059b8691877d824
 
 ...
