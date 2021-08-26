@@ -545,13 +545,14 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 	// If we need to accept checks based on whether a feature flag
 	// is enabled or not, we can "accept" the check from the point
 	// of view of the API, and skip running it here, e.g.
-	//
-	// if !c.features.IsSet(features.NEW_CHECK_TYPE) {
-	// 	return nil
-	// }
 
-	if !c.features.IsSet(feature.Traceroute) {
-		return nil
+	switch check.Type() {
+	case sm.CheckTypeTraceroute:
+		if !c.features.IsSet(feature.Traceroute) {
+			return nil
+		}
+
+	default:
 	}
 
 	scrapeCounter := c.metrics.scrapesCounter.With(prometheus.Labels{
