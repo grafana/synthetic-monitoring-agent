@@ -3,13 +3,13 @@ module github.com/grafana/synthetic-monitoring-agent
 go 1.17
 
 require (
+	github.com/OneOfOne/xxhash v1.2.6 // indirect
 	github.com/go-kit/kit v0.11.0
 	github.com/go-logfmt/logfmt v0.5.1
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/snappy v0.0.4
 	github.com/google/uuid v1.3.0
-	github.com/grafana/loki v1.6.1
 	github.com/miekg/dns v1.1.43
 	github.com/mmcloughlin/geohash v0.10.0
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
@@ -28,6 +28,7 @@ require (
 	// at, you get a different error (see below).
 	github.com/prometheus/prometheus v1.8.2-0.20200727090838-6f296594a852
 	github.com/rs/zerolog v1.24.0
+	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.7.0
 	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
