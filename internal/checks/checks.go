@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/grafana/loki/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
