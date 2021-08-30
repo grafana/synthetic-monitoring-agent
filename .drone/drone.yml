@@ -14,21 +14,21 @@ steps:
   - echo $DRONE_RUNNER_NAME
 
 - name: lint
-  image: golang:1.16
+  image: golang:1.17
   commands:
   - make lint
   depends_on:
   - runner identification
 
 - name: test
-  image: golang:1.16
+  image: golang:1.17
   commands:
   - make test
   depends_on:
   - lint
 
 - name: build
-  image: golang:1.16
+  image: golang:1.17
   commands:
   - git fetch origin --tags
   - git status --porcelain --untracked-files=no
@@ -86,7 +86,7 @@ steps:
   - docker build
 
 - name: package
-  image: golang:1.16
+  image: golang:1.17
   commands:
   - make package
   when:
@@ -96,7 +96,7 @@ steps:
   - docker build
 
 - name: publish packages
-  image: golang:1.16
+  image: golang:1.17
   commands:
   - export GCS_KEY_DIR=$(pwd)/keys
   - mkdir -p $GCS_KEY_DIR
@@ -162,6 +162,6 @@ get:
 
 ---
 kind: signature
-hmac: 864ff21cca015275d0bcb105081ba4029951c8754bd6112f48ee9e9f2b7bddba
+hmac: 847abef473a26a1f38c0a2751c26854b3733cbda44071bcb308dce230c9fcc94
 
 ...

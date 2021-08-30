@@ -8,7 +8,7 @@
 #    for a service account that can write to GCS buckets. This can be 
 #    pulled from vault at secret/data/synthetic-monitoring/gcp-sm-publish-grafanalabs-global
 #
-FROM cimg/go:1.16
+FROM cimg/go:1.17
 USER root
 
 # Setup required packages
