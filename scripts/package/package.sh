@@ -17,7 +17,7 @@ $SUDO apt-get update
 # Install fpm if needed
 if [ ! -x "$(which fpm)" ]; then
 	$SUDO apt-get install -y ruby ruby-dev rubygems build-essential
-	$SUDO gem install --no-document fpm -v 1.11.0
+	$SUDO gem install --no-document fpm -v 1.13.1
 fi
 
 BUILD_OUTPUT="${CODE_DIR}/dist"
