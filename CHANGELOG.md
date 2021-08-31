@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.1.4"></a>
+## [v0.1.4] - 2021-08-31
+### Fix
+- update fpm to 1.13.1
+
+
 <a name="v0.1.3"></a>
 ## [v0.1.3] - 2021-08-30
 
@@ -169,7 +175,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.4...HEAD
+[v0.1.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.3...v0.1.4
 [v0.1.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.1...v0.1.2
 [v0.1.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.0...v0.1.1
