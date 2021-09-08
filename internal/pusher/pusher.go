@@ -248,8 +248,7 @@ func (p *Publisher) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 	p.clientsMutex.Lock()
 	p.clients[tenant.Id] = clients
 	p.clientsMutex.Unlock()
-
-	p.logger.Debug().Int64("tenantId", tenant.Id).Interface("tenant", tenant).Msg("updated client")
+	p.logger.Debug().Int64("tenantId", tenant.Id).Int64("stackId", tenant.StackId).Msg("updated client")
 
 	return clients, nil
 }
