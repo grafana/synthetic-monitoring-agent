@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.1.5"></a>
+## [v0.1.5] - 2021-09-14
+### Fix
+- remove direct dependency on github.com/grafana/loki
+
+
 <a name="v0.1.4"></a>
 ## [v0.1.4] - 2021-08-31
 ### Fix
@@ -175,7 +181,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.5...HEAD
+[v0.1.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.4...v0.1.5
 [v0.1.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.3...v0.1.4
 [v0.1.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.2...v0.1.3
 [v0.1.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.1...v0.1.2
