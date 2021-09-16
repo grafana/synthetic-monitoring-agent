@@ -48,12 +48,13 @@ type apiInfo struct {
 }
 
 type metrics struct {
-	changesCounter      *prometheus.CounterVec
 	changeErrorsCounter *prometheus.CounterVec
-	runningScrapers     *prometheus.GaugeVec
-	scrapesCounter      *prometheus.CounterVec
-	scrapeErrorCounter  *prometheus.CounterVec
+	changesCounter      *prometheus.CounterVec
+	connectionStatus    prometheus.Gauge
 	probeInfo           *prometheus.GaugeVec
+	runningScrapers     *prometheus.GaugeVec
+	scrapeErrorCounter  *prometheus.CounterVec
+	scrapesCounter      *prometheus.CounterVec
 }
 
 type TimeSeries = []prompb.TimeSeries
@@ -137,6 +138,19 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		return nil, err
 	}
 
+	connectionStatusGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "sm_agent",
+		Subsystem: "api_connection",
+		Name:      "status",
+		Help:      "API connection status.",
+	})
+
+	if err := opts.PromRegisterer.Register(connectionStatusGauge); err != nil {
+		return nil, err
+	}
+
+	connectionStatusGauge.Set(0)
+
 	probeInfoGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "sm_agent",
 		Name:      "info",
@@ -163,12 +177,13 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantCh:  opts.TenantCh,
 		scrapers:  make(map[int64]*scraper.Scraper),
 		metrics: metrics{
-			changesCounter:      changesCounter,
 			changeErrorsCounter: changeErrorsCounter,
-			runningScrapers:     runningScrapers,
-			scrapesCounter:      scrapesCounter,
-			scrapeErrorCounter:  scrapeErrorCounter,
+			changesCounter:      changesCounter,
+			connectionStatus:    connectionStatusGauge,
 			probeInfo:           probeInfoGauge,
+			runningScrapers:     runningScrapers,
+			scrapeErrorCounter:  scrapeErrorCounter,
+			scrapesCounter:      scrapesCounter,
 		},
 	}, nil
 }
@@ -266,6 +281,9 @@ func (c *Updater) loop(ctx context.Context) error {
 	c.probe = &result.Probe
 
 	c.logger.Info().Int64("probe id", c.probe.Id).Str("probe name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
+
+	c.metrics.connectionStatus.Set(1)
+	defer c.metrics.connectionStatus.Set(0)
 
 	// this is constant throughout the life of the probe, but since
 	// we don't know the probe's id or name until this point, set it
