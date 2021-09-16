@@ -84,3 +84,18 @@ Now you should have the agent reporting as private probe, and running checks (if
 
 #### Deploy it using Kubernetes
 See [examples/kubernetes](./examples/kubernetes) for the documentation and example yaml files
+
+Signals
+-------
+
+The agent traps the following signals:
+
+* SIGTERM: The agent tries to clean up and shut down in an orderly
+  manner.
+* SIGUSR1: The agent disconnects from the API but keeps running checks.
+  After 1 minute elapses, the agent will try to reconnect to the API and
+  keep trying until it succeeds or it's killed. One possible use case is
+  upgrading a running agent with a newer version: after SIGUSR1 is sent,
+  the agent disconnects, allowing another agent to connect in its place.
+  If the new agent fails to connect, the old agent will reconnect and
+  take it from there.
