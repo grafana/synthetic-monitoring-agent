@@ -5,8 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"os/signal"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
@@ -24,8 +28,9 @@ import (
 )
 
 var (
-	errNotAuthorized    = errors.New("probe not authorized")
-	errTransportClosing = errors.New("transport closing")
+	errNotAuthorized     = errors.New("probe not authorized")
+	errTransportClosing  = errors.New("transport closing")
+	errProbeUnregistered = errors.New("probe no longer registered")
 )
 
 // Updater represents a probe along with the collection of scrapers
@@ -219,16 +224,29 @@ func (c *Updater) Run(ctx context.Context) error {
 				Msg("context cancelled, closing updater")
 			return nil
 
+		case errors.Is(err, errProbeUnregistered):
+			// Probe unregistered itself from the API, wait
+			// until attempting to reconnect again.
+			c.logger.Warn().
+				Str("connection_state", c.api.conn.GetState().String()).
+				Msg("unregistered probe in API, sleeping for 1 minute...")
+
+			if err := sleepCtx(ctx, 1*time.Minute); err != nil {
+				return err
+			}
+
 		default:
 			c.logger.Warn().
 				Err(err).
 				Str("connection_state", c.api.conn.GetState().String()).
 				Msg("handling check changes")
+
 			// TODO(mem): this might be a transient error (e.g. bad connection). We probably need to
 			// fine-tune GRPPC's backoff parameters. We might also need to keep count of the reconnects, and
 			// give up if they hit some threshold?
-			time.Sleep(2 * time.Second)
-			continue
+			if err := sleepCtx(ctx, 2*time.Second); err != nil {
+				return err
+			}
 		}
 	}
 }
@@ -240,7 +258,7 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	grpcErrorHandler := func(action string, err error) error {
 		status, ok := status.FromError(err)
-		c.logger.Error().Err(err).Uint32("code", uint32(status.Code())).Msg(status.Message())
+		c.logger.Error().Err(err).Str("action", action).Uint32("code", uint32(status.Code())).Msg(status.Message())
 
 		switch {
 		case !ok:
@@ -297,16 +315,77 @@ func (c *Updater) loop(ctx context.Context) error {
 		"buildstamp": version.Buildstamp(),
 	}).Set(1)
 
-	cc, err := client.GetChanges(ctx, &sm.Void{})
-	if err != nil {
-		return grpcErrorHandler("requesting changes from synthetic-monitoring-api", err)
+	// Create a child context so that we can communicate to the
+	// signal handler that we are done.
+	sigCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// We get _another_ context from the signal handler that we can
+	// use tell the GRPC client that we need to break out. We have
+	// multiple ways of cancelling the context (another signal
+	// elsewhere in the system communicated through the parent
+	// context; cancelling the child context because we are
+	// returning from this function; cancelling the new context
+	// because the signal fired), so we need an additional way of
+	// telling them apart.
+	sigCtx, signalFired := installSignalHandler(sigCtx)
+
+	action := "requesting changes from synthetic-monitoring-api"
+	cc, err := client.GetChanges(sigCtx, &sm.Void{})
+	if err == nil {
+		action = "getting changes from synthetic-monitoring-api"
+		// processChanges uses the context in its first
+		// argument to create scrapers. This means that
+		// cancelling that context cancels all the running
+		// scrapers. That's why we are passing the _original_
+		// context, not sigCtx, so that scrapers are _not_
+		// stopped if the signal is trapped. We want scrapers to
+		// continue running in case the agent is _not_ killed.
+		err = c.processChanges(ctx, cc)
 	}
 
-	if err := c.processChanges(ctx, cc); err != nil {
-		return grpcErrorHandler("getting changes from synthetic-monitoring-api", err)
+	if err != nil {
+		if atomic.LoadInt32(signalFired) == 1 {
+			return errProbeUnregistered
+		}
+
+		return grpcErrorHandler(action, err)
 	}
 
 	return nil
+}
+
+// installSignalHandler installs a signal handler for SIGUSR1.
+//
+// The returned context's Done channel is closed if the signal is
+// delivered. To make it simpler to determine if the signal was
+// delivered, a value of 1 is written to the location pointed to by the
+// returned int32 pointer.
+//
+// If the provided context's Done channel is closed before the signal is
+// delivered, the signal handler is removed and the returned context's
+// Done channel is closed, too. It's the callers responsibility to
+// cancel the provided context if it's no longer interested in the
+// signal.
+func installSignalHandler(ctx context.Context) (context.Context, *int32) {
+	sigCtx, cancel := context.WithCancel(ctx)
+
+	fired := new(int32)
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGUSR1)
+
+	go func() {
+		select {
+		case <-sigCh:
+			atomic.StoreInt32(fired, 1)
+			cancel()
+		case <-ctx.Done():
+		}
+		signal.Stop(sigCh)
+	}()
+
+	return sigCtx, fired
 }
 
 func (c *Updater) processChanges(ctx context.Context, cc sm.Checks_GetChangesClient) error {
@@ -316,6 +395,9 @@ func (c *Updater) processChanges(ctx context.Context, cc sm.Checks_GetChangesCli
 		select {
 		case <-cc.Context().Done():
 			return nil
+
+		case <-ctx.Done():
+			return ctx.Err()
 
 		default:
 			switch msg, err := cc.Recv(); err {
@@ -472,6 +554,10 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 			continue
 		}
 
+		c.logger.Debug().
+			Int64("check_id", id).
+			Msg("stopping scraper during first batch handling")
+
 		checkType := scraper.CheckType().String()
 		scraper.Stop()
 
@@ -598,4 +684,25 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 	c.metrics.runningScrapers.WithLabelValues(scraper.CheckType().String()).Inc()
 
 	return nil
+}
+
+// sleepCtx is like time.Sleep, but it pays attention to the
+// cancellation of the provided context.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	var err error
+
+	timer := time.NewTimer(d)
+
+	select {
+	case <-ctx.Done():
+		err = ctx.Err()
+
+		if !timer.Stop() {
+			<-timer.C
+		}
+
+	case <-timer.C:
+	}
+
+	return err
 }
