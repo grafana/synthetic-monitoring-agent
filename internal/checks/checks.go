@@ -37,15 +37,16 @@ var (
 // running on that probe and it manages the configuration for
 // blackbox-exporter that corresponds to the collection of scrapers.
 type Updater struct {
-	api           apiInfo
-	logger        zerolog.Logger
-	features      feature.Collection
-	publishCh     chan<- pusher.Payload
-	tenantCh      chan<- sm.Tenant
-	probe         *sm.Probe
-	scrapersMutex sync.Mutex
-	scrapers      map[int64]*scraper.Scraper
-	metrics       metrics
+	api            apiInfo
+	logger         zerolog.Logger
+	features       feature.Collection
+	publishCh      chan<- pusher.Payload
+	tenantCh       chan<- sm.Tenant
+	probe          *sm.Probe
+	scrapersMutex  sync.Mutex
+	scrapers       map[int64]*scraper.Scraper
+	metrics        metrics
+	scraperFactory func(context.Context, sm.Check, chan<- pusher.Payload, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec) (*scraper.Scraper, error)
 }
 
 type apiInfo struct {
@@ -72,6 +73,7 @@ type UpdaterOptions struct {
 	TenantCh       chan<- sm.Tenant
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
+	ScraperFactory func(context.Context, sm.Check, chan<- pusher.Payload, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec) (*scraper.Scraper, error)
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -172,15 +174,21 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		return nil, err
 	}
 
+	scraperFactory := scraper.New
+	if opts.ScraperFactory != nil {
+		scraperFactory = opts.ScraperFactory
+	}
+
 	return &Updater{
 		api: apiInfo{
 			conn: opts.Conn,
 		},
-		logger:    opts.Logger,
-		features:  opts.Features,
-		publishCh: opts.PublishCh,
-		tenantCh:  opts.TenantCh,
-		scrapers:  make(map[int64]*scraper.Scraper),
+		logger:         opts.Logger,
+		features:       opts.Features,
+		publishCh:      opts.PublishCh,
+		tenantCh:       opts.TenantCh,
+		scrapers:       make(map[int64]*scraper.Scraper),
+		scraperFactory: scraperFactory,
 		metrics: metrics{
 			changeErrorsCounter: changeErrorsCounter,
 			changesCounter:      changesCounter,
@@ -484,7 +492,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check sm.Check) error {
 	scraper, found := c.scrapers[check.Id]
 	if !found {
 		c.logger.Warn().Int64("check_id", check.Id).Msg("delete request for an unknown check")
-		return nil
+		return errors.New("check not found")
 	}
 
 	scraper.Stop()
@@ -672,7 +680,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 		return err
 	}
 
-	scraper, err := scraper.New(ctx, check, c.publishCh, *c.probe, c.logger, scrapeCounter, scrapeErrorCounter)
+	scraper, err := c.scraperFactory(ctx, check, c.publishCh, *c.probe, c.logger, scrapeCounter, scrapeErrorCounter)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}
