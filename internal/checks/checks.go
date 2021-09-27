@@ -118,10 +118,9 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		Namespace: "sm_agent",
 		Subsystem: "scraper",
 		Name:      "operations_total",
-		Help:      "Total number of scrape operations performed.",
+		Help:      "Total number of scrape operations performed by type.",
 	}, []string{
-		"check_id",
-		"probe",
+		"type",
 	})
 
 	if err := opts.PromRegisterer.Register(scrapesCounter); err != nil {
@@ -132,11 +131,10 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		Namespace: "sm_agent",
 		Subsystem: "scraper",
 		Name:      "errors_total",
-		Help:      "Total number of scraper errors.",
+		Help:      "Total number of scraper errors by type and status.",
 	}, []string{
-		"check_id",
-		"probe",
 		"type",
+		"source",
 	})
 
 	if err := opts.PromRegisterer.Register(scrapeErrorCounter); err != nil {
@@ -659,14 +657,12 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 	default:
 	}
 
-	scrapeCounter := c.metrics.scrapesCounter.With(prometheus.Labels{
-		"check_id": strconv.FormatInt(check.Id, 10),
-		"probe":    c.probe.Name,
-	})
+	checkType := check.Type().String()
+
+	scrapeCounter := c.metrics.scrapesCounter.WithLabelValues(checkType)
 
 	scrapeErrorCounter, err := c.metrics.scrapeErrorCounter.CurryWith(prometheus.Labels{
-		"check_id": strconv.FormatInt(check.Id, 10),
-		"probe":    c.probe.Name,
+		"type": checkType,
 	})
 	if err != nil {
 		return err
@@ -681,7 +677,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 
 	go scraper.Run(ctx)
 
-	c.metrics.runningScrapers.WithLabelValues(scraper.CheckType().String()).Inc()
+	c.metrics.runningScrapers.WithLabelValues(checkType).Inc()
 
 	return nil
 }
