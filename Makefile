@@ -64,7 +64,7 @@ else
 	$(GO) mod download
 endif
 	$(GO) mod verify
-	$(GO) mod tidy
+	$(GO) mod tidy -compat=1.17
 
 .PHONY: deps
 deps: deps-go ## Install all dependencies.
