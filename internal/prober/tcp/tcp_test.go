@@ -11,6 +11,61 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestName(t *testing.T) {
+	name := Prober.Name(Prober{})
+	require.Equal(t, name, "tcp")
+}
+
+func TestNewProber(t *testing.T) {
+	testcases := map[string]struct {
+		input    sm.Check
+		expected Prober
+	}{
+		"default": {
+			input: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Tcp: &sm.TcpSettings{},
+				},
+			},
+			expected: Prober{
+				config: config.Module{
+					Prober:  "tcp",
+					Timeout: 0,
+					TCP: config.TCPProbe{
+						IPProtocol:         "ip6",
+						IPProtocolFallback: true,
+						QueryResponse:      []config.QueryResponse{},
+					},
+				},
+			},
+		},
+		"no-settings": {
+			input: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Tcp: nil,
+				},
+			},
+			expected: Prober{},
+		},
+	}
+
+	for name, testcase := range testcases {
+		ctx := context.TODO()
+		logger := zerolog.New(io.Discard)
+		t.Run(name, func(t *testing.T) {
+			actual, err := NewProber(ctx, testcase.input, logger)
+			require.Equal(t, &testcase.expected, &actual)
+			if name == "no-settings" {
+				require.NotNil(t, err)
+			} else {
+				require.Nil(t, err)
+			}
+		})
+	}
+}
+
 func TestSettingsToModule(t *testing.T) {
 	testcases := map[string]struct {
 		input    sm.TcpSettings

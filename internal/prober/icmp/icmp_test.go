@@ -8,6 +8,58 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestName(t *testing.T) {
+	name := Prober.Name(Prober{})
+	require.Equal(t, name, "ping")
+}
+
+func TestNewProber(t *testing.T) {
+	testcases := map[string]struct {
+		input    sm.Check
+		expected Prober
+	}{
+		"default": {
+			input: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Ping: &sm.PingSettings{},
+				},
+			},
+			expected: Prober{
+				config: config.Module{
+					Prober:  "ping",
+					Timeout: 0,
+					ICMP: config.ICMPProbe{
+						IPProtocol:         "ip6",
+						IPProtocolFallback: true,
+					},
+				},
+			},
+		},
+		"no-settings": {
+			input: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Http: nil,
+				},
+			},
+			expected: Prober{},
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual, err := NewProber(testcase.input)
+			require.Equal(t, &testcase.expected, &actual)
+			if name == "no-settings" {
+				require.NotNil(t, err)
+			} else {
+				require.Nil(t, err)
+			}
+		})
+	}
+}
+
 func TestSettingsToModule(t *testing.T) {
 	testcases := map[string]struct {
 		input    sm.PingSettings

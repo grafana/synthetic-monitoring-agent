@@ -13,6 +13,73 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestName(t *testing.T) {
+	name := Prober.Name(Prober{})
+	require.Equal(t, name, "http")
+}
+
+func TestNewProber(t *testing.T) {
+	testcases := map[string]struct {
+		input    sm.Check
+		expected Prober
+	}{
+		"default": {
+			input: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Http: &sm.HttpSettings{},
+				},
+			},
+			expected: Prober{
+				config: config.Module{
+					Prober:  "http",
+					Timeout: 0,
+					HTTP: config.HTTPProbe{
+						ValidStatusCodes:   []int{},
+						ValidHTTPVersions:  []string{},
+						IPProtocol:         "ip6",
+						IPProtocolFallback: true,
+						Method:             "GET",
+						Headers: map[string]string{
+							"user-agent": version.UserAgent(),
+						},
+						FailIfBodyMatchesRegexp:      []config.Regexp{},
+						FailIfBodyNotMatchesRegexp:   []config.Regexp{},
+						FailIfHeaderMatchesRegexp:    []config.HeaderMatch{},
+						FailIfHeaderNotMatchesRegexp: []config.HeaderMatch{},
+						HTTPClientConfig: httpConfig.HTTPClientConfig{
+							FollowRedirects: true,
+						},
+					},
+				},
+			},
+		},
+		"no-settings": {
+			input: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Http: nil,
+				},
+			},
+			expected: Prober{},
+		},
+	}
+
+	for name, testcase := range testcases {
+		ctx := context.TODO()
+		logger := zerolog.New(io.Discard)
+		t.Run(name, func(t *testing.T) {
+			actual, err := NewProber(ctx, testcase.input, logger)
+			require.Equal(t, &testcase.expected, &actual)
+			if name == "no-settings" {
+				require.NotNil(t, err)
+			} else {
+				require.Nil(t, err)
+			}
+		})
+	}
+}
+
 func TestBuildHeaders(t *testing.T) {
 	testcases := map[string]struct {
 		input    []string
@@ -198,4 +265,13 @@ func TestSettingsToModule(t *testing.T) {
 			require.Equal(t, &testcase.expected, &actual)
 		})
 	}
+}
+
+func TestAddCacheBustParam(t *testing.T) {
+	target := "www.grafana.com"
+	paramName := "test"
+	salt := "12345"
+
+	newUrl := addCacheBustParam(target, paramName, salt)
+	require.NotEqual(t, target, newUrl)
 }
