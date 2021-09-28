@@ -64,6 +64,8 @@ var (
 	ErrInvalidHttpMethodValue  = errors.New("invalid HTTP method value")
 	ErrInvalidHttpHeaders      = errors.New("invalid HTTP headers")
 
+	ErrInvalidTracerouteHostname = errors.New("invalid traceroute hostname")
+
 	ErrInvalidHostname = errors.New("invalid hostname")
 	ErrInvalidPort     = errors.New("invalid port")
 
@@ -167,68 +169,12 @@ func (c *Check) Validate() error {
 		return err
 	}
 
-	settingsCount := 0
-
-	if c.Settings.Ping != nil {
-		settingsCount++
+	if err := c.validateTarget(); err != nil {
+		return err
 	}
 
-	if c.Settings.Http != nil {
-		settingsCount++
-	}
-
-	if c.Settings.Dns != nil {
-		settingsCount++
-	}
-
-	if c.Settings.Tcp != nil {
-		settingsCount++
-	}
-
-	if c.Settings.Traceroute != nil {
-		settingsCount++
-	}
-
-	if settingsCount != 1 {
-		return ErrInvalidCheckSettings
-	}
-
-	switch c.Type() {
-	case CheckTypePing:
-		if err := validateHost(c.Target); err != nil {
-			return ErrInvalidPingHostname
-		}
-
-		if err := c.Settings.Ping.Validate(); err != nil {
-			return err
-		}
-
-	case CheckTypeHttp:
-		if err := validateHttpUrl(c.Target); err != nil {
-			return err
-		}
-
-		if err := c.Settings.Http.Validate(); err != nil {
-			return err
-		}
-
-	case CheckTypeDns:
-		if err := validateDnsTarget(c.Target); err != nil {
-			return ErrInvalidDnsName
-		}
-
-		if err := c.Settings.Dns.Validate(); err != nil {
-			return err
-		}
-
-	case CheckTypeTcp:
-		if err := validateHostPort(c.Target); err != nil {
-			return err
-		}
-
-		if err := c.Settings.Tcp.Validate(); err != nil {
-			return err
-		}
+	if err := c.Settings.Validate(); err != nil {
+		return err
 	}
 
 	return nil
@@ -309,8 +255,75 @@ func (c Check) Type() CheckType {
 	}
 }
 
+func (c Check) validateTarget() error {
+	switch c.Type() {
+	case CheckTypeDns:
+		if err := validateDnsTarget(c.Target); err != nil {
+			return ErrInvalidDnsName
+		}
+
+	case CheckTypeHttp:
+		return validateHttpUrl(c.Target)
+
+	case CheckTypePing:
+		if err := validateHost(c.Target); err != nil {
+			return ErrInvalidPingHostname
+		}
+
+	case CheckTypeTcp:
+		return validateHostPort(c.Target)
+
+	case CheckTypeTraceroute:
+		if err := validateHost(c.Target); err != nil {
+			return ErrInvalidTracerouteHostname
+		}
+
+	default:
+		panic("unhandled check type")
+	}
+
+	return nil
+}
+
 func (c *Check) ConfigVersion() string {
 	return strconv.FormatInt(int64(c.Modified*1000000000), 10)
+}
+
+func (s CheckSettings) Validate() error {
+	var validateFn func() error
+
+	settingsCount := 0
+
+	if s.Ping != nil {
+		settingsCount++
+		validateFn = s.Ping.Validate
+	}
+
+	if s.Http != nil {
+		settingsCount++
+		validateFn = s.Http.Validate
+	}
+
+	if s.Dns != nil {
+		settingsCount++
+		validateFn = s.Dns.Validate
+	}
+
+	if s.Tcp != nil {
+		settingsCount++
+		validateFn = s.Tcp.Validate
+	}
+
+	if s.Traceroute != nil {
+		settingsCount++
+		validateFn = s.Traceroute.Validate
+	}
+
+	if settingsCount != 1 {
+		return ErrInvalidCheckSettings
+	}
+
+	return validateFn()
 }
 
 func (s *PingSettings) Validate() error {

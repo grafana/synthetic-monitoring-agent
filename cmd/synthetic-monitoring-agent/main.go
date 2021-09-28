@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -152,7 +151,7 @@ func run(args []string, stdout io.Writer) error {
 		Features:       features,
 	})
 	if err != nil {
-		log.Fatalf("Cannot create checks updater: %s", err)
+		return fmt.Errorf("Cannot create checks updater: %w", err)
 	}
 
 	g.Go(func() error {

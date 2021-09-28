@@ -215,6 +215,19 @@ func TestCheckType(t *testing.T) {
 			},
 			expected: CheckTypeTcp,
 		},
+		"traceroute": {
+			input: Check{
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 120000,
+				Timeout:   30000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Traceroute: &TracerouteSettings{},
+				},
+			},
+			expected: CheckTypeTraceroute,
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -253,6 +266,10 @@ func TestCheckTypeString(t *testing.T) {
 		"tcp": {
 			input:    CheckTypeTcp,
 			expected: "tcp",
+		},
+		"traceroute": {
+			input:    CheckTypeTraceroute,
+			expected: "traceroute",
 		},
 	}
 
