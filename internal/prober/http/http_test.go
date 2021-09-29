@@ -70,7 +70,7 @@ func TestNewProber(t *testing.T) {
 	}
 
 	for name, testcase := range testcases {
-		ctx := context.TODO()
+		ctx := context.Background()
 		logger := zerolog.New(io.Discard)
 		t.Run(name, func(t *testing.T) {
 			actual, err := NewProber(ctx, testcase.input, logger)
