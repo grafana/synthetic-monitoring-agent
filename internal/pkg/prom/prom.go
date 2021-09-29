@@ -52,6 +52,16 @@ func IsHttpUnauthorized(err error) bool {
 	return false
 }
 
+func GetHttpStatusCode(err error) (int, bool) {
+	var httpErr httpError
+
+	if errors.As(err, &httpErr) {
+		return httpErr.StatusCode, true
+	}
+
+	return 0, false
+}
+
 func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte) error {
 	clampBackoff := func(a time.Duration) time.Duration {
 		if a > maxBackoff {

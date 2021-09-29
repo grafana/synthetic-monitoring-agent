@@ -3,6 +3,7 @@ package pusher
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
 	"sync"
@@ -68,7 +69,7 @@ func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Lo
 			Name:      "push_errors_total",
 			Help:      "Total number of push errors.",
 		},
-		[]string{"type", "tenantID"})
+		[]string{"type", "tenantID", "status"})
 
 	promRegisterer.MustRegister(errorCounter)
 
@@ -123,9 +124,10 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 
 		if len(payload.Streams()) > 0 {
 			if n, err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
+				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Msg("publish events")
-				p.errorCounter.WithLabelValues("logs", tenantStr).Inc()
-				if prom.IsHttpUnauthorized(err) {
+				p.errorCounter.WithLabelValues("logs", tenantStr, strconv.Itoa(httpStatusCode)).Inc()
+				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
 					newClient = true
 					continue
@@ -138,9 +140,10 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 
 		if len(payload.Metrics()) > 0 {
 			if n, err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
+				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Msg("publish metrics")
-				p.errorCounter.WithLabelValues("metrics", tenantStr).Inc()
-				if prom.IsHttpUnauthorized(err) {
+				p.errorCounter.WithLabelValues("metrics", tenantStr, strconv.Itoa(httpStatusCode)).Inc()
+				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
 					newClient = true
 					continue
