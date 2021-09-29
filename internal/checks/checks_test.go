@@ -8,9 +8,13 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -140,4 +144,146 @@ func TestSleepCtx(t *testing.T) {
 	err = sleepCtx(ctx, long)
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+// TestHandleCheckOp is testing internal functions that run as part of
+// updater.Run. Since these functions operate on scraper instances, a
+// test scraper is used, which in turn creates a test probe. The goal of
+// this is to decouple the testing of these functions from the testing
+// of the prober themselves.
+func TestHandleCheckOp(t *testing.T) {
+	publishCh := make(chan<- pusher.Payload, 100)
+
+	u, err := NewUpdater(
+		UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			PublishCh:      publishCh,
+			TenantCh:       make(chan<- sm.Tenant),
+			Logger:         zerolog.Nop(),
+			ScraperFactory: testScraperFactory,
+		},
+	)
+
+	require.NotNil(t, u)
+	require.NoError(t, err)
+
+	u.probe = &sm.Probe{
+		Id:   100,
+		Name: "test-probe",
+	}
+
+	deadline, ok := t.Deadline()
+	if !ok {
+		deadline = time.Now().Add(2 * time.Second)
+	}
+
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+
+	check := sm.Check{
+		Id:        5000,
+		Frequency: 1000,
+		Timeout:   1000,
+		Target:    "127.0.0.1",
+		Job:       "", // not setting value to make check invalid
+		Probes:    []int64{1},
+		Settings: sm.CheckSettings{
+			Ping: &sm.PingSettings{},
+		},
+		Created:  0,
+		Modified: 0,
+	}
+
+	scraperExists := func() bool {
+		u.scrapersMutex.Lock()
+		defer u.scrapersMutex.Unlock()
+		_, found := u.scrapers[check.Id]
+		return found
+	}
+
+	// this should fail, check is invalid
+	err = u.handleCheckAdd(ctx, check)
+	require.Error(t, err)
+	// This doesn't work because the counter hasn't been set
+	// (because of the error):
+	// require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
+	require.False(t, scraperExists())
+
+	// fix check
+	check.Job = "test-job"
+	check.Modified++
+
+	err = u.handleCheckAdd(ctx, check)
+	require.NoError(t, err)
+	require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+	require.True(t, scraperExists())
+
+	check.Modified++
+
+	// try to add again, this should fail, even if modified changed
+	err = u.handleCheckAdd(ctx, check)
+	require.Error(t, err)
+	require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+	require.True(t, scraperExists())
+
+	check.Modified++
+
+	// update the existing check
+	err = u.handleCheckUpdate(ctx, check)
+	require.NoError(t, err)
+	require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+	require.True(t, scraperExists())
+
+	err = u.handleCheckDelete(ctx, check)
+	require.NoError(t, err)
+	require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
+	require.False(t, scraperExists())
+
+	// try to delete again
+	err = u.handleCheckDelete(ctx, check)
+	require.Error(t, err)
+	require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
+	require.False(t, scraperExists())
+
+	// updating a non-existing check becomes an add
+	err = u.handleCheckUpdate(ctx, check)
+	require.NoError(t, err)
+	require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+	require.True(t, scraperExists())
+
+	// clean up
+	err = u.handleCheckDelete(ctx, check)
+	require.NoError(t, err)
+	require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
+	require.False(t, scraperExists())
+}
+
+type testProber struct {
+}
+
+func (testProber) Name() string {
+	return "test-prober"
+}
+
+func (testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+	return false
+}
+
+func testProbeFactory(ctx context.Context, logger zerolog.Logger, check sm.Check) (prober.Prober, string, error) {
+	return testProber{}, check.Target, nil
+}
+
+func testScraperFactory(ctx context.Context, check sm.Check, payloadCh chan<- pusher.Payload, _ sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, scrapeErrorCounter *prometheus.CounterVec) (*scraper.Scraper, error) {
+	return scraper.NewWithOpts(
+		ctx,
+		check,
+		scraper.ScraperOpts{
+			ErrorCounter:  scrapeErrorCounter,
+			Logger:        logger,
+			ProbeFactory:  testProbeFactory,
+			PublishCh:     payloadCh,
+			ScrapeCounter: scrapeCounter,
+		},
+	)
 }

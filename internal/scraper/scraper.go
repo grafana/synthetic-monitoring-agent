@@ -69,34 +69,55 @@ func (d *probeData) Tenant() int64 {
 }
 
 func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, probe sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec) (*Scraper, error) {
-	logger = logger.With().
+	return NewWithOpts(ctx, check, ScraperOpts{
+		Probe:         probe,
+		PublishCh:     publishCh,
+		Logger:        logger,
+		ScrapeCounter: scrapeCounter,
+		ErrorCounter:  errorCounter,
+		ProbeFactory:  prober.NewFromCheck,
+	})
+}
+
+type ScraperOpts struct {
+	Probe         sm.Probe
+	PublishCh     chan<- pusher.Payload
+	Logger        zerolog.Logger
+	ScrapeCounter prometheus.Counter
+	ErrorCounter  *prometheus.CounterVec
+	ProbeFactory  func(context.Context, zerolog.Logger, sm.Check) (prober.Prober, string, error)
+}
+
+func NewWithOpts(ctx context.Context, check sm.Check, opts ScraperOpts) (*Scraper, error) {
+	checkName := check.Type().String()
+
+	logger := opts.Logger.With().
 		Int64("check_id", check.Id).
-		Str("probe", probe.Name).
+		Str("probe", opts.Probe.Name).
 		Str("target", check.Target).
 		Str("job", check.Job).
+		Str("check", checkName).
 		Logger()
 
 	sctx, cancel := context.WithCancel(ctx)
-	smProber, target, err := prober.NewFromCheck(sctx, logger, check)
+	smProber, target, err := opts.ProbeFactory(sctx, logger, check)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 
-	checkName := check.Type().String()
-
 	return &Scraper{
-		publishCh:     publishCh,
+		publishCh:     opts.PublishCh,
 		cancel:        cancel,
 		checkName:     checkName,
 		target:        target,
-		logger:        logger.With().Str("check", checkName).Logger(),
+		logger:        logger,
 		check:         check,
-		probe:         probe,
+		probe:         opts.Probe,
 		prober:        smProber,
 		stop:          make(chan struct{}),
-		scrapeCounter: scrapeCounter,
-		errorCounter:  errorCounter,
+		scrapeCounter: opts.ScrapeCounter,
+		errorCounter:  opts.ErrorCounter,
 		summaries:     make(map[uint64]prometheus.Summary),
 		histograms:    make(map[uint64]prometheus.Histogram),
 	}, nil
