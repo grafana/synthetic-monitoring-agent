@@ -467,7 +467,7 @@ func setupTCPServer(t *testing.T) (string, func()) {
 		}()
 
 		buf := make([]byte, 0, 1024)
-		_, _ = conn.Read(buf[:])
+		_, _ = conn.Read(buf)
 	}()
 
 	return ln.Addr().String(), func() {
@@ -507,7 +507,7 @@ func setupTCPServerWithSSL(t *testing.T) (string, func()) {
 		}()
 
 		buf := make([]byte, 0, 1024)
-		_, _ = conn.Read(buf[:])
+		_, _ = conn.Read(buf)
 	}()
 
 	return ln.Addr().String(), func() {

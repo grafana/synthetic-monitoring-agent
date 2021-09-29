@@ -13,7 +13,7 @@ linters:
     - errcheck
     - exportloopref
     - goconst
-    # - gocritic
+    - gocritic
     # - gocognit
     - gocyclo
     - gofmt
@@ -37,19 +37,59 @@ linters:
     - varcheck
     - whitespace
 
-linter-settings:
+linters-settings:
   goconst:
-    ignore-tests: true
+    ignore-tests: false
     min-len: 5
     min-occurrences: 5
   gocyclo:
-    min-complexity: 10
+    min-complexity: 20
   golint:
-    ignore-tests: true
+    ignore-tests: false
     min-confidence: 3
   rowserrcheck:
     packages:
       - github.com/jmoiron/sqlx
+  gocritic:
+    enabled-checks:
+      - appendAssign
+      - argOrder
+      - assignOp
+      - badCall
+      - badCond
+      - captLocal
+      - caseOrder
+      - codegenComment
+      - commentFormatting
+      - defaultCaseOrder
+      - deprecatedComment
+      - dupArg
+      - dupBranchBody
+      - dupCase
+      - dupSubExpr
+      - elseif
+      - exitAfterDefer
+      - flagDeref
+      - flagName
+      - ifElseChain
+      - mapKey
+      - newDeref
+      - offBy1
+      - regexpMust
+      - ruleguard
+      - singleCaseSwitch
+      - sloppyLen
+      - stringXbytes
+      - switchTrue
+      - typeSwitchVar
+      - underef
+      - unlambda
+      - unslice
+      - valSwap
+      - wrapperFunc
+    settings:
+      ruleguard:
+        rules: "scripts/go/configs/rules.go"
 
 issues:
   exclude:

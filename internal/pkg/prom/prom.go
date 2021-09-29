@@ -297,11 +297,12 @@ func NewTLSConfig(cfg *TLSConfig) (*tls.Config, error) {
 		tlsConfig.ServerName = cfg.ServerName
 	}
 	// If a client cert & key is provided then configure TLS config accordingly.
-	if len(cfg.CertFile) > 0 && len(cfg.KeyFile) == 0 {
+	switch {
+	case len(cfg.CertFile) > 0 && len(cfg.KeyFile) == 0:
 		return nil, fmt.Errorf("client cert file %q specified without client key file", cfg.CertFile)
-	} else if len(cfg.KeyFile) > 0 && len(cfg.CertFile) == 0 {
+	case len(cfg.KeyFile) > 0 && len(cfg.CertFile) == 0:
 		return nil, fmt.Errorf("client key file %q specified without client cert file", cfg.KeyFile)
-	} else if len(cfg.CertFile) > 0 && len(cfg.KeyFile) > 0 {
+	case len(cfg.CertFile) > 0 && len(cfg.KeyFile) > 0:
 		// Verify that client cert and key are valid.
 		if _, err := cfg.getClientCertificate(nil); err != nil {
 			return nil, err
@@ -451,7 +452,7 @@ func (t *tlsRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	t.mtx.RLock()
-	equal := bytes.Equal(h[:], t.hashCAFile)
+	equal := bytes.Equal(h, t.hashCAFile)
 	rt := t.rt
 	t.mtx.RUnlock()
 	if equal {
@@ -472,7 +473,7 @@ func (t *tlsRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	t.mtx.Lock()
 	t.rt = rt
-	t.hashCAFile = h[:]
+	t.hashCAFile = h
 	t.mtx.Unlock()
 
 	return rt.RoundTrip(req)

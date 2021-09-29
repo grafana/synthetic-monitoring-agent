@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	kitlog "github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
+	"github.com/go-kit/kit/log/level"  //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
