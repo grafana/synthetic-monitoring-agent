@@ -18,8 +18,9 @@ func TestName(t *testing.T) {
 func TestNewProber(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	testcases := map[string]struct {
-		input    sm.Check
-		expected Prober
+		input       sm.Check
+		expected    Prober
+		ExpectError bool
 	}{
 		"default": {
 			input: sm.Check{
@@ -43,6 +44,7 @@ func TestNewProber(t *testing.T) {
 				},
 				logger: logger,
 			},
+			ExpectError: false,
 		},
 		"no-settings": {
 			input: sm.Check{
@@ -51,7 +53,8 @@ func TestNewProber(t *testing.T) {
 					Tcp: nil,
 				},
 			},
-			expected: Prober{},
+			expected:    Prober{},
+			ExpectError: true,
 		},
 	}
 
@@ -60,10 +63,10 @@ func TestNewProber(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			actual, err := NewProber(testcase.input, logger)
 			require.Equal(t, &testcase.expected, &actual)
-			if name == "no-settings" {
-				require.NotNil(t, err)
+			if testcase.ExpectError {
+				require.Error(t, err, "unsupported check")
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"io"
+	"net/url"
 	"testing"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
@@ -20,8 +21,9 @@ func TestName(t *testing.T) {
 
 func TestNewProber(t *testing.T) {
 	testcases := map[string]struct {
-		input    sm.Check
-		expected Prober
+		input       sm.Check
+		expected    Prober
+		ExpectError bool
 	}{
 		"default": {
 			input: sm.Check{
@@ -53,6 +55,7 @@ func TestNewProber(t *testing.T) {
 					},
 				},
 			},
+			ExpectError: false,
 		},
 		"no-settings": {
 			input: sm.Check{
@@ -61,7 +64,8 @@ func TestNewProber(t *testing.T) {
 					Http: nil,
 				},
 			},
-			expected: Prober{},
+			expected:    Prober{},
+			ExpectError: true,
 		},
 	}
 
@@ -71,10 +75,10 @@ func TestNewProber(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			actual, err := NewProber(ctx, testcase.input, logger)
 			require.Equal(t, &testcase.expected, &actual)
-			if name == "no-settings" {
-				require.NotNil(t, err)
+			if testcase.ExpectError {
+				require.Error(t, err, "unsupported check")
 			} else {
-				require.Nil(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -257,7 +261,7 @@ func TestSettingsToModule(t *testing.T) {
 	}
 
 	for name, testcase := range testcases {
-		ctx := context.TODO()
+		ctx := context.Background()
 		logger := zerolog.New(io.Discard)
 		t.Run(name, func(t *testing.T) {
 			actual, err := settingsToModule(ctx, &testcase.input, logger)
@@ -274,4 +278,16 @@ func TestAddCacheBustParam(t *testing.T) {
 
 	newUrl := addCacheBustParam(target, paramName, salt)
 	require.NotEqual(t, target, newUrl)
+
+	// Parse query params and make sure "test" is present
+	newUrlQuery, err := url.Parse(newUrl)
+	require.Nil(t, err)
+	queryString, err := url.ParseQuery(newUrlQuery.RawQuery)
+	require.Nil(t, err)
+	hash := queryString.Get("test")
+	require.NotNil(t, hash)
+
+	// Make sure another call with same params generates a different hash
+	anotherUrl := addCacheBustParam(target, paramName, salt)
+	require.NotEqual(t, newUrl, anotherUrl)
 }
