@@ -31,8 +31,9 @@ spec:
                 secretKeyRef:
                   key: api-token
                   name: sm-agent-1
+            #
             - name: API_SERVER
-              value: "synthetic-monitoring-grpc.grafana.net:443"
+              value: "PROBE_API_SERVER_URL"
           image: grafana/synthetic-monitoring-agent:latest
           name: agent
           ports:
