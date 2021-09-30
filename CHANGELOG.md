@@ -2,8 +2,15 @@
 ## [Unreleased]
 
 
+<a name="v0.2.0"></a>
+## [v0.2.0] - 2021-09-30
+### Feature
+- disconnect agent from API on signal
+- report API connection status
+
+
 <a name="v0.1.5"></a>
-## [v0.1.5] - 2021-09-14
+## [v0.1.5] - 2021-09-15
 ### Fix
 - remove direct dependency on github.com/grafana/loki
 
@@ -181,7 +188,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.2.0...HEAD
+[v0.2.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.5...v0.2.0
 [v0.1.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.4...v0.1.5
 [v0.1.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.3...v0.1.4
 [v0.1.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.1.2...v0.1.3
