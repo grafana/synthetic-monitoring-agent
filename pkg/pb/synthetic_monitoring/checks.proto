@@ -88,6 +88,7 @@ message Probe {
 	string         version      = 11 [(gogoproto.jsontag) = "version"];                             // version of the probe
 	string         commit       = 12 [(gogoproto.jsontag) = "commit"];                              // commit hash used to build the probe
 	string         buildstamp   = 13 [(gogoproto.jsontag) = "buildstamp"];                          // timestamp when the probe was built
+	bool           deprecated   = 14 [(gogoproto.jsontag) = "deprecated"];                          // whether the probe has been deprecated
 	double         created      = 100 [(gogoproto.jsontag) = "created"];                            // time the probe was created
 	double         modified     = 101 [(gogoproto.jsontag) = "modified"];                           // last time modified
 }
