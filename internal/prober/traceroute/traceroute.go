@@ -170,7 +170,7 @@ func settingsToModule(settings *sm.TracerouteSettings) Module {
 		interval:       time.Nanosecond,
 		hopSleep:       time.Nanosecond,
 		maxHops:        64,
-		maxUnknownHops: int(settings.MaxUnknownHops),
+		maxUnknownHops: 15,
 		ptrLookup:      settings.PtrLookup,
 		ringBufferSize: 50,
 		srcAddr:        "",
