@@ -38,7 +38,7 @@ func TestNewProber(t *testing.T) {
 					hopSleep:       time.Nanosecond,
 					maxHops:        64,
 					maxUnknownHops: 15,
-					ptrLookup:      true,
+					ptrLookup:      false,
 					ringBufferSize: 50,
 					srcAddr:        "",
 				},
@@ -87,7 +87,7 @@ func TestSettingsToModule(t *testing.T) {
 				hopSleep:       time.Nanosecond,
 				maxHops:        64,
 				maxUnknownHops: 15,
-				ptrLookup:      true,
+				ptrLookup:      false,
 				ringBufferSize: 50,
 				srcAddr:        "",
 			},
@@ -96,6 +96,7 @@ func TestSettingsToModule(t *testing.T) {
 			input: sm.TracerouteSettings{
 				HopTimeout:     100,
 				MaxUnknownHops: 2,
+				PtrLookup:      true,
 			},
 			expected: Module{
 				count:          5,

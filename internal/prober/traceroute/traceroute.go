@@ -102,9 +102,14 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		totalPacketsSent += float64(hop.Sent)
 		avgElapsedTime := time.Duration(hop.Avg()) * time.Millisecond
 		sort.Strings(hop.Targets)
-		targets := strings.Join(hop.Targets, ",")
-		hosts[ttl] = targets
-		err := logger.Log("Level", "info", "Destination", m.Address, "Hosts", targets, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TracerouteID", tracerouteID)
+		targets := make([]string, 0)
+		for target := range hop.Targets {
+			host := hop.LookupAddr(p.config.ptrLookup, target)
+			targets = append(targets, host)
+		}
+		t := strings.Join(targets, ",")
+		hosts[ttl] = t
+		err := logger.Log("Level", "info", "Destination", m.Address, "Hosts", t, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TracerouteID", tracerouteID)
 		if err != nil {
 			p.logger.Error().Err(err)
 			continue
@@ -166,7 +171,7 @@ func settingsToModule(settings *sm.TracerouteSettings) Module {
 		hopSleep:       time.Nanosecond,
 		maxHops:        64,
 		maxUnknownHops: 15,
-		ptrLookup:      true,
+		ptrLookup:      settings.PtrLookup,
 		ringBufferSize: 50,
 		srcAddr:        "",
 	}
