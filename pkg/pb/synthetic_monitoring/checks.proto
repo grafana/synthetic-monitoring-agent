@@ -369,5 +369,4 @@ message TracerouteSettings {
 	int64 maxUnknownHops = 2 [(gogoproto.jsontag) = "maxUnknownHops"]; // Maximum hops probe that give no response before giving up
 	bool  ptrLookup 		 = 3 [(gogoproto.jsontag) = "ptrLookup"];      // Include reverse DNS lookup
 	int64 hopTimeout 		 = 4 [(gogoproto.jsontag) = "hopTimeout"];		 // Timeout for individual hop pings
-	int64 firstHop 		 	 = 5 [(gogoproto.jsontag) = "firstHop"];		   // TTL to start at
 }
