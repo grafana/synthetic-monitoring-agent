@@ -118,7 +118,7 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 		client, err := p.getClient(ctx, tenantID, newClient)
 		if err != nil {
 			logger.Error().Err(err).Msg("get client")
-			p.errorCounter.WithLabelValues("client", tenantStr).Inc()
+			p.errorCounter.WithLabelValues("client", tenantStr, "N/A").Inc()
 			return
 		}
 
