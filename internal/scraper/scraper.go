@@ -305,10 +305,30 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
 	target := s.target
 
+	// GrafanaCloud loki limits log entries to 15 labels.
+	// 7 labels are needed here, leaving 8 labels for users to split between to checks and probes.
+	logLabels := []labelPair{
+		{name: "probe", value: s.probe.Name},
+		{name: "region", value: s.probe.Region},
+		{name: "instance", value: s.check.Target},
+		{name: "job", value: s.check.Job},
+		{name: "check_name", value: s.checkName},
+		{name: "source", value: "synthetic-monitoring-agent"}, // identify log lines that belong to synthetic-monitoring-agent
+	}
+	logLabels = append(logLabels, s.buildUserLabels()...)
+
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
 	bl := kitlog.NewLogfmtLogger(&logs)
-	sl := kitlog.With(bl, "ts", kitlog.DefaultTimestampUTC, "target", target)
+
+	// set up logger to capture all the labels as part of the log entry
+	loggerLabels := make([]interface{}, 0, 2*(2+len(logLabels)))
+	loggerLabels = append(loggerLabels, "ts", kitlog.DefaultTimestampUTC, "target", target)
+	for _, l := range logLabels {
+		loggerLabels = append(loggerLabels, l.name, l.value)
+	}
+
+	sl := kitlog.With(bl, loggerLabels...)
 
 	success, mfs, err := getProbeMetrics(
 		ctx,
@@ -340,18 +360,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		successValue = "0"
 	}
 
-	// GrafanaCloud loki limits log entries to 15 labels.
-	// 7 labels are needed here, leaving 8 labels for users to split between to checks and probes.
-	logLabels := []labelPair{
-		{name: "probe", value: s.probe.Name},
-		{name: "region", value: s.probe.Region},
-		{name: "instance", value: s.check.Target},
-		{name: "job", value: s.check.Job},
-		{name: "check_name", value: s.checkName},
-		{name: "probe_success", value: successValue},          // identify log lines that are failures
-		{name: "source", value: "synthetic-monitoring-agent"}, // identify log lines that belong to synthetic-monitoring-agent
-	}
-	logLabels = append(logLabels, s.buildUserLabels()...)
+	logLabels = append(logLabels, labelPair{name: "probe_success", value: successValue}) // identify log lines that are failures
 
 	// streams need to have all the labels applied to them because
 	// loki does not support joins
