@@ -655,15 +655,15 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 	// If we need to accept checks based on whether a feature flag
 	// is enabled or not, we can "accept" the check from the point
 	// of view of the API, and skip running it here, e.g.
-
-	switch check.Type() {
-	case sm.CheckTypeTraceroute:
-		if !c.features.IsSet(feature.Traceroute) {
-			return nil
-		}
-
-	default:
-	}
+	//
+	// switch check.Type() {
+	// case sm.CheckTypeTraceroute:
+	// 	if !c.features.IsSet(feature.Traceroute) {
+	// 		return nil
+	// 	}
+	//
+	// default:
+	// }
 
 	checkType := check.Type().String()
 
