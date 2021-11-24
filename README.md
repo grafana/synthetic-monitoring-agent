@@ -46,3 +46,16 @@ The agent traps the following signals:
   the agent disconnects, allowing another agent to connect in its place.
   If the new agent fails to connect, the old agent will reconnect and
   take it from there.
+
+Readiness
+---------
+
+You can use the `/ready` endpoint to check if probe has been able to
+connect to the API and is ready to start processing checks. A status
+code of 200 signals that the agent is ready. If the agent is not yet
+ready, the response has a status code of 503.
+
+Used in conjunction with the USR1 signal, you can use this mechanism to
+ask a running agent to disconnect from the API, and poll the `/ready`
+entrypoint in order to determine if the new agent has been able to
+connect already.

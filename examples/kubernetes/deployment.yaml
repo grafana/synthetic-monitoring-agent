@@ -41,6 +41,10 @@ spec:
               name: http-metrics
           readinessProbe:
             httpGet:
+              path: /ready
+              port: 4050
+          livenessProbe:
+            httpGet:
               path: /
               port: 4050
           resources:
