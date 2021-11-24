@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -23,6 +24,7 @@ type MuxOpts struct {
 		prometheus.Registerer
 		prometheus.Gatherer
 	}
+	isReady *readynessHandler
 }
 
 func NewMux(opts MuxOpts) *Mux {
@@ -39,6 +41,9 @@ func NewMux(opts MuxOpts) *Mux {
 	)
 
 	router.Handle("/metrics", promHandler)
+	isReady := &atomic.Value{}
+	isReady.Store(false)
+	router.Handle("/ready", opts.isReady)
 
 	// Register pprof handlers
 	router.HandleFunc("/debug/pprof/", pprof.Index)
@@ -111,4 +116,38 @@ func defaultHandler() http.Handler {
 
 		fmt.Fprintln(w, "hello, world!")
 	})
+}
+
+// readynessHandler records whether the agent is ready to serve requests.
+//
+// readyness is defined by calling the method Set(true) on the handler
+// at least once. Once the ready state is set, the handler never goes
+// back to the unready state.
+type readynessHandler int32
+
+// NewReadynessHandler returns a new readynessHandler set to the unready
+// state.
+func NewReadynessHandler() *readynessHandler {
+	return new(readynessHandler)
+}
+
+// Set should be called once with an argument of true to indicate that
+// the agent is ready to serve requests. Calling it again, no matter the
+// value of the argument, has no effect.
+func (h *readynessHandler) Set(v bool) {
+	if v {
+		atomic.StoreInt32((*int32)(h), 1)
+	}
+}
+
+// ServeHTTP implements http.Handler.
+func (h *readynessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if atomic.LoadInt32((*int32)(h)) == 0 {
+		http.Error(w, http.StatusText(http.StatusServiceUnavailable), http.StatusServiceUnavailable)
+		return
+	}
+
+	// Signal readiness when the agent has connected once to the API.
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "ready")
 }

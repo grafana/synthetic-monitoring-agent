@@ -42,6 +42,7 @@ type Updater struct {
 	features       feature.Collection
 	publishCh      chan<- pusher.Payload
 	tenantCh       chan<- sm.Tenant
+	IsConnected    func(bool)
 	probe          *sm.Probe
 	scrapersMutex  sync.Mutex
 	scrapers       map[int64]*scraper.Scraper
@@ -71,6 +72,7 @@ type UpdaterOptions struct {
 	Logger         zerolog.Logger
 	PublishCh      chan<- pusher.Payload
 	TenantCh       chan<- sm.Tenant
+	IsConnected    func(bool)
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
 	ScraperFactory func(context.Context, sm.Check, chan<- pusher.Payload, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec) (*scraper.Scraper, error)
@@ -185,6 +187,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		features:       opts.Features,
 		publishCh:      opts.PublishCh,
 		tenantCh:       opts.TenantCh,
+		IsConnected:    opts.IsConnected,
 		scrapers:       make(map[int64]*scraper.Scraper),
 		scraperFactory: scraperFactory,
 		metrics: metrics{
@@ -308,6 +311,10 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	c.metrics.connectionStatus.Set(1)
 	defer c.metrics.connectionStatus.Set(0)
+
+	// true indicates that probe is connected to API
+	c.IsConnected(true)
+	defer c.IsConnected(false)
 
 	// this is constant throughout the life of the probe, but since
 	// we don't know the probe's id or name until this point, set it

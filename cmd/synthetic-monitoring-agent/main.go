@@ -99,9 +99,13 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
+	// to know if probe is connected to API
+	readynessHandler := NewReadynessHandler()
+
 	router := NewMux(MuxOpts{
 		Logger:         zl.With().Str("subsystem", "mux").Logger(),
 		PromRegisterer: promRegisterer,
+		isReady:        readynessHandler,
 	})
 
 	httpConfig := http.Config{
@@ -147,6 +151,7 @@ func run(args []string, stdout io.Writer) error {
 		Logger:         zl.With().Str("subsystem", "updater").Logger(),
 		PublishCh:      publishCh,
 		TenantCh:       tenantCh,
+		IsConnected:    readynessHandler.Set,
 		PromRegisterer: promRegisterer,
 		Features:       features,
 	})
