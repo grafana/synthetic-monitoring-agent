@@ -2,6 +2,14 @@
 ## [Unreleased]
 
 
+<a name="v0.4.0"></a>
+## [v0.4.0] - 2021-11-30
+### Feature
+- add /ready endpoint for readiness probe
+- enable traceroute checks by default ([#241](https://github.com/grafana/synthetic-monitoring-agent/issues/241))
+- add log labels to log entries ([#240](https://github.com/grafana/synthetic-monitoring-agent/issues/240))
+
+
 <a name="v0.3.3"></a>
 ## [v0.3.3] - 2021-11-16
 ### Fix
@@ -206,7 +214,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.4.0...HEAD
+[v0.4.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.3.3...v0.4.0
 [v0.3.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.3.2...v0.3.3
 [v0.3.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.3.1...v0.3.2
 [v0.3.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.3.0...v0.3.1
