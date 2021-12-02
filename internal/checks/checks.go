@@ -19,6 +19,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -203,6 +204,14 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 }
 
 func (c *Updater) Run(ctx context.Context) error {
+	// TODO(mem): find a better place to set this up.
+	backoff := backoff.Backoff{
+		Min:    2 * time.Second,
+		Max:    30 * time.Minute,
+		Factor: 1.41, // This reaches the target in ~ 8 steps.
+		Jitter: true,
+	}
+
 	for {
 		err := c.loop(ctx)
 		switch {
@@ -223,6 +232,11 @@ func (c *Updater) Run(ctx context.Context) error {
 				Err(err).
 				Str("connection_state", c.api.conn.GetState().String()).
 				Msg("the other end closed the connection, trying to reconnect")
+
+			// After disconnecting, reset the backoff
+			// counter to start afresh.
+			backoff.Reset()
+
 			continue
 
 		case errors.Is(err, context.Canceled):
@@ -244,6 +258,10 @@ func (c *Updater) Run(ctx context.Context) error {
 				return err
 			}
 
+			// The probe is going to reconnect, reset the
+			// backoff counter to start afresh.
+			backoff.Reset()
+
 		default:
 			c.logger.Warn().
 				Err(err).
@@ -253,7 +271,7 @@ func (c *Updater) Run(ctx context.Context) error {
 			// TODO(mem): this might be a transient error (e.g. bad connection). We probably need to
 			// fine-tune GRPPC's backoff parameters. We might also need to keep count of the reconnects, and
 			// give up if they hit some threshold?
-			if err := sleepCtx(ctx, 2*time.Second); err != nil {
+			if err := sleepCtx(ctx, backoff.Duration()); err != nil {
 				return err
 			}
 		}
