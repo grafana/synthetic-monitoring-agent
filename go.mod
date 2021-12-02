@@ -37,6 +37,8 @@ require (
 	google.golang.org/grpc v1.42.0
 )
 
+require github.com/jpillora/backoff v1.0.0
+
 require (
 	github.com/andybalholm/brotli v1.0.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -47,7 +49,6 @@ require (
 	github.com/go-kit/log v0.2.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
-	github.com/jpillora/backoff v1.0.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
