@@ -357,6 +357,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	successValue := "1"
 	if !success {
+		err = errCheckFailed
 		successValue = "0"
 	}
 
@@ -366,7 +367,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// loki does not support joins
 	streams := s.extractLogs(t, logs.Bytes(), logLabels)
 
-	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, nil
+	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, err
 }
 
 func getProbeMetrics(
