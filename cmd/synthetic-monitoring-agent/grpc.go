@@ -8,9 +8,10 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-func dialAPIServer(ctx context.Context, addr string, insecure bool, apiToken string) (*grpc.ClientConn, error) {
+func dialAPIServer(ctx context.Context, addr string, allowInsecure bool, apiToken string) (*grpc.ClientConn, error) {
 	apiCreds := creds{Token: apiToken}
 
 	opts := []grpc.DialOption{
@@ -18,12 +19,11 @@ func dialAPIServer(ctx context.Context, addr string, insecure bool, apiToken str
 		grpc.WithPerRPCCredentials(apiCreds),
 	}
 
-	if insecure {
-		opts = append(opts, grpc.WithInsecure())
-	} else {
-		creds := credentials.NewTLS(&tls.Config{ServerName: grpcApiHost(addr)})
-		opts = append(opts, grpc.WithTransportCredentials(creds))
+	transportCreds := insecure.NewCredentials()
+	if !allowInsecure {
+		transportCreds = credentials.NewTLS(&tls.Config{ServerName: grpcApiHost(addr)})
 	}
+	opts = append(opts, grpc.WithTransportCredentials(transportCreds))
 
 	return grpc.DialContext(ctx, addr, opts...)
 }
