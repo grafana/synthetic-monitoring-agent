@@ -21,6 +21,12 @@ import (
 
 const defaultBufferCapacity = 10 * 1024
 
+var (
+	maxRetries = 3
+	minBackoff = 30 * time.Millisecond
+	maxBackoff = 250 * time.Millisecond
+)
+
 var bufPool = sync.Pool{
 	New: func() interface{} {
 		buf := make([]byte, 0, defaultBufferCapacity)
@@ -108,13 +114,21 @@ func (p *Publisher) Run(ctx context.Context) error {
 }
 
 func (p *Publisher) publish(ctx context.Context, payload Payload) {
+	clampBackoff := func(a time.Duration) time.Duration {
+		if a > maxBackoff {
+			return maxBackoff
+		}
+		return a
+	}
+
 	tenantID := payload.Tenant()
 	tenantStr := strconv.FormatInt(tenantID, 10)
 	newClient := false
 
 	logger := p.logger.With().Int64("tenant", tenantID).Logger()
 
-	for retry := 2; retry > 0; retry-- {
+	backoff := minBackoff
+	for retries := maxRetries; retries > 0; {
 		client, err := p.getClient(ctx, tenantID, newClient)
 		if err != nil {
 			logger.Error().Err(err).Msg("get client")
@@ -128,8 +142,14 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 				logger.Error().Err(err).Msg("publish events")
 				p.errorCounter.WithLabelValues("logs", tenantStr, strconv.Itoa(httpStatusCode)).Inc()
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
-					// Retry to get a new client, credentials might be stale.
+					// Retry with backoff to get a new client, credentials might be stale.
 					newClient = true
+
+					retries--
+					if retries > 0 {
+						time.Sleep(backoff)
+						backoff = clampBackoff(2 * backoff)
+					}
 					continue
 				}
 			} else {
@@ -144,8 +164,14 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 				logger.Error().Err(err).Msg("publish metrics")
 				p.errorCounter.WithLabelValues("metrics", tenantStr, strconv.Itoa(httpStatusCode)).Inc()
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
-					// Retry to get a new client, credentials might be stale.
+					// Retry with backoff to get a new client, credentials might be stale.
 					newClient = true
+
+					retries--
+					if retries > 0 {
+						time.Sleep(backoff)
+						backoff = clampBackoff(2 * backoff)
+					}
 					continue
 				}
 			} else {
