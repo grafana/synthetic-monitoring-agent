@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# This script verifies that files that might change after some updates
+# (e.g. upgrading a dependency) DO NOT contain changes.
+#
+# Typical usage is calling this script after some continuous integration
+# step that could produce such changes.
+#
+# If any unwanted changes are detected, the exit status will be 1, 0
+# otherwise.
+
+set -e
+
+report_changes() {
+	echo "E: $1 contains changes. Stop."
+	exit 1
+}
+
+test -n "$(git status --porcelain -- go.sum)" && report_changes go.sum
+
+exit 0

@@ -57,6 +57,12 @@ local vault_secret(name, vault_path, key) = {
 
 [
   pipeline('build', [
+    step('deps', [
+      'make deps',
+      './scripts/enforce-clean',
+    ])
+    + dependsOn(['runner identification']),
+
     step('lint', ['make lint'])
     + dependsOn(['runner identification']),
 
