@@ -13,6 +13,14 @@ steps:
   commands:
   - echo $DRONE_RUNNER_NAME
 
+- name: deps
+  image: golang:1.17
+  commands:
+  - make deps
+  - ./scripts/enforce-clean
+  depends_on:
+  - runner identification
+
 - name: lint
   image: golang:1.17
   commands:
@@ -162,6 +170,6 @@ get:
 
 ---
 kind: signature
-hmac: 847abef473a26a1f38c0a2751c26854b3733cbda44071bcb308dce230c9fcc94
+hmac: 1b78d42b87ceeb1ae9d086bcaf9f9f661be6e001acb6685679646d5737f36cda
 
 ...
