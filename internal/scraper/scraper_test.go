@@ -15,22 +15,28 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	dnsProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/miekg/dns"
+	"github.com/mmcloughlin/geohash"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/prometheus/pkg/labels"
 	"github.com/prometheus/prometheus/prompb"
+	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
@@ -794,6 +800,331 @@ func TestAppendDtoToTimeseries(t *testing.T) {
 	}
 }
 
+type testProber struct{}
+
+func (p testProber) Name() string {
+	return "test prober"
+}
+
+func (p testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+	counter := prometheus.NewCounter(prometheus.CounterOpts{
+		Name: "test_counter",
+	})
+	registry.MustRegister(counter)
+	counter.Inc()
+
+	return true
+}
+
+func TestScraperCollectData(t *testing.T) {
+	const (
+		checkName     = "check name"
+		checkTarget   = "target"
+		frequency     = 2000
+		job           = "job"
+		modifiedTs    = 42
+		probeLatitude = -1
+		probeLongitde = -2
+		probeName     = "probe"
+		region        = "REGION"
+		sampleTsMs    = int64(3141000)
+	)
+
+	var (
+		baseExpectedMetricLabels = map[string]string{
+			"config_version": strconv.Itoa(modifiedTs * 1_000_000_000),
+			"instance":       checkTarget,
+			"job":            job,
+			"probe":          probeName,
+		}
+		baseExpectedInfoLabels = map[string]string{
+			"check_name": checkName,
+			"frequency":  strconv.Itoa(frequency),
+			"geohash":    geohash.Encode(probeLatitude, probeLongitde),
+			"region":     region,
+		}
+		baseExpectedLogLabels = map[string]string{
+			"check_name":           checkName,
+			"instance":             checkTarget,
+			"job":                  job,
+			"probe":                probeName,
+			ProbeSuccessMetricName: "1",
+			"region":               region,
+			"source":               CheckInfoSource,
+		}
+	)
+
+	testcases := map[string]struct {
+		checkLabels          []sm.Label
+		probeLabels          []sm.Label
+		expectedMetricLabels map[string]string
+		expectedInfoLabels   map[string]string
+		expectedLogLabels    map[string]string
+	}{
+		"trivial": {
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+			expectedInfoLabels:   mergeMaps(baseExpectedInfoLabels),
+			expectedLogLabels:    mergeMaps(baseExpectedLogLabels),
+		},
+		"probe labels": {
+			probeLabels: []sm.Label{
+				{Name: "l1", Value: "v1"},
+				{Name: "l2", Value: "v2"},
+				{Name: "l3", Value: "v3"},
+			},
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+			expectedInfoLabels: mergeMaps(baseExpectedInfoLabels,
+				map[string]string{
+					"label_l1": "v1",
+					"label_l2": "v2",
+					"label_l3": "v3",
+				}),
+			expectedLogLabels: mergeMaps(baseExpectedLogLabels,
+				map[string]string{
+					"label_l1": "v1",
+					"label_l2": "v2",
+					"label_l3": "v3",
+				}),
+		},
+		"check labels": {
+			checkLabels: []sm.Label{
+				{Name: "l1", Value: "v1"},
+				{Name: "l2", Value: "v2"},
+				{Name: "l3", Value: "v3"},
+			},
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+			expectedInfoLabels: mergeMaps(baseExpectedInfoLabels,
+				map[string]string{
+					"label_l1": "v1",
+					"label_l2": "v2",
+					"label_l3": "v3",
+				}),
+			expectedLogLabels: mergeMaps(baseExpectedLogLabels,
+				map[string]string{
+					"label_l1": "v1",
+					"label_l2": "v2",
+					"label_l3": "v3",
+				}),
+		},
+		"check and probe labels": {
+			checkLabels: []sm.Label{
+				{Name: "l1", Value: "v1"},
+				{Name: "l2", Value: "v2"},
+			},
+			probeLabels: []sm.Label{
+				{Name: "l3", Value: "v3"},
+			},
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+			expectedInfoLabels: mergeMaps(baseExpectedInfoLabels,
+				map[string]string{
+					"label_l1": "v1",
+					"label_l2": "v2",
+					"label_l3": "v3",
+				}),
+			expectedLogLabels: mergeMaps(baseExpectedLogLabels,
+				map[string]string{
+					"label_l1": "v1",
+					"label_l2": "v2",
+					"label_l3": "v3",
+				}),
+		},
+		"check and probe labels overlapping": {
+			checkLabels: []sm.Label{
+				{Name: "l1", Value: "v1"},
+				{Name: "l2", Value: "v2"},
+			},
+			probeLabels: []sm.Label{
+				{Name: "l2", Value: "p2"},
+				{Name: "l3", Value: "v3"},
+			},
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+			expectedInfoLabels: mergeMaps(baseExpectedInfoLabels,
+				map[string]string{
+					"label_l1": "v1",
+					"label_l2": "v2",
+					"label_l3": "v3",
+				}),
+			expectedLogLabels: mergeMaps(baseExpectedLogLabels,
+				map[string]string{
+					"label_l1": "v1",
+					"label_l2": "v2",
+					"label_l3": "v3",
+				}),
+		},
+		"max labels": {
+			checkLabels: []sm.Label{
+				{Name: "l1", Value: "c1"},
+				{Name: "l2", Value: "c2"},
+				{Name: "l3", Value: "c3"},
+				{Name: "l4", Value: "c4"},
+				{Name: "l5", Value: "c5"},
+			},
+			probeLabels: []sm.Label{
+				{Name: "l6", Value: "p6"},
+				{Name: "l7", Value: "p7"},
+				{Name: "l8", Value: "p8"},
+			},
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+			expectedInfoLabels: mergeMaps(baseExpectedInfoLabels,
+				map[string]string{
+					"label_l1": "c1",
+					"label_l2": "c2",
+					"label_l3": "c3",
+					"label_l4": "c4",
+					"label_l5": "c5",
+					"label_l6": "p6",
+					"label_l7": "p7",
+					"label_l8": "p8",
+				}),
+			expectedLogLabels: mergeMaps(baseExpectedLogLabels,
+				map[string]string{
+					"label_l1": "c1",
+					"label_l2": "c2",
+					"label_l3": "c3",
+					"label_l4": "c4",
+					"label_l5": "c5",
+					"label_l6": "p6",
+					"label_l7": "p7",
+					"label_l8": "p8",
+				}),
+		},
+	}
+
+	for name, tc := range testcases {
+		tc := tc
+		s := Scraper{
+			checkName:  checkName,
+			target:     "test target",
+			logger:     zerolog.Nop(),
+			prober:     testProber{},
+			summaries:  make(map[uint64]prometheus.Summary),
+			histograms: make(map[uint64]prometheus.Histogram),
+			check: sm.Check{
+				Id:               1,
+				TenantId:         2,
+				Frequency:        frequency,
+				Timeout:          frequency,
+				Enabled:          true,
+				Target:           checkTarget,
+				Job:              job,
+				BasicMetricsOnly: true,
+				Created:          modifiedTs,
+				Modified:         modifiedTs,
+				Labels:           tc.checkLabels,
+			},
+			probe: sm.Probe{
+				Id:        100,
+				TenantId:  200,
+				Name:      probeName,
+				Latitude:  probeLatitude,
+				Longitude: probeLongitde,
+				Region:    region,
+				Labels:    tc.probeLabels,
+			},
+		}
+
+		t.Run(name, func(t *testing.T) {
+			data, err := s.collectData(context.Background(), time.Unix(sampleTsMs/1000, 0))
+			require.NoError(t, err)
+			require.NotNil(t, data)
+
+			for _, ts := range data.Metrics() {
+				require.NotNil(t, ts)
+
+				var metricName string
+				for _, l := range ts.GetLabels() {
+					if l.GetName() == labels.MetricName {
+						metricName = l.GetValue()
+						break
+					}
+				}
+
+				// Verify that all the expected metric labels are present
+				found := 0
+				foundInfoLabels := 0
+
+				for _, l := range ts.GetLabels() {
+					expected, ok := tc.expectedMetricLabels[l.GetName()]
+
+					switch {
+					case ok:
+						require.Equal(t, expected, l.GetValue())
+						found++
+
+					case l.GetName() == labels.MetricName:
+						// ignore
+
+					case l.GetName() == labels.BucketLabel:
+						// ignore
+
+					case metricName == CheckInfoMetricName:
+						expected, ok := tc.expectedInfoLabels[l.GetName()]
+						require.Truef(t, ok, "metric=%s label=%s value=%s", metricName, l.GetName(), l.GetValue())
+						require.Equal(t, expected, l.GetValue())
+						foundInfoLabels++
+
+					default:
+						require.Failf(t, "unexpected label", "metric=%s label=%s value=%s", metricName, l.GetName(), l.GetValue())
+					}
+				}
+
+				require.Equal(t, len(tc.expectedMetricLabels), found)
+
+				if metricName == CheckInfoMetricName {
+					require.Equal(t, len(tc.expectedInfoLabels), foundInfoLabels)
+				}
+
+				for _, sample := range ts.GetSamples() {
+					// This encodes the assumption that there's a single timestamp included in the
+					// resulting metrics.
+					require.Equal(t, sampleTsMs, sample.Timestamp)
+				}
+			}
+
+			for _, stream := range data.Streams() {
+				labels, err := parser.ParseMetric(stream.Labels)
+				require.NoError(t, err)
+
+				// Verify that all the expected log labels are present as labels in the stream labels.
+				found := 0
+				for _, label := range labels {
+					expected, ok := tc.expectedLogLabels[label.Name]
+					require.Truef(t, ok, "key=%s value=%s labels=%s", label.Name, label.Value, stream.Labels)
+					require.Equalf(t, expected, label.Value, "key=%s", label.Name)
+					found++
+				}
+				require.Equal(t, len(tc.expectedLogLabels), found, stream.Labels)
+
+				// Verify that all the expected log labels are present as part of the actual log entry.
+				for _, entry := range stream.Entries {
+					dec := logfmt.NewDecoder(strings.NewReader(entry.Line))
+					for dec.ScanRecord() {
+						labelsFound := 1 // probe_success is NOT included in the log entry
+						for dec.ScanKeyval() {
+							key := string(dec.Key())
+							val := string(dec.Value())
+							switch key {
+							case "level", "msg", "timeout_seconds", "duration_seconds":
+							case "target":
+								require.Equal(t, s.target, val)
+							case "type":
+								require.Equal(t, s.prober.Name(), val)
+							default:
+								expected, found := tc.expectedLogLabels[key]
+								require.Truef(t, found, "key=%s value=%s", key, val)
+								require.Equalf(t, expected, val, "key=%s", key)
+								labelsFound++
+							}
+						}
+						require.Equal(t, len(tc.expectedLogLabels), labelsFound)
+					}
+					require.NoError(t, dec.Err())
+				}
+			}
+		})
+	}
+}
+
 // these are generated using
 // go run $(go env GOROOT)/src/crypto/tls/generate_cert.go --rsa-bits 1024 --host 127.0.0.1,::1,example.com --ca --start-date "Jan 1 00:00:00 1970" --duration=1000000h
 
@@ -865,4 +1196,14 @@ func (l *testLogger) Log(kv ...interface{}) error {
 	fmt.Fprintf(l.w, "%s\n", buf.String())
 
 	return nil
+}
+
+func mergeMaps(maps ...map[string]string) map[string]string {
+	out := make(map[string]string)
+	for _, m := range maps {
+		for k, v := range m {
+			out[k] = v
+		}
+	}
+	return out
 }
