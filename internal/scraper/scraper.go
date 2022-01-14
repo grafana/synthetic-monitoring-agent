@@ -26,6 +26,12 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	ProbeSuccessMetricName = "probe_success"
+	CheckInfoMetricName    = "sm_check_info"
+	CheckInfoSource        = "synthetic-monitoring-agent"
+)
+
 var (
 	staleNaN    uint64  = 0x7ff0000000000002
 	staleMarker float64 = math.Float64frombits(staleNaN)
@@ -313,7 +319,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		{name: "instance", value: s.check.Target},
 		{name: "job", value: s.check.Job},
 		{name: "check_name", value: s.checkName},
-		{name: "source", value: "synthetic-monitoring-agent"}, // identify log lines that belong to synthetic-monitoring-agent
+		{name: "source", value: CheckInfoSource}, // identify log lines that belong to synthetic-monitoring-agent
 	}
 	logLabels = append(logLabels, s.buildUserLabels()...)
 
@@ -361,7 +367,10 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		successValue = "0"
 	}
 
-	logLabels = append(logLabels, labelPair{name: "probe_success", value: successValue}) // identify log lines that are failures
+	if len(logLabels) >= sm.MaxLogLabels {
+		logLabels = logLabels[:sm.MaxLogLabels-1]
+	}
+	logLabels = append(logLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
 
 	// streams need to have all the labels applied to them because
 	// loki does not support joins
@@ -427,7 +436,7 @@ func runProber(
 	duration := time.Since(start).Seconds()
 
 	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_success",
+		Name: ProbeSuccessMetricName,
 		Help: "Displays whether or not the probe was a success",
 	})
 	probeDurationGauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -435,7 +444,7 @@ func runProber(
 		Help: "Returns how long the probe took to complete in seconds",
 	})
 	smCheckInfo := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name:        "sm_check_info",
+		Name:        CheckInfoMetricName,
 		Help:        "Provides information about a single check configuration",
 		ConstLabels: checkInfoLabels,
 	})
@@ -462,7 +471,7 @@ func runProber(
 func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, registry *prometheus.Registry, basicMetricsOnly bool) error {
 	for _, mf := range mfs {
 		switch {
-		case mf.GetType() == dto.MetricType_GAUGE && mf.GetName() == "probe_success":
+		case mf.GetType() == dto.MetricType_GAUGE && mf.GetName() == ProbeSuccessMetricName:
 			derivedMetricName := "probe_all_success"
 
 			for _, metric := range mf.GetMetric() {
