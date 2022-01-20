@@ -311,6 +311,17 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
 	target := s.target
 
+	// These are the labels defined by the user.
+	userLabels := s.buildUserLabels()
+
+	// These labels are applied to the sm_check_info metric.
+	checkInfoLabels := s.buildCheckInfoLabels(userLabels)
+
+	if len(checkInfoLabels) > sm.MaxMetricLabels {
+		// This should never happen.
+		return nil, fmt.Errorf("invalid configuration, too many labels: %d", len(checkInfoLabels))
+	}
+
 	// GrafanaCloud loki limits log entries to 15 labels.
 	// 7 labels are needed here, leaving 8 labels for users to split between to checks and probes.
 	logLabels := []labelPair{
@@ -321,7 +332,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		{name: "check_name", value: s.checkName},
 		{name: "source", value: CheckInfoSource}, // identify log lines that belong to synthetic-monitoring-agent
 	}
-	logLabels = append(logLabels, s.buildUserLabels()...)
+	logLabels = append(logLabels, userLabels...)
 
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
@@ -341,7 +352,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		s.prober,
 		target,
 		time.Duration(s.check.Timeout)*time.Millisecond,
-		s.buildCheckInfoLabels(),
+		s.buildCheckInfoLabels(userLabels),
 		s.summaries, s.histograms,
 		sl,
 		s.check.BasicMetricsOnly,
@@ -599,7 +610,7 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []
 	return ts
 }
 
-func (s Scraper) buildCheckInfoLabels() map[string]string {
+func (s Scraper) buildCheckInfoLabels(userLabels []labelPair) map[string]string {
 	labels := map[string]string{
 		"check_name": s.checkName,
 		"region":     s.probe.Region,
@@ -609,7 +620,7 @@ func (s Scraper) buildCheckInfoLabels() map[string]string {
 	if s.check.AlertSensitivity != "" && s.check.AlertSensitivity != "none" {
 		labels["alert_sensitivity"] = s.check.AlertSensitivity
 	}
-	for _, label := range s.buildUserLabels() {
+	for _, label := range userLabels {
 		labels[label.name] = label.value
 	}
 	return labels
@@ -617,22 +628,25 @@ func (s Scraper) buildCheckInfoLabels() map[string]string {
 
 func (s Scraper) buildUserLabels() []labelPair {
 	labels := []labelPair{}
-	seen := make(map[string]struct{})
+	idx := make(map[string]int)
 
-	// add check labels
-	for _, l := range s.check.Labels {
-		seen[l.Name] = struct{}{}
+	// add probe labels
+	for _, l := range s.probe.Labels {
+		idx[l.Name] = len(labels)
 
 		labels = append(labels,
 			labelPair{name: "label_" + l.Name, value: l.Value})
 	}
 
-	// add probe labels
-	for _, l := range s.probe.Labels {
-		if _, found := seen[l.Name]; found {
-			// checks can override probe labels
+	// add check labels
+	for _, l := range s.check.Labels {
+		if where, found := idx[l.Name]; found {
+			// already there, update value
+			labels[where].value = l.Value
 			continue
 		}
+
+		idx[l.Name] = len(labels)
 
 		labels = append(labels,
 			labelPair{name: "label_" + l.Name, value: l.Value})

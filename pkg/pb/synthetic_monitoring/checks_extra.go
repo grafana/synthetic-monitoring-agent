@@ -85,9 +85,10 @@ var (
 )
 
 const (
-	MaxLogLabels        = 15  // Loki allows a maximum of 15 labels, we reserve 7 for internal use,
-	MaxCheckLabels      = 5   // and split the other 8 in 5 for the checks
-	MaxProbeLabels      = 3   // and 3 for the probes.
+	MaxMetricLabels     = 20  // Prometheus allows for 32 labels, but limit to 20.
+	MaxLogLabels        = 15  // Loki allows a maximum of 15 labels.
+	MaxCheckLabels      = 10  // Allow 10 user labels for checks,
+	MaxProbeLabels      = 3   // 3 for probes, leaving 7 for internal use.
 	MaxLabelValueLength = 128 // Keep this number low so that the UI remains usable.
 )
 
