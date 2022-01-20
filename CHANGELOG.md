@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.5.0"></a>
+## [v0.5.0] - 2022-01-20
+### Feature
+- increase maximum number of user labels
+
+
 <a name="v0.4.1"></a>
 ## [v0.4.1] - 2021-12-02
 ### Fix
@@ -221,7 +227,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.5.0...HEAD
+[v0.5.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.4.1...v0.5.0
 [v0.4.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.4.0...v0.4.1
 [v0.4.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.3.3...v0.4.0
 [v0.3.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.3.2...v0.3.3
