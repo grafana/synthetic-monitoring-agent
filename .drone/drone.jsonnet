@@ -8,6 +8,7 @@ local pipeline(name, steps=[]) = {
   kind: 'pipeline',
   type: 'docker',
   name: name,
+  image_pull_secrets: ['docker_config_json'],
   steps: [step('runner identification', ['echo $DRONE_RUNNER_NAME'], 'alpine')] + steps,
   trigger+: {
     ref+: [
@@ -140,6 +141,26 @@ local vault_secret(name, vault_path, key) = {
     }
     + dependsOn(['docker push to docker.com'])
     + releaseOnly,
+
+    step('trigger argo workflow', [])
+    + {
+        settings: {
+          namespace: 'synthetic-monitoring-cd',
+          token: { from_secret: 'argo_token' },
+          command: std.strReplace(|||
+            submit --from workflowtemplate/deploy-synthetic-monitoring-agent
+            --name deploy-synthetic-monitoring-agent-$(./scripts/version)
+            --parameter dockertag=$(./scripts/version)
+            --parameter commit=${DRONE_COMMIT}
+            --parameter commit_author=${DRONE_COMMIT_AUTHOR}
+            --parameter commit_link=${DRONE_COMMIT_LINK}
+          |||, '\n', ' '),
+          add_ci_labels: true,
+        },
+        image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli'
+     }
+     + releaseOnly,
+
   ]),
 
   vault_secret('docker_username', 'infra/data/ci/docker_hub', 'username'),
@@ -147,4 +168,5 @@ local vault_secret(name, vault_path, key) = {
   vault_secret('gcs_key', 'infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'key'),
   vault_secret('gpg_priv_key', 'infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'gpg_priv_key'),
   vault_secret('docker_config_json', 'infra/data/ci/gcr-admin', '.dockerconfigjson'),
+  vault_secret('argo_token', 'infra/data/ci/argo-workflows/trigger-service-account', 'token'),
 ]
