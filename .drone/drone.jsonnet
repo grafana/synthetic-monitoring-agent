@@ -142,6 +142,12 @@ local vault_secret(name, vault_path, key) = {
     + dependsOn(['docker push to docker.com'])
     + releaseOnly,
 
+    step('debug', ['pwd', 'find', 'cat .tags', 'scripts/version'], 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli')
+    + {
+      entrypoint: [''],
+    }
+    + dependsOn(['package']),
+
     step('trigger argo workflow', [])
     + {
         settings: {
