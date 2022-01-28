@@ -1,56 +1,62 @@
 ---
-image_pull_secrets:
-- docker_config_json
 kind: pipeline
+type: docker
 name: build
+
+platform:
+  os: linux
+  arch: amd64
+
 steps:
-- commands:
-  - echo $DRONE_RUNNER_NAME
+- name: runner identification
   image: alpine
-  name: runner identification
-- commands:
+  commands:
+  - echo $DRONE_RUNNER_NAME
+
+- name: deps
+  image: golang:1.17
+  commands:
   - make deps
   - ./scripts/enforce-clean
   depends_on:
   - runner identification
+
+- name: lint
   image: golang:1.17
-  name: deps
-- commands:
+  commands:
   - make lint
   depends_on:
-  - runner identification
+  - deps
+
+- name: test
   image: golang:1.17
-  name: lint
-- commands:
+  commands:
   - make test
   depends_on:
   - lint
+
+- name: build
   image: golang:1.17
-  name: test
-- commands:
+  commands:
   - git fetch origin --tags
   - git status --porcelain --untracked-files=no
   - git diff --no-ext-diff --quiet
   - ./scripts/version
-  - '{ echo -n latest, ; ./scripts/version ; } > .tags'
+  - "{ echo -n latest, ; ./scripts/version ; } > .tags"
   - make build
   depends_on:
   - test
-  image: golang:1.17
-  name: build
-- commands: []
+
+- name: docker build
+  image: plugins/docker
+  settings:
+    dry_run: true
+    repo: grafana/synthetic-monitoring-agent
   depends_on:
   - build
+
+- name: docker push to docker.com
   image: plugins/docker
-  name: docker build
-  settings:
-    dry_run: "true"
-    repo: grafana/synthetic-monitoring-agent
-- commands: []
-  depends_on:
-  - docker build
-  image: plugins/docker
-  name: docker push to docker.com
   settings:
     password:
       from_secret: docker_password
@@ -60,11 +66,11 @@ steps:
   when:
     ref:
     - refs/tags/v*.*.*
-- commands: []
   depends_on:
   - docker build
+
+- name: docker push to gcr.io (dev)
   image: plugins/docker
-  name: docker push to gcr.io (dev)
   settings:
     config:
       from_secret: docker_config_json
@@ -72,11 +78,11 @@ steps:
   when:
     ref:
     - refs/heads/main
-- commands: []
   depends_on:
   - docker build
+
+- name: docker push to gcr.io (release)
   image: plugins/docker
-  name: docker push to gcr.io (release)
   settings:
     config:
       from_secret: docker_config_json
@@ -84,92 +90,125 @@ steps:
   when:
     ref:
     - refs/tags/v*.*.*
-- commands:
-  - make package
   depends_on:
   - docker build
+
+- name: package
   image: golang:1.17
-  name: package
+  commands:
+  - make package
   when:
     event:
     - pull_request
-- commands:
+  depends_on:
+  - docker build
+
+- name: publish packages
+  image: golang:1.17
+  commands:
   - export GCS_KEY_DIR=$(pwd)/keys
   - mkdir -p $GCS_KEY_DIR
   - echo "$GCS_KEY" | base64 -d > $GCS_KEY_DIR/gcs-key.json
   - make publish-packages
-  depends_on:
-  - docker push to docker.com
   environment:
     GCS_KEY:
       from_secret: gcs_key
     GPG_PRIV_KEY:
       from_secret: gpg_priv_key
-    PUBLISH_PROD_PKGS: "1"
-  image: golang:1.17
-  name: publish packages
+    PUBLISH_PROD_PKGS: 1
   when:
     ref:
     - refs/tags/v*.*.*
-- commands: []
+  depends_on:
+  - docker push to docker.com
+
+- name: trigger argo workflow (dev)
   image: us.gcr.io/kubernetes-dev/drone/plugins/argo-cli
-  name: trigger argo workflow
   settings:
     add_ci_labels: true
-    command: 'submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name
-      deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter dockertag=$(./scripts/version)
-      --parameter commit=${DRONE_COMMIT} --parameter commit_author=${DRONE_COMMIT_AUTHOR}
-      --parameter commit_link=${DRONE_COMMIT_LINK} '
+    command: "submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter mode=dev --parameter dockertag=$(./scripts/version) --parameter commit=${DRONE_COMMIT} --parameter commit_author=${DRONE_COMMIT_AUTHOR} --parameter commit_link=${DRONE_COMMIT_LINK} "
+    namespace: synthetic-monitoring-cd
+    token:
+      from_secret: argo_token
+  when:
+    ref:
+    - refs/heads/main
+  depends_on:
+  - docker push to gcr.io (dev)
+
+- name: trigger argo workflow (release)
+  image: us.gcr.io/kubernetes-dev/drone/plugins/argo-cli
+  settings:
+    add_ci_labels: true
+    command: "submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter mode=release --parameter dockertag=$(./scripts/version) --parameter commit=${DRONE_COMMIT} --parameter commit_author=${DRONE_COMMIT_AUTHOR} --parameter commit_link=${DRONE_COMMIT_LINK} "
     namespace: synthetic-monitoring-cd
     token:
       from_secret: argo_token
   when:
     ref:
     - refs/tags/v*.*.*
+  depends_on:
+  - docker push to gcr.io (release)
+
+image_pull_secrets:
+- docker_config_json
+
 trigger:
   ref:
   - refs/heads/main
   - refs/pull/**
   - refs/tags/v*.*.*
-type: docker
+
 ---
-get:
-  name: username
-  path: infra/data/ci/docker_hub
 kind: secret
 name: docker_username
----
+
 get:
-  name: password
   path: infra/data/ci/docker_hub
+  name: username
+
+---
 kind: secret
 name: docker_password
----
+
 get:
-  name: key
-  path: infra/data/ci/gcp/synthetic-mon-publish-pkgs
+  path: infra/data/ci/docker_hub
+  name: password
+
+---
 kind: secret
 name: gcs_key
----
+
 get:
-  name: gpg_priv_key
   path: infra/data/ci/gcp/synthetic-mon-publish-pkgs
+  name: key
+
+---
 kind: secret
 name: gpg_priv_key
----
+
 get:
-  name: .dockerconfigjson
-  path: infra/data/ci/gcr-admin
+  path: infra/data/ci/gcp/synthetic-mon-publish-pkgs
+  name: gpg_priv_key
+
+---
 kind: secret
 name: docker_config_json
----
+
 get:
-  name: token
-  path: infra/data/ci/argo-workflows/trigger-service-account
+  path: infra/data/ci/gcr-admin
+  name: .dockerconfigjson
+
+---
 kind: secret
 name: argo_token
+
+get:
+  path: infra/data/ci/argo-workflows/trigger-service-account
+  name: token
+
 ---
 kind: signature
-hmac: 0b335d98e90e8f2d17bb483e759e54bdd53dcfb678afdf7a5132efeef5cfeac1
+hmac: 0cba777bfa6a70b8eb7b6110ab880bb3707987c0ebd85c9059e4ab77db9c03a6
 
 ...

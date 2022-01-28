@@ -65,7 +65,7 @@ local vault_secret(name, vault_path, key) = {
     + dependsOn(['runner identification']),
 
     step('lint', ['make lint'])
-    + dependsOn(['runner identification']),
+    + dependsOn(['deps']),
 
     step('test', ['make test'])
     + dependsOn(['lint']),
@@ -142,7 +142,7 @@ local vault_secret(name, vault_path, key) = {
     + dependsOn(['docker push to docker.com'])
     + releaseOnly,
 
-    step('trigger argo workflow', [])
+    step('trigger argo workflow (dev)', [])
     + {
         settings: {
           namespace: 'synthetic-monitoring-cd',
@@ -150,6 +150,7 @@ local vault_secret(name, vault_path, key) = {
           command: std.strReplace(|||
             submit --from workflowtemplate/deploy-synthetic-monitoring-agent
             --name deploy-synthetic-monitoring-agent-$(./scripts/version)
+            --parameter mode=dev
             --parameter dockertag=$(./scripts/version)
             --parameter commit=${DRONE_COMMIT}
             --parameter commit_author=${DRONE_COMMIT_AUTHOR}
@@ -158,8 +159,30 @@ local vault_secret(name, vault_path, key) = {
           add_ci_labels: true,
         },
         image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli'
-     }
-     + releaseOnly,
+    }
+    + dependsOn(['docker push to gcr.io (dev)'])
+    + devOnly,
+
+    step('trigger argo workflow (release)', [])
+    + {
+        settings: {
+          namespace: 'synthetic-monitoring-cd',
+          token: { from_secret: 'argo_token' },
+          command: std.strReplace(|||
+            submit --from workflowtemplate/deploy-synthetic-monitoring-agent
+            --name deploy-synthetic-monitoring-agent-$(./scripts/version)
+            --parameter mode=release
+            --parameter dockertag=$(./scripts/version)
+            --parameter commit=${DRONE_COMMIT}
+            --parameter commit_author=${DRONE_COMMIT_AUTHOR}
+            --parameter commit_link=${DRONE_COMMIT_LINK}
+          |||, '\n', ' '),
+          add_ci_labels: true,
+        },
+        image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli'
+   }
+   + dependsOn(['docker push to gcr.io (release)'])
+   + releaseOnly,
 
   ]),
 
