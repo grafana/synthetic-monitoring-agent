@@ -106,7 +106,7 @@ local vault_secret(name, vault_path, key) = {
     + {
       settings: {
         repo: gcrio_repo,
-        config: {from_secret: 'docker_config_json'},
+        config: { from_secret: 'docker_config_json' },
       },
     }
     + dependsOn(['docker build'])
@@ -116,17 +116,37 @@ local vault_secret(name, vault_path, key) = {
     + {
       settings: {
         repo: gcrio_repo,
-        config: {from_secret: 'docker_config_json'},
+        config: { from_secret: 'docker_config_json' },
       },
     }
     + dependsOn(['docker build'])
     + releaseOnly,
 
-    step('package', ['make package'])
+    step('trigger argo workflow', [])
+    + {
+      settings: {
+        namespace: 'synthetic-monitoring-cd',
+        token: { from_secret: 'argo_token' },
+        command: std.strReplace(|||
+          submit --from workflowtemplate/deploy-synthetic-monitoring-agent
+          --name deploy-synthetic-monitoring-agent-$(./scripts/version)
+          --parameter dockertag=$(./scripts/version)
+          --parameter commit=${DRONE_COMMIT}
+          --parameter commit_author=${DRONE_COMMIT_AUTHOR}
+          --parameter commit_link=${DRONE_COMMIT_LINK}
+        |||, '\n', ' '),
+        add_ci_labels: true,
+      },
+      image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli',
+    }
+    + releaseOnly,
+
+    step('package', ['./scripts/version', 'make package'])
     + dependsOn(['docker build'])
     + prOnly,
 
     step('publish packages', [
+      './scripts/version',
       'export GCS_KEY_DIR=$(pwd)/keys',
       'mkdir -p $GCS_KEY_DIR',
       'echo "$GCS_KEY" | base64 -d > $GCS_KEY_DIR/gcs-key.json',
@@ -141,26 +161,6 @@ local vault_secret(name, vault_path, key) = {
     }
     + dependsOn(['docker push to docker.com'])
     + releaseOnly,
-
-    step('trigger argo workflow', [])
-    + {
-        settings: {
-          namespace: 'synthetic-monitoring-cd',
-          token: { from_secret: 'argo_token' },
-          command: std.strReplace(|||
-            submit --from workflowtemplate/deploy-synthetic-monitoring-agent
-            --name deploy-synthetic-monitoring-agent-$(./scripts/version)
-            --parameter dockertag=$(./scripts/version)
-            --parameter commit=${DRONE_COMMIT}
-            --parameter commit_author=${DRONE_COMMIT_AUTHOR}
-            --parameter commit_link=${DRONE_COMMIT_LINK}
-          |||, '\n', ' '),
-          add_ci_labels: true,
-        },
-        image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli'
-     }
-     + releaseOnly,
-
   ]),
 
   vault_secret('docker_username', 'infra/data/ci/docker_hub', 'username'),

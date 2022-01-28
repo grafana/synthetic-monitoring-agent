@@ -84,7 +84,23 @@ steps:
   when:
     ref:
     - refs/tags/v*.*.*
+- commands: []
+  image: us.gcr.io/kubernetes-dev/drone/plugins/argo-cli
+  name: trigger argo workflow
+  settings:
+    add_ci_labels: true
+    command: 'submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name
+      deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter dockertag=$(./scripts/version)
+      --parameter commit=${DRONE_COMMIT} --parameter commit_author=${DRONE_COMMIT_AUTHOR}
+      --parameter commit_link=${DRONE_COMMIT_LINK} '
+    namespace: synthetic-monitoring-cd
+    token:
+      from_secret: argo_token
+  when:
+    ref:
+    - refs/tags/v*.*.*
 - commands:
+  - ./scripts/version
   - make package
   depends_on:
   - docker build
@@ -94,6 +110,7 @@ steps:
     event:
     - pull_request
 - commands:
+  - ./scripts/version
   - export GCS_KEY_DIR=$(pwd)/keys
   - mkdir -p $GCS_KEY_DIR
   - echo "$GCS_KEY" | base64 -d > $GCS_KEY_DIR/gcs-key.json
@@ -108,21 +125,6 @@ steps:
     PUBLISH_PROD_PKGS: "1"
   image: golang:1.17
   name: publish packages
-  when:
-    ref:
-    - refs/tags/v*.*.*
-- commands: []
-  image: us.gcr.io/kubernetes-dev/drone/plugins/argo-cli
-  name: trigger argo workflow
-  settings:
-    add_ci_labels: true
-    command: 'submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name
-      deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter dockertag=$(./scripts/version)
-      --parameter commit=${DRONE_COMMIT} --parameter commit_author=${DRONE_COMMIT_AUTHOR}
-      --parameter commit_link=${DRONE_COMMIT_LINK} '
-    namespace: synthetic-monitoring-cd
-    token:
-      from_secret: argo_token
   when:
     ref:
     - refs/tags/v*.*.*
@@ -170,6 +172,6 @@ kind: secret
 name: argo_token
 ---
 kind: signature
-hmac: 0b335d98e90e8f2d17bb483e759e54bdd53dcfb678afdf7a5132efeef5cfeac1
+hmac: 14ed4528df806e2edfcf2507cb83e5a110a222f2988db82b3bf34504ca8fe17a
 
 ...
