@@ -50,6 +50,7 @@ var (
 
 	ErrInvalidPingHostname    = errors.New("invalid ping hostname")
 	ErrInvalidPingPayloadSize = errors.New("invalid ping payload size")
+	ErrInvalidPingPacketCount = errors.New("invalid ping packet count")
 
 	ErrInvalidDnsName             = errors.New("invalid DNS name")
 	ErrInvalidDnsServer           = errors.New("invalid DNS server")
@@ -90,6 +91,7 @@ const (
 	MaxCheckLabels      = 10  // Allow 10 user labels for checks,
 	MaxProbeLabels      = 3   // 3 for probes, leaving 7 for internal use.
 	MaxLabelValueLength = 128 // Keep this number low so that the UI remains usable.
+	MaxPingPackets      = 10  // Allow 10 packets per ping.
 )
 
 // CheckType represents the type of the associated check
@@ -331,6 +333,10 @@ func (s CheckSettings) Validate() error {
 func (s *PingSettings) Validate() error {
 	if s.PayloadSize < 0 || s.PayloadSize > 65499 {
 		return ErrInvalidPingPayloadSize
+	}
+
+	if s.PacketCount < 0 || s.PacketCount > MaxPingPackets {
+		return ErrInvalidPingPacketCount
 	}
 
 	return nil

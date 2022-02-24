@@ -1,10 +1,16 @@
 package icmp
 
 import (
+	"context"
+	"os"
 	"testing"
+	"time"
 
+	"github.com/go-kit/log"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
+	bbeprober "github.com/prometheus/blackbox_exporter/prober"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,9 +33,11 @@ func TestNewProber(t *testing.T) {
 				},
 			},
 			expected: Prober{
-				config: config.Module{
-					Prober:  "ping",
-					Timeout: 0,
+				config: Module{
+					Prober:      "ping",
+					Timeout:     0,
+					PacketCount: 1,
+					Privileged:  isPrivilegedRequired(),
 					ICMP: config.ICMPProbe{
 						IPProtocol:         "ip6",
 						IPProtocolFallback: true,
@@ -66,13 +74,14 @@ func TestNewProber(t *testing.T) {
 func TestSettingsToModule(t *testing.T) {
 	testcases := map[string]struct {
 		input    sm.PingSettings
-		expected config.Module
+		expected Module
 	}{
 		"default": {
 			input: sm.PingSettings{},
-			expected: config.Module{
-				Prober:  "ping",
-				Timeout: 0,
+			expected: Module{
+				Prober:      "ping",
+				Timeout:     0,
+				PacketCount: 1,
 				ICMP: config.ICMPProbe{
 					IPProtocol:         "ip6",
 					IPProtocolFallback: true,
@@ -84,13 +93,44 @@ func TestSettingsToModule(t *testing.T) {
 				IpVersion:       1,
 				SourceIpAddress: "0.0.0.0",
 			},
-			expected: config.Module{
-				Prober:  "ping",
-				Timeout: 0,
+			expected: Module{
+				Prober:      "ping",
+				Timeout:     0,
+				PacketCount: 1,
 				ICMP: config.ICMPProbe{
 					IPProtocol:         "ip4",
 					IPProtocolFallback: false,
 					SourceIPAddress:    "0.0.0.0",
+				},
+			},
+		},
+		"count 1": {
+			input: sm.PingSettings{
+				IpVersion:   1,
+				PacketCount: 1,
+			},
+			expected: Module{
+				Prober:      "ping",
+				Timeout:     0,
+				PacketCount: 1,
+				ICMP: config.ICMPProbe{
+					IPProtocol:         "ip4",
+					IPProtocolFallback: false,
+				},
+			},
+		},
+		"count 2": {
+			input: sm.PingSettings{
+				IpVersion:   1,
+				PacketCount: 2,
+			},
+			expected: Module{
+				Prober:      "ping",
+				Timeout:     0,
+				PacketCount: 2,
+				ICMP: config.ICMPProbe{
+					IPProtocol:         "ip4",
+					IPProtocolFallback: false,
 				},
 			},
 		},
@@ -102,4 +142,67 @@ func TestSettingsToModule(t *testing.T) {
 			require.Equal(t, &testcase.expected, &actual)
 		})
 	}
+}
+
+func TestProber(t *testing.T) {
+	deadline, ok := t.Deadline()
+	if !ok {
+		deadline = time.Now().Add(1 * time.Second)
+	}
+
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+
+	prober, err := NewProber(sm.Check{
+		Target:  "127.0.0.1",
+		Timeout: 1000,
+		Settings: sm.CheckSettings{
+			Ping: &sm.PingSettings{
+				IpVersion:   sm.IpVersion_V4,
+				PacketCount: 1,
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, prober)
+
+	registry := prometheus.NewRegistry()
+	require.NotNil(t, registry)
+
+	logger := log.NewLogfmtLogger(os.Stdout)
+	require.NotNil(t, logger)
+
+	success := prober.Probe(ctx, "127.0.0.1", registry, logger)
+	require.True(t, success)
+}
+
+func TestBBEProber(t *testing.T) {
+	deadline, ok := t.Deadline()
+	if !ok {
+		deadline = time.Now().Add(1 * time.Second)
+	}
+
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+
+	target := "127.0.0.1"
+
+	registry := prometheus.NewRegistry()
+	require.NotNil(t, registry)
+
+	logger := log.NewLogfmtLogger(os.Stdout)
+	require.NotNil(t, logger)
+
+	module := config.Module{
+		Prober:  "test",
+		Timeout: 100 * time.Millisecond,
+		ICMP: config.ICMPProbe{
+			IPProtocol:         "ip4",
+			IPProtocolFallback: false,
+		},
+	}
+
+	success := bbeprober.ProbeICMP(ctx, target, module, registry, logger)
+	require.True(t, success)
 }

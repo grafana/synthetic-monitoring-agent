@@ -280,6 +280,10 @@ func verifyProberMetrics(
 	histograms := make(map[uint64]prometheus.Histogram)
 	logger := &testLogger{w: ioutil.Discard}
 
+	if os.Getenv("CI") == "true" {
+		logger.w = os.Stdout
+	}
+
 	prober, check, stop := setup(ctx, t)
 	defer stop()
 
