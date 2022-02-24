@@ -206,6 +206,10 @@ message PingSettings {
 	string     sourceIpAddress = 2 [(gogoproto.jsontag) = "sourceIpAddress,omitempty"]; // source IP address for the packets
 	int64      payloadSize     = 3 [(gogoproto.jsontag) = "payloadSize,omitempty"];     // size of the ICMP packet's data portion
 	bool       dontFragment    = 4 [(gogoproto.jsontag) = "dontFragment"];              // set the IP don't fragment option
+
+	// custom settings not present in blackbox-exporter
+
+	int64      packetCount     = 900 [(gogoproto.jsontag) = "packetCount"];             // number of ping packets to send
 }
 
 // HttpMethod represents the HTTP method used when making HTTP requests.
