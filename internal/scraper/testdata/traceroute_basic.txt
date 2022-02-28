@@ -1,9 +1,18 @@
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 2.2643e-05
+probe_duration_seconds 0.001298425
 # HELP probe_success Displays whether or not the probe was a success
 # TYPE probe_success gauge
-probe_success 0
+probe_success 1
+# HELP probe_traceroute_packet_loss_percent Overall percentage of packet loss during the traceroute
+# TYPE probe_traceroute_packet_loss_percent gauge
+probe_traceroute_packet_loss_percent 0
+# HELP probe_traceroute_route_hash Hash of all the hosts in a traceroute path. Used to determine route volatility.
+# TYPE probe_traceroute_route_hash gauge
+probe_traceroute_route_hash 1.71769816e+08
+# HELP probe_traceroute_total_hops Total hops to reach a traceroute destination
+# TYPE probe_traceroute_total_hops gauge
+probe_traceroute_total_hops 1
 # HELP sm_check_info Provides information about a single check configuration
 # TYPE sm_check_info gauge
 sm_check_info 1
@@ -21,9 +30,9 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 2.2643e-05
+probe_all_duration_seconds_sum 0.001298425
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
-probe_all_success_sum 0
+probe_all_success_sum 1
 probe_all_success_count 1

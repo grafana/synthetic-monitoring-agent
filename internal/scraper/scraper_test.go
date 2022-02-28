@@ -40,6 +40,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+	"kernel.org/pub/linux/libs/security/libcap/cap"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "update golden files")
@@ -220,13 +221,19 @@ func TestValidateMetrics(t *testing.T) {
 
 		"traceroute": {
 			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					w.WriteHeader(http.StatusOK)
-				}))
-				httpSrv.Start()
+				checkCap := func(set *cap.Set, v cap.Value) {
+					if permitted, err := set.GetFlag(cap.Permitted, v); err != nil {
+						t.Fatalf("cannot get %s flag: %s", v, err)
+					} else if !permitted {
+						t.Skipf("traceroute cannot run, process doesn't have %s capability", v)
+					}
+				}
+				c := cap.GetProc()
+				checkCap(c, cap.NET_ADMIN)
+				checkCap(c, cap.NET_RAW)
 
 				check := sm.Check{
-					Target: httpSrv.URL,
+					Target: "127.0.0.1",
 					Settings: sm.CheckSettings{
 						Traceroute: &sm.TracerouteSettings{},
 					},
@@ -236,6 +243,7 @@ func TestValidateMetrics(t *testing.T) {
 				if err != nil {
 					t.Fatalf("cannot create traceroute prober %s", err)
 				}
+
 				return p, check, func() {}
 			},
 		},
@@ -286,11 +294,9 @@ func verifyProberMetrics(
 		logger,
 		basicMetricsOnly,
 	)
-	if err != nil {
-		t.Fatalf("probe failed: %s", err.Error())
-	} else if !success {
-		t.Logf("probe failed: %s", prober.Name())
-	}
+
+	require.NoError(t, err, "probe failed")
+	require.Truef(t, success, "probe failed: %s", prober.Name())
 
 	fn := filepath.Join("testdata", name+".txt")
 
@@ -325,9 +331,7 @@ func verifyProberMetrics(
 	}
 
 	expectedMetrics, err := readGoldenFile(fn)
-	if err != nil {
-		t.Fatal(err.Error())
-	}
+	require.NoError(t, err, "reading golden file")
 
 	require.Equal(t, expectedMetrics, actualMetrics, "maps must be equal")
 }
@@ -370,7 +374,7 @@ func readGoldenFile(fn string) (map[string]struct{}, error) {
 }
 
 func setupDNSServer(t *testing.T) (string, func()) {
-	dnsSrv, dnsAddr := startDNSServer(":0", "udp6", recursiveDNSHandler)
+	dnsSrv, dnsAddr := startDNSServer(":0", "udp", recursiveDNSHandler)
 
 	errCh := make(chan error)
 
@@ -404,7 +408,7 @@ func startDNSServer(addr, protocol string, handler func(dns.ResponseWriter, *dns
 	h := dns.NewServeMux()
 	h.HandleFunc(".", handler)
 
-	server := &dns.Server{Addr: addr, Net: protocol, Handler: h}
+	server := &dns.Server{Net: protocol, Handler: h}
 	switch protocol {
 	case "udp", "udp4", "udp6":
 		a, err := net.ResolveUDPAddr(server.Net, server.Addr)
@@ -415,6 +419,7 @@ func startDNSServer(addr, protocol string, handler func(dns.ResponseWriter, *dns
 		if err != nil {
 			panic(err)
 		}
+		server.Addr = l.LocalAddr().String()
 		server.PacketConn = l
 	case "tcp", "tcp4", "tcp6":
 		a, err := net.ResolveTCPAddr(server.Net, server.Addr)
@@ -425,6 +430,7 @@ func startDNSServer(addr, protocol string, handler func(dns.ResponseWriter, *dns
 		if err != nil {
 			panic(err)
 		}
+		server.Addr = l.Addr().String()
 		server.Listener = l
 	default:
 		panic("unknown protocol")

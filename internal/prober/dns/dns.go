@@ -16,6 +16,7 @@ import (
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Prober struct {
+	target string
 	config config.Module
 }
 
@@ -28,6 +29,7 @@ func NewProber(check sm.Check) (Prober, error) {
 	cfg.Timeout = time.Duration(check.Timeout) * time.Millisecond
 
 	return Prober{
+		target: check.Settings.Dns.Server,
 		config: cfg,
 	}, nil
 }
@@ -37,7 +39,11 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
-	return bbeprober.ProbeDNS(ctx, target, p.config, registry, logger)
+	// The target of the BBE DNS check is the _DNS server_, while
+	// the target of the SM DNS check is the _query_, so we need
+	// pass the server as the target parameter, and ignore the
+	// _target_ paramater that is passed to this function.
+	return bbeprober.ProbeDNS(ctx, p.target, p.config, registry, logger)
 }
 
 func settingsToModule(settings *sm.DnsSettings, target string) config.Module {
