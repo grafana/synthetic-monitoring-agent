@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/adhoc"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
@@ -167,6 +168,24 @@ func run(args []string, stdout io.Writer) error {
 	g.Go(func() error {
 		return checksUpdater.Run(ctx)
 	})
+
+	if features.IsSet(feature.AdHoc) {
+		adhocHandler, err := adhoc.NewHandler(adhoc.HandlerOpts{
+			Conn:           conn,
+			Logger:         zl.With().Str("subsystem", "adhoc").Logger(),
+			PublishCh:      publishCh,
+			TenantCh:       tenantCh,
+			PromRegisterer: promRegisterer,
+			Features:       features,
+		})
+		if err != nil {
+			return fmt.Errorf("Cannot create ad-hoc checks handler: %w", err)
+		}
+
+		g.Go(func() error {
+			return adhocHandler.Run(ctx)
+		})
+	}
 
 	tm := pusher.NewTenantManager(ctx, synthetic_monitoring.NewTenantsClient(conn), tenantCh, 15*time.Minute)
 

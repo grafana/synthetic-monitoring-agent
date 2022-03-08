@@ -147,7 +147,29 @@ func CheckTypeFromString(in string) (CheckType, bool) {
 	return 0, false
 }
 
-func (c *Check) Validate() error {
+func (c Check) Type() CheckType {
+	switch {
+	case c.Settings.Dns != nil:
+		return CheckTypeDns
+
+	case c.Settings.Http != nil:
+		return CheckTypeHttp
+
+	case c.Settings.Ping != nil:
+		return CheckTypePing
+
+	case c.Settings.Tcp != nil:
+		return CheckTypeTcp
+
+	case c.Settings.Traceroute != nil:
+		return CheckTypeTraceroute
+
+	default:
+		panic("unhandled check type")
+	}
+}
+
+func (c Check) Validate() error {
 	if c.TenantId < 0 {
 		return ErrInvalidTenantId
 	}
@@ -184,7 +206,37 @@ func (c *Check) Validate() error {
 	return nil
 }
 
-func (c *Check) validateFrequency() error {
+func (c Check) validateTarget() error {
+	switch c.Type() {
+	case CheckTypeDns:
+		if err := validateDnsTarget(c.Target); err != nil {
+			return ErrInvalidDnsName
+		}
+
+	case CheckTypeHttp:
+		return validateHttpUrl(c.Target)
+
+	case CheckTypePing:
+		if err := validateHost(c.Target); err != nil {
+			return ErrInvalidPingHostname
+		}
+
+	case CheckTypeTcp:
+		return validateHostPort(c.Target)
+
+	case CheckTypeTraceroute:
+		if err := validateHost(c.Target); err != nil {
+			return ErrInvalidTracerouteHostname
+		}
+
+	default:
+		panic("unhandled check type")
+	}
+
+	return nil
+}
+
+func (c Check) validateFrequency() error {
 	// frequency must be in [1, 120] seconds
 	if c.Settings.Traceroute != nil {
 		if c.Frequency != 120*1000 {
@@ -198,7 +250,7 @@ func (c *Check) validateFrequency() error {
 	return nil
 }
 
-func (c *Check) validateTimeout() error {
+func (c Check) validateTimeout() error {
 	if c.Settings.Traceroute != nil {
 		// We are hardcoding traceroute frequency and timeout until we can get data on what the boundaries should be
 		if c.Timeout != 30*1000 {
@@ -237,7 +289,11 @@ func validateLabels(labels []Label) error {
 	return nil
 }
 
-func (c Check) Type() CheckType {
+func (c Check) ConfigVersion() string {
+	return strconv.FormatInt(int64(c.Modified*1000000000), 10)
+}
+
+func (c AdHocCheck) Type() CheckType {
 	switch {
 	case c.Settings.Dns != nil:
 		return CheckTypeDns
@@ -259,7 +315,42 @@ func (c Check) Type() CheckType {
 	}
 }
 
-func (c Check) validateTarget() error {
+func (c AdHocCheck) Validate() error {
+	if c.TenantId < 0 {
+		return ErrInvalidTenantId
+	}
+	if len(c.Probes) == 0 {
+		return ErrInvalidCheckProbes
+	}
+	if len(c.Target) == 0 {
+		return ErrInvalidCheckTarget
+	}
+
+	if err := c.validateTimeout(); err != nil {
+		return err
+	}
+
+	if err := c.validateTarget(); err != nil {
+		return err
+	}
+
+	if err := c.Settings.Validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c AdHocCheck) validateTimeout() error {
+	// Timeout must be in [1, 2.5] seconds.
+	if c.Timeout < 1*1000 || c.Timeout > 2500 {
+		return ErrInvalidCheckTimeout
+	}
+
+	return nil
+}
+
+func (c AdHocCheck) validateTarget() error {
 	switch c.Type() {
 	case CheckTypeDns:
 		if err := validateDnsTarget(c.Target); err != nil {
@@ -287,10 +378,6 @@ func (c Check) validateTarget() error {
 	}
 
 	return nil
-}
-
-func (c *Check) ConfigVersion() string {
-	return strconv.FormatInt(int64(c.Modified*1000000000), 10)
 }
 
 func (s CheckSettings) Validate() error {

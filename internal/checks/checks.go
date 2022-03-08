@@ -35,6 +35,7 @@ const (
 	errNotAuthorized     = Error("probe not authorized")
 	errTransportClosing  = Error("transport closing")
 	errProbeUnregistered = Error("probe no longer registered")
+	errIncompatibleApi   = Error("API does not support required features")
 )
 
 // Backoffer defines an interface to provide backoff durations.
@@ -238,6 +239,14 @@ func (c *Updater) Run(ctx context.Context) error {
 				Msg("cannot connect, bailing out")
 			return err
 
+		case errors.Is(err, errIncompatibleApi):
+			// API server doesn't support required features.
+			c.logger.Error().
+				Err(err).
+				Str("connection_state", c.api.conn.GetState().String()).
+				Msg("cannot connect, bailing out")
+			return err
+
 		case errors.Is(err, errTransportClosing):
 			// the other end went away? Allow GRPC to reconnect.
 			c.logger.Warn().
@@ -313,6 +322,9 @@ func (c *Updater) loop(ctx context.Context) error {
 
 		case status.Code() == codes.PermissionDenied:
 			return errNotAuthorized
+
+		case status.Code() == codes.Unimplemented:
+			return errIncompatibleApi
 
 		default:
 			return status.Err()
