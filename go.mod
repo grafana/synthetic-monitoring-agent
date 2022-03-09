@@ -34,7 +34,7 @@ require (
 	golang.org/x/net v0.0.0-20210917221730-978cfadd31cf
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/grpc v1.44.0
+	google.golang.org/grpc v1.45.0
 )
 
 require (
