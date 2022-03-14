@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -131,6 +132,10 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 					// Retry to get a new client, credentials might be stale.
 					newClient = true
 					continue
+				} else if strings.Contains(err.Error(), "HTTP status 401 Unauthorized") {
+					// Temporary fix, check for 401 seems to be incorrect.
+					newClient = true
+					continue
 				}
 			} else {
 				p.pushCounter.WithLabelValues("logs", tenantStr).Inc()
@@ -145,6 +150,10 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 				p.errorCounter.WithLabelValues("metrics", tenantStr, strconv.Itoa(httpStatusCode)).Inc()
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
+					newClient = true
+					continue
+				} else if strings.Contains(err.Error(), "HTTP status 401 Unauthorized") {
+					// Temporary fix, check for 401 seems to be incorrect.
 					newClient = true
 					continue
 				}
