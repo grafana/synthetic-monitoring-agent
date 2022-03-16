@@ -9,21 +9,21 @@ probe_dns_answer_rrs 2
 probe_dns_authority_rrs 0
 # HELP probe_dns_duration_seconds Duration of DNS request by phase
 # TYPE probe_dns_duration_seconds gauge
-probe_dns_duration_seconds{phase="connect"} 5.7472e-05
-probe_dns_duration_seconds{phase="request"} 0.000277898
-probe_dns_duration_seconds{phase="resolve"} 1.5009e-05
+probe_dns_duration_seconds{phase="connect"} 4.2812e-05
+probe_dns_duration_seconds{phase="request"} 9.9917e-05
+probe_dns_duration_seconds{phase="resolve"} 2.362e-06
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 1.5009e-05
+probe_dns_lookup_time_seconds 2.362e-06
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.001235992
+probe_duration_seconds 0.000189389
 # HELP probe_ip_addr_hash Specifies the hash of IP address. It's useful to detect if the IP address changes.
 # TYPE probe_ip_addr_hash gauge
-probe_ip_addr_hash 1.768495365e+09
+probe_ip_addr_hash 1.268118805e+09
 # HELP probe_ip_protocol Specifies whether probe ip protocol is IP4 or IP6
 # TYPE probe_ip_protocol gauge
-probe_ip_protocol 6
+probe_ip_protocol 4
 # HELP probe_success Displays whether or not the probe was a success
 # TYPE probe_success gauge
 probe_success 1
@@ -44,7 +44,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.001235992
+probe_all_duration_seconds_sum 0.000189389
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
