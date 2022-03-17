@@ -27,10 +27,14 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-var (
-	errNotAuthorized     = errors.New("probe not authorized")
-	errTransportClosing  = errors.New("transport closing")
-	errProbeUnregistered = errors.New("probe no longer registered")
+type Error string
+
+func (e Error) Error() string { return string(e) }
+
+const (
+	errNotAuthorized     = Error("probe not authorized")
+	errTransportClosing  = Error("transport closing")
+	errProbeUnregistered = Error("probe no longer registered")
 )
 
 // Backoffer defines an interface to provide backoff durations.
