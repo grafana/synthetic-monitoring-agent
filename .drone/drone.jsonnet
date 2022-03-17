@@ -78,7 +78,7 @@ local vault_secret(name, vault_path, key) = {
       '{ echo -n latest, ; ./scripts/version ; } > .tags',  // save version in special file for docker plugin
       'make build',
     ])
-    + dependsOn(['test']),
+    + dependsOn(['deps']),
 
     // We can't use 'make docker' without making this repo priveleged in drone
     // so we will use the native docker plugin instead for security.
@@ -99,7 +99,7 @@ local vault_secret(name, vault_path, key) = {
         password: { from_secret: 'docker_password' },
       },
     }
-    + dependsOn(['docker build'])
+    + dependsOn(['test', 'docker build'])
     + releaseOnly,
 
     step('docker push to gcr.io (dev)', [], 'plugins/docker')
@@ -109,7 +109,7 @@ local vault_secret(name, vault_path, key) = {
         config: {from_secret: 'docker_config_json'},
       },
     }
-    + dependsOn(['docker build'])
+    + dependsOn(['test', 'docker build'])
     + devOnly,
 
     step('docker push to gcr.io (release)', [], 'plugins/docker')
@@ -119,11 +119,11 @@ local vault_secret(name, vault_path, key) = {
         config: {from_secret: 'docker_config_json'},
       },
     }
-    + dependsOn(['docker build'])
+    + dependsOn(['test', 'docker build'])
     + releaseOnly,
 
     step('package', ['make package'])
-    + dependsOn(['docker build'])
+    + dependsOn(['test', 'docker build'])
     + prOnly,
 
     step('publish packages', [
@@ -139,7 +139,7 @@ local vault_secret(name, vault_path, key) = {
         PUBLISH_PROD_PKGS: '1',
       },
     }
-    + dependsOn(['docker push to docker.com'])
+    + dependsOn(['package'])
     + releaseOnly,
 
     step('trigger argo workflow (dev)', [])
