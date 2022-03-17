@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"os"
 	"os/signal"
@@ -18,6 +19,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
@@ -151,6 +153,7 @@ func run(args []string, stdout io.Writer) error {
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:           conn,
 		Logger:         zl.With().Str("subsystem", "updater").Logger(),
+		Backoff:        newConnectionBackoff(),
 		PublishCh:      publishCh,
 		TenantCh:       tenantCh,
 		IsConnected:    readynessHandler.Set,
@@ -196,5 +199,14 @@ func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 	case <-ctx.Done():
 		logger.Info().Msg("shutting down")
 		return nil
+	}
+}
+
+func newConnectionBackoff() *backoff.Backoff {
+	return &backoff.Backoff{
+		Min:    2 * time.Second,
+		Max:    30 * time.Second,
+		Factor: math.Pow(30./2., 1./8.), // reach the target in ~ 8 steps
+		Jitter: true,
 	}
 }
