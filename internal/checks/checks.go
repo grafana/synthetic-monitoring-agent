@@ -19,7 +19,6 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
-	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -34,6 +33,18 @@ var (
 	errProbeUnregistered = errors.New("probe no longer registered")
 )
 
+// Backoffer defines an interface to provide backoff durations.
+//
+// The implementation of this interface SHOULD NOT perform the actual
+// sleep, but rather return the duration to sleep.
+type Backoffer interface {
+	// Reset causes the backoff provider to go back its initial
+	// state, before any calls to Duration() were made.
+	Reset()
+	// Duration returns the duration to sleep.
+	Duration() time.Duration
+}
+
 // Updater represents a probe along with the collection of scrapers
 // running on that probe and it manages the configuration for
 // blackbox-exporter that corresponds to the collection of scrapers.
@@ -41,6 +52,7 @@ type Updater struct {
 	api            apiInfo
 	logger         zerolog.Logger
 	features       feature.Collection
+	backoff        Backoffer
 	publishCh      chan<- pusher.Payload
 	tenantCh       chan<- sm.Tenant
 	IsConnected    func(bool)
@@ -71,6 +83,7 @@ type Streams = []logproto.Stream
 type UpdaterOptions struct {
 	Conn           *grpc.ClientConn
 	Logger         zerolog.Logger
+	Backoff        Backoffer
 	PublishCh      chan<- pusher.Payload
 	TenantCh       chan<- sm.Tenant
 	IsConnected    func(bool)
@@ -186,6 +199,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		},
 		logger:         opts.Logger,
 		features:       opts.Features,
+		backoff:        opts.Backoff,
 		publishCh:      opts.PublishCh,
 		tenantCh:       opts.TenantCh,
 		IsConnected:    opts.IsConnected,
@@ -204,13 +218,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 }
 
 func (c *Updater) Run(ctx context.Context) error {
-	// TODO(mem): find a better place to set this up.
-	backoff := backoff.Backoff{
-		Min:    2 * time.Second,
-		Max:    30 * time.Minute,
-		Factor: 1.41, // This reaches the target in ~ 8 steps.
-		Jitter: true,
-	}
+	c.backoff.Reset()
 
 	for {
 		err := c.loop(ctx)
@@ -235,7 +243,7 @@ func (c *Updater) Run(ctx context.Context) error {
 
 			// After disconnecting, reset the backoff
 			// counter to start afresh.
-			backoff.Reset()
+			c.backoff.Reset()
 
 			continue
 
@@ -260,7 +268,7 @@ func (c *Updater) Run(ctx context.Context) error {
 
 			// The probe is going to reconnect, reset the
 			// backoff counter to start afresh.
-			backoff.Reset()
+			c.backoff.Reset()
 
 		default:
 			c.logger.Warn().
@@ -271,7 +279,7 @@ func (c *Updater) Run(ctx context.Context) error {
 			// TODO(mem): this might be a transient error (e.g. bad connection). We probably need to
 			// fine-tune GRPPC's backoff parameters. We might also need to keep count of the reconnects, and
 			// give up if they hit some threshold?
-			if err := sleepCtx(ctx, backoff.Duration()); err != nil {
+			if err := sleepCtx(ctx, c.backoff.Duration()); err != nil {
 				return err
 			}
 		}
