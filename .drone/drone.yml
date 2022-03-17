@@ -45,7 +45,7 @@ steps:
   - "{ echo -n latest, ; ./scripts/version ; } > .tags"
   - make build
   depends_on:
-  - test
+  - deps
 
 - name: docker build
   image: plugins/docker
@@ -67,6 +67,7 @@ steps:
     ref:
     - refs/tags/v*.*.*
   depends_on:
+  - test
   - docker build
 
 - name: docker push to gcr.io (dev)
@@ -79,6 +80,7 @@ steps:
     ref:
     - refs/heads/main
   depends_on:
+  - test
   - docker build
 
 - name: docker push to gcr.io (release)
@@ -91,6 +93,7 @@ steps:
     ref:
     - refs/tags/v*.*.*
   depends_on:
+  - test
   - docker build
 
 - name: package
@@ -101,6 +104,7 @@ steps:
     event:
     - pull_request
   depends_on:
+  - test
   - docker build
 
 - name: publish packages
@@ -120,7 +124,7 @@ steps:
     ref:
     - refs/tags/v*.*.*
   depends_on:
-  - docker push to docker.com
+  - package
 
 - name: trigger argo workflow (dev)
   image: us.gcr.io/kubernetes-dev/drone/plugins/argo-cli
@@ -209,6 +213,6 @@ get:
 
 ---
 kind: signature
-hmac: 0cba777bfa6a70b8eb7b6110ab880bb3707987c0ebd85c9059e4ab77db9c03a6
+hmac: 717b7fce8402131bcbd3477d4a09d69ea70dddd81d819c4b5df056658f58c3a5
 
 ...
