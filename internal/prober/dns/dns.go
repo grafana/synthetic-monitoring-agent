@@ -64,6 +64,8 @@ func settingsToModule(settings *sm.DnsSettings, target string) config.Module {
 	// "udp".
 	m.DNS.TransportProtocol = strings.ToLower(settings.Protocol.String())
 
+	m.DNS.Recursion = true
+
 	m.DNS.ValidRcodes = settings.ValidRCodes
 
 	if settings.ValidateAnswer != nil {
