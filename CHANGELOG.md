@@ -2,8 +2,15 @@
 ## [Unreleased]
 
 
+<a name="v0.8.1"></a>
+## [v0.8.1] - 2022-03-28
+### Fix
+- update DNS tests to account for updated Recursion field
+- Re-enable request recursion
+
+
 <a name="v0.8.0"></a>
-## [v0.8.0] - 2022-03-08
+## [v0.8.0] - 2022-03-22
 ### Feature
 - Ad-hoc checks
 
@@ -267,7 +274,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.8.1...HEAD
+[v0.8.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.8.0...v0.8.1
 [v0.8.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.7.1...v0.8.0
 [v0.7.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.7.0...v0.7.1
 [v0.7.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.6.3...v0.7.0
