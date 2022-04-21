@@ -8,7 +8,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -64,7 +63,7 @@ func GetHttpStatusCode(err error) (int, bool) {
 	return 0, false
 }
 
-func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte, countRetries pusher.RetriesCounter) error {
+func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte) error {
 	clampBackoff := func(a time.Duration) time.Duration {
 		if a > maxBackoff {
 			return maxBackoff
@@ -78,7 +77,8 @@ func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte, count
 
 	retries := maxRetries
 	defer func() {
-		countRetries(float64(maxRetries - retries))
+		// Performing the retries performed calculation inside a go-routine to evaluate at defer-time
+		client.CountRetries(float64(maxRetries - retries))
 	}()
 	for retries > 0 {
 		select {
@@ -109,7 +109,7 @@ func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte, count
 }
 
 // sendSamples to the remote storage with backoff for recoverable errors.
-func SendSamplesWithBackoff(ctx context.Context, client *Client, samples []prompb.TimeSeries, buf *[]byte, retriesCtr pusher.RetriesCounter) error {
+func SendSamplesWithBackoff(ctx context.Context, client *Client, samples []prompb.TimeSeries, buf *[]byte) error {
 	req, _, err := buildTimeSeriesWriteRequest(samples, *buf)
 	*buf = req
 	if err != nil {
@@ -118,7 +118,7 @@ func SendSamplesWithBackoff(ctx context.Context, client *Client, samples []promp
 		return err
 	}
 
-	return SendBytesWithBackoff(ctx, client, req, retriesCtr)
+	return SendBytesWithBackoff(ctx, client, req)
 }
 
 func buildTimeSeriesWriteRequest(samples []prompb.TimeSeries, buf []byte) ([]byte, int64, error) {
@@ -188,16 +188,19 @@ type ClientConfig struct {
 	Headers          map[string]string
 }
 
+type counterMetricFunc func(float64)
+
 type Client struct {
-	remoteName string
-	url        *url.URL
-	client     *http.Client
-	timeout    time.Duration
-	headers    map[string]string
+	remoteName   string
+	url          *url.URL
+	client       *http.Client
+	timeout      time.Duration
+	headers      map[string]string
+	CountRetries counterMetricFunc
 }
 
 // NewClient creates a new Client.
-func NewClient(remoteName string, conf *ClientConfig) (*Client, error) {
+func NewClient(remoteName string, conf *ClientConfig, retriesCounter counterMetricFunc) (*Client, error) {
 	httpClient, err := NewClientFromConfig(conf.HTTPClientConfig, "remote_storage", false)
 	if err != nil {
 		return nil, err
@@ -213,11 +216,12 @@ func NewClient(remoteName string, conf *ClientConfig) (*Client, error) {
 	}
 
 	return &Client{
-		remoteName: remoteName,
-		url:        conf.URL,
-		client:     httpClient,
-		timeout:    conf.Timeout,
-		headers:    headers,
+		remoteName:   remoteName,
+		url:          conf.URL,
+		client:       httpClient,
+		timeout:      conf.Timeout,
+		headers:      headers,
+		CountRetries: retriesCounter,
 	}, nil
 }
 

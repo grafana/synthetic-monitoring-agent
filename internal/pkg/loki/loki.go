@@ -6,12 +6,10 @@ import (
 	"github.com/golang/snappy"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
-	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 )
 
 // sendSamples to the remote storage with backoff for recoverable errors.
-// TODO: Inject here the counter with the "tenantID" tag already filled
-func SendStreamsWithBackoff(ctx context.Context, client *prom.Client, streams []logproto.Stream, buf *[]byte, retriesCtr pusher.RetriesCounter) error {
+func SendStreamsWithBackoff(ctx context.Context, client *prom.Client, streams []logproto.Stream, buf *[]byte) error {
 	req, err := buildStreamsPushRequest(streams, *buf)
 	*buf = req
 	if err != nil {
@@ -20,7 +18,7 @@ func SendStreamsWithBackoff(ctx context.Context, client *prom.Client, streams []
 		return err
 	}
 
-	return prom.SendBytesWithBackoff(ctx, client, req, retriesCtr)
+	return prom.SendBytesWithBackoff(ctx, client, req)
 }
 
 func buildStreamsPushRequest(streams []logproto.Stream, buf []byte) ([]byte, error) {
