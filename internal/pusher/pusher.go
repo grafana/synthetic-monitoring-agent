@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -132,10 +131,6 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 					// Retry to get a new client, credentials might be stale.
 					newClient = true
 					continue
-				} else if strings.Contains(err.Error(), "HTTP status 401 Unauthorized") {
-					// Temporary fix, check for 401 seems to be incorrect.
-					newClient = true
-					continue
 				}
 			} else {
 				p.pushCounter.WithLabelValues("logs", tenantStr).Inc()
@@ -150,10 +145,6 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 				p.errorCounter.WithLabelValues("metrics", tenantStr, strconv.Itoa(httpStatusCode)).Inc()
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
-					newClient = true
-					continue
-				} else if strings.Contains(err.Error(), "HTTP status 401 Unauthorized") {
-					// Temporary fix, check for 401 seems to be incorrect.
 					newClient = true
 					continue
 				}
@@ -294,6 +285,7 @@ func clientFromRemoteInfo(tenantId int64, remote *sm.RemoteInfo) (*prom.ClientCo
 	}
 
 	clientCfg.Headers["X-Prometheus-Remote-Write-Version"] = "0.1.0"
+	// TODO: check if grafana cloud looks for this headers? or gets OrgID from BasicAuth
 	clientCfg.Headers["X-Scope-OrgID"] = strconv.FormatInt(tenantId, 10)
 
 	return &clientCfg, nil

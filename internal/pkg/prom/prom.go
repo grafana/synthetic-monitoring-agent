@@ -53,10 +53,11 @@ func IsHttpUnauthorized(err error) bool {
 }
 
 func GetHttpStatusCode(err error) (int, bool) {
-	var httpErr httpError
-
-	if errors.As(err, &httpErr) {
-		return httpErr.StatusCode, true
+	for ; err != nil; err = errors.Unwrap(err) {
+		err2, ok := err.(*httpError)
+		if ok {
+			return err2.StatusCode, true
+		}
 	}
 
 	return 0, false
