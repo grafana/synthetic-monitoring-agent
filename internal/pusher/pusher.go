@@ -47,6 +47,7 @@ type Publisher struct {
 	clients       map[int64]*remoteTarget
 	pushCounter   *prometheus.CounterVec
 	errorCounter  *prometheus.CounterVec
+	failedCounter *prometheus.CounterVec
 	bytesOut      *prometheus.CounterVec
 }
 
@@ -73,6 +74,17 @@ func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Lo
 
 	promRegisterer.MustRegister(errorCounter)
 
+	failedCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "sm_agent",
+			Subsystem: "publisher",
+			Name:      "push_failed_total",
+			Help:      "Total number of push failed.",
+		},
+		[]string{"type", "tenantID"})
+
+	promRegisterer.MustRegister(failedCounter)
+
 	bytesOut := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "sm_agent",
@@ -91,6 +103,7 @@ func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Lo
 		logger:        logger,
 		pushCounter:   pushCounter,
 		errorCounter:  errorCounter,
+		failedCounter: failedCounter,
 		bytesOut:      bytesOut,
 	}
 }
@@ -117,8 +130,8 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 	for retry := 2; retry > 0; retry-- {
 		client, err := p.getClient(ctx, tenantID, newClient)
 		if err != nil {
-			logger.Error().Err(err).Msg("get client")
-			p.errorCounter.WithLabelValues("client", tenantStr, "N/A").Inc()
+			logger.Error().Err(err).Msg("get client failed")
+			p.failedCounter.WithLabelValues("client", tenantStr).Inc()
 			return
 		}
 
@@ -159,6 +172,7 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 	}
 
 	// if we are here, we retried and failed
+	p.failedCounter.WithLabelValues("retry_exhausted", tenantStr).Inc()
 	logger.Warn().Msg("failed to push payload")
 }
 
