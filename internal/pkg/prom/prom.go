@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -63,7 +64,7 @@ func GetHttpStatusCode(err error) (int, bool) {
 	return 0, false
 }
 
-func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte) error {
+func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte, countRetries pusher.RetriesCounter) error {
 	clampBackoff := func(a time.Duration) time.Duration {
 		if a > maxBackoff {
 			return maxBackoff
@@ -75,7 +76,11 @@ func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte) error
 
 	backoff := minBackoff
 
-	for retries := maxRetries; retries > 0; {
+	retries := maxRetries
+	defer func() {
+		countRetries(float64(maxRetries - retries))
+	}()
+	for retries > 0 {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -104,7 +109,7 @@ func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte) error
 }
 
 // sendSamples to the remote storage with backoff for recoverable errors.
-func SendSamplesWithBackoff(ctx context.Context, client *Client, samples []prompb.TimeSeries, buf *[]byte) error {
+func SendSamplesWithBackoff(ctx context.Context, client *Client, samples []prompb.TimeSeries, buf *[]byte, retriesCtr pusher.RetriesCounter) error {
 	req, _, err := buildTimeSeriesWriteRequest(samples, *buf)
 	*buf = req
 	if err != nil {
@@ -113,7 +118,7 @@ func SendSamplesWithBackoff(ctx context.Context, client *Client, samples []promp
 		return err
 	}
 
-	return SendBytesWithBackoff(ctx, client, req)
+	return SendBytesWithBackoff(ctx, client, req, retriesCtr)
 }
 
 func buildTimeSeriesWriteRequest(samples []prompb.TimeSeries, buf []byte) ([]byte, int64, error) {

@@ -40,15 +40,16 @@ type Payload interface {
 }
 
 type Publisher struct {
-	tenantManager *TenantManager
-	logger        zerolog.Logger
-	publishCh     <-chan Payload
-	clientsMutex  sync.Mutex
-	clients       map[int64]*remoteTarget
-	pushCounter   *prometheus.CounterVec
-	errorCounter  *prometheus.CounterVec
-	failedCounter *prometheus.CounterVec
-	bytesOut      *prometheus.CounterVec
+	tenantManager  *TenantManager
+	logger         zerolog.Logger
+	publishCh      <-chan Payload
+	clientsMutex   sync.Mutex
+	clients        map[int64]*remoteTarget
+	pushCounter    *prometheus.CounterVec
+	errorCounter   *prometheus.CounterVec
+	bytesOut       *prometheus.CounterVec
+	failedCounter  *prometheus.CounterVec
+	retriesCounter *prometheus.CounterVec
 }
 
 func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Logger, promRegisterer prometheus.Registerer) *Publisher {
@@ -96,15 +97,27 @@ func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Lo
 
 	promRegisterer.MustRegister(bytesOut)
 
+	retriesCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "sm_agent",
+			Subsystem: "publisher",
+			Name:      "retries_total",
+			Help:      "Total number of retries performed.",
+		},
+		[]string{"target", "tenantID"})
+
+	promRegisterer.MustRegister(retriesCounter)
+
 	return &Publisher{
-		tenantManager: tm,
-		publishCh:     publishCh,
-		clients:       make(map[int64]*remoteTarget),
-		logger:        logger,
-		pushCounter:   pushCounter,
-		errorCounter:  errorCounter,
-		failedCounter: failedCounter,
-		bytesOut:      bytesOut,
+		tenantManager:  tm,
+		publishCh:      publishCh,
+		clients:        make(map[int64]*remoteTarget),
+		logger:         logger,
+		pushCounter:    pushCounter,
+		errorCounter:   errorCounter,
+		bytesOut:       bytesOut,
+		failedCounter:  failedCounter,
+		retriesCounter: retriesCounter,
 	}
 }
 
@@ -136,7 +149,9 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 		}
 
 		if len(payload.Streams()) > 0 {
-			if n, err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
+			if n, err := p.pushEvents(ctx, client.Events, payload.Streams(), func(c float64) {
+				p.retriesCounter.WithLabelValues("logs", tenantStr).Add(c)
+			}); err != nil {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Msg("publish events")
 				p.errorCounter.WithLabelValues("logs", tenantStr, strconv.Itoa(httpStatusCode)).Inc()
@@ -152,7 +167,9 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 		}
 
 		if len(payload.Metrics()) > 0 {
-			if n, err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
+			if n, err := p.pushMetrics(ctx, client.Metrics, payload.Metrics(), func(c float64) {
+				p.retriesCounter.WithLabelValues("metrics", tenantStr).Add(c)
+			}); err != nil {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Msg("publish metrics")
 				p.errorCounter.WithLabelValues("metrics", tenantStr, strconv.Itoa(httpStatusCode)).Inc()
@@ -176,28 +193,30 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 	logger.Warn().Msg("failed to push payload")
 }
 
-func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams []logproto.Stream) (int, error) {
+type RetriesCounter func(float64)
+
+func (p *Publisher) pushEvents(ctx context.Context, client *prom.Client, streams []logproto.Stream, retriesCtr RetriesCounter) (int, error) {
 	buf := bufPool.Get().(*[]byte)
 	defer bufPool.Put(buf)
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	if err := loki.SendStreamsWithBackoff(ctx, client, streams, buf); err != nil {
+	if err := loki.SendStreamsWithBackoff(ctx, client, streams, buf, retriesCtr); err != nil {
 		return 0, fmt.Errorf("sending events: %w", err)
 	}
 
 	return len(*buf), nil
 }
 
-func (p *Publisher) pushMetrics(ctx context.Context, client *prom.Client, metrics []prompb.TimeSeries) (int, error) {
+func (p *Publisher) pushMetrics(ctx context.Context, client *prom.Client, metrics []prompb.TimeSeries, retriesCtr RetriesCounter) (int, error) {
 	buf := bufPool.Get().(*[]byte)
 	defer bufPool.Put(buf)
 
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	if err := prom.SendSamplesWithBackoff(ctx, client, metrics, buf); err != nil {
+	if err := prom.SendSamplesWithBackoff(ctx, client, metrics, buf, retriesCtr); err != nil {
 		return 0, fmt.Errorf("sending timeseries: %w", err)
 	}
 
