@@ -40,15 +40,16 @@ type Payload interface {
 }
 
 type Publisher struct {
-	tenantManager *TenantManager
-	logger        zerolog.Logger
-	publishCh     <-chan Payload
-	clientsMutex  sync.Mutex
-	clients       map[int64]*remoteTarget
-	pushCounter   *prometheus.CounterVec
-	errorCounter  *prometheus.CounterVec
-	failedCounter *prometheus.CounterVec
-	bytesOut      *prometheus.CounterVec
+	tenantManager  *TenantManager
+	logger         zerolog.Logger
+	publishCh      <-chan Payload
+	clientsMutex   sync.Mutex
+	clients        map[int64]*remoteTarget
+	pushCounter    *prometheus.CounterVec
+	errorCounter   *prometheus.CounterVec
+	bytesOut       *prometheus.CounterVec
+	failedCounter  *prometheus.CounterVec
+	retriesCounter *prometheus.CounterVec
 }
 
 func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Logger, promRegisterer prometheus.Registerer) *Publisher {
@@ -96,15 +97,27 @@ func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Lo
 
 	promRegisterer.MustRegister(bytesOut)
 
+	retriesCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "sm_agent",
+			Subsystem: "publisher",
+			Name:      "retries_total",
+			Help:      "Total number of retries performed.",
+		},
+		[]string{"target", "tenantID"})
+
+	promRegisterer.MustRegister(retriesCounter)
+
 	return &Publisher{
-		tenantManager: tm,
-		publishCh:     publishCh,
-		clients:       make(map[int64]*remoteTarget),
-		logger:        logger,
-		pushCounter:   pushCounter,
-		errorCounter:  errorCounter,
-		failedCounter: failedCounter,
-		bytesOut:      bytesOut,
+		tenantManager:  tm,
+		publishCh:      publishCh,
+		clients:        make(map[int64]*remoteTarget),
+		logger:         logger,
+		pushCounter:    pushCounter,
+		errorCounter:   errorCounter,
+		bytesOut:       bytesOut,
+		failedCounter:  failedCounter,
+		retriesCounter: retriesCounter,
 	}
 }
 
@@ -242,7 +255,11 @@ func (p *Publisher) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 		return nil, fmt.Errorf("creating metrics client configuration: %w", err)
 	}
 
-	mClient, err := prom.NewClient(tenant.MetricsRemote.Name, mClientCfg)
+	tenantStr := strconv.FormatInt(tenant.Id, 10)
+
+	mClient, err := prom.NewClient(tenant.MetricsRemote.Name, mClientCfg, func(c float64) {
+		p.retriesCounter.WithLabelValues("metrics", tenantStr).Add(c)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("creating metrics client: %w", err)
 	}
@@ -252,7 +269,9 @@ func (p *Publisher) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 		return nil, fmt.Errorf("creating events client configuration: %w", err)
 	}
 
-	eClient, err := prom.NewClient(tenant.EventsRemote.Name, eClientCfg)
+	eClient, err := prom.NewClient(tenant.EventsRemote.Name, eClientCfg, func(c float64) {
+		p.retriesCounter.WithLabelValues("logs", tenantStr).Add(c)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("creating events client: %w", err)
 	}
