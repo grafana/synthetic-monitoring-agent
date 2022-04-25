@@ -351,6 +351,8 @@ func (rt *basicAuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	return rt.rt.RoundTrip(req)
 }
 
+// CountRetries registers the number of retries the client did internally, in a generic metric. The main purpose is to
+// wrap in a simple way the underlying Prometheus metric.
 func (c *Client) CountRetries(retries float64) {
 	c.countRetriesFunc(retries)
 }
