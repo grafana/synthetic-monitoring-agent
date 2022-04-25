@@ -1,0 +1,75 @@
+#!/bin/sh
+
+set -e
+
+usage() {
+	cat <<-EOT
+	Usage:
+
+	        $0 [-h] [-r] <filename.cfg>
+
+	Flags:
+
+	        -h: show this help
+	        -n: don't build api, already built
+	EOT
+}
+
+k3d_context=k3d-sm-test
+k3d_cluster=sm-test
+keep_current=true
+build_agent=true
+while getopts ":hn" arg ; do
+	case "$arg" in
+		n)
+			build_agent=false
+			shift
+			;;
+		h)
+			usage
+			exit 0
+			;;
+		*)
+			usage
+			exit 1
+			;;
+	esac
+done
+
+cfg_file=$1
+
+# check if k3d cluster is running or not
+# k3d image import fails if cluster is not running and script hangs
+cluster_running=$(k3d cluster get "${k3d_cluster}" -o json 2>/dev/null | jq '.[].serversRunning')
+if [ "${cluster_running}" != 1 ]; then
+  echo "E: k3d cluster '${k3d_cluster}' is not running!"
+  echo "INFO: start it with 'k3d cluster start ${k3d_cluster}'"
+  exit 1
+fi
+
+agent_yaml_tmpl=$(dirname "$0")/agent.yaml.tmpl
+
+if test ! -e "${agent_yaml_tmpl}" ; then
+	echo "E: agent.yaml.tmpl not found. Abort."
+	exit 1
+fi
+
+if test -z "${cfg_file}" -o ! -e "${cfg_file}" ; then
+	echo "E: configuration file '${cfg_file}' not found. Abort."
+	exit 1
+fi
+
+agent_yaml=$(mktemp)
+cat ${cfg_file} | gomplate -d config=stdin:///in.env --file "${agent_yaml_tmpl}" > "${agent_yaml}"
+
+if "${build_agent}" ; then
+  ./scripts/docker_build
+  docker build -t "grafana/synthetic-monitoring-agent" -f Dockerfile .
+  k3d image import grafana/synthetic-monitoring-agent:latest -c sm-test
+fi
+
+echo "Applying configuration..."
+
+kubectl --context="${k3d_context}" apply -f "${agent_yaml}"
+
+echo "Done."
