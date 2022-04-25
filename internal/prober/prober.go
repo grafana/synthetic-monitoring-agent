@@ -3,6 +3,9 @@ package prober
 import (
 	"context"
 	"fmt"
+	"log"
+	"net"
+	"syscall"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
@@ -57,4 +60,32 @@ func NewFromCheck(ctx context.Context, logger zerolog.Logger, check sm.Check) (P
 	}
 
 	return p, target, err
+}
+
+func SetupBlockedCidrs(cidrs []string) error {
+	ranges := []net.IPNet{}
+
+	x := func() *net.Dialer {
+		return &net.Dialer{
+			Control: func(network, address string, c syscall.RawConn) error {
+				addr, _, err := net.SplitHostPort(address)
+				if err != nil {
+					return err // TODO: is this correct? Or should we continue?
+				}
+				ip := net.ParseIP(addr)
+				if ip == nil {
+					return fmt.Errorf("%s is not a valid IP address", addr)
+				}
+				for _, r := range ranges {
+					if r.Contains(ip) {
+						return fmt.Errorf("address blocked")
+					}
+				}
+				return nil
+			},
+		}
+	}
+	log.Println(x)
+	// bbeprober.Dialer = x
+	return nil
 }
