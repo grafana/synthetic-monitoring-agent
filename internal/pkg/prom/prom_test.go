@@ -3,8 +3,9 @@ package prom_test
 import (
 	"context"
 	"errors"
-	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
 	"testing"
+
+	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
 )
 
 type FailNTimesPrometheusClient struct {
@@ -18,7 +19,6 @@ func (f *FailNTimesPrometheusClient) Store(ctx context.Context, req []byte) erro
 	}
 	f.FailuresLeft--
 	return prom.NewRecoverableError(errors.New("client failed"))
-
 }
 
 func (f *FailNTimesPrometheusClient) CountRetries(retries float64) {
