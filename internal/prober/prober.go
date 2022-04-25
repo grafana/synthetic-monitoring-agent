@@ -3,7 +3,6 @@ package prober
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"syscall"
 
@@ -85,7 +84,9 @@ func SetupBlockedCidrs(cidrs []string) error {
 			},
 		}
 	}
-	log.Println(x)
+	// TODO(mem): actually set this up and remove the following
+	// line.
+	_ = x
 	// bbeprober.Dialer = x
 	return nil
 }
