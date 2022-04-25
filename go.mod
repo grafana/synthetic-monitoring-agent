@@ -41,7 +41,7 @@ require (
 	github.com/go-kit/log v0.2.0
 	github.com/go-ping/ping v0.0.0-20211130115550-779d1e919534
 	github.com/jpillora/backoff v1.0.0
-	kernel.org/pub/linux/libs/security/libcap/cap v1.2.63
+	kernel.org/pub/linux/libs/security/libcap/cap v1.2.64
 )
 
 require (
@@ -67,7 +67,7 @@ require (
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	kernel.org/pub/linux/libs/security/libcap/psx v1.2.63 // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.64 // indirect
 )
 
 replace github.com/Azure/azure-sdk-for-go => github.com/Azure/azure-sdk-for-go v36.2.0+incompatible
