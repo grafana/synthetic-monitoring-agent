@@ -35,21 +35,14 @@ type recoverableError struct {
 	error
 }
 
+func NewRecoverableError(cause error) error {
+	return recoverableError{cause}
+}
+
 type httpError struct {
 	StatusCode int
 	Status     string
 	error
-}
-
-func IsHttpUnauthorized(err error) bool {
-	for ; err != nil; err = errors.Unwrap(err) {
-		err2, ok := err.(*httpError)
-		if ok && err2.StatusCode == http.StatusUnauthorized {
-			return true
-		}
-	}
-
-	return false
 }
 
 func GetHttpStatusCode(err error) (int, bool) {
@@ -63,7 +56,12 @@ func GetHttpStatusCode(err error) (int, bool) {
 	return 0, false
 }
 
-func SendBytesWithBackoff(ctx context.Context, client *Client, req []byte) error {
+type PrometheusClient interface {
+	Store(ctx context.Context, req []byte) error
+	CountRetries(retries float64)
+}
+
+func SendBytesWithBackoff(ctx context.Context, client PrometheusClient, req []byte) error {
 	clampBackoff := func(a time.Duration) time.Duration {
 		if a > maxBackoff {
 			return maxBackoff
@@ -191,12 +189,12 @@ type ClientConfig struct {
 type counterMetricFunc func(float64)
 
 type Client struct {
-	remoteName   string
-	url          *url.URL
-	client       *http.Client
-	timeout      time.Duration
-	headers      map[string]string
-	CountRetries counterMetricFunc
+	remoteName       string
+	url              *url.URL
+	client           *http.Client
+	timeout          time.Duration
+	headers          map[string]string
+	countRetriesFunc counterMetricFunc
 }
 
 // NewClient creates a new Client.
@@ -216,12 +214,12 @@ func NewClient(remoteName string, conf *ClientConfig, retriesCounter counterMetr
 	}
 
 	return &Client{
-		remoteName:   remoteName,
-		url:          conf.URL,
-		client:       httpClient,
-		timeout:      conf.Timeout,
-		headers:      headers,
-		CountRetries: retriesCounter,
+		remoteName:       remoteName,
+		url:              conf.URL,
+		client:           httpClient,
+		timeout:          conf.Timeout,
+		headers:          headers,
+		countRetriesFunc: retriesCounter,
 	}, nil
 }
 
@@ -353,6 +351,10 @@ func (rt *basicAuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	return rt.rt.RoundTrip(req)
 }
 
+func (c *Client) CountRetries(retries float64) {
+	c.countRetriesFunc(retries)
+}
+
 // Store sends a batch of samples to the HTTP endpoint, the request is the proto marshalled
 // and encoded bytes from codec.go.
 func (c *Client) Store(ctx context.Context, req []byte) error {
@@ -377,7 +379,7 @@ func (c *Client) Store(ctx context.Context, req []byte) error {
 	if err != nil {
 		// Errors from client.Do are from (for example) network errors, so are
 		// recoverable.
-		return recoverableError{err}
+		return NewRecoverableError(err)
 	}
 	defer func() {
 		// we are draining the body, so it's OK to ignore the
@@ -402,7 +404,7 @@ func (c *Client) Store(ctx context.Context, req []byte) error {
 		}
 	}
 	if httpResp.StatusCode/100 == 5 {
-		return recoverableError{err}
+		return NewRecoverableError(err)
 	}
 	return err
 }
