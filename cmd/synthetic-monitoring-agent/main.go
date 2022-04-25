@@ -43,7 +43,7 @@ func run(args []string, stdout io.Writer) error {
 		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
 		apiToken          = flags.String("api-token", "", "synthetic monitoring probe authentication token")
 		enableDisconnect  = flags.Bool("enable-disconnect", false, "enable HTTP /disconnect endpoint")
-		blockedCidrs      = flags.String("blocker-cidrs", "", "CIDR ranges that should not be allowed to be accessed by checks. Comma seperated")
+		blockedCidrs      = flags.String("blocker-cidrs", "", "CIDR ranges that should not be allowed to be accessed by checks. Comma separated")
 	)
 
 	flags.Var(&features, "features", "optional feature flags")
