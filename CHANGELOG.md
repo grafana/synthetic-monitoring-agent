@@ -2,8 +2,17 @@
 ## [Unreleased]
 
 
+<a name="v0.8.2"></a>
+## [v0.8.2] - 2022-04-26
+### Feat
+- Add a metric for failure to publish data ([#280](https://github.com/grafana/synthetic-monitoring-agent/issues/280))
+
+### Fix
+- fix http status code parsing for publish ([#279](https://github.com/grafana/synthetic-monitoring-agent/issues/279))
+
+
 <a name="v0.8.1"></a>
-## [v0.8.1] - 2022-03-28
+## [v0.8.1] - 2022-03-29
 ### Fix
 - update DNS tests to account for updated Recursion field
 - Re-enable request recursion
@@ -274,7 +283,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.8.2...HEAD
+[v0.8.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.8.1...v0.8.2
 [v0.8.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.8.0...v0.8.1
 [v0.8.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.7.1...v0.8.0
 [v0.7.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.7.0...v0.7.1
