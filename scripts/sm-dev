@@ -1,5 +1,4 @@
 #!/bin/sh
-# Inspired by https://github.com/grafana/synthetic-monitoring-api/tree/main/scripts#sm-dev
 
 set -e
 

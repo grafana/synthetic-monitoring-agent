@@ -12,7 +12,7 @@ spec:
       imagePullPolicy: Never
       args:
         - -api-server-address
-        - sm-api:4031
+        - {{ has (ds "config") SM_API_URL | ternary (ds "config").SM_API_URL "sm-api:4031" }}
         - -api-token
         - {{ required "Missing API_TOKEN var" (ds "config").API_TOKEN }}
         - -debug
