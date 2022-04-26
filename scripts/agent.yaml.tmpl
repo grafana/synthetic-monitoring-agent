@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sm-agent
+  labels:
+    app: sm-agent
+    env: development
+spec:
+  containers:
+    - image: grafana/synthetic-monitoring-agent:latest
+      name: agent
+      imagePullPolicy: Never
+      args:
+        - -api-server-address
+        - {{ has (ds "config") SM_API_URL | ternary (ds "config").SM_API_URL "sm-api:4031" }}
+        - -api-token
+        - {{ required "Missing API_TOKEN var" (ds "config").API_TOKEN }}
+        - -debug
+        - -api-insecure
+      ports:
+        - name: http
+          containerPort: 4050
+          protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sm-agent
+spec:
+  ports:
+    - name: http
+      port: 4050
+      targetPort: http
+  selector:
+    app: sm-agent
+    env: development
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sm-agent-ingress
+  namespace: default
+spec:
+  rules:
+    - host: sm-agent.k3d.localhost
+      http:
+        paths:
+          - backend:
+              service:
+                name: sm-agent
+                port:
+                  number: 4050
+            path: /
+            pathType: Prefix

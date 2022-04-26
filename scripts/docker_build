@@ -1,0 +1,14 @@
+#!/bin/sh
+
+GOCACHE=$(go env GOCACHE)
+GOPKGCACHE=$(readlink -m "$(go env GOMODCACHE)"/..)
+
+docker container run \
+	-ti \
+	--rm \
+	--user "$(id -u)":"$(id -g)" \
+	--volume "${PWD}":/workdir \
+	--volume "${GOCACHE}":/.cache/go-build \
+	--volume "${GOPKGCACHE}":/go/pkg \
+	golang:1.18.1 \
+	make -C /workdir "$@"
