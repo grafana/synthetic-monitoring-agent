@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -43,7 +41,6 @@ func run(args []string, stdout io.Writer) error {
 		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
 		apiToken          = flags.String("api-token", "", "synthetic monitoring probe authentication token")
 		enableDisconnect  = flags.Bool("enable-disconnect", false, "enable HTTP /disconnect endpoint")
-		blockedCidrs      = flags.String("blocker-cidrs", "", "CIDR ranges that should not be allowed to be accessed by checks. Comma separated")
 	)
 
 	flags.Var(&features, "features", "optional feature flags")
@@ -144,12 +141,6 @@ func run(args []string, stdout io.Writer) error {
 	g.Go(func() error {
 		return httpServer.Run(httpListener)
 	})
-
-	if *blockedCidrs != "" {
-		if err = prober.SetupBlockedCidrs(strings.Split(*blockedCidrs, ",")); err != nil {
-			return err
-		}
-	}
 
 	publishCh := make(chan pusher.Payload)
 	tenantCh := make(chan synthetic_monitoring.Tenant)
