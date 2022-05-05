@@ -3,6 +3,8 @@ package prober
 import (
 	"context"
 	"fmt"
+	"net"
+	"syscall"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
@@ -11,6 +13,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	bbeprober "github.com/prometheus/blackbox_exporter/prober"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 )
@@ -57,4 +60,38 @@ func NewFromCheck(ctx context.Context, logger zerolog.Logger, check sm.Check) (P
 	}
 
 	return p, target, err
+}
+
+func SetupBlockedCidrs(cidrs []string) error {
+	ranges := []*net.IPNet{}
+	for _, cidr := range cidrs {
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return err
+		}
+		ranges = append(ranges, ipnet)
+	}
+
+	x := func() *net.Dialer {
+		return &net.Dialer{
+			Control: func(network, address string, c syscall.RawConn) error {
+				addr, _, err := net.SplitHostPort(address)
+				if err != nil {
+					return err
+				}
+				ip := net.ParseIP(addr)
+				if ip == nil {
+					return fmt.Errorf("%s is not a valid IP address", addr)
+				}
+				for _, r := range ranges {
+					if r.Contains(ip) {
+						return fmt.Errorf("address blocked")
+					}
+				}
+				return nil
+			},
+		}
+	}
+	bbeprober.Dialer = x
+	return nil
 }
