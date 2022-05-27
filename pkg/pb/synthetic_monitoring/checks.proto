@@ -34,6 +34,10 @@ service Checks {
 	// GetChanges returns a list of check operations, specifying
 	// whether to add, update or delete checks.
 	rpc GetChanges(Void) returns (stream Changes) {};
+
+	// Ping sends a ping to the server and receives an
+	// acknowledgement back.
+	rpc Ping(PingRequest) returns (PongResponse) {};
 }
 
 service AdHocChecks {
@@ -57,6 +61,16 @@ message ProbeInfo {
 	string Version    = 1 [(gogoproto.jsontag) = "version"];     // version of the probe
 	string Commit     = 2 [(gogoproto.jsontag) = "commit"];      // commit hash used to build the probe
 	string Buildstamp = 3 [(gogoproto.jsontag) = "buildstamp"];  // timestamp when the probe was built
+}
+
+// PingRequest is the message sent as argument of the Ping method.
+message PingRequest {
+	int64 Sequence = 1 [(gogoproto.jsontag) = "sequence"]; // sequence number
+}
+
+// PongResponse is the message received as response from the Ping method.
+message PongResponse {
+	int64 Sequence = 1 [(gogoproto.jsontag) = "sequence"]; // sequence number
 }
 
 // StatusCode represents the result of registering a probe with the API.
