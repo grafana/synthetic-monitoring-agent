@@ -18,6 +18,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
+	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
@@ -349,7 +350,9 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	c.probe = &result.Probe
 
-	c.logger.Info().Int64("probe id", c.probe.Id).Str("probe name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
+	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
+
+	logger.Info().Str("probe_name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
 
 	c.metrics.connectionStatus.Set(1)
 	defer c.metrics.connectionStatus.Set(0)
@@ -385,6 +388,18 @@ func (c *Updater) loop(ctx context.Context) error {
 	// telling them apart.
 	sigCtx, signalFired := installSignalHandler(sigCtx)
 
+	// Run a ping to the GRPC server. Bail out if there's an error
+	// here.
+	go func() {
+		if err := ping(sigCtx, client); err != nil {
+			logger.Warn().Err(err).Msg("sending health check ping")
+			cancel()
+			return
+		}
+
+		logger.Warn().Err(err).Msg("health check ping stopped")
+	}()
+
 	action := "requesting changes from synthetic-monitoring-api"
 	cc, err := client.GetChanges(sigCtx, &sm.Void{})
 	if err == nil {
@@ -408,6 +423,58 @@ func (c *Updater) loop(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// ping will use the provided client to send a health signal to the GRPC
+// server. Any error is returned, the caller should take the necessary
+// steps to correct the problem.
+func ping(ctx context.Context, client synthetic_monitoring.ChecksClient) error {
+	var (
+		req  synthetic_monitoring.PingRequest
+		opts = []grpc.CallOption{
+			grpc.WaitForReady(false),
+		}
+	)
+
+	// Send one ping to try to figure out if the API understands
+	// what we are trying to do.
+	_, err := client.Ping(ctx, &req, opts...)
+	if err != nil {
+		status, ok := status.FromError(err)
+
+		switch {
+		case !ok:
+			return fmt.Errorf("sending ping: %w", err)
+
+		case status.Code() == codes.Unimplemented:
+			// The API does not support this. Return without error.
+			return nil
+
+		default:
+			return status.Err()
+		}
+	}
+
+	req.Sequence++
+
+	ticker := time.NewTicker(synthetic_monitoring.HealthCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+
+		case <-ticker.C:
+			_, err := client.Ping(ctx, &req, opts...)
+			if err != nil {
+				// cannot send ping, bail out
+				return err
+			}
+
+			req.Sequence++
+		}
+	}
 }
 
 // installSignalHandler installs a signal handler for SIGUSR1.

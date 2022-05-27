@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/net/http/httpguts"
 )
@@ -83,6 +84,10 @@ var (
 	ErrTooManyProbeLabels            = errors.New("too many probe labels")
 	ErrInvalidProbeLatitude          = errors.New("invalid probe latitude")
 	ErrInvalidProbeLongitude         = errors.New("invalid probe longitude")
+)
+
+const (
+	HealthCheckInterval = 90 * time.Second
 )
 
 const (
