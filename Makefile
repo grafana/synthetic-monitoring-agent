@@ -2,12 +2,16 @@
 ##
 ## For more information, refer to https://www.thapaliya.com/en/writings/well-documented-makefiles/
 
-ROOTDIR := $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
-DISTDIR := $(abspath $(ROOTDIR)/dist)
+ROOTDIR       := $(abspath $(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
+DISTDIR       := $(abspath $(ROOTDIR)/dist)
+HOST_OS       := $(shell go env GOOS)
+HOST_ARCH     := $(shell go env GOARCH)
+WANTED_OSES   := $(sort $(HOST_OS) linux)
+WANTED_ARCHES := $(sort $(HOST_ARCH) amd64 arm arm64)
 
 BUILD_VERSION := $(shell $(ROOTDIR)/scripts/version)
-BUILD_COMMIT := $(shell git rev-parse HEAD^{commit})
-BUILD_STAMP := $(shell date -u '+%Y-%m-%d %H:%M:%S+00:00')
+BUILD_COMMIT  := $(shell git rev-parse HEAD^{commit})
+BUILD_STAMP   := $(shell date -u '+%Y-%m-%d %H:%M:%S+00:00')
 
 include config.mk
 
@@ -71,11 +75,25 @@ deps: deps-go ## Install all dependencies.
 
 ##@ Building
 
-BUILD_GO_TARGETS := $(addprefix build-go-, $(COMMANDS))
+define build_go_template
+BUILD_GO_TARGETS += build-go-$(1)-$(2)-$(3)
+
+build-go-$(1)-$(2)-$(3) : GOOS := $(1)
+build-go-$(1)-$(2)-$(3) : GOARCH := $(2)
+build-go-$(1)-$(2)-$(3) : GOPKG := $(3)
+
+endef
+
+$(foreach BUILD_OS,$(WANTED_OSES), \
+	$(foreach BUILD_ARCH,$(WANTED_ARCHES), \
+		$(foreach CMD,$(COMMANDS), \
+			$(eval $(call build_go_template,$(BUILD_OS),$(BUILD_ARCH),$(CMD))))))
+
+BUILD_GO_NATIVE_TARGETS := $(filter build-go-$(HOST_OS)-$(HOST_ARCH)-%, $(BUILD_GO_TARGETS))
 
 .PHONY: $(BUILD_GO_TARGETS)
-$(BUILD_GO_TARGETS): build-go-%:
-	$(call build_go_command,$*)
+$(BUILD_GO_TARGETS) : build-go-% :
+	$(call build_go_command,$(GOPKG))
 
 .PHONY: build-go
 build-go: $(BUILD_GO_TARGETS) ## Build all Go binaries.
@@ -83,6 +101,10 @@ build-go: $(BUILD_GO_TARGETS) ## Build all Go binaries.
 
 .PHONY: build
 build: build-go ## Build everything.
+
+.PHONY: bn
+bn: $(BUILD_GO_NATIVE_TARGETS) ## Build only native Go binaries
+	$(S) echo Done.
 
 scripts/go/bin/bra: scripts/go/go.mod
 	$(S) cd scripts/go && \
@@ -227,10 +249,13 @@ drone:
 
 define build_go_command
 	$(S) echo 'Building $(1)'
-	$(S) mkdir -p dist
-	$(V) $(GO) build \
+	$(S) mkdir -p $(DISTDIR)/$(GOOS)-$(GOARCH)
+	$(V) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) build \
 		$(GO_BUILD_FLAGS) \
-		-o '$(DISTDIR)/$(notdir $(1))' \
+		-o '$(DISTDIR)/$(GOOS)-$(GOARCH)/$(notdir $(1))' \
 		-ldflags '-X "$(VERSION_PKG).commit=$(BUILD_COMMIT)" -X "$(VERSION_PKG).version=$(BUILD_VERSION)" -X "$(VERSION_PKG).buildstamp=$(BUILD_STAMP)"' \
 		'$(1)'
+	$(S) test '$(GOOS)' = '$(HOST_OS)' -a '$(GOARCH)' = '$(HOST_ARCH)' && \
+		cp -a '$(DISTDIR)/$(GOOS)-$(GOARCH)/$(notdir $(1))' '$(DISTDIR)/$(notdir $(1))' || \
+		true
 endef
