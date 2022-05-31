@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/grpclog"
 )
 
 const exitFail = 1
@@ -76,8 +77,10 @@ func run(args []string, stdout io.Writer) error {
 	switch {
 	case *debug:
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+		zlGrpc := zl.With().Str("component", "grpc-go").Logger()
 		zl = zl.With().Caller().Logger()
 		*verbose = true
+		grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(zlGrpc, zlGrpc, zlGrpc, 99))
 
 	case *verbose:
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
