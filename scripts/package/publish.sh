@@ -134,7 +134,7 @@ EOF
 gsutil -m rsync -d -r gs://"${APTLY_DB_BUCKET}" "${APTLY_DIR}"
 
 # Copy packages to the repo
-cp "${BUILD_DEB_DIR}/"*.deb "${APTLY_STAGE}"
+cp "${BUILD_DEB_DIR}/"linux-*/*.deb "${APTLY_STAGE}"
 
 # Add packages to deb repo
 aptly -config="${APTLY_CONF_FILE}" repo add -force-replace synthetic-monitoring "${APTLY_STAGE}"
@@ -183,7 +183,7 @@ mkdir -p "${RPM_DATA_DIR}"
 RPM_POOL_DIR="${PUBLISH_ROOT}/rpm/pool"
 mkdir -p "${RPM_POOL_DIR}"
 
-for rpm in "${BUILD_RPM_DIR}"/*.rpm; do
+for rpm in "${BUILD_RPM_DIR}"/linux-*/*.rpm; do
 	tmp_rpm="${WORKDIR}/$(basename "${rpm}")"
 
 	cp -v "${rpm}" "${tmp_rpm}"
