@@ -84,6 +84,9 @@ local vault_secret(name, vault_path, key) = {
     // so we will use the native docker plugin instead for security.
     step('docker build', [], 'plugins/docker')
     + {
+      environment: {
+        DOCKER_BUILDKIT: '1',
+      },
       settings: {
         repo: docker_repo,
         dry_run: 'true',
