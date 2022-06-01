@@ -47,15 +47,58 @@ steps:
   depends_on:
   - deps
 
-- name: docker build
+- name: docker build (linux/amd64)
   image: plugins/docker
   settings:
+    build_args:
+    - TARGETPLATFORM=linux/amd64
+    - TARGETOS=linux
+    - TARGETARCH=amd64
     dry_run: true
     repo: grafana/synthetic-monitoring-agent
   environment:
     DOCKER_BUILDKIT: 1
   depends_on:
   - build
+
+- name: docker build (linux/arm/v7)
+  image: plugins/docker
+  settings:
+    build_args:
+    - TARGETPLATFORM=linux/arm/v7
+    - TARGETOS=linux
+    - TARGETARCH=arm
+    - TARGETVARIANT=v7
+    dry_run: true
+    repo: grafana/synthetic-monitoring-agent
+  environment:
+    DOCKER_BUILDKIT: 1
+  depends_on:
+  - build
+
+- name: docker build (linux/arm64/v8)
+  image: plugins/docker
+  settings:
+    build_args:
+    - TARGETPLATFORM=linux/arm64/v8
+    - TARGETOS=linux
+    - TARGETARCH=arm64
+    - TARGETVARIANT=v8
+    dry_run: true
+    repo: grafana/synthetic-monitoring-agent
+  environment:
+    DOCKER_BUILDKIT: 1
+  depends_on:
+  - build
+
+- name: docker build
+  image: alpine
+  commands:
+  - true
+  depends_on:
+  - docker build (linux/amd64)
+  - docker build (linux/arm/v7)
+  - docker build (linux/arm64/v8)
 
 - name: docker push to docker.com
   image: plugins/docker
@@ -215,6 +258,6 @@ get:
 
 ---
 kind: signature
-hmac: 40798b1ad1a705e2f4026f29e7a752ecef29ba4b44acea2ef726608be090ce09
+hmac: 6f134cb0b76cd3b094b1f6a5770a8c69ca60dd5140f9705f1d9baf8eac125185
 
 ...

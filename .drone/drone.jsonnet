@@ -56,6 +56,29 @@ local vault_secret(name, vault_path, key) = {
   },
 };
 
+local docker_build(os, arch, version='') =
+  // We can't use 'make docker' without making this repo priveleged in drone
+  // so we will use the native docker plugin instead for security.
+  local platform = std.join('/', [ os, arch, if std.length(version) > 0 then version ]);
+  step('docker build (' + platform + ')', [], 'plugins/docker')
+  + {
+    environment: {
+      DOCKER_BUILDKIT: '1',
+    },
+    settings: {
+      repo: docker_repo,
+      dry_run: 'true',
+      build_args: [
+        'TARGETPLATFORM=' + platform,
+        'TARGETOS=' + os,
+        'TARGETARCH=' + arch,
+      ] + if std.length(version) > 0 then [
+        'TARGETVARIANT=' + version,
+      ] else [],
+    },
+  }
+  + dependsOn(['build']);
+
 [
   pipeline('build', [
     step('deps', [
@@ -80,19 +103,16 @@ local vault_secret(name, vault_path, key) = {
     ])
     + dependsOn(['deps']),
 
-    // We can't use 'make docker' without making this repo priveleged in drone
-    // so we will use the native docker plugin instead for security.
-    step('docker build', [], 'plugins/docker')
-    + {
-      environment: {
-        DOCKER_BUILDKIT: '1',
-      },
-      settings: {
-        repo: docker_repo,
-        dry_run: 'true',
-      },
-    }
-    + dependsOn(['build']),
+    docker_build('linux', 'amd64'),
+    docker_build('linux', 'arm', 'v7'),
+    docker_build('linux', 'arm64', 'v8'),
+
+    step('docker build', ['true'], 'alpine')
+    + dependsOn([
+      'docker build (linux/amd64)',
+      'docker build (linux/arm/v7)',
+      'docker build (linux/arm64/v8)',
+    ]),
 
     step('docker push to docker.com', [], 'plugins/docker')
     + {
