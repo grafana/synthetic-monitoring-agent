@@ -52,6 +52,8 @@ steps:
   settings:
     dry_run: true
     repo: grafana/synthetic-monitoring-agent
+  environment:
+    DOCKER_BUILDKIT: 1
   depends_on:
   - build
 
@@ -213,6 +215,6 @@ get:
 
 ---
 kind: signature
-hmac: 717b7fce8402131bcbd3477d4a09d69ea70dddd81d819c4b5df056658f58c3a5
+hmac: 40798b1ad1a705e2f4026f29e7a752ecef29ba4b44acea2ef726608be090ce09
 
 ...
