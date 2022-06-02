@@ -43,9 +43,26 @@ local devOnly = {
   },
 };
 
+local devAndRelease = {
+  when: {
+    ref+: [
+      'refs/heads/main',
+      'refs/tags/v*.*.*',
+    ],
+  },
+};
 
 local docker_repo = 'grafana/synthetic-monitoring-agent';
 local gcrio_repo = 'us.gcr.io/kubernetes-dev/synthetic-monitoring-agent';
+
+local docker_auth = {
+  username: { from_secret: 'docker_username' },
+  password: { from_secret: 'docker_password' },
+};
+
+local grcio_auth = {
+  config: { from_secret: 'docker_config_json' },
+};
 
 local vault_secret(name, vault_path, key) = {
   kind: 'secret',
@@ -56,11 +73,11 @@ local vault_secret(name, vault_path, key) = {
   },
 };
 
-local docker_build(os, arch, version='') =
+local docker_step(tag, os, arch, version='') =
   // We can't use 'make docker' without making this repo priveleged in drone
   // so we will use the native docker plugin instead for security.
   local platform = std.join('/', [ os, arch, if std.length(version) > 0 then version ]);
-  step('docker build (' + platform + ')', [], 'plugins/docker')
+  step(tag + ' (' + platform + ')', [], 'plugins/docker')
   + {
     environment: {
       DOCKER_BUILDKIT: '1',
@@ -76,8 +93,16 @@ local docker_build(os, arch, version='') =
         'TARGETVARIANT=' + version,
       ] else [],
     },
-  }
+  };
+
+local docker_build(os, arch, version='') =
+  docker_step('docker build', os, arch, version)
   + dependsOn(['build']);
+
+local docker_publish(repo, auth, tag, os, arch, version='') =
+  docker_step('docker publish to ' + tag, os, arch, version)
+  + { settings: { repo: repo, dry_run: 'false', } + auth }
+  + dependsOn(['test', 'docker build']);
 
 [
   pipeline('build', [
@@ -114,35 +139,31 @@ local docker_build(os, arch, version='') =
       'docker build (linux/arm64/v8)',
     ]),
 
-    step('docker push to docker.com', [], 'plugins/docker')
-    + {
-      settings: {
-        repo: docker_repo,
-        username: { from_secret: 'docker_username' },
-        password: { from_secret: 'docker_password' },
-      },
-    }
-    + dependsOn(['test', 'docker build'])
-    + releaseOnly,
+    docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'amd64') + devAndRelease,
+    docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'arm', 'v7') + devAndRelease,
+    docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'arm64', 'v8') + devAndRelease,
 
-    step('docker push to gcr.io (dev)', [], 'plugins/docker')
-    + {
-      settings: {
-        repo: gcrio_repo,
-        config: {from_secret: 'docker_config_json'},
-      },
-    }
-    + dependsOn(['test', 'docker build'])
+    docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'amd64') + releaseOnly,
+    docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm', 'v7') + releaseOnly,
+    docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm64', 'v8') + releaseOnly,
+
+    step('docker publish (dev)', ['true'], 'alpine')
+    + dependsOn([
+      'docker publish to gcr.io (linux/amd64)',
+      'docker publish to gcr.io (linux/arm/v7)',
+      'docker publish to gcr.io (linux/arm64/v8)',
+    ])
     + devOnly,
 
-    step('docker push to gcr.io (release)', [], 'plugins/docker')
-    + {
-      settings: {
-        repo: gcrio_repo,
-        config: {from_secret: 'docker_config_json'},
-      },
-    }
-    + dependsOn(['test', 'docker build'])
+    step('docker publish (release)', ['true'], 'alpine')
+    + dependsOn([
+      'docker publish to gcr.io (linux/amd64)',
+      'docker publish to gcr.io (linux/arm/v7)',
+      'docker publish to gcr.io (linux/arm64/v8)',
+      'docker publish to docker (linux/amd64)',
+      'docker publish to docker (linux/arm/v7)',
+      'docker publish to docker (linux/arm64/v8)',
+    ])
     + releaseOnly,
 
     step('package', ['make package'])
@@ -183,7 +204,7 @@ local docker_build(os, arch, version='') =
         },
         image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli'
     }
-    + dependsOn(['docker push to gcr.io (dev)'])
+    + dependsOn(['docker publish (dev)'])
     + devOnly,
 
     step('trigger argo workflow (release)', [])
@@ -204,7 +225,7 @@ local docker_build(os, arch, version='') =
         },
         image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli'
    }
-   + dependsOn(['docker push to gcr.io (release)'])
+   + dependsOn(['docker publish (release)'])
    + releaseOnly,
 
   ]),

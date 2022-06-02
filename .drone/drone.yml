@@ -100,14 +100,68 @@ steps:
   - docker build (linux/arm/v7)
   - docker build (linux/arm64/v8)
 
-- name: docker push to docker.com
+- name: docker publish to gcr.io (linux/amd64)
   image: plugins/docker
   settings:
+    config:
+      from_secret: docker_config_json
+    dry_run: false
+    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
+  environment:
+    DOCKER_BUILDKIT: 1
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
+  depends_on:
+  - test
+  - docker build
+
+- name: docker publish to gcr.io (linux/arm/v7)
+  image: plugins/docker
+  settings:
+    config:
+      from_secret: docker_config_json
+    dry_run: false
+    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
+  environment:
+    DOCKER_BUILDKIT: 1
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
+  depends_on:
+  - test
+  - docker build
+
+- name: docker publish to gcr.io (linux/arm64/v8)
+  image: plugins/docker
+  settings:
+    config:
+      from_secret: docker_config_json
+    dry_run: false
+    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
+  environment:
+    DOCKER_BUILDKIT: 1
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
+  depends_on:
+  - test
+  - docker build
+
+- name: docker publish to docker (linux/amd64)
+  image: plugins/docker
+  settings:
+    dry_run: false
     password:
       from_secret: docker_password
     repo: grafana/synthetic-monitoring-agent
     username:
       from_secret: docker_username
+  environment:
+    DOCKER_BUILDKIT: 1
   when:
     ref:
     - refs/tags/v*.*.*
@@ -115,31 +169,68 @@ steps:
   - test
   - docker build
 
-- name: docker push to gcr.io (dev)
+- name: docker publish to docker (linux/arm/v7)
   image: plugins/docker
   settings:
-    config:
-      from_secret: docker_config_json
-    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
+    dry_run: false
+    password:
+      from_secret: docker_password
+    repo: grafana/synthetic-monitoring-agent
+    username:
+      from_secret: docker_username
+  environment:
+    DOCKER_BUILDKIT: 1
+  when:
+    ref:
+    - refs/tags/v*.*.*
+  depends_on:
+  - test
+  - docker build
+
+- name: docker publish to docker (linux/arm64/v8)
+  image: plugins/docker
+  settings:
+    dry_run: false
+    password:
+      from_secret: docker_password
+    repo: grafana/synthetic-monitoring-agent
+    username:
+      from_secret: docker_username
+  environment:
+    DOCKER_BUILDKIT: 1
+  when:
+    ref:
+    - refs/tags/v*.*.*
+  depends_on:
+  - test
+  - docker build
+
+- name: docker publish (dev)
+  image: alpine
+  commands:
+  - true
   when:
     ref:
     - refs/heads/main
   depends_on:
-  - test
-  - docker build
+  - docker publish to gcr.io (linux/amd64)
+  - docker publish to gcr.io (linux/arm/v7)
+  - docker publish to gcr.io (linux/arm64/v8)
 
-- name: docker push to gcr.io (release)
-  image: plugins/docker
-  settings:
-    config:
-      from_secret: docker_config_json
-    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
+- name: docker publish (release)
+  image: alpine
+  commands:
+  - true
   when:
     ref:
     - refs/tags/v*.*.*
   depends_on:
-  - test
-  - docker build
+  - docker publish to gcr.io (linux/amd64)
+  - docker publish to gcr.io (linux/arm/v7)
+  - docker publish to gcr.io (linux/arm64/v8)
+  - docker publish to docker (linux/amd64)
+  - docker publish to docker (linux/arm/v7)
+  - docker publish to docker (linux/arm64/v8)
 
 - name: package
   image: golang:1.17
@@ -183,7 +274,7 @@ steps:
     ref:
     - refs/heads/main
   depends_on:
-  - docker push to gcr.io (dev)
+  - docker publish (dev)
 
 - name: trigger argo workflow (release)
   image: us.gcr.io/kubernetes-dev/drone/plugins/argo-cli
@@ -197,7 +288,7 @@ steps:
     ref:
     - refs/tags/v*.*.*
   depends_on:
-  - docker push to gcr.io (release)
+  - docker publish (release)
 
 image_pull_secrets:
 - docker_config_json
@@ -258,6 +349,6 @@ get:
 
 ---
 kind: signature
-hmac: 6f134cb0b76cd3b094b1f6a5770a8c69ca60dd5140f9705f1d9baf8eac125185
+hmac: cbe4851cd8a12ccd0491e36875f57e4d6b7f115f0fedae8a43e7235b5b31feb1
 
 ...
