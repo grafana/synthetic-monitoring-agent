@@ -140,29 +140,29 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
     ]),
 
     docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'amd64') + devAndRelease,
-    docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'arm', 'v7') + devAndRelease,
-    docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'arm64', 'v8') + devAndRelease,
+    # docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'arm', 'v7') + devAndRelease,
+    # docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'arm64', 'v8') + devAndRelease,
 
     docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'amd64') + releaseOnly,
-    docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm', 'v7') + releaseOnly,
-    docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm64', 'v8') + releaseOnly,
+    # docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm', 'v7') + releaseOnly,
+    # docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm64', 'v8') + releaseOnly,
 
     step('docker publish (dev)', ['true'], 'alpine')
     + dependsOn([
       'docker publish to gcr.io (linux/amd64)',
-      'docker publish to gcr.io (linux/arm/v7)',
-      'docker publish to gcr.io (linux/arm64/v8)',
+      # 'docker publish to gcr.io (linux/arm/v7)',
+      # 'docker publish to gcr.io (linux/arm64/v8)',
     ])
-    + devOnly,
+    + devAndRelease,
 
     step('docker publish (release)', ['true'], 'alpine')
     + dependsOn([
       'docker publish to gcr.io (linux/amd64)',
-      'docker publish to gcr.io (linux/arm/v7)',
-      'docker publish to gcr.io (linux/arm64/v8)',
+      # 'docker publish to gcr.io (linux/arm/v7)',
+      # 'docker publish to gcr.io (linux/arm64/v8)',
       'docker publish to docker (linux/amd64)',
-      'docker publish to docker (linux/arm/v7)',
-      'docker publish to docker (linux/arm64/v8)',
+      # 'docker publish to docker (linux/arm/v7)',
+      # 'docker publish to docker (linux/arm64/v8)',
     ])
     + releaseOnly,
 

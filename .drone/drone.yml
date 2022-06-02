@@ -117,77 +117,7 @@ steps:
   - test
   - docker build
 
-- name: docker publish to gcr.io (linux/arm/v7)
-  image: plugins/docker
-  settings:
-    config:
-      from_secret: docker_config_json
-    dry_run: false
-    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
-  environment:
-    DOCKER_BUILDKIT: 1
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
-  depends_on:
-  - test
-  - docker build
-
-- name: docker publish to gcr.io (linux/arm64/v8)
-  image: plugins/docker
-  settings:
-    config:
-      from_secret: docker_config_json
-    dry_run: false
-    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
-  environment:
-    DOCKER_BUILDKIT: 1
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
-  depends_on:
-  - test
-  - docker build
-
 - name: docker publish to docker (linux/amd64)
-  image: plugins/docker
-  settings:
-    dry_run: false
-    password:
-      from_secret: docker_password
-    repo: grafana/synthetic-monitoring-agent
-    username:
-      from_secret: docker_username
-  environment:
-    DOCKER_BUILDKIT: 1
-  when:
-    ref:
-    - refs/tags/v*.*.*
-  depends_on:
-  - test
-  - docker build
-
-- name: docker publish to docker (linux/arm/v7)
-  image: plugins/docker
-  settings:
-    dry_run: false
-    password:
-      from_secret: docker_password
-    repo: grafana/synthetic-monitoring-agent
-    username:
-      from_secret: docker_username
-  environment:
-    DOCKER_BUILDKIT: 1
-  when:
-    ref:
-    - refs/tags/v*.*.*
-  depends_on:
-  - test
-  - docker build
-
-- name: docker publish to docker (linux/arm64/v8)
   image: plugins/docker
   settings:
     dry_run: false
@@ -212,10 +142,9 @@ steps:
   when:
     ref:
     - refs/heads/main
+    - refs/tags/v*.*.*
   depends_on:
   - docker publish to gcr.io (linux/amd64)
-  - docker publish to gcr.io (linux/arm/v7)
-  - docker publish to gcr.io (linux/arm64/v8)
 
 - name: docker publish (release)
   image: alpine
@@ -226,11 +155,7 @@ steps:
     - refs/tags/v*.*.*
   depends_on:
   - docker publish to gcr.io (linux/amd64)
-  - docker publish to gcr.io (linux/arm/v7)
-  - docker publish to gcr.io (linux/arm64/v8)
   - docker publish to docker (linux/amd64)
-  - docker publish to docker (linux/arm/v7)
-  - docker publish to docker (linux/arm64/v8)
 
 - name: package
   image: golang:1.17
@@ -349,6 +274,6 @@ get:
 
 ---
 kind: signature
-hmac: cbe4851cd8a12ccd0491e36875f57e4d6b7f115f0fedae8a43e7235b5b31feb1
+hmac: f2191956543cf1ceece33aac2cbdecbe11c5be4ac949ea13ef891cf3b9cf6235
 
 ...
