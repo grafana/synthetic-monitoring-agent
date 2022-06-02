@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.9.1"></a>
+## [v0.9.1] - 2022-06-02
+### Reverts
+- Bump github.com/prometheus/common from 0.32.1 to 0.34.0
+
+
 <a name="v0.9.0"></a>
 ## [v0.9.0] - 2022-06-02
 ### Feature
@@ -291,7 +297,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.1...HEAD
+[v0.9.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.0...v0.9.1
 [v0.9.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.8.2...v0.9.0
 [v0.8.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.8.1...v0.8.2
 [v0.8.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.8.0...v0.8.1
