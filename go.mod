@@ -38,7 +38,7 @@ require (
 )
 
 require (
-	github.com/go-kit/log v0.2.0
+	github.com/go-kit/log v0.2.1
 	github.com/go-ping/ping v0.0.0-20211130115550-779d1e919534
 	github.com/jpillora/backoff v1.0.0
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.64
