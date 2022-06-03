@@ -51,6 +51,7 @@ func TestNewProber(t *testing.T) {
 						FailIfHeaderNotMatchesRegexp: []config.HeaderMatch{},
 						HTTPClientConfig: httpConfig.HTTPClientConfig{
 							FollowRedirects: true,
+							EnableHTTP2:     true,
 						},
 					},
 				},
@@ -225,6 +226,7 @@ func TestSettingsToModule(t *testing.T) {
 					FailIfHeaderNotMatchesRegexp: []config.HeaderMatch{},
 					HTTPClientConfig: httpConfig.HTTPClientConfig{
 						FollowRedirects: true,
+						EnableHTTP2:     true,
 					},
 				},
 			},
@@ -254,6 +256,7 @@ func TestSettingsToModule(t *testing.T) {
 					FailIfHeaderNotMatchesRegexp: []config.HeaderMatch{},
 					HTTPClientConfig: httpConfig.HTTPClientConfig{
 						FollowRedirects: true,
+						EnableHTTP2:     true,
 					},
 				},
 			},
