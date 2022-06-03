@@ -88,6 +88,26 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 	m.HTTP.ValidHTTPVersions = make([]string, len(settings.ValidHTTPVersions))
 	copy(m.HTTP.ValidHTTPVersions, settings.ValidHTTPVersions)
 
+	// Enable HTTP2 for all checks.
+	m.HTTP.HTTPClientConfig.EnableHTTP2 = true
+
+	// We could do something like this instead:
+	//
+	// for _, v := range m.HTTP.ValidHTTPVersions {
+	// 	if strings.HasPrefix(v, "HTTP/2") {
+	// 		m.HTTP.HTTPClientConfig.EnableHTTP2 = true
+	// 		break
+	// 	}
+	// }
+	//
+	// but this needs to be evaluated. Go changed the behaviour so
+	// that HTTP2 is enabled, and blacbox exporter follows that in
+	// v0.21.0 (this setting defaults to true). We could add a
+	// setting to _disable_ HTTP2. Eventually we are going to
+	// introduce support for HTTP3, so that setting should be
+	// something closer to what Go itself does which is specify a
+	// supported / wanted protocol.
+
 	m.HTTP.FailIfBodyMatchesRegexp = make([]config.Regexp, 0, len(settings.FailIfBodyMatchesRegexp))
 	for _, str := range settings.FailIfBodyMatchesRegexp {
 		re, err := config.NewRegexp(str)
