@@ -23,6 +23,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,10 +33,14 @@ type Error string
 
 func (e Error) Error() string { return string(e) }
 
+type TransientError Error
+
+func (e TransientError) Error() string { return string(e) }
+
 const (
 	errNotAuthorized     = Error("probe not authorized")
-	errTransportClosing  = Error("transport closing")
-	errProbeUnregistered = Error("probe no longer registered")
+	errTransportClosing  = TransientError("transport closing")
+	errProbeUnregistered = TransientError("probe no longer registered")
 	errIncompatibleApi   = Error("API does not support required features")
 )
 
@@ -227,10 +232,28 @@ func (c *Updater) Run(ctx context.Context) error {
 	c.backoff.Reset()
 
 	for {
-		err := c.loop(ctx)
+		var transientErr *TransientError
+
+		wasConnected, err := c.loop(ctx)
 		switch {
 		case err == nil:
 			return nil
+
+		case errors.As(err, &transientErr):
+			c.logger.Warn().
+				Err(err).
+				Str("connection_state", c.api.conn.GetState().String()).
+				Msg("transient error, trying to reconnect")
+
+			if err := sleepCtx(ctx, c.backoff.Duration()); err != nil {
+				return err
+			}
+
+			if wasConnected {
+				c.backoff.Reset()
+			}
+
+			continue
 
 		case errors.Is(err, errNotAuthorized):
 			// our token is invalid, bail out?
@@ -248,19 +271,6 @@ func (c *Updater) Run(ctx context.Context) error {
 				Msg("cannot connect, bailing out")
 			return err
 
-		case errors.Is(err, errTransportClosing):
-			// the other end went away? Allow GRPC to reconnect.
-			c.logger.Warn().
-				Err(err).
-				Str("connection_state", c.api.conn.GetState().String()).
-				Msg("the other end closed the connection, trying to reconnect")
-
-			// After disconnecting, reset the backoff
-			// counter to start afresh.
-			c.backoff.Reset()
-
-			continue
-
 		case errors.Is(err, context.Canceled):
 			// context was cancelled, clean up
 			c.logger.Error().
@@ -268,21 +278,6 @@ func (c *Updater) Run(ctx context.Context) error {
 				Str("connection_state", c.api.conn.GetState().String()).
 				Msg("context cancelled, closing updater")
 			return nil
-
-		case errors.Is(err, errProbeUnregistered):
-			// Probe unregistered itself from the API, wait
-			// until attempting to reconnect again.
-			c.logger.Warn().
-				Str("connection_state", c.api.conn.GetState().String()).
-				Msg("unregistered probe in API, sleeping for 1 minute...")
-
-			if err := sleepCtx(ctx, 1*time.Minute); err != nil {
-				return err
-			}
-
-			// The probe is going to reconnect, reset the
-			// backoff counter to start afresh.
-			c.backoff.Reset()
 
 		default:
 			c.logger.Warn().
@@ -300,7 +295,9 @@ func (c *Updater) Run(ctx context.Context) error {
 	}
 }
 
-func (c *Updater) loop(ctx context.Context) error {
+func (c *Updater) loop(ctx context.Context) (bool, error) {
+	connected := false
+
 	c.logger.Info().Msg("fetching check configuration from synthetic-monitoring-api")
 
 	client := sm.NewChecksClient(c.api.conn)
@@ -334,7 +331,7 @@ func (c *Updater) loop(ctx context.Context) error {
 
 	result, err := client.RegisterProbe(ctx, &sm.ProbeInfo{Version: version.Short(), Commit: version.Commit(), Buildstamp: version.Buildstamp()})
 	if err != nil {
-		return grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
+		return connected, grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
 	}
 
 	switch result.Status.Code {
@@ -342,10 +339,10 @@ func (c *Updater) loop(ctx context.Context) error {
 		// continue
 
 	case sm.StatusCode_NOT_AUTHORIZED:
-		return errNotAuthorized
+		return connected, errNotAuthorized
 
 	default:
-		return fmt.Errorf("registering probe with synthetic-monitoring-api, response: %s", result.Status.Message)
+		return connected, fmt.Errorf("registering probe with synthetic-monitoring-api, response: %s", result.Status.Message)
 	}
 
 	c.probe = &result.Probe
@@ -358,6 +355,7 @@ func (c *Updater) loop(ctx context.Context) error {
 	defer c.metrics.connectionStatus.Set(0)
 
 	// true indicates that probe is connected to API
+	connected = true
 	c.IsConnected(true)
 	defer c.IsConnected(false)
 
@@ -373,10 +371,9 @@ func (c *Updater) loop(ctx context.Context) error {
 		"buildstamp": version.Buildstamp(),
 	}).Set(1)
 
-	// Create a child context so that we can communicate to the
-	// signal handler that we are done.
-	sigCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
+	// groupCtx is used to coordinate shutting down all the
+	// goroutines started here.
+	g, groupCtx := errgroup.WithContext(ctx)
 
 	// We get _another_ context from the signal handler that we can
 	// use tell the GRPC client that we need to break out. We have
@@ -386,43 +383,48 @@ func (c *Updater) loop(ctx context.Context) error {
 	// returning from this function; cancelling the new context
 	// because the signal fired), so we need an additional way of
 	// telling them apart.
-	sigCtx, signalFired := installSignalHandler(sigCtx)
+	sigCtx, signalFired := installSignalHandler(groupCtx)
 
-	// Run a ping to the GRPC server. Bail out if there's an error
-	// here.
-	go func() {
-		if err := ping(sigCtx, client); err != nil {
-			logger.Warn().Err(err).Msg("sending health check ping")
-			cancel()
-			return
-		}
+	errorHandler := func(err error, action string, signalFired *int32) error {
+		switch {
+		case err == nil:
+			return nil
 
-		logger.Warn().Err(err).Msg("health check ping stopped")
-	}()
-
-	action := "requesting changes from synthetic-monitoring-api"
-	cc, err := client.GetChanges(sigCtx, &sm.Void{})
-	if err == nil {
-		action = "getting changes from synthetic-monitoring-api"
-		// processChanges uses the context in its first
-		// argument to create scrapers. This means that
-		// cancelling that context cancels all the running
-		// scrapers. That's why we are passing the _original_
-		// context, not sigCtx, so that scrapers are _not_
-		// stopped if the signal is trapped. We want scrapers to
-		// continue running in case the agent is _not_ killed.
-		err = c.processChanges(ctx, cc)
-	}
-
-	if err != nil {
-		if atomic.LoadInt32(signalFired) == 1 {
+		case atomic.LoadInt32(signalFired) == 1:
 			return errProbeUnregistered
-		}
 
-		return grpcErrorHandler(action, err)
+		default:
+			return grpcErrorHandler(action, err)
+		}
 	}
 
-	return nil
+	cc, err := client.GetChanges(sigCtx, &sm.Void{})
+	if err != nil {
+		return connected, errorHandler(err, "requesting changes from synthetic-monitoring-api", signalFired)
+	}
+
+	// Run a ping to the GRPC server. Bail out if there's an error here.
+	g.Go(func() error {
+		err := ping(sigCtx, client)
+		logger.Warn().Err(err).Msg("health check ping stopped")
+		return err
+	})
+
+	g.Go(func() error {
+		// processChanges uses the context in its first argument to
+		// create scrapers. This means that cancelling that context
+		// cancels all the running scrapers. That's why we are passing
+		// the _original_ context, not sigCtx, so that scrapers are
+		// _not_ stopped if the signal is trapped. We want scrapers to
+		// continue running in case the agent is _not_ killed.
+		err := c.processChanges(ctx, cc)
+		logger.Warn().Err(err).Msg("processing changes stopped")
+		return err
+	})
+
+	err = g.Wait()
+
+	return connected, errorHandler(err, "getting changes from synthetic-monitoring-api", signalFired)
 }
 
 // ping will use the provided client to send a health signal to the GRPC
@@ -463,12 +465,11 @@ func ping(ctx context.Context, client synthetic_monitoring.ChecksClient) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 
 		case <-ticker.C:
 			_, err := client.Ping(ctx, &req, opts...)
 			if err != nil {
-				// cannot send ping, bail out
 				return err
 			}
 
@@ -516,7 +517,7 @@ func (c *Updater) processChanges(ctx context.Context, cc sm.Checks_GetChangesCli
 	for {
 		select {
 		case <-cc.Context().Done():
-			return nil
+			return cc.Context().Err()
 
 		case <-ctx.Done():
 			return ctx.Err()
