@@ -27,7 +27,7 @@ require (
 	// If you add the +incompatible bit that the error message hints
 	// at, you get a different error (see below).
 	github.com/prometheus/prometheus v1.8.2-0.20200727090838-6f296594a852
-	github.com/rs/zerolog v1.26.1
+	github.com/rs/zerolog v1.27.0
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/stretchr/testify v1.7.2
 	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
@@ -54,6 +54,8 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
+	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
