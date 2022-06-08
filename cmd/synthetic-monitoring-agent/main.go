@@ -110,10 +110,10 @@ func run(args []string, stdout io.Writer) error {
 	readynessHandler := NewReadynessHandler()
 
 	router := NewMux(MuxOpts{
-		Logger:            zl.With().Str("subsystem", "mux").Logger(),
-		PromRegisterer:    promRegisterer,
-		isReady:           readynessHandler,
-		disconnectEnabled: *enableDisconnect,
+		Logger:           zl.With().Str("subsystem", "mux").Logger(),
+		PromRegisterer:   promRegisterer,
+		isReady:          readynessHandler,
+		disconnectSecret: *enableDisconnect,
 	})
 
 	httpConfig := http.Config{
