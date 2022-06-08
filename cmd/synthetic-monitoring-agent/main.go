@@ -41,7 +41,7 @@ func run(args []string, stdout io.Writer) error {
 		grpcInsecure      = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
 		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
 		apiToken          = flags.String("api-token", "", "synthetic monitoring probe authentication token")
-		enableDisconnect  = flags.Bool("enable-disconnect", false, "enable HTTP /disconnect endpoint")
+		enableDisconnect  = flags.String("enable-disconnect", "", "enable HTTP /disconnect endpoint with password")
 	)
 
 	flags.Var(&features, "features", "optional feature flags")

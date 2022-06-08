@@ -47,6 +47,11 @@ The agent traps the following signals:
   If the new agent fails to connect, the old agent will reconnect and
   take it from there. 
   You can also use `/disconnect` endpoint to send SIGUSR1 to process.
+  * To make use of `/disconnect` endpoint, you need to enable it with
+   `--enable-disconnect=<secret password\>`.
+  * You will need to pass the same password when hitting disconnect endpoint.
+    e.g: `curl http://127.0.0.1:<listen-address>/disconnect?secret=<secret password\>`,
+    `listen-address` is `4050` by default.
 
 Readiness
 ---------

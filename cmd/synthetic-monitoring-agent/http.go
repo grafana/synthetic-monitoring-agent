@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -27,7 +29,7 @@ type MuxOpts struct {
 		prometheus.Gatherer
 	}
 	isReady           *readynessHandler
-	disconnectEnabled bool
+	disconnectEnabled string
 }
 
 func NewMux(opts MuxOpts) *Mux {
@@ -48,9 +50,12 @@ func NewMux(opts MuxOpts) *Mux {
 	isReady.Store(false)
 	router.Handle("/ready", opts.isReady)
 
-	// disconnect this agent from the API
-	if opts.disconnectEnabled {
-		router.Handle("/disconnect", http.HandlerFunc(disconnectHandler))
+	// disconnect this agent from the API if disconnect is enabled with a password
+	if opts.disconnectEnabled != "" {
+		disconnectHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			disconnectHandler(w, r, opts.disconnectEnabled)
+		})
+		router.Handle("/disconnect", disconnectHandler)
 	}
 
 	// Register pprof handlers
@@ -161,7 +166,20 @@ func (h *readynessHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // disconnectHandler triggers a disconnection from the API.
-func disconnectHandler(w http.ResponseWriter, r *http.Request) {
+func disconnectHandler(w http.ResponseWriter, r *http.Request, disconnectEnabled string) {
+	secret := r.URL.Query().Get("secret")
+
+	// using == opens us to timing attack, because it returns early.
+	// Hash values and use ConstantTimeCompare to prevent against timing attacks
+	secretHash := sha256.Sum256([]byte(secret))
+	expectedSecretHash := sha256.Sum256([]byte(disconnectEnabled))
+	secretMatch := subtle.ConstantTimeCompare(secretHash[:], expectedSecretHash[:]) == 1
+
+	if !secretMatch {
+		http.Error(w, "invalid secret", http.StatusInternalServerError)
+		return
+	}
+
 	// TODO(mem): this is a hack to trigger a disconnection from the
 	// API, it would be cleaner to do this through a channel that
 	// communicates the request to the checks updater.
