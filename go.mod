@@ -89,3 +89,5 @@ replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.0+inc
 replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
 
 replace github.com/tonobo/mtr => github.com/grafana/mtr v0.1.1-0.20211103212629-0a455647759f
+
+replace github.com/prometheus/blackbox_exporter v0.21.0 => github.com/grafana/blackbox_exporter v0.21.1-0.20220614164936-0cf374fec170
