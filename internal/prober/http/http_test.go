@@ -3,12 +3,17 @@ package http
 import (
 	"context"
 	"io"
+	"io/ioutil"
 	"net/url"
 	"testing"
 
+	"github.com/go-kit/log"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http/testserver"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	httpConfig "github.com/prometheus/common/config"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -83,6 +88,165 @@ func TestNewProber(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProbe(t *testing.T) {
+	srv := testserver.New(testserver.Config{})
+	defer srv.Close()
+
+	testcases := map[string]struct {
+		srvSettings       testserver.Settings
+		settings          sm.HttpSettings
+		expectFailure     bool
+		expectedRedirects int
+	}{
+		"status 200 GET": {
+			srvSettings: testserver.Settings{
+				Method: "GET",
+				Status: 200,
+			},
+			settings: sm.HttpSettings{
+				Method: sm.HttpMethod_GET,
+			},
+		},
+		"status 200 CONNECT": {
+			srvSettings: testserver.Settings{
+				Method: "CONNECT",
+				Status: 200,
+			},
+			settings: sm.HttpSettings{
+				Method: sm.HttpMethod_CONNECT,
+			},
+		},
+		"status 200 DELETE": {
+			srvSettings: testserver.Settings{
+				Method: "DELETE",
+				Status: 200,
+			},
+			settings: sm.HttpSettings{
+				Method: sm.HttpMethod_DELETE,
+			},
+		},
+		"status 200 HEAD": {
+			srvSettings: testserver.Settings{
+				Method: "HEAD",
+				Status: 200,
+			},
+			settings: sm.HttpSettings{
+				Method: sm.HttpMethod_HEAD,
+			},
+		},
+		"status 200 OPTIONS": {
+			srvSettings: testserver.Settings{
+				Method: "OPTIONS",
+				Status: 200,
+			},
+			settings: sm.HttpSettings{
+				Method: sm.HttpMethod_OPTIONS,
+			},
+		},
+		"status 200 POST": {
+			srvSettings: testserver.Settings{
+				Method: "POST",
+				Status: 200,
+			},
+			settings: sm.HttpSettings{
+				Method: sm.HttpMethod_POST,
+			},
+		},
+		"status 200 PUT": {
+			srvSettings: testserver.Settings{
+				Method: "PUT",
+				Status: 200,
+			},
+			settings: sm.HttpSettings{
+				Method: sm.HttpMethod_PUT,
+			},
+		},
+		"status 200 TRACE": {
+			srvSettings: testserver.Settings{
+				Method: "TRACE",
+				Status: 200,
+			},
+			settings: sm.HttpSettings{
+				Method: sm.HttpMethod_TRACE,
+			},
+		},
+		"status 201": {
+			srvSettings: testserver.Settings{
+				Status: 201,
+			},
+			settings: sm.HttpSettings{},
+		},
+		"status 404": {
+			srvSettings: testserver.Settings{
+				Status: 404,
+			},
+			settings:      sm.HttpSettings{},
+			expectFailure: true,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			target := tc.srvSettings.URL(srv.Listener.Addr().String())
+			check := sm.Check{
+				Id:        1,
+				TenantId:  1,
+				Frequency: 10000,
+				Timeout:   1000,
+				Enabled:   true,
+				Settings: sm.CheckSettings{
+					Http: &tc.settings,
+				},
+				Probes:           []int64{1},
+				Target:           target,
+				Job:              "test",
+				BasicMetricsOnly: true,
+			}
+
+			t.Log(check.Target)
+
+			ctx := context.Background()
+			registry := prometheus.NewPedanticRegistry()
+			zl := zerolog.Logger{}
+			kl := log.NewLogfmtLogger(ioutil.Discard)
+
+			prober, err := NewProber(ctx, check, zl)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectFailure, !prober.Probe(ctx, check.Target, registry, kl))
+
+			mfs, err := registry.Gather()
+			require.NoError(t, err)
+			require.NotEmpty(t, mfs)
+			foundMetrics := 0
+			for _, mf := range mfs {
+				require.NotNil(t, mf)
+				switch name := mf.GetName(); name {
+				case "probe_http_status_code":
+					require.Equal(t, float64(tc.srvSettings.Status), getGaugeValue(t, mf))
+					foundMetrics++
+
+				case "probe_http_redirects":
+					require.Equal(t, float64(tc.expectedRedirects), getGaugeValue(t, mf))
+					foundMetrics++
+
+				case "probe_http_version":
+					require.Equal(t, 1.1, getGaugeValue(t, mf))
+					foundMetrics++
+				}
+			}
+			require.Equal(t, 3, foundMetrics)
+		})
+	}
+}
+
+func getGaugeValue(t *testing.T, mf *dto.MetricFamily) float64 {
+	metric := mf.GetMetric()
+	require.Len(t, metric, 1)
+	g := metric[0].GetGauge()
+	require.NotNil(t, g)
+	return g.GetValue()
 }
 
 func TestBuildHeaders(t *testing.T) {
