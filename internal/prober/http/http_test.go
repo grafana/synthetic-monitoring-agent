@@ -5,6 +5,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -38,28 +39,7 @@ func TestNewProber(t *testing.T) {
 				},
 			},
 			expected: Prober{
-				config: config.Module{
-					Prober:  "http",
-					Timeout: 0,
-					HTTP: config.HTTPProbe{
-						ValidStatusCodes:   []int{},
-						ValidHTTPVersions:  []string{},
-						IPProtocol:         "ip6",
-						IPProtocolFallback: true,
-						Method:             "GET",
-						Headers: map[string]string{
-							"user-agent": version.UserAgent(),
-						},
-						FailIfBodyMatchesRegexp:      []config.Regexp{},
-						FailIfBodyNotMatchesRegexp:   []config.Regexp{},
-						FailIfHeaderMatchesRegexp:    []config.HeaderMatch{},
-						FailIfHeaderNotMatchesRegexp: []config.HeaderMatch{},
-						HTTPClientConfig: httpConfig.HTTPClientConfig{
-							FollowRedirects: true,
-							EnableHTTP2:     true,
-						},
-					},
-				},
+				config: getDefaultModule().getConfigModule(),
 			},
 			ExpectError: false,
 		},
@@ -72,6 +52,26 @@ func TestNewProber(t *testing.T) {
 			},
 			expected:    Prober{},
 			ExpectError: true,
+		},
+		"headers": {
+			input: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Http: &sm.HttpSettings{
+						Headers: []string{
+							"uSeR-aGeNt: test-user-agent",
+							"some-header: some-value",
+						},
+					},
+				},
+			},
+			expected: Prober{
+				config: getDefaultModule().
+					addHttpHeader("uSeR-aGeNt", "test-user-agent").
+					addHttpHeader("some-header", "some-value").
+					getConfigModule(),
+			},
+			ExpectError: false,
 		},
 	}
 
@@ -371,29 +371,8 @@ func TestSettingsToModule(t *testing.T) {
 		expected config.Module
 	}{
 		"default": {
-			input: sm.HttpSettings{},
-			expected: config.Module{
-				Prober:  "http",
-				Timeout: 0,
-				HTTP: config.HTTPProbe{
-					ValidStatusCodes:   []int{},
-					ValidHTTPVersions:  []string{},
-					IPProtocol:         "ip6",
-					IPProtocolFallback: true,
-					Method:             "GET",
-					Headers: map[string]string{
-						"user-agent": version.UserAgent(),
-					},
-					FailIfBodyMatchesRegexp:      []config.Regexp{},
-					FailIfBodyNotMatchesRegexp:   []config.Regexp{},
-					FailIfHeaderMatchesRegexp:    []config.HeaderMatch{},
-					FailIfHeaderNotMatchesRegexp: []config.HeaderMatch{},
-					HTTPClientConfig: httpConfig.HTTPClientConfig{
-						FollowRedirects: true,
-						EnableHTTP2:     true,
-					},
-				},
-			},
+			input:    sm.HttpSettings{},
+			expected: getDefaultModule().getConfigModule(),
 		},
 		"partial-settings": {
 			input: sm.HttpSettings{
@@ -401,29 +380,12 @@ func TestSettingsToModule(t *testing.T) {
 				Method:           5,
 				Body:             "This is a body",
 			},
-			expected: config.Module{
-				Prober:  "http",
-				Timeout: 0,
-				HTTP: config.HTTPProbe{
-					ValidStatusCodes:   []int{200, 201},
-					ValidHTTPVersions:  []string{},
-					IPProtocol:         "ip6",
-					IPProtocolFallback: true,
-					Method:             "POST",
-					Headers: map[string]string{
-						"user-agent": version.UserAgent(),
-					},
-					Body:                         "This is a body",
-					FailIfBodyMatchesRegexp:      []config.Regexp{},
-					FailIfBodyNotMatchesRegexp:   []config.Regexp{},
-					FailIfHeaderMatchesRegexp:    []config.HeaderMatch{},
-					FailIfHeaderNotMatchesRegexp: []config.HeaderMatch{},
-					HTTPClientConfig: httpConfig.HTTPClientConfig{
-						FollowRedirects: true,
-						EnableHTTP2:     true,
-					},
-				},
-			},
+			expected: getDefaultModule().
+				addHttpValidStatusCodes(200).
+				addHttpValidStatusCodes(201).
+				setHttpMethod("POST").
+				setHttpBody("This is a body").
+				getConfigModule(),
 		},
 	}
 
@@ -457,4 +419,68 @@ func TestAddCacheBustParam(t *testing.T) {
 	// Make sure another call with same params generates a different hash
 	anotherUrl := addCacheBustParam(target, paramName, salt)
 	require.NotEqual(t, newUrl, anotherUrl)
+}
+
+type testModule config.Module
+
+func getDefaultModule() *testModule {
+	testModule := testModule(config.Module{
+		Prober:  "http",
+		Timeout: 0,
+		HTTP: config.HTTPProbe{
+			ValidStatusCodes:   []int{},
+			ValidHTTPVersions:  []string{},
+			IPProtocol:         "ip6",
+			IPProtocolFallback: true,
+			Method:             "GET",
+			Headers: map[string]string{
+				"user-agent": version.UserAgent(),
+			},
+			FailIfBodyMatchesRegexp:      []config.Regexp{},
+			FailIfBodyNotMatchesRegexp:   []config.Regexp{},
+			FailIfHeaderMatchesRegexp:    []config.HeaderMatch{},
+			FailIfHeaderNotMatchesRegexp: []config.HeaderMatch{},
+			HTTPClientConfig: httpConfig.HTTPClientConfig{
+				FollowRedirects: true,
+				EnableHTTP2:     true,
+			},
+		},
+	})
+
+	return &testModule
+}
+
+func (m *testModule) getConfigModule() config.Module {
+	return config.Module(*m)
+}
+
+func (m *testModule) addHttpHeader(key, value string) *testModule {
+	if m.HTTP.Headers == nil {
+		m.HTTP.Headers = make(map[string]string)
+	}
+
+	for k := range m.HTTP.Headers {
+		if strings.EqualFold(k, key) {
+			delete(m.HTTP.Headers, k)
+		}
+	}
+
+	m.HTTP.Headers[key] = value
+
+	return m
+}
+
+func (m *testModule) addHttpValidStatusCodes(code int) *testModule {
+	m.HTTP.ValidStatusCodes = append(m.HTTP.ValidStatusCodes, code)
+	return m
+}
+
+func (m *testModule) setHttpMethod(method string) *testModule {
+	m.HTTP.Method = method
+	return m
+}
+
+func (m *testModule) setHttpBody(body string) *testModule {
+	m.HTTP.Body = body
+	return m
 }
