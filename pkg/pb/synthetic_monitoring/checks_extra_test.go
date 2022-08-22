@@ -660,6 +660,14 @@ func TestValidateHttpUrl(t *testing.T) {
 			input:       "ftp://example.org/",
 			expectError: true,
 		},
+		"with username": {
+			input:       "http://user@example.org/",
+			expectError: true,
+		},
+		"with username and password": {
+			input:       "http://user:password@example.org/",
+			expectError: true,
+		},
 
 		// these are covered by TestValidateHostPort
 		"bad host": {

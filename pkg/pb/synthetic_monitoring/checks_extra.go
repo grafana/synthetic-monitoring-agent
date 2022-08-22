@@ -65,6 +65,8 @@ var (
 	ErrInvalidHttpMethodString = errors.New("invalid HTTP method string")
 	ErrInvalidHttpMethodValue  = errors.New("invalid HTTP method value")
 	ErrInvalidHttpHeaders      = errors.New("invalid HTTP headers")
+	ErrHttpUrlContainsPassword = errors.New("HTTP URL contains username and password")
+	ErrHttpUrlContainsUsername = errors.New("HTTP URL contains username")
 
 	ErrInvalidTracerouteHostname = errors.New("invalid traceroute hostname")
 
@@ -726,6 +728,14 @@ func validateHttpUrl(target string) error {
 	u, err := url.Parse(target)
 	if err != nil {
 		return ErrInvalidHttpUrl
+	}
+
+	if _, isSet := u.User.Password(); isSet {
+		return ErrHttpUrlContainsPassword
+	}
+
+	if u.User.Username() != "" {
+		return ErrHttpUrlContainsUsername
 	}
 
 	if !(u.Scheme == "http" || u.Scheme == "https") {
