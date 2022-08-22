@@ -2,6 +2,13 @@
 ## [Unreleased]
 
 
+<a name="v0.9.4"></a>
+## [v0.9.4] - 2022-08-22
+### Fix
+- relax DNS target validation
+- reject passwords in HTTP urls
+
+
 <a name="v0.9.3"></a>
 ## [v0.9.3] - 2022-06-14
 
@@ -307,7 +314,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.3...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.4...HEAD
+[v0.9.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.3...v0.9.4
 [v0.9.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.2...v0.9.3
 [v0.9.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.1...v0.9.2
 [v0.9.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.0...v0.9.1
