@@ -54,6 +54,7 @@ var (
 	ErrInvalidPingPacketCount = errors.New("invalid ping packet count")
 
 	ErrInvalidDnsName             = errors.New("invalid DNS name")
+	ErrInvalidDnsNameElement      = errors.New("invalid DNS name element")
 	ErrInvalidDnsServer           = errors.New("invalid DNS server")
 	ErrInvalidDnsPort             = errors.New("invalid DNS port")
 	ErrInvalidDnsProtocolString   = errors.New("invalid DNS protocol string")
@@ -702,7 +703,7 @@ func validateDnsTarget(target string) error {
 		}
 
 		for i, label := range labels {
-			err := validateFQHNLabel(label, i == len(labels)-1)
+			err := validateDnsLabel(label, i == len(labels)-1)
 			if err != nil {
 				return err
 			}
@@ -856,6 +857,19 @@ func validateFQHNLabel(label string, isLast bool) error {
 		if !isLetter(r) && !isDigit(r) && !isDash(r) {
 			return ErrInvalidFQHNElement
 		}
+	}
+
+	return nil
+}
+
+// validateDnsLabel checks that `label` conforms to a minimal set of rules
+// regarding the components of a DNS entry, namely that they are not empty,
+// they are not longer than 63 characters. This follows RFC 2181.
+func validateDnsLabel(label string, isLast bool) error {
+	// We are looking at a UTF-8 string, the len function reports the
+	// number of ASCII characters, not the number of runes.
+	if len(label) == 0 || len(label) > 63 {
+		return ErrInvalidDnsNameElement
 	}
 
 	return nil

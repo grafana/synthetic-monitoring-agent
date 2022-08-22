@@ -426,17 +426,35 @@ func TestValidateDnsTarget(t *testing.T) {
 			expectError: true,
 		},
 
-		// IP address is invalid
+		// For DNS entries, IP address is valid
 		"127.0.0.1": {
 			input:       "127.0.0.1",
-			expectError: true,
+			expectError: false,
 		},
 
 		// IP address disguised as multi-label fully qualified
-		// dns name is invalid
+		// dns name are also valid
 		"127.0.0.1.": {
 			input:       "127.0.0.1.",
+			expectError: false,
+		},
+
+		// empty label
+		"foo..bar": {
+			input:       "foo..bar",
 			expectError: true,
+		},
+
+		// label too long
+		"foo.a62a.bar": {
+			input:       "foo." + strings.Repeat("a", 64) + ".bar",
+			expectError: true,
+		},
+
+		// zeroconf
+		"_srv._tcp.example.org": {
+			input:       "_srv._tcp.example.org",
+			expectError: false,
 		},
 	}
 
