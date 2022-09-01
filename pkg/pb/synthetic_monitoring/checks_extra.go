@@ -203,11 +203,11 @@ func (c Check) Validate() error {
 		return err
 	}
 
-	if err := c.validateTarget(); err != nil {
+	if err := c.Settings.Validate(); err != nil {
 		return err
 	}
 
-	if err := c.Settings.Validate(); err != nil {
+	if err := c.validateTarget(); err != nil {
 		return err
 	}
 
