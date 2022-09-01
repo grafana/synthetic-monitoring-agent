@@ -37,7 +37,7 @@ SH_FILES ?= $(shell find ./scripts -name *.sh)
 
 GO_TEST_ARGS ?= $(GO_PKGS)
 
-COMMANDS := $(shell $(GO) list $(GO_BUILD_MOD_FLAGS) ./cmd/...)
+COMMANDS := $(shell $(GO) list $(GO_BUILD_MOD_FLAGS) -f '{{if (eq .Name "main")}}{{.ImportPath}}{{end}}' ./cmd/...)
 
 VERSION_PKG := $(shell $(GO) list $(GO_BUILD_MOD_FLAGS) ./internal/version)
 
