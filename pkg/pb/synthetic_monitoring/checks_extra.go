@@ -71,6 +71,8 @@ var (
 
 	ErrInvalidTracerouteHostname = errors.New("invalid traceroute hostname")
 
+	ErrInvalidK6Script = errors.New("invalid K6 script")
+
 	ErrInvalidHostname = errors.New("invalid hostname")
 	ErrInvalidPort     = errors.New("invalid port")
 
@@ -111,6 +113,7 @@ const (
 	CheckTypePing       CheckType = 2
 	CheckTypeTcp        CheckType = 3
 	CheckTypeTraceroute CheckType = 4
+	CheckTypeK6         CheckType = 5
 )
 
 var (
@@ -120,6 +123,7 @@ var (
 		CheckTypePing:       "ping",
 		CheckTypeTcp:        "tcp",
 		CheckTypeTraceroute: "traceroute",
+		CheckTypeK6:         "k6",
 	}
 
 	checkType_value = map[string]CheckType{
@@ -128,6 +132,7 @@ var (
 		"ping":       CheckTypePing,
 		"tcp":        CheckTypeTcp,
 		"traceroute": CheckTypeTraceroute,
+		"k6":         CheckTypeK6,
 	}
 )
 
@@ -171,6 +176,9 @@ func (c Check) Type() CheckType {
 
 	case c.Settings.Traceroute != nil:
 		return CheckTypeTraceroute
+
+	case c.Settings.K6 != nil:
+		return CheckTypeK6
 
 	default:
 		panic("unhandled check type")
@@ -237,6 +245,9 @@ func (c Check) validateTarget() error {
 			return ErrInvalidTracerouteHostname
 		}
 
+	case CheckTypeK6:
+		return validateHttpUrl(c.Target)
+
 	default:
 		panic("unhandled check type")
 	}
@@ -246,25 +257,34 @@ func (c Check) validateTarget() error {
 
 func (c Check) validateFrequency() error {
 	// frequency must be in [1, 120] seconds
-	if c.Settings.Traceroute != nil {
+	switch {
+	case c.Settings.Traceroute != nil:
 		if c.Frequency != 120*1000 {
 			return ErrInvalidCheckFrequency
 		}
-	} else {
+
+	// TODO(mem): k6 probably needs special handling, too.
+
+	default:
 		if c.Frequency < 1*1000 || c.Frequency > 120*1000 {
 			return ErrInvalidCheckFrequency
 		}
 	}
+
 	return nil
 }
 
 func (c Check) validateTimeout() error {
-	if c.Settings.Traceroute != nil {
+	switch {
+	case c.Settings.Traceroute != nil:
 		// We are hardcoding traceroute frequency and timeout until we can get data on what the boundaries should be
 		if c.Timeout != 30*1000 {
 			return ErrInvalidCheckTimeout
 		}
-	} else {
+
+	// TODO(mem): k6 probably needs special handling, too.
+
+	default:
 		// timeout must be in [1, 10] seconds, and it must be less than
 		// frequency (otherwise we can end up running overlapping
 		// checks)
@@ -272,6 +292,7 @@ func (c Check) validateTimeout() error {
 			return ErrInvalidCheckTimeout
 		}
 	}
+
 	return nil
 }
 
@@ -317,6 +338,9 @@ func (c AdHocCheck) Type() CheckType {
 
 	case c.Settings.Traceroute != nil:
 		return CheckTypeTraceroute
+
+	case c.Settings.K6 != nil:
+		return CheckTypeK6
 
 	default:
 		panic("unhandled check type")
@@ -418,6 +442,11 @@ func (s CheckSettings) Validate() error {
 		validateFn = s.Traceroute.Validate
 	}
 
+	if s.K6 != nil {
+		settingsCount++
+		validateFn = s.K6.Validate
+	}
+
 	if settingsCount != 1 {
 		return ErrInvalidCheckSettings
 	}
@@ -476,6 +505,14 @@ func (s *TcpSettings) Validate() error {
 }
 
 func (s *TracerouteSettings) Validate() error {
+	return nil
+}
+
+func (s *K6Settings) Validate() error {
+	if len(s.Script) == 0 {
+		return ErrInvalidK6Script
+	}
+
 	return nil
 }
 

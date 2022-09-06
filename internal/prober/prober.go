@@ -7,6 +7,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/k6"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
@@ -50,6 +51,10 @@ func NewFromCheck(ctx context.Context, logger zerolog.Logger, check sm.Check) (P
 
 	case sm.CheckTypeTraceroute:
 		p, err = traceroute.NewProber(check, logger)
+		target = check.Target
+
+	case sm.CheckTypeK6:
+		p, err = k6.NewProber(ctx, check, logger)
 		target = check.Target
 
 	default:
