@@ -228,6 +228,22 @@ func TestCheckType(t *testing.T) {
 			},
 			expected: CheckTypeTraceroute,
 		},
+
+		"k6": {
+			input: Check{
+				Target:    "http://www.example.org",
+				Job:       "job",
+				Frequency: 10000,
+				Timeout:   10000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					K6: &K6Settings{
+						Script: []byte("// test"),
+					},
+				},
+			},
+			expected: CheckTypeK6,
+		},
 	}
 
 	for name, testcase := range testcases {

@@ -12,6 +12,7 @@ import (
 const (
 	Traceroute = "traceroute"
 	AdHoc      = "adhoc"
+	K6         = "k6"
 )
 
 // ErrInvalidCollection is returned when you try to set a flag in an
