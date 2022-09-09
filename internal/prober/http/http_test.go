@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"net/url"
 	"strings"
 	"testing"
@@ -210,7 +209,7 @@ func TestProbe(t *testing.T) {
 			ctx := context.Background()
 			registry := prometheus.NewPedanticRegistry()
 			zl := zerolog.Logger{}
-			kl := log.NewLogfmtLogger(ioutil.Discard)
+			kl := log.NewLogfmtLogger(io.Discard)
 
 			prober, err := NewProber(ctx, check, zl)
 			require.NoError(t, err)

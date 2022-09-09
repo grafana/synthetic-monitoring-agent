@@ -9,9 +9,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -386,7 +386,7 @@ func (c *Client) Store(ctx context.Context, req []byte) error {
 	defer func() {
 		// we are draining the body, so it's OK to ignore the
 		// return value from io.Copy.
-		_, _ = io.Copy(ioutil.Discard, httpResp.Body)
+		_, _ = io.Copy(io.Discard, httpResp.Body)
 
 		// If there are close errors we cannot do anything about
 		// them.
@@ -506,7 +506,7 @@ func readCAFile(f string) ([]byte, error) {
 	// gosec complains that 'data' will contain a file.
 	//
 	// #nosec
-	data, err := ioutil.ReadFile(f)
+	data, err := os.ReadFile(f)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load specified CA cert %s: %s", f, err)
 	}

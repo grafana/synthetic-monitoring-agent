@@ -3,7 +3,6 @@ package tls
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -53,7 +52,7 @@ func SMtoProm(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfi
 // reader shows up, the writer might continue from the previous
 // prosition.
 func newDataProvider(ctx context.Context, logger zerolog.Logger, basename string, data []byte) (string, error) {
-	fh, err := ioutil.TempFile("", basename+".")
+	fh, err := os.CreateTemp("", basename+".")
 	if err != nil {
 		logger.Error().Err(err).Str("basename", basename).Msg("creating temporary file")
 		return "", fmt.Errorf("creating temporary file: %w", err)

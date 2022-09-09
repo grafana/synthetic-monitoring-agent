@@ -67,7 +67,7 @@ else
 	$(GO) mod download
 endif
 	$(GO) mod verify
-	$(GO) mod tidy -compat=1.17
+	$(GO) mod tidy -compat=1.18
 
 .PHONY: deps
 deps: deps-go ## Install all dependencies.
@@ -144,7 +144,7 @@ test: test-go ## Run all tests.
 ##@ Linting
 
 ifeq ($(LOCAL_GOLANGCI_LINT),yes)
-$(GOLANGCI_LINT): scripts/go/go.mod
+$(GOLANGCI_LINT): scripts/go/go.mod scripts/go/go.sum
 	$(S) cd scripts/go && \
 		$(GO) mod download && \
 		$(GO) build -o $(GOLANGCI_LINT) github.com/golangci/golangci-lint/cmd/golangci-lint
@@ -158,7 +158,7 @@ golangci-lint: $(GOLANGCI_LINT)
 		--config ./scripts/go/configs/golangci.yml \
 		$(GO_PKGS)
 
-scripts/go/bin/gosec: scripts/go/go.mod
+scripts/go/bin/gosec: scripts/go/go.mod scripts/go/go.sum
 	$(S) cd scripts/go && \
 		$(GO) mod download && \
 		$(GO) build -o ./bin/gosec github.com/securego/gosec/cmd/gosec

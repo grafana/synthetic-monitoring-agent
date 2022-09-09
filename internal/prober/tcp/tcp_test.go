@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"testing"
+	"time"
 
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
@@ -54,8 +55,9 @@ func TestNewProber(t *testing.T) {
 		},
 	}
 
+	ctx := testCtx(context.Background(), t)
+
 	for name, testcase := range testcases {
-		ctx := context.TODO()
 		logger := zerolog.New(io.Discard)
 		t.Run(name, func(t *testing.T) {
 			actual, err := NewProber(ctx, testcase.input, logger)
@@ -106,8 +108,9 @@ func TestSettingsToModule(t *testing.T) {
 		},
 	}
 
+	ctx := testCtx(context.Background(), t)
+
 	for name, testcase := range testcases {
-		ctx := context.Background()
 		logger := zerolog.New(io.Discard)
 		t.Run(name, func(t *testing.T) {
 			actual, err := settingsToModule(ctx, &testcase.input, logger)
@@ -115,4 +118,17 @@ func TestSettingsToModule(t *testing.T) {
 			require.Equal(t, &testcase.expected, &actual)
 		})
 	}
+}
+
+func testCtx(ctx context.Context, t *testing.T) context.Context {
+	if deadline, ok := t.Deadline(); ok {
+		ctx, cancel := context.WithDeadline(ctx, deadline)
+		t.Cleanup(cancel)
+		return ctx
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	t.Cleanup(cancel)
+
+	return ctx
 }
