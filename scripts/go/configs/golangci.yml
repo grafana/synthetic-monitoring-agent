@@ -7,7 +7,6 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - deadcode
     - depguard
     - dogsled
     - errcheck
@@ -30,11 +29,9 @@ linters:
     - nakedret
     - rowserrcheck
     - staticcheck
-    - structcheck
     - typecheck
     - unconvert
     - unused
-    - varcheck
     - whitespace
 
 linters-settings:
@@ -89,7 +86,8 @@ linters-settings:
       - wrapperFunc
     settings:
       ruleguard:
-        rules: "scripts/go/configs/rules.go"
+        rules: "internal/rules/rules.go"
+
 
 issues:
   exclude:
