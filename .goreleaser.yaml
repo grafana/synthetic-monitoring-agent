@@ -1,0 +1,35 @@
+before:
+  hooks:
+    # You may remove this if you don't use go modules.
+    # - go mod tidy
+    # you may remove this if you don't need go generate
+    # - go generate ./...
+    - true
+builds:
+  - main: cmd/synthetic-monitoring-agent
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    gobinary: scripts/goreleaser-build
+archives:
+  - replacements:
+      darwin: Darwin
+      linux: Linux
+      windows: Windows
+      386: i386
+      amd64: x86_64
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^[Dd]ocs:'
+      - '^[Tt]est:'
+      - '^[Cc]hore\(\w+\):'
+      - '^[Cc]hore:'

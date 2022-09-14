@@ -80,6 +80,7 @@ BUILD_GO_TARGETS += build-go-$(1)-$(2)-$(3)
 build-go-$(1)-$(2)-$(3) : GOOS := $(1)
 build-go-$(1)-$(2)-$(3) : GOARCH := $(2)
 build-go-$(1)-$(2)-$(3) : GOPKG := $(3)
+build-go-$(1)-$(2)-$(3) : DIST_FILENAME := $(firstword $(OUTPUT_FILE) $(DISTDIR)/$(1)-$(2)/$(notdir $(3)))
 
 endef
 
@@ -250,10 +251,10 @@ define build_go_command
 	$(S) mkdir -p $(DISTDIR)/$(GOOS)-$(GOARCH)
 	$(V) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) build \
 		$(GO_BUILD_FLAGS) \
-		-o '$(DISTDIR)/$(GOOS)-$(GOARCH)/$(notdir $(1))' \
+		-o '$(DIST_FILENAME)' \
 		-ldflags '-X "$(VERSION_PKG).commit=$(BUILD_COMMIT)" -X "$(VERSION_PKG).version=$(BUILD_VERSION)" -X "$(VERSION_PKG).buildstamp=$(BUILD_STAMP)"' \
 		'$(1)'
-	$(S) test '$(GOOS)' = '$(HOST_OS)' -a '$(GOARCH)' = '$(HOST_ARCH)' && \
-		cp -a '$(DISTDIR)/$(GOOS)-$(GOARCH)/$(notdir $(1))' '$(DISTDIR)/$(notdir $(1))' || \
+	$(V) test '$(GOOS)' = '$(HOST_OS)' -a '$(GOARCH)' = '$(HOST_ARCH)' && \
+		cp -a '$(DIST_FILENAME)' '$(DISTDIR)/$(notdir $(1))' || \
 		true
 endef
