@@ -1,0 +1,49 @@
+#!/bin/sh
+
+log=false
+
+if "$log" ; then
+	exec 6>&1
+	exec 7>&2
+	exec > "goreleaser.$(date +%s).log" 2>&1
+fi
+
+TEMP=$(getopt --alternative --longoptions ldflags: --options o: -- "$@")
+
+if [ $? != 0 ] ; then
+	echo "Terminating..." >&2
+	exit 1
+fi
+
+eval set -- "$TEMP"
+
+set -e
+
+while true ; do
+	case "$1" in
+		-o)
+			OUTPUT="$2"
+			shift 2
+			;;
+		--ldflags)
+			shift 2
+			;;
+		--)
+			shift
+			break
+			;;
+		*)
+			break
+			;;
+	esac
+done
+
+make build \
+	"WANTED_OSES=${GOOS}" \
+	"WANTED_ARCHES=${GOARCH}" \
+	"COMMANDS=github.com/grafana/synthetic-monitoring-agent/cmd/synthetic-monitoring-agent" \
+	"OUTPUT_FILE=${OUTPUT}"
+
+if "$log" ; then
+	exec 1>&6 2>&7 6>&- 7>&-
+fi
