@@ -184,15 +184,21 @@ lint-go: go-vet golangci-lint gosec ## Run all Go code checks.
 lint: lint-go ## Run all code checks.
 
 ##@ Packaging
-.PHONY: package
-package: build ## Build Debian and RPM packages.
-	$(S) echo "Building Debian and RPM packages..."		
-	$(S) sh scripts/package/package.sh
+GOPATH := $(shell go env GOPATH)
+GORELEASER := $(GOPATH)/bin/goreleaser
+# TODO: Upgrade goreleaser when Go version is upgraded past 1.17. Newer versions require Go 1.18 or 1.19
+$(GORELEASER):
+	go install github.com/goreleaser/goreleaser@v1.6.3 
 
-.PHONY: publish-packages
-publish-packages: package ## Publish Debian and RPM packages to the repository.
-	$(S) echo "Publishing Debian and RPM packages...."
-	$(S) sh scripts/package/publish.sh
+.PHONY: release
+release: $(GORELEASER) ## Build a release and publish it to Github.
+	$(S) echo "Building and publishing release files..."		
+	$(GORELEASER) release --rm-dist
+
+.PHONY: release-snapshot
+release-snapshot: $(GORELEASER) ## Build a snapshot release for testing (not published).
+	$(S) echo "Building release files..."		
+	$(GORELEASER) release --snapshot --rm-dist
 	
 ##@ Helpers
 
@@ -243,7 +249,7 @@ testdata: ## Update golden files for tests.
 .PHONY: drone
 drone:
 	drone jsonnet --stream --source .drone/drone.jsonnet --target .drone/drone.yml --format
-	drone lint .drone/drone.yml
+	drone lint .drone/drone.yml --trusted
 	drone sign --save grafana/synthetic-monitoring-agent .drone/drone.yml
 
 define build_go_command

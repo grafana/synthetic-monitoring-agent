@@ -76,7 +76,7 @@ local vault_secret(name, vault_path, key) = {
 local docker_step(tag, os, arch, version='') =
   // We can't use 'make docker' without making this repo priveleged in drone
   // so we will use the native docker plugin instead for security.
-  local platform = std.join('/', [ os, arch, if std.length(version) > 0 then version ]);
+  local platform = std.join('/', [os, arch, if std.length(version) > 0 then version]);
   step(tag + ' (' + platform + ')', [], 'plugins/docker')
   + {
     environment: {
@@ -101,7 +101,7 @@ local docker_build(os, arch, version='') =
 
 local docker_publish(repo, auth, tag, os, arch, version='') =
   docker_step('docker publish to ' + tag, os, arch, version)
-  + { settings: { repo: repo, dry_run: 'false', } + auth }
+  + { settings: { repo: repo, dry_run: 'false' } + auth }
   + dependsOn(['test', 'docker build']);
 
 [
@@ -140,100 +140,180 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
     ]),
 
     docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'amd64') + devAndRelease,
-    # docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'arm', 'v7') + devAndRelease,
-    # docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'arm64', 'v8') + devAndRelease,
+    // docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'arm', 'v7') + devAndRelease,
+    // docker_publish(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'arm64', 'v8') + devAndRelease,
 
     docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'amd64') + releaseOnly,
-    # docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm', 'v7') + releaseOnly,
-    # docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm64', 'v8') + releaseOnly,
+    // docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm', 'v7') + releaseOnly,
+    // docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm64', 'v8') + releaseOnly,
 
     step('docker publish (dev)', ['true'], 'alpine')
     + dependsOn([
       'docker publish to gcr.io (linux/amd64)',
-      # 'docker publish to gcr.io (linux/arm/v7)',
-      # 'docker publish to gcr.io (linux/arm64/v8)',
+      // 'docker publish to gcr.io (linux/arm/v7)',
+      // 'docker publish to gcr.io (linux/arm64/v8)',
     ])
     + devAndRelease,
 
     step('docker publish (release)', ['true'], 'alpine')
     + dependsOn([
       'docker publish to gcr.io (linux/amd64)',
-      # 'docker publish to gcr.io (linux/arm/v7)',
-      # 'docker publish to gcr.io (linux/arm64/v8)',
+      // 'docker publish to gcr.io (linux/arm/v7)',
+      // 'docker publish to gcr.io (linux/arm64/v8)',
       'docker publish to docker (linux/amd64)',
-      # 'docker publish to docker (linux/arm/v7)',
-      # 'docker publish to docker (linux/arm64/v8)',
+      // 'docker publish to docker (linux/arm/v7)',
+      // 'docker publish to docker (linux/arm64/v8)',
     ])
-    + releaseOnly,
-
-    step('package', ['make package'])
-    + dependsOn(['test', 'docker build'])
-    + prOnly,
-
-    step('publish packages', [
-      'export GCS_KEY_DIR=$(pwd)/keys',
-      'mkdir -p $GCS_KEY_DIR',
-      'echo "$GCS_KEY" | base64 -d > $GCS_KEY_DIR/gcs-key.json',
-      'make publish-packages',
-    ])
-    + {
-      environment: {
-        GCS_KEY: { from_secret: 'gcs_key' },
-        GPG_PRIV_KEY: { from_secret: 'gpg_priv_key' },
-        PUBLISH_PROD_PKGS: '1',
-      },
-    }
-    + dependsOn(['package'])
     + releaseOnly,
 
     step('trigger argo workflow (dev)', [])
     + {
-        settings: {
-          namespace: 'synthetic-monitoring-cd',
-          token: { from_secret: 'argo_token' },
-          command: std.strReplace(|||
-            submit --from workflowtemplate/deploy-synthetic-monitoring-agent
-            --name deploy-synthetic-monitoring-agent-$(./scripts/version)
-            --parameter mode=dev
-            --parameter dockertag=$(./scripts/version)
-            --parameter commit=${DRONE_COMMIT}
-            --parameter commit_author=${DRONE_COMMIT_AUTHOR}
-            --parameter commit_link=${DRONE_COMMIT_LINK}
-          |||, '\n', ' '),
-          add_ci_labels: true,
-        },
-        image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli'
+      settings: {
+        namespace: 'synthetic-monitoring-cd',
+        token: { from_secret: 'argo_token' },
+        command: std.strReplace(|||
+          submit --from workflowtemplate/deploy-synthetic-monitoring-agent
+          --name deploy-synthetic-monitoring-agent-$(./scripts/version)
+          --parameter mode=dev
+          --parameter dockertag=$(./scripts/version)
+          --parameter commit=${DRONE_COMMIT}
+          --parameter commit_author=${DRONE_COMMIT_AUTHOR}
+          --parameter commit_link=${DRONE_COMMIT_LINK}
+        |||, '\n', ' '),
+        add_ci_labels: true,
+      },
+      image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli',
     }
     + dependsOn(['docker publish (dev)'])
     + devOnly,
 
     step('trigger argo workflow (release)', [])
     + {
-        settings: {
-          namespace: 'synthetic-monitoring-cd',
-          token: { from_secret: 'argo_token' },
-          command: std.strReplace(|||
-            submit --from workflowtemplate/deploy-synthetic-monitoring-agent
-            --name deploy-synthetic-monitoring-agent-$(./scripts/version)
-            --parameter mode=release
-            --parameter dockertag=$(./scripts/version)
-            --parameter commit=${DRONE_COMMIT}
-            --parameter commit_author=${DRONE_COMMIT_AUTHOR}
-            --parameter commit_link=${DRONE_COMMIT_LINK}
-          |||, '\n', ' '),
-          add_ci_labels: true,
-        },
-        image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli'
-   }
-   + dependsOn(['docker publish (release)'])
-   + releaseOnly,
+      settings: {
+        namespace: 'synthetic-monitoring-cd',
+        token: { from_secret: 'argo_token' },
+        command: std.strReplace(|||
+          submit --from workflowtemplate/deploy-synthetic-monitoring-agent
+          --name deploy-synthetic-monitoring-agent-$(./scripts/version)
+          --parameter mode=release
+          --parameter dockertag=$(./scripts/version)
+          --parameter commit=${DRONE_COMMIT}
+          --parameter commit_author=${DRONE_COMMIT_AUTHOR}
+          --parameter commit_link=${DRONE_COMMIT_LINK}
+        |||, '\n', ' '),
+        add_ci_labels: true,
+      },
+      image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli',
+    }
+    + dependsOn(['docker publish (release)'])
+    + releaseOnly,
 
   ]),
 
+  // Build and release packages
+  // Tested in PRs by installing the packages on a systemd container
+  pipeline('release') {
+    trigger: {
+      event: ['tag', 'pull_request'],
+    },
+    volumes+: [
+      {
+        name: 'cgroup',
+        host: {
+          path: '/sys/fs/cgroup',
+        },
+      },
+      {
+        name: 'docker',
+        host: {
+          path: '/var/run/docker.sock',
+        },
+      },
+    ],
+    // Launch systemd containers to test the packages
+    services: [
+      {
+        name: 'systemd-debian',
+        image: 'jrei/systemd-debian:12',
+        volumes: [
+          {
+            name: 'cgroup',
+            path: '/sys/fs/cgroup',
+          },
+        ],
+        privileged: true,
+      },
+      {
+        name: 'systemd-centos',
+        image: 'jrei/systemd-centos:8',
+        volumes: [
+          {
+            name: 'cgroup',
+            path: '/sys/fs/cgroup',
+          },
+        ],
+        privileged: true,
+      },
+    ],
+    steps+: [
+      step('fetch', ['git fetch --tags'], image='docker:git'),
+      step('write-key', ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE']) {
+        environment: {
+          NFPM_SIGNING_KEY: { from_secret: 'gpg_private_key' },
+          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+        },
+      },
+      step('test release', ['make release-snapshot']) {
+        environment: {
+          NFPM_DEFAULT_PASSPHRASE: { from_secret: 'gpg_passphrase' },
+          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+        },
+      },
+      step('test deb package', ['./scripts/package/verify-deb-install.sh'], image='docker') {
+        volumes: [
+          {
+            name: 'docker',
+            path: '/var/run/docker.sock',
+          },
+        ],
+        privileged: true,
+      },
+      step('test rpm package', ['./scripts/package/verify-rpm-install.sh'], image='docker') {
+        volumes: [
+          {
+            name: 'docker',
+            path: '/var/run/docker.sock',
+          },
+        ],
+        privileged: true,
+      },
+      step('release', ['make release']) + releaseOnly {
+        environment: {
+          GITHUB_TOKEN: { from_secret: 'gh_token' },
+          NFPM_DEFAULT_PASSPHRASE: { from_secret: 'gpg_passphrase' },
+          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+        },
+      },
+    ],
+  } + {
+    trigger: {
+      ref: [
+        'refs/pull/**',
+        'refs/tags/v*.*.*',
+      ],  // Only on tags and PRs
+      repo: ['grafana/*'],  // Only trigger this pipeline for the Grafana org (no forks)
+    },
+  },
+
   vault_secret('docker_username', 'infra/data/ci/docker_hub', 'username'),
   vault_secret('docker_password', 'infra/data/ci/docker_hub', 'password'),
-  vault_secret('gcs_key', 'infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'key'),
-  vault_secret('gpg_priv_key', 'infra/data/ci/gcp/synthetic-mon-publish-pkgs', 'gpg_priv_key'),
   vault_secret('docker_config_json', 'infra/data/ci/gcr-admin', '.dockerconfigjson'),
   vault_secret('argo_token', 'infra/data/ci/argo-workflows/trigger-service-account', 'token'),
+
+  // secret needed to publish a Github release
+  vault_secret('gh_token', 'infra/data/ci/github/grafanabot', 'pat'),
+
+  // secret to sign linux packages
+  vault_secret('gpg_passphrase', 'infra/data/ci/packages-publish/gpg', 'passphrase'),
+  vault_secret('gpg_private_key', 'infra/data/ci/packages-publish/gpg', 'private-key'),
 ]
