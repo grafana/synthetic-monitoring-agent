@@ -1,279 +1,320 @@
 ---
+image_pull_secrets:
+- docker_config_json
 kind: pipeline
-type: docker
 name: build
-
-platform:
-  os: linux
-  arch: amd64
-
 steps:
-- name: runner identification
-  image: alpine
-  commands:
+- commands:
   - echo $DRONE_RUNNER_NAME
-
-- name: deps
-  image: golang:1.17
-  commands:
+  image: alpine
+  name: runner identification
+- commands:
   - make deps
   - ./scripts/enforce-clean
   depends_on:
   - runner identification
-
-- name: lint
   image: golang:1.17
-  commands:
+  name: deps
+- commands:
   - make lint
   depends_on:
   - deps
-
-- name: test
   image: golang:1.17
-  commands:
+  name: lint
+- commands:
   - make test
   depends_on:
   - lint
-
-- name: build
   image: golang:1.17
-  commands:
+  name: test
+- commands:
   - git fetch origin --tags
   - git status --porcelain --untracked-files=no
   - git diff --no-ext-diff --quiet
   - ./scripts/version
-  - "{ echo -n latest, ; ./scripts/version ; } > .tags"
+  - '{ echo -n latest, ; ./scripts/version ; } > .tags'
   - make build
   depends_on:
   - deps
-
-- name: docker build (linux/amd64)
+  image: golang:1.17
+  name: build
+- commands: []
+  depends_on:
+  - build
+  environment:
+    DOCKER_BUILDKIT: "1"
   image: plugins/docker
+  name: docker build (linux/amd64)
   settings:
     build_args:
     - TARGETPLATFORM=linux/amd64
     - TARGETOS=linux
     - TARGETARCH=amd64
-    dry_run: true
+    dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
-  environment:
-    DOCKER_BUILDKIT: 1
+- commands: []
   depends_on:
   - build
-
-- name: docker build (linux/arm/v7)
+  environment:
+    DOCKER_BUILDKIT: "1"
   image: plugins/docker
+  name: docker build (linux/arm/v7)
   settings:
     build_args:
     - TARGETPLATFORM=linux/arm/v7
     - TARGETOS=linux
     - TARGETARCH=arm
     - TARGETVARIANT=v7
-    dry_run: true
+    dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
-  environment:
-    DOCKER_BUILDKIT: 1
+- commands: []
   depends_on:
   - build
-
-- name: docker build (linux/arm64/v8)
+  environment:
+    DOCKER_BUILDKIT: "1"
   image: plugins/docker
+  name: docker build (linux/arm64/v8)
   settings:
     build_args:
     - TARGETPLATFORM=linux/arm64/v8
     - TARGETOS=linux
     - TARGETARCH=arm64
     - TARGETVARIANT=v8
-    dry_run: true
+    dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
-  environment:
-    DOCKER_BUILDKIT: 1
-  depends_on:
-  - build
-
-- name: docker build
-  image: alpine
-  commands:
-  - true
+- commands:
+  - "true"
   depends_on:
   - docker build (linux/amd64)
   - docker build (linux/arm/v7)
   - docker build (linux/arm64/v8)
-
-- name: docker publish to gcr.io (linux/amd64)
+  image: alpine
+  name: docker build
+- commands: []
+  depends_on:
+  - test
+  - docker build
+  environment:
+    DOCKER_BUILDKIT: "1"
   image: plugins/docker
+  name: docker publish to gcr.io (linux/amd64)
   settings:
     config:
       from_secret: docker_config_json
-    dry_run: false
+    dry_run: "false"
     repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
-  environment:
-    DOCKER_BUILDKIT: 1
   when:
     ref:
     - refs/heads/main
     - refs/tags/v*.*.*
+- commands: []
   depends_on:
   - test
   - docker build
-
-- name: docker publish to docker (linux/amd64)
+  environment:
+    DOCKER_BUILDKIT: "1"
   image: plugins/docker
+  name: docker publish to docker (linux/amd64)
   settings:
-    dry_run: false
+    dry_run: "false"
     password:
       from_secret: docker_password
     repo: grafana/synthetic-monitoring-agent
     username:
       from_secret: docker_username
-  environment:
-    DOCKER_BUILDKIT: 1
   when:
     ref:
     - refs/tags/v*.*.*
+- commands:
+  - "true"
   depends_on:
-  - test
-  - docker build
-
-- name: docker publish (dev)
+  - docker publish to gcr.io (linux/amd64)
   image: alpine
-  commands:
-  - true
+  name: docker publish (dev)
   when:
     ref:
     - refs/heads/main
     - refs/tags/v*.*.*
-  depends_on:
-  - docker publish to gcr.io (linux/amd64)
-
-- name: docker publish (release)
-  image: alpine
-  commands:
-  - true
-  when:
-    ref:
-    - refs/tags/v*.*.*
+- commands:
+  - "true"
   depends_on:
   - docker publish to gcr.io (linux/amd64)
   - docker publish to docker (linux/amd64)
-
-- name: package
-  image: golang:1.17
-  commands:
-  - make package
-  when:
-    event:
-    - pull_request
-  depends_on:
-  - test
-  - docker build
-
-- name: publish packages
-  image: golang:1.17
-  commands:
-  - export GCS_KEY_DIR=$(pwd)/keys
-  - mkdir -p $GCS_KEY_DIR
-  - echo "$GCS_KEY" | base64 -d > $GCS_KEY_DIR/gcs-key.json
-  - make publish-packages
-  environment:
-    GCS_KEY:
-      from_secret: gcs_key
-    GPG_PRIV_KEY:
-      from_secret: gpg_priv_key
-    PUBLISH_PROD_PKGS: 1
+  image: alpine
+  name: docker publish (release)
   when:
     ref:
     - refs/tags/v*.*.*
+- commands: []
   depends_on:
-  - package
-
-- name: trigger argo workflow (dev)
+  - docker publish (dev)
   image: us.gcr.io/kubernetes-dev/drone/plugins/argo-cli
+  name: trigger argo workflow (dev)
   settings:
     add_ci_labels: true
-    command: "submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter mode=dev --parameter dockertag=$(./scripts/version) --parameter commit=${DRONE_COMMIT} --parameter commit_author=${DRONE_COMMIT_AUTHOR} --parameter commit_link=${DRONE_COMMIT_LINK} "
+    command: 'submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name
+      deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter mode=dev
+      --parameter dockertag=$(./scripts/version) --parameter commit=${DRONE_COMMIT}
+      --parameter commit_author=${DRONE_COMMIT_AUTHOR} --parameter commit_link=${DRONE_COMMIT_LINK} '
     namespace: synthetic-monitoring-cd
     token:
       from_secret: argo_token
   when:
     ref:
     - refs/heads/main
+- commands: []
   depends_on:
-  - docker publish (dev)
-
-- name: trigger argo workflow (release)
+  - docker publish (release)
   image: us.gcr.io/kubernetes-dev/drone/plugins/argo-cli
+  name: trigger argo workflow (release)
   settings:
     add_ci_labels: true
-    command: "submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter mode=release --parameter dockertag=$(./scripts/version) --parameter commit=${DRONE_COMMIT} --parameter commit_author=${DRONE_COMMIT_AUTHOR} --parameter commit_link=${DRONE_COMMIT_LINK} "
+    command: 'submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name
+      deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter mode=release
+      --parameter dockertag=$(./scripts/version) --parameter commit=${DRONE_COMMIT}
+      --parameter commit_author=${DRONE_COMMIT_AUTHOR} --parameter commit_link=${DRONE_COMMIT_LINK} '
     namespace: synthetic-monitoring-cd
     token:
       from_secret: argo_token
   when:
     ref:
     - refs/tags/v*.*.*
-  depends_on:
-  - docker publish (release)
-
-image_pull_secrets:
-- docker_config_json
-
 trigger:
   ref:
   - refs/heads/main
   - refs/pull/**
   - refs/tags/v*.*.*
-
+type: docker
 ---
+image_pull_secrets:
+- docker_config_json
+kind: pipeline
+name: release
+services:
+- image: jrei/systemd-debian:12
+  name: systemd-debian
+  privileged: true
+  volumes:
+  - name: cgroup
+    path: /sys/fs/cgroup
+- image: jrei/systemd-centos:8
+  name: systemd-centos
+  privileged: true
+  volumes:
+  - name: cgroup
+    path: /sys/fs/cgroup
+steps:
+- commands:
+  - echo $DRONE_RUNNER_NAME
+  image: alpine
+  name: runner identification
+- commands:
+  - git fetch --tags
+  image: docker:git
+  name: fetch
+- commands:
+  - printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE
+  environment:
+    NFPM_SIGNING_KEY:
+      from_secret: gpg_private_key
+    NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
+  image: golang:1.17
+  name: write-key
+- commands:
+  - make release-snapshot
+  environment:
+    NFPM_DEFAULT_PASSPHRASE:
+      from_secret: gpg_passphrase
+    NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
+  image: golang:1.17
+  name: test release
+- commands:
+  - ./scripts/package/verify-deb-install.sh
+  image: docker
+  name: test deb package
+  privileged: true
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
+- commands:
+  - ./scripts/package/verify-rpm-install.sh
+  image: docker
+  name: test rpm package
+  privileged: true
+  volumes:
+  - name: docker
+    path: /var/run/docker.sock
+- commands:
+  - make release
+  environment:
+    GITHUB_TOKEN:
+      from_secret: gh_token
+    NFPM_DEFAULT_PASSPHRASE:
+      from_secret: gpg_passphrase
+    NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
+  image: golang:1.17
+  name: release
+  when:
+    ref:
+    - refs/tags/v*.*.*
+trigger:
+  ref:
+  - refs/pull/**
+  - refs/tags/v*.*.*
+  repo:
+  - grafana/*
+type: docker
+volumes:
+- host:
+    path: /sys/fs/cgroup
+  name: cgroup
+- host:
+    path: /var/run/docker.sock
+  name: docker
+---
+get:
+  name: username
+  path: infra/data/ci/docker_hub
 kind: secret
 name: docker_username
-
-get:
-  path: infra/data/ci/docker_hub
-  name: username
-
 ---
+get:
+  name: password
+  path: infra/data/ci/docker_hub
 kind: secret
 name: docker_password
-
-get:
-  path: infra/data/ci/docker_hub
-  name: password
-
 ---
-kind: secret
-name: gcs_key
-
 get:
-  path: infra/data/ci/gcp/synthetic-mon-publish-pkgs
-  name: key
-
----
-kind: secret
-name: gpg_priv_key
-
-get:
-  path: infra/data/ci/gcp/synthetic-mon-publish-pkgs
-  name: gpg_priv_key
-
----
+  name: .dockerconfigjson
+  path: infra/data/ci/gcr-admin
 kind: secret
 name: docker_config_json
-
-get:
-  path: infra/data/ci/gcr-admin
-  name: .dockerconfigjson
-
 ---
+get:
+  name: token
+  path: infra/data/ci/argo-workflows/trigger-service-account
 kind: secret
 name: argo_token
-
+---
 get:
-  path: infra/data/ci/argo-workflows/trigger-service-account
-  name: token
-
+  name: pat
+  path: infra/data/ci/github/grafanabot
+kind: secret
+name: gh_token
+---
+get:
+  name: passphrase
+  path: infra/data/ci/packages-publish/gpg
+kind: secret
+name: gpg_passphrase
+---
+get:
+  name: private-key
+  path: infra/data/ci/packages-publish/gpg
+kind: secret
+name: gpg_private_key
 ---
 kind: signature
-hmac: f2191956543cf1ceece33aac2cbdecbe11c5be4ac949ea13ef891cf3b9cf6235
+hmac: b01cc225049d23624d68fd9da1ba87c042e989443a6f9cefe472e5b485fc84ab
 
 ...

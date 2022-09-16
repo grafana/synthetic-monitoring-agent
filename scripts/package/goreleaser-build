@@ -8,6 +8,7 @@ if "$log" ; then
 	exec > "goreleaser.$(date +%s).log" 2>&1
 fi
 
+# On macOS, use GNU's getopt: "brew install gnu-getopt"
 TEMP=$(getopt --alternative --longoptions ldflags: --options o: -- "$@")
 
 if [ $? != 0 ] ; then

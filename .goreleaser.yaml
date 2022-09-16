@@ -4,18 +4,23 @@ before:
     # - go mod tidy
     # you may remove this if you don't need go generate
     # - go generate ./...
-    - true
+    - 'true'
 builds:
   - main: cmd/synthetic-monitoring-agent
     goos:
       - linux
+      - darwin
     goarch:
       - amd64
       - arm
       - arm64
-    gobinary: scripts/goreleaser-build
+    ignore:
+      - goos: darwin
+        goarch: arm
+    gobinary: scripts/package/goreleaser-build
 archives:
-  - replacements:
+  - format: zip
+    replacements:
       darwin: Darwin
       linux: Linux
       windows: Windows
@@ -33,3 +38,27 @@ changelog:
       - '^[Tt]est:'
       - '^[Cc]hore\(\w+\):'
       - '^[Cc]hore:'
+# RPM (yum) and deb (apt) packages
+nfpms:
+  - vendor: Grafana Labs Inc
+    homepage: https://grafana.com/products/cloud/features/#synthetic-monitoring
+    maintainer: Grafana Labs <support@grafana.com>
+    description: Synthetic Monitoring Agent
+    license: Apache2.0
+    formats:
+      - deb
+      - rpm
+    contents:
+      - src: ./scripts/package/config/systemd/synthetic-monitoring-agent.conf
+        dst: /etc/synthetic-monitoring/synthetic-monitoring-agent.conf
+        type: 'config|noreplace'
+      - src: ./scripts/package/config/systemd/synthetic-monitoring-agent.service
+        dst: /etc/systemd/system/synthetic-monitoring-agent.service
+    rpm:
+      signature:
+        # Also set ${NFPM_DEFAULT_PASSPHRASE}
+        key_file: '{{ .Env.NFPM_SIGNING_KEY_FILE }}'
+    deb:
+      signature:
+        # Also set ${NFPM_DEFAULT_PASSPHRASE}
+        key_file: '{{ .Env.NFPM_SIGNING_KEY_FILE }}'
