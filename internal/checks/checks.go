@@ -283,6 +283,14 @@ func (c *Updater) Run(ctx context.Context) error {
 				Msg("context cancelled, closing updater")
 			return nil
 
+		case errors.Is(err, context.DeadlineExceeded):
+			// Ping timed out, force agent termination.
+			c.logger.Warn().
+				Err(err).
+				Str("connection_state", c.api.conn.GetState().String()).
+				Msg("ping timeout, closing updater")
+			return fmt.Errorf("timeout in GRPC connection: %w", err)
+
 		default:
 			c.logger.Warn().
 				Err(err).
@@ -318,6 +326,10 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 			// either we were told to shut down
 			return context.Canceled
 
+		case status.Code() == codes.DeadlineExceeded:
+			// ping timed out
+			return context.DeadlineExceeded
+
 		case status.Message() == "transport is closing":
 			// the other end is shutting down
 			return errTransportClosing
@@ -333,7 +345,28 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		}
 	}
 
-	result, err := client.RegisterProbe(ctx, &sm.ProbeInfo{Version: version.Short(), Commit: version.Commit(), Buildstamp: version.Buildstamp()})
+	// groupCtx is used to coordinate shutting down all the
+	// goroutines started here.
+	g, groupCtx := errgroup.WithContext(ctx)
+
+	// We get _another_ context from the signal handler that we can
+	// use tell the GRPC client that we need to break out. We have
+	// multiple ways of cancelling the context (another signal
+	// elsewhere in the system communicated through the parent
+	// context; cancelling the child context because we are
+	// returning from this function; cancelling the new context
+	// because the signal fired), so we need an additional way of
+	// telling them apart.
+	sigCtx, signalFired := installSignalHandler(groupCtx)
+
+	// Run a ping to the GRPC server. Bail out if there's an error here.
+	g.Go(func() error {
+		err := c.ping(sigCtx, client)
+		c.logger.Warn().Err(err).Msg("health check ping stopped")
+		return err
+	})
+
+	result, err := client.RegisterProbe(sigCtx, &sm.ProbeInfo{Version: version.Short(), Commit: version.Commit(), Buildstamp: version.Buildstamp()})
 	if err != nil {
 		return connected, grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
 	}
@@ -375,20 +408,6 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		"buildstamp": version.Buildstamp(),
 	}).Set(1)
 
-	// groupCtx is used to coordinate shutting down all the
-	// goroutines started here.
-	g, groupCtx := errgroup.WithContext(ctx)
-
-	// We get _another_ context from the signal handler that we can
-	// use tell the GRPC client that we need to break out. We have
-	// multiple ways of cancelling the context (another signal
-	// elsewhere in the system communicated through the parent
-	// context; cancelling the child context because we are
-	// returning from this function; cancelling the new context
-	// because the signal fired), so we need an additional way of
-	// telling them apart.
-	sigCtx, signalFired := installSignalHandler(groupCtx)
-
 	errorHandler := func(err error, action string, signalFired *int32) error {
 		switch {
 		case err == nil:
@@ -406,13 +425,6 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	if err != nil {
 		return connected, errorHandler(err, "requesting changes from synthetic-monitoring-api", signalFired)
 	}
-
-	// Run a ping to the GRPC server. Bail out if there's an error here.
-	g.Go(func() error {
-		err := c.ping(sigCtx, client)
-		logger.Warn().Err(err).Msg("health check ping stopped")
-		return err
-	})
 
 	g.Go(func() error {
 		// processChanges uses the context in its first argument to
@@ -442,10 +454,16 @@ func (c *Updater) ping(ctx context.Context, client synthetic_monitoring.ChecksCl
 		}
 	)
 
+	sendPing := func() error {
+		timeoutCtx, cancel := context.WithTimeout(ctx, c.pingTimeout)
+		defer cancel()
+		_, err := client.Ping(timeoutCtx, &req, opts...)
+		return err
+	}
+
 	// Send one ping to try to figure out if the API understands
 	// what we are trying to do.
-	_, err := client.Ping(ctx, &req, opts...)
-	if err != nil {
+	if err := sendPing(); err != nil {
 		status, ok := status.FromError(err)
 
 		switch {
@@ -472,11 +490,9 @@ func (c *Updater) ping(ctx context.Context, client synthetic_monitoring.ChecksCl
 			return ctx.Err()
 
 		case <-ticker.C:
-			_, err := client.Ping(ctx, &req, opts...)
-			if err != nil {
+			if err := sendPing(); err != nil {
 				return err
 			}
-
 			req.Sequence++
 		}
 	}
