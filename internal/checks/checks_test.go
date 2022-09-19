@@ -2,6 +2,9 @@ package checks
 
 import (
 	"context"
+	"fmt"
+	"math"
+	"net"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -13,11 +16,13 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 func TestNewUpdater(t *testing.T) {
@@ -60,6 +65,92 @@ func TestNewUpdater(t *testing.T) {
 			require.NotNil(t, u.metrics.probeInfo)
 		})
 	}
+}
+
+func TestPing(t *testing.T) {
+	// Tests that the Updater is able to timeout when the server
+	// goes unresponsive without terminating the grpc connection.
+	for _, test := range []*crashServer{
+		{},
+		{allowRegister: true},
+		{allowRegister: true, allowedPings: 1},
+		{allowRegister: true, allowedPings: 2},
+	} {
+		t.Run(test.String(), func(t *testing.T) {
+			server := sm.ChecksServer(test)
+			t.Parallel()
+			testNetworkFailure(t, server)
+		})
+	}
+}
+
+func testNetworkFailure(t *testing.T, s sm.ChecksServer) {
+	// Bind a listener to any available port
+	listener, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	// Create a grpc server
+	server := grpc.NewServer()
+	defer server.Stop()
+
+	// Register the crashServer as checks server.
+	sm.RegisterChecksServer(server, s)
+
+	// Serve requests.
+	go func() {
+		server.Serve(listener)
+	}()
+	t.Logf("running fake server at %s", listener.Addr())
+
+	// Create a grpc client and updater.
+	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	u, err := NewUpdater(UpdaterOptions{
+		Backoff: &backoff.Backoff{
+			Min:    2 * time.Second,
+			Max:    30 * time.Second,
+			Factor: math.Pow(30./2., 1./8.), // reach the target in ~ 8 steps
+			Jitter: true,
+		},
+		Conn:           conn,
+		Features:       feature.NewCollection(),
+		IsConnected:    func(b bool) {},
+		Logger:         zerolog.New(zerolog.NewTestWriter(t)),
+		PromRegisterer: prometheus.NewPedanticRegistry(),
+		PublishCh:      make(chan<- pusher.Payload),
+		TenantCh:       make(chan<- sm.Tenant),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, u)
+
+	// Reduce the ping settings so the test doesn't take too long.
+	u.pingTimeout = time.Second * 3
+	u.pingInterval = time.Second * 5
+
+	// How long to wait before considering the Updater hanged.
+	const failureTimeout = time.Minute
+
+	// Run the updater and a sleep in parallel to stop the test
+	// if a hang is detected
+	ctx, cancel := context.WithCancel(context.Background())
+	sleepErrC := make(chan error, 1)
+	go func() {
+		err := sleepCtx(ctx, failureTimeout)
+		if err == nil {
+			// sleep completed without ctx being signaled.
+			cancel()
+		}
+		sleepErrC <- err
+	}()
+	go func() {
+		err := u.Run(ctx)
+		t.Log(err)
+		cancel()
+	}()
+
+	// If the err read from sleepErrC is not nil, Updater.Run() finished
+	// before the timeout elapsed, so it didn't hang.
+	err = <-sleepErrC
+	require.Equal(t, context.Canceled, err)
 }
 
 func TestInstallSignalHandler(t *testing.T) {
@@ -287,3 +378,55 @@ func testScraperFactory(ctx context.Context, check sm.Check, payloadCh chan<- pu
 		},
 	)
 }
+
+// crashServer is used to simulate an API server that stops responding
+// to grpc requests. This is equivalent to a server that suddenly disappears
+// from the network without properly terminating the grpc connection.
+type crashServer struct {
+	// if allowRegister is true, it will process a RegisterProbe request.
+	// Otherwise it will wait forever.
+	allowRegister bool
+	// allowedPings defines how many pings are answered before ignoring them.
+	allowedPings int
+}
+
+func (s *crashServer) RegisterProbe(ctx context.Context, _ *sm.ProbeInfo) (*sm.RegisterProbeResult, error) {
+	if s.allowRegister {
+		return &sm.RegisterProbeResult{
+			Probe: sm.Probe{
+				Id:       1234,
+				TenantId: 1234,
+			},
+			Status: sm.Status{
+				Code: sm.StatusCode_OK,
+			},
+		}, nil
+	}
+	return nil, s.wait(ctx)
+}
+func (s *crashServer) GetChanges(_ *sm.Void, srv sm.Checks_GetChangesServer) error {
+	// GetChanges always blocks, as a changes stream that never returns any changes.
+	return s.wait(srv.Context())
+}
+
+func (s *crashServer) Ping(ctx context.Context, req *sm.PingRequest) (*sm.PongResponse, error) {
+	if s.allowedPings > 0 {
+		s.allowedPings--
+		return &sm.PongResponse{
+			Sequence: req.Sequence,
+		}, nil
+	}
+	return nil, s.wait(ctx)
+}
+
+func (s *crashServer) String() string {
+	return fmt.Sprintf("allowed requests register=%v pings=%d",
+		s.allowRegister, s.allowedPings)
+}
+
+func (*crashServer) wait(ctx context.Context) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+var _ sm.ChecksServer = (*crashServer)(nil)

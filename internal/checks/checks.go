@@ -72,6 +72,8 @@ type Updater struct {
 	scrapers       map[int64]*scraper.Scraper
 	metrics        metrics
 	scraperFactory func(context.Context, sm.Check, chan<- pusher.Payload, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec) (*scraper.Scraper, error)
+	pingInterval   time.Duration
+	pingTimeout    time.Duration
 }
 
 type apiInfo struct {
@@ -225,6 +227,8 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 			scrapeErrorCounter:  scrapeErrorCounter,
 			scrapesCounter:      scrapesCounter,
 		},
+		pingInterval: sm.HealthCheckInterval,
+		pingTimeout:  sm.HealthCheckTimeout,
 	}, nil
 }
 
@@ -405,7 +409,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	// Run a ping to the GRPC server. Bail out if there's an error here.
 	g.Go(func() error {
-		err := ping(sigCtx, client)
+		err := c.ping(sigCtx, client)
 		logger.Warn().Err(err).Msg("health check ping stopped")
 		return err
 	})
@@ -430,7 +434,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 // ping will use the provided client to send a health signal to the GRPC
 // server. Any error is returned, the caller should take the necessary
 // steps to correct the problem.
-func ping(ctx context.Context, client synthetic_monitoring.ChecksClient) error {
+func (c *Updater) ping(ctx context.Context, client synthetic_monitoring.ChecksClient) error {
 	var (
 		req  synthetic_monitoring.PingRequest
 		opts = []grpc.CallOption{
@@ -459,7 +463,7 @@ func ping(ctx context.Context, client synthetic_monitoring.ChecksClient) error {
 
 	req.Sequence++
 
-	ticker := time.NewTicker(synthetic_monitoring.HealthCheckInterval)
+	ticker := time.NewTicker(c.pingInterval)
 	defer ticker.Stop()
 
 	for {
