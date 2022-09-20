@@ -98,12 +98,15 @@ func testNetworkFailure(t *testing.T, s sm.ChecksServer) {
 
 	// Serve requests.
 	go func() {
-		server.Serve(listener)
+		if err := server.Serve(listener); err != nil {
+			t.Logf("server: %v", err)
+		}
 	}()
 	t.Logf("running fake server at %s", listener.Addr())
 
 	// Create a grpc client and updater.
 	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	require.NoError(t, err)
 	u, err := NewUpdater(UpdaterOptions{
 		Backoff: &backoff.Backoff{
 			Min:    2 * time.Second,
