@@ -18,10 +18,12 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
+	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -369,6 +371,10 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		"buildstamp": version.Buildstamp(),
 	}).Set(1)
 
+	// groupCtx is used to coordinate shutting down all the
+	// goroutines started here.
+	g, groupCtx := errgroup.WithContext(ctx)
+
 	// We get _another_ context from the signal handler that we can
 	// use tell the GRPC client that we need to break out. We have
 	// multiple ways of cancelling the context (another signal
@@ -377,7 +383,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	// returning from this function; cancelling the new context
 	// because the signal fired), so we need an additional way of
 	// telling them apart.
-	sigCtx, signalFired := installSignalHandler(ctx)
+	sigCtx, signalFired := installSignalHandler(groupCtx)
 
 	errorHandler := func(err error, action string, signalFired *int32) error {
 		switch {
@@ -397,16 +403,79 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		return connected, errorHandler(err, "requesting changes from synthetic-monitoring-api", signalFired)
 	}
 
-	// processChanges uses the context in its first argument to
-	// create scrapers. This means that cancelling that context
-	// cancels all the running scrapers. That's why we are passing
-	// the _original_ context, not sigCtx, so that scrapers are
-	// _not_ stopped if the signal is trapped. We want scrapers to
-	// continue running in case the agent is _not_ killed.
-	err = c.processChanges(ctx, cc)
-	logger.Warn().Err(err).Msg("processing changes stopped")
+	// Run a ping to the GRPC server. Bail out if there's an error here.
+	g.Go(func() error {
+		err := ping(sigCtx, client)
+		logger.Warn().Err(err).Msg("health check ping stopped")
+		return err
+	})
+
+	g.Go(func() error {
+		// processChanges uses the context in its first argument to
+		// create scrapers. This means that cancelling that context
+		// cancels all the running scrapers. That's why we are passing
+		// the _original_ context, not sigCtx, so that scrapers are
+		// _not_ stopped if the signal is trapped. We want scrapers to
+		// continue running in case the agent is _not_ killed.
+		err := c.processChanges(ctx, cc)
+		logger.Warn().Err(err).Msg("processing changes stopped")
+		return err
+	})
+
+	err = g.Wait()
 
 	return connected, errorHandler(err, "getting changes from synthetic-monitoring-api", signalFired)
+}
+
+// ping will use the provided client to send a health signal to the GRPC
+// server. Any error is returned, the caller should take the necessary
+// steps to correct the problem.
+func ping(ctx context.Context, client synthetic_monitoring.ChecksClient) error {
+	var (
+		req  synthetic_monitoring.PingRequest
+		opts = []grpc.CallOption{
+			grpc.WaitForReady(false),
+		}
+	)
+
+	// Send one ping to try to figure out if the API understands
+	// what we are trying to do.
+	_, err := client.Ping(ctx, &req, opts...)
+	if err != nil {
+		status, ok := status.FromError(err)
+
+		switch {
+		case !ok:
+			return fmt.Errorf("sending ping: %w", err)
+
+		case status.Code() == codes.Unimplemented:
+			// The API does not support this. Return without error.
+			return nil
+
+		default:
+			return status.Err()
+		}
+	}
+
+	req.Sequence++
+
+	ticker := time.NewTicker(synthetic_monitoring.HealthCheckInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case <-ticker.C:
+			_, err := client.Ping(ctx, &req, opts...)
+			if err != nil {
+				return err
+			}
+
+			req.Sequence++
+		}
+	}
 }
 
 // installSignalHandler installs a signal handler for SIGUSR1.
