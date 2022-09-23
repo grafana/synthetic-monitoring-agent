@@ -93,6 +93,7 @@ var (
 
 const (
 	HealthCheckInterval = 90 * time.Second
+	HealthCheckTimeout  = 30 * time.Second
 )
 
 const (
