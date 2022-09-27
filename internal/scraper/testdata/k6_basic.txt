@@ -1,0 +1,224 @@
+# HELP checks_fails 
+# TYPE checks_fails gauge
+checks_fails 1
+# HELP checks_passes 
+# TYPE checks_passes gauge
+checks_passes 0
+# HELP checks_value 
+# TYPE checks_value gauge
+checks_value 0
+# HELP data_received_count 
+# TYPE data_received_count gauge
+data_received_count 0
+# HELP data_received_rate 
+# TYPE data_received_rate gauge
+data_received_rate 0
+# HELP data_sent_count 
+# TYPE data_sent_count gauge
+data_sent_count 0
+# HELP data_sent_rate 
+# TYPE data_sent_rate gauge
+data_sent_rate 0
+# HELP http_req_blocked_avg 
+# TYPE http_req_blocked_avg gauge
+http_req_blocked_avg 0
+# HELP http_req_blocked_max 
+# TYPE http_req_blocked_max gauge
+http_req_blocked_max 0
+# HELP http_req_blocked_med 
+# TYPE http_req_blocked_med gauge
+http_req_blocked_med 0
+# HELP http_req_blocked_min 
+# TYPE http_req_blocked_min gauge
+http_req_blocked_min 0
+# HELP http_req_blocked_p90 
+# TYPE http_req_blocked_p90 gauge
+http_req_blocked_p90 0
+# HELP http_req_blocked_p95 
+# TYPE http_req_blocked_p95 gauge
+http_req_blocked_p95 0
+# HELP http_req_connecting_avg 
+# TYPE http_req_connecting_avg gauge
+http_req_connecting_avg 0
+# HELP http_req_connecting_max 
+# TYPE http_req_connecting_max gauge
+http_req_connecting_max 0
+# HELP http_req_connecting_med 
+# TYPE http_req_connecting_med gauge
+http_req_connecting_med 0
+# HELP http_req_connecting_min 
+# TYPE http_req_connecting_min gauge
+http_req_connecting_min 0
+# HELP http_req_connecting_p90 
+# TYPE http_req_connecting_p90 gauge
+http_req_connecting_p90 0
+# HELP http_req_connecting_p95 
+# TYPE http_req_connecting_p95 gauge
+http_req_connecting_p95 0
+# HELP http_req_duration_avg 
+# TYPE http_req_duration_avg gauge
+http_req_duration_avg 0
+# HELP http_req_duration_max 
+# TYPE http_req_duration_max gauge
+http_req_duration_max 0
+# HELP http_req_duration_med 
+# TYPE http_req_duration_med gauge
+http_req_duration_med 0
+# HELP http_req_duration_min 
+# TYPE http_req_duration_min gauge
+http_req_duration_min 0
+# HELP http_req_duration_p90 
+# TYPE http_req_duration_p90 gauge
+http_req_duration_p90 0
+# HELP http_req_duration_p95 
+# TYPE http_req_duration_p95 gauge
+http_req_duration_p95 0
+# HELP http_req_failed_fails 
+# TYPE http_req_failed_fails gauge
+http_req_failed_fails 0
+# HELP http_req_failed_passes 
+# TYPE http_req_failed_passes gauge
+http_req_failed_passes 4
+# HELP http_req_failed_value 
+# TYPE http_req_failed_value gauge
+http_req_failed_value 1
+# HELP http_req_receiving_avg 
+# TYPE http_req_receiving_avg gauge
+http_req_receiving_avg 0
+# HELP http_req_receiving_max 
+# TYPE http_req_receiving_max gauge
+http_req_receiving_max 0
+# HELP http_req_receiving_med 
+# TYPE http_req_receiving_med gauge
+http_req_receiving_med 0
+# HELP http_req_receiving_min 
+# TYPE http_req_receiving_min gauge
+http_req_receiving_min 0
+# HELP http_req_receiving_p90 
+# TYPE http_req_receiving_p90 gauge
+http_req_receiving_p90 0
+# HELP http_req_receiving_p95 
+# TYPE http_req_receiving_p95 gauge
+http_req_receiving_p95 0
+# HELP http_req_sending_avg 
+# TYPE http_req_sending_avg gauge
+http_req_sending_avg 0
+# HELP http_req_sending_max 
+# TYPE http_req_sending_max gauge
+http_req_sending_max 0
+# HELP http_req_sending_med 
+# TYPE http_req_sending_med gauge
+http_req_sending_med 0
+# HELP http_req_sending_min 
+# TYPE http_req_sending_min gauge
+http_req_sending_min 0
+# HELP http_req_sending_p90 
+# TYPE http_req_sending_p90 gauge
+http_req_sending_p90 0
+# HELP http_req_sending_p95 
+# TYPE http_req_sending_p95 gauge
+http_req_sending_p95 0
+# HELP http_req_tls_handshaking_avg 
+# TYPE http_req_tls_handshaking_avg gauge
+http_req_tls_handshaking_avg 0
+# HELP http_req_tls_handshaking_max 
+# TYPE http_req_tls_handshaking_max gauge
+http_req_tls_handshaking_max 0
+# HELP http_req_tls_handshaking_med 
+# TYPE http_req_tls_handshaking_med gauge
+http_req_tls_handshaking_med 0
+# HELP http_req_tls_handshaking_min 
+# TYPE http_req_tls_handshaking_min gauge
+http_req_tls_handshaking_min 0
+# HELP http_req_tls_handshaking_p90 
+# TYPE http_req_tls_handshaking_p90 gauge
+http_req_tls_handshaking_p90 0
+# HELP http_req_tls_handshaking_p95 
+# TYPE http_req_tls_handshaking_p95 gauge
+http_req_tls_handshaking_p95 0
+# HELP http_req_waiting_avg 
+# TYPE http_req_waiting_avg gauge
+http_req_waiting_avg 0
+# HELP http_req_waiting_max 
+# TYPE http_req_waiting_max gauge
+http_req_waiting_max 0
+# HELP http_req_waiting_med 
+# TYPE http_req_waiting_med gauge
+http_req_waiting_med 0
+# HELP http_req_waiting_min 
+# TYPE http_req_waiting_min gauge
+http_req_waiting_min 0
+# HELP http_req_waiting_p90 
+# TYPE http_req_waiting_p90 gauge
+http_req_waiting_p90 0
+# HELP http_req_waiting_p95 
+# TYPE http_req_waiting_p95 gauge
+http_req_waiting_p95 0
+# HELP http_reqs_count 
+# TYPE http_reqs_count gauge
+http_reqs_count 4
+# HELP http_reqs_rate 
+# TYPE http_reqs_rate gauge
+http_reqs_rate 285.46434129317345
+# HELP iteration_duration_avg 
+# TYPE iteration_duration_avg gauge
+iteration_duration_avg 13.306403
+# HELP iteration_duration_max 
+# TYPE iteration_duration_max gauge
+iteration_duration_max 13.306403
+# HELP iteration_duration_med 
+# TYPE iteration_duration_med gauge
+iteration_duration_med 13.306403
+# HELP iteration_duration_min 
+# TYPE iteration_duration_min gauge
+iteration_duration_min 13.306403
+# HELP iteration_duration_p90 
+# TYPE iteration_duration_p90 gauge
+iteration_duration_p90 13.306403
+# HELP iteration_duration_p95 
+# TYPE iteration_duration_p95 gauge
+iteration_duration_p95 13.306403
+# HELP iterations_count 
+# TYPE iterations_count gauge
+iterations_count 1
+# HELP iterations_rate 
+# TYPE iterations_rate gauge
+iterations_rate 71.36608532329336
+# HELP probe_duration_seconds Returns how long the probe took to complete in seconds
+# TYPE probe_duration_seconds gauge
+probe_duration_seconds 2.091136348
+# HELP probe_success Displays whether or not the probe was a success
+# TYPE probe_success gauge
+probe_success 1
+# HELP probe_success_max 
+# TYPE probe_success_max gauge
+probe_success_max 0
+# HELP probe_success_min 
+# TYPE probe_success_min gauge
+probe_success_min 0
+# HELP probe_success_value 
+# TYPE probe_success_value gauge
+probe_success_value 0
+# HELP sm_check_info Provides information about a single check configuration
+# TYPE sm_check_info gauge
+sm_check_info 1
+# HELP probe_all_duration_seconds Returns how long the probe took to complete in seconds (histogram)
+# TYPE probe_all_duration_seconds histogram
+probe_all_duration_seconds_bucket{le="0.005"} 0
+probe_all_duration_seconds_bucket{le="0.01"} 0
+probe_all_duration_seconds_bucket{le="0.025"} 0
+probe_all_duration_seconds_bucket{le="0.05"} 0
+probe_all_duration_seconds_bucket{le="0.1"} 0
+probe_all_duration_seconds_bucket{le="0.25"} 0
+probe_all_duration_seconds_bucket{le="0.5"} 0
+probe_all_duration_seconds_bucket{le="1"} 0
+probe_all_duration_seconds_bucket{le="2.5"} 1
+probe_all_duration_seconds_bucket{le="5"} 1
+probe_all_duration_seconds_bucket{le="10"} 1
+probe_all_duration_seconds_bucket{le="+Inf"} 1
+probe_all_duration_seconds_sum 2.091136348
+probe_all_duration_seconds_count 1
+# HELP probe_all_success Displays whether or not the probe was a success (summary)
+# TYPE probe_all_success summary
+probe_all_success_sum 1
+probe_all_success_count 1

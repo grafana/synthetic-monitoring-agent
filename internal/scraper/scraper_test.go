@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/go-logfmt/logfmt"
@@ -26,6 +28,7 @@ import (
 	dnsProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/k6"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
@@ -245,6 +248,36 @@ func TestValidateMetrics(t *testing.T) {
 				}
 
 				return p, check, func() {}
+			},
+		},
+
+		"k6": {
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}))
+				httpSrv.Start()
+
+				check := sm.Check{
+					Target:  httpSrv.URL,
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						K6: &sm.K6Settings{
+							Script: loadK6TestScript(httpSrv.URL),
+						},
+					},
+				}
+
+				prober, err := k6.NewProber(
+					ctx,
+					check,
+					zerolog.New(io.Discard),
+				)
+				if err != nil {
+					t.Fatalf("cannot create HTTP prober: %s", err)
+				}
+
+				return prober, check, httpSrv.Close
 			},
 		},
 	}
@@ -1171,4 +1204,26 @@ func mergeMaps(maps ...map[string]string) map[string]string {
 		}
 	}
 	return out
+}
+
+//go:embed test_script.js.tmpl
+var scriptTmpl string
+
+func loadK6TestScript(srvUrl string) []byte {
+	tmpl, err := template.New("script").Parse(scriptTmpl)
+	if err != nil {
+		panic(err)
+	}
+
+	var (
+		buf    bytes.Buffer
+		values = struct{ Url string }{Url: srvUrl}
+	)
+
+	err = tmpl.Execute(&buf, values)
+	if err != nil {
+		panic(err)
+	}
+
+	return buf.Bytes()
 }

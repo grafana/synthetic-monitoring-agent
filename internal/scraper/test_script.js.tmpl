@@ -1,0 +1,30 @@
+import http from 'k6/http';
+import { check, fail } from 'k6';
+import { Gauge } from 'k6/metrics';
+
+const myGauge = new Gauge('probe_success');
+
+export default function () {
+	myGauge.add(0);
+
+	const params = {
+		redirects: 0,
+	};
+
+	const responses = http.batch([
+		['GET', 'https://{{.Url}}', null, params],
+		['GET', 'https://{{.Url}}/style.css', null, params],
+		['GET', 'https://{{.Url}}/images/logo.png', null, params],
+		['GET', 'https://{{.Url}}/not-found', null, params],
+	]);
+
+	const isSuccess = (response) => check(response, { "status": (r) => r.status == 200 }) == true;
+
+	const result = responses.every(isSuccess);
+
+	if (!result) {
+		fail("FAILED");
+	} else {
+		myGauge.add(1);
+	}
+}
