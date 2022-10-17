@@ -398,7 +398,18 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		}
 	}
 
-	cc, err := client.GetChanges(sigCtx, &sm.Void{})
+	knownChecks := sm.ProbeState{
+		Checks: make([]sm.EntityRef, 0, len(c.scrapers)),
+	}
+
+	for cID, scraper := range c.scrapers {
+		knownChecks.Checks = append(knownChecks.Checks, sm.EntityRef{
+			Id:           cID,
+			LastModified: scraper.LastModified(),
+		})
+	}
+
+	cc, err := client.GetChanges(sigCtx, &knownChecks)
 	if err != nil {
 		return connected, errorHandler(err, "requesting changes from synthetic-monitoring-api", signalFired)
 	}
@@ -728,7 +739,7 @@ func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check sm.C
 }
 
 func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, firstBatch bool) {
-	if firstBatch {
+	if firstBatch && !changes.IsDeltaFirstBatch {
 		c.handleFirstBatch(ctx, changes)
 		return
 	}

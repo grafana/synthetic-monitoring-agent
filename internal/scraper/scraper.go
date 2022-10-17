@@ -259,6 +259,10 @@ func (s Scraper) ConfigVersion() string {
 	return s.check.ConfigVersion()
 }
 
+func (s Scraper) LastModified() float64 {
+	return s.check.Modified
+}
+
 func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Context, time.Time), cleanup func(context.Context, time.Time), offset, period int64) {
 	timer := time.NewTimer(time.Duration(offset) * time.Millisecond)
 
