@@ -33,7 +33,7 @@ service Checks {
 
 	// GetChanges returns a list of check operations, specifying
 	// whether to add, update or delete checks.
-	rpc GetChanges(Void) returns (stream Changes) {};
+	rpc GetChanges(ProbeState) returns (stream Changes) {};
 
 	// Ping sends a ping to the server and receives an
 	// acknowledgement back.
@@ -55,6 +55,19 @@ service AdHocChecks {
 // Void is an empty message used by RPC methods that don't take
 // arguments.
 message Void {
+}
+
+// ProbeState message is sent by probes as the argument to GetChanges. It contains a list
+// of the checks and tenants already known to the probe.
+message ProbeState {
+	repeated EntityRef checks  = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "checks"];
+	repeated EntityRef tenants = 2 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "tenants"];
+}
+
+// EntityRef represents a reference to an entity (check, tenant) by it's ID and last modification time.
+message EntityRef {
+	int64  id           = 1 [(gogoproto.jsontag) = "id"];
+	double lastModified = 2 [(gogoproto.jsontag) = "lastModified"];
 }
 
 message ProbeInfo {
@@ -185,6 +198,11 @@ message CheckChange {
 message Changes {
 	repeated CheckChange checks  = 1 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "checks"];
 	repeated Tenant      tenants = 2 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "tenants"];
+
+	// This field is used to signal that the list of changes should be interpreted as a diff
+	// against the existing changes in the probe. For backwards compatibility, this will be
+	// false if the probe didn't send a list of known changes.
+	bool isDeltaFirstBatch = 3 [(gogoproto.jsontag) = "isDeltaFirstBatch"];
 }
 
 message AdHocRequest {

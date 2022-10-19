@@ -101,7 +101,7 @@ func (s *ChecksServer) RegisterProbe(ctx context.Context, _ *sm.ProbeInfo) (*sm.
 	return &sm.RegisterProbeResult{Probe: *probe}, nil
 }
 
-func (s *ChecksServer) GetChanges(_ *sm.Void, stream sm.Checks_GetChangesServer) error {
+func (s *ChecksServer) GetChanges(currentState *sm.ProbeState, stream sm.Checks_GetChangesServer) error {
 	probeID, found := probeIdFromContext(stream.Context())
 	if !found {
 		return errors.New("invalid probe authorization")
@@ -116,7 +116,7 @@ func (s *ChecksServer) GetChanges(_ *sm.Void, stream sm.Checks_GetChangesServer)
 
 	// Load all the existing checks from the database and send them to client
 
-	existingChecks, err := s.sendInitialChanges(stream, probeID)
+	existingChecks, err := s.sendInitialChanges(currentState, stream, probeID)
 	if err != nil {
 		return err
 	}
@@ -418,38 +418,66 @@ func filterUpdate(probeID int64, up sm.CheckChange, existingChecks checksSet) *s
 // sendInitialChanges transfers the initial set of changes for the
 // specified probe and returns the set of changes that were sent to the
 // probe.
-func (s *ChecksServer) sendInitialChanges(stream sm.Checks_GetChangesServer, probeID int64) (checksSet, error) {
+func (s *ChecksServer) sendInitialChanges(currentState *sm.ProbeState, stream sm.Checks_GetChangesServer, probeID int64) (checksSet, error) {
 	checks, err := s.db.ListChecksForProbe(stream.Context(), probeID)
 	if err != nil {
 		return nil, err
 	}
 
-	set := make(checksSet)
+	m := make(checksSet)
 
-	if len(checks) == 0 {
-		return set, nil
+	if len(checks) == 0 && len(currentState.Checks) == 0 {
+		return m, nil
 	}
 
-	changes := make([]sm.CheckChange, 0, len(checks))
+	knownChecks := make(map[int64]float64, len(currentState.Checks))
+	for _, e := range currentState.Checks {
+		knownChecks[e.Id] = e.LastModified
+	}
 
+	var changes []sm.CheckChange
 	for _, check := range checks {
 		if !check.Enabled {
 			continue
 		}
 
+		modTime, exists := knownChecks[check.Id]
+		m[check.Id] = struct{}{}
+
+		if exists && modTime == check.Modified {
+			// Skip check already known by probe
+			continue
+		}
+
+		op := sm.CheckOperation_CHECK_ADD
+		if exists {
+			// Update already existing check
+			op = sm.CheckOperation_CHECK_UPDATE
+		}
 		changes = append(changes, sm.CheckChange{
-			Operation: sm.CheckOperation_CHECK_ADD,
+			Operation: op,
 			Check:     check,
 		})
+	}
 
-		set[check.Id] = struct{}{}
+	// Delete missing checks previously known by the probe
+	for cid := range knownChecks {
+		if _, found := m[cid]; !found {
+			changes = append(changes, sm.CheckChange{
+				Operation: sm.CheckOperation_CHECK_DELETE,
+				Check:     sm.Check{Id: cid},
+			})
+		}
 	}
 
 	s.logger.Info().Int64("probeId", probeID).Interface("changes", changes).Msg("initial changes")
 
-	if err := stream.Send(&sm.Changes{Checks: changes}); err != nil {
+	// If existing checks were provided, notify the probe that we're sending a diff
+	// against the existing checks instead of the full batch.
+	deltaFlag := len(currentState.Checks) > 0
+	if err := stream.Send(&sm.Changes{Checks: changes, IsDeltaFirstBatch: deltaFlag}); err != nil {
 		return nil, fmt.Errorf("sending check changes to probe %d: %w", probeID, err)
 	}
 
-	return set, nil
+	return m, nil
 }

@@ -60,7 +60,7 @@ func (s *testChecksServer) RegisterProbe(context.Context, *sm.ProbeInfo) (*sm.Re
 	return nil, nil
 }
 
-func (s *testChecksServer) GetChanges(*sm.Void, sm.Checks_GetChangesServer) error {
+func (s *testChecksServer) GetChanges(*sm.ProbeState, sm.Checks_GetChangesServer) error {
 	return nil
 }
 

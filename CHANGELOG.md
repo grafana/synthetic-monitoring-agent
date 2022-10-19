@@ -1,6 +1,7 @@
 <a name="unreleased"></a>
 ## [Unreleased]
-
+### Feature
+- share existing checks with API to reduce memory and I/O cost on connect
 
 <a name="v0.9.4"></a>
 ## [v0.9.4] - 2022-08-22
