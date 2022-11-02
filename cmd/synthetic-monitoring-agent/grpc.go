@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -36,7 +37,16 @@ func dialAPIServer(ctx context.Context, addr string, allowInsecure bool, apiToke
 
 	transportCreds := insecure.NewCredentials()
 	if !allowInsecure {
-		transportCreds = credentials.NewTLS(&tls.Config{ServerName: grpcApiHost(addr)})
+		tlsCfg := tls.Config{ServerName: grpcApiHost(addr)}
+		if keylogFn := os.Getenv("SSLKEYLOGFILE"); keylogFn != "" {
+			log.Println("logging TLS master secret to", keylogFn)
+			w, err := os.Create(keylogFn)
+			if err != nil {
+				panic(err)
+			}
+			tlsCfg.KeyLogWriter = w
+		}
+		transportCreds = credentials.NewTLS(&tlsCfg)
 	}
 	opts = append(opts, grpc.WithTransportCredentials(transportCreds))
 
