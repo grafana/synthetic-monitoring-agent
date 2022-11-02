@@ -26,6 +26,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/status"
 )
 
@@ -235,6 +236,13 @@ func (c *Updater) Run(ctx context.Context) error {
 		var transientErr *TransientError
 
 		wasConnected, err := c.loop(ctx)
+
+		c.logger.Info().
+			Err(err).
+			Bool("was_connected", wasConnected).
+			Str("connection_state", c.api.conn.GetState().String()).
+			Msg("broke out of loop")
+
 		switch {
 		case err == nil:
 			return nil
@@ -375,6 +383,8 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	// goroutines started here.
 	g, groupCtx := errgroup.WithContext(ctx)
 
+	g.Go(handleStateChanges(groupCtx, c.api.conn))
+
 	// We get _another_ context from the signal handler that we can
 	// use tell the GRPC client that we need to break out. We have
 	// multiple ways of cancelling the context (another signal
@@ -436,6 +446,28 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	err = g.Wait()
 
 	return connected, errorHandler(err, "getting changes from synthetic-monitoring-api", signalFired)
+}
+
+func handleStateChanges(ctx context.Context, conn *grpc.ClientConn) func() error {
+	return func() error {
+		for {
+			if conn.WaitForStateChange(ctx, conn.GetState()) {
+				switch newState := conn.GetState(); newState {
+				case connectivity.Connecting:
+				case connectivity.Ready:
+				case connectivity.TransientFailure:
+				default:
+					// Return with an error if connectivity.Idle or
+					// connectivity.Shutdown.
+					return fmt.Errorf("connection state changed to %s", newState)
+				}
+			} else {
+				// False signals the context was cancelled so
+				// we need to return without error.
+				return nil
+			}
+		}
+	}
 }
 
 // ping will use the provided client to send a health signal to the GRPC
