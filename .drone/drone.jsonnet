@@ -260,13 +260,13 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
       step('write-key', ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE']) {
         environment: {
           NFPM_SIGNING_KEY: { from_secret: 'gpg_private_key' },
-          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+          NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
         },
       },
       step('test release', ['make release-snapshot']) {
         environment: {
           NFPM_DEFAULT_PASSPHRASE: { from_secret: 'gpg_passphrase' },
-          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+          NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
         },
       },
       step('test deb package', ['./scripts/package/verify-deb-install.sh'], image='docker') {
@@ -291,7 +291,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
         environment: {
           GITHUB_TOKEN: { from_secret: 'gh_token' },
           NFPM_DEFAULT_PASSPHRASE: { from_secret: 'gpg_passphrase' },
-          NFPM_SIGNING_KEY_FILE: '/drone/src/private-key.key',
+          NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
         },
       },
     ],

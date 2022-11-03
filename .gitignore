@@ -2,7 +2,9 @@
 # Created by https://www.gitignore.io/api/vim,code,linux,macos
 # Edit at https://www.gitignore.io/?templates=vim,code,linux,macos
 
+### Release ###
 dist
+./release-private-key.key
 
 ### Code ###
 .vscode/*
