@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.10.2"></a>
+## [v0.10.2] - 2022-11-03
+### Fix
+- update .gitignore pattern
+
+
 <a name="v0.10.1"></a>
 ## [v0.10.1] - 2022-11-03
 
@@ -329,7 +335,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.2...HEAD
+[v0.10.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.1...v0.10.2
 [v0.10.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.0...v0.10.1
 [v0.10.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.4...v0.10.0
 [v0.9.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.3...v0.9.4
