@@ -1,10 +1,21 @@
 <a name="unreleased"></a>
 ## [Unreleased]
-### Feature
-- share existing checks with API to reduce memory and I/O cost on connect
+
+
+<a name="v0.10.0"></a>
+## [v0.10.0] - 2022-11-02
+### Build
+- prevent invalid os/arch combinations ([#336](https://github.com/grafana/synthetic-monitoring-agent/issues/336))
+
+### Fix
+- handle connection state changes
+
+### Grpc
+- Send known checks to API on connect ([#351](https://github.com/grafana/synthetic-monitoring-agent/issues/351))
+
 
 <a name="v0.9.4"></a>
-## [v0.9.4] - 2022-08-22
+## [v0.9.4] - 2022-08-23
 ### Fix
 - relax DNS target validation
 - reject passwords in HTTP urls
@@ -315,7 +326,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.4...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.0...HEAD
+[v0.10.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.4...v0.10.0
 [v0.9.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.3...v0.9.4
 [v0.9.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.2...v0.9.3
 [v0.9.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.1...v0.9.2
