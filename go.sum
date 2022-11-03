@@ -611,8 +611,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/posener/complete v1.1.1/go.mod h1:em0nMJCgc9GFtwrmVmEMR/ZL6WyhyjMBndrE9hABlRI=
 github.com/prometheus/alertmanager v0.21.0/go.mod h1:h7tJ81NA0VLWvWEayi1QltevFkLF3KxmC/malTcT8Go=
-github.com/prometheus/blackbox_exporter v0.22.0 h1:OqTr//NAkVIpbGJeSeQx5/LzMHP8QWLBP4IvK0lXhv4=
-github.com/prometheus/blackbox_exporter v0.22.0/go.mod h1:5nS7A7JCcK9rLGMmvkTU76NxeIn1Ga42AByUJnFCphU=
+github.com/prometheus/blackbox_exporter v0.22.1-0.20220809101733-cc533f125b41 h1:Cx7ZMHUJCVlt7iZOFGjkKgmdl9QPKg1XVCwf38eGU4w=
+github.com/prometheus/blackbox_exporter v0.22.1-0.20220809101733-cc533f125b41/go.mod h1:5nS7A7JCcK9rLGMmvkTU76NxeIn1Ga42AByUJnFCphU=
 github.com/prometheus/client_golang v0.9.1/go.mod h1:7SWBe2y4D6OKWSNQJUaRYU/AaXPKyh/dDVn+NZz0KFw=
 github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829/go.mod h1:p2iRAGwDERtqlqzRXnrOVns+ignqQo//hLXqYxZYVNs=
 github.com/prometheus/client_golang v1.0.0/go.mod h1:db9x61etRT2tGnBNRi70OPL5FsnadC4Ky3P0J6CfImo=
