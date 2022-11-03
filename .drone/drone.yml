@@ -217,7 +217,7 @@ steps:
   environment:
     NFPM_SIGNING_KEY:
       from_secret: gpg_private_key
-    NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
+    NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
   image: golang:1.18
   name: write-key
 - commands:
@@ -225,7 +225,7 @@ steps:
   environment:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
-    NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
+    NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
   image: golang:1.18
   name: test release
 - commands:
@@ -251,7 +251,7 @@ steps:
       from_secret: gh_token
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
-    NFPM_SIGNING_KEY_FILE: /drone/src/private-key.key
+    NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
   image: golang:1.18
   name: release
   when:
@@ -315,6 +315,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 6d62cc8065a8187b7224df260e631cfc5192654247747b9c9f4a0b6e88eaf6d0
+hmac: aefbf1c6a02e7bc3976ee73ad5a35538f50f55b0360f7726ef8bb5957daf040e
 
 ...
