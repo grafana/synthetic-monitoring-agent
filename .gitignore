@@ -85,3 +85,6 @@ tags
 
 # Local dev environment configuration files
 *.env
+
+# This file is created when doing a release in drone.
+./private-key.key
