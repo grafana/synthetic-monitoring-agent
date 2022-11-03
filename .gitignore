@@ -4,7 +4,7 @@
 
 ### Release ###
 dist
-./release-private-key.key
+release-private-key.key
 
 ### Code ###
 .vscode/*
