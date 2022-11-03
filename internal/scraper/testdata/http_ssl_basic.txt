@@ -1,9 +1,9 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 2.463e-06
+probe_dns_lookup_time_seconds 2.317e-06
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.002182705
+probe_duration_seconds 0.002379338
 # HELP probe_failed_due_to_regex Indicates if probe failed due to regex
 # TYPE probe_failed_due_to_regex gauge
 probe_failed_due_to_regex 0
@@ -12,11 +12,11 @@ probe_failed_due_to_regex 0
 probe_http_content_length 0
 # HELP probe_http_duration_seconds Duration of http request by phase, summed over all redirects
 # TYPE probe_http_duration_seconds gauge
-probe_http_duration_seconds{phase="connect"} 7.0487e-05
-probe_http_duration_seconds{phase="processing"} 0.000115706
-probe_http_duration_seconds{phase="resolve"} 2.463e-06
-probe_http_duration_seconds{phase="tls"} 0.001814606
-probe_http_duration_seconds{phase="transfer"} 4.6667e-05
+probe_http_duration_seconds{phase="connect"} 6.2243e-05
+probe_http_duration_seconds{phase="processing"} 0.000212739
+probe_http_duration_seconds{phase="resolve"} 2.317e-06
+probe_http_duration_seconds{phase="tls"} 0.001923082
+probe_http_duration_seconds{phase="transfer"} 3.6719e-05
 # HELP probe_http_redirects The number of redirects
 # TYPE probe_http_redirects gauge
 probe_http_redirects 0
@@ -46,7 +46,7 @@ probe_ssl_earliest_cert_expiry 3.6e+09
 probe_ssl_last_chain_expiry_timestamp_seconds -6.21355968e+10
 # HELP probe_ssl_last_chain_info Contains SSL leaf certificate information
 # TYPE probe_ssl_last_chain_info gauge
-probe_ssl_last_chain_info{fingerprint_sha256="ab601914436e58babb17b9166155caf97bd7e5f8deb9b659bcdb66c58b49f323"} 1
+probe_ssl_last_chain_info{fingerprint_sha256="ab601914436e58babb17b9166155caf97bd7e5f8deb9b659bcdb66c58b49f323",issuer="O=Acme Co",subject="O=Acme Co",subjectalternative="example.com"} 1
 # HELP probe_success Displays whether or not the probe was a success
 # TYPE probe_success gauge
 probe_success 1
@@ -70,7 +70,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.002182705
+probe_all_duration_seconds_sum 0.002379338
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
