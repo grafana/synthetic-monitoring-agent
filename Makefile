@@ -198,7 +198,7 @@ release: $(GORELEASER) ## Build a release and publish it to Github.
 .PHONY: release-snapshot
 release-snapshot: $(GORELEASER) ## Build a snapshot release for testing (not published).
 	$(S) echo "Building release files..."		
-	$(GORELEASER) release --snapshot --rm-dist
+	$(GORELEASER) release --skip-publish --rm-dist
 	
 ##@ Helpers
 
