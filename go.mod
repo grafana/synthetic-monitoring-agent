@@ -15,7 +15,7 @@ require (
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/blackbox_exporter v0.22.1-0.20220809101733-cc533f125b41
-	github.com/prometheus/client_golang v1.13.1
+	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.37.0
 	// This is actually version v2.16.0
