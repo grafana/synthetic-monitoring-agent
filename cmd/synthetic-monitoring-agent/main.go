@@ -176,6 +176,7 @@ func run(args []string, stdout io.Writer) error {
 		adhocHandler, err := adhoc.NewHandler(adhoc.HandlerOpts{
 			Conn:           conn,
 			Logger:         zl.With().Str("subsystem", "adhoc").Logger(),
+			Backoff:        newConnectionBackoff(),
 			PublishCh:      publishCh,
 			TenantCh:       tenantCh,
 			PromRegisterer: promRegisterer,
