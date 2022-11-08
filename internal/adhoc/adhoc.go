@@ -86,6 +86,12 @@ type Backoffer interface {
 	Duration() time.Duration
 }
 
+type constantBackoff time.Duration
+
+func (constantBackoff) Reset() {}
+
+func (b constantBackoff) Duration() time.Duration { return time.Duration(b) }
+
 // HandlerOpts is used to pass configuration options to the Handler.
 type HandlerOpts struct {
 	Conn           ClientConn
@@ -146,6 +152,10 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 
 	if opts.grpcAdhocChecksClientFactory == nil {
 		h.grpcAdhocChecksClientFactory = defaultGrpcAdhocChecksClientFactory
+	}
+
+	if opts.Backoff == nil {
+		h.backoff = constantBackoff(60 * time.Second)
 	}
 
 	return h, nil
