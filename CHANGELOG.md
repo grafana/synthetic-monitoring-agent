@@ -2,6 +2,18 @@
 ## [Unreleased]
 
 
+<a name="v0.11.0"></a>
+## [v0.11.0] - 2022-11-14
+### Fix
+- set up backoffer to adhoc handler ([#363](https://github.com/grafana/synthetic-monitoring-agent/issues/363))
+
+### Grpc
+- Reduce size of objects in memory ([#368](https://github.com/grafana/synthetic-monitoring-agent/issues/368))
+
+### Revert
+- handle connection state changes ([#366](https://github.com/grafana/synthetic-monitoring-agent/issues/366))
+
+
 <a name="v0.10.2"></a>
 ## [v0.10.2] - 2022-11-03
 ### Fix
@@ -335,7 +347,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.0...HEAD
+[v0.11.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.2...v0.11.0
 [v0.10.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.1...v0.10.2
 [v0.10.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.0...v0.10.1
 [v0.10.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.9.4...v0.10.0
