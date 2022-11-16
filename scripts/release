@@ -52,6 +52,14 @@ if test -z "${next_version}" ; then
 	I: Next feature: v${next_minor}
 	I: Next breaking change: v${next_major}
 
+	I: Changes since current version:
+
+	EOT
+
+	git --no-pager log --pretty=tformat:'    %C(auto)%h %d %s' "v${cv}...HEAD"
+
+	cat <<-EOT
+
 	E: Next version argument required. Abort.
 	EOT
 	exit 4
