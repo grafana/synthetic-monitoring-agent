@@ -2,8 +2,15 @@
 ## [Unreleased]
 
 
+<a name="v0.11.1"></a>
+## [v0.11.1] - 2022-11-23
+### Fix
+- WANTED_OSES / WANTED_ARCHES was removed, use PLATFORMS
+- update MTR package
+
+
 <a name="v0.11.0"></a>
-## [v0.11.0] - 2022-11-14
+## [v0.11.0] - 2022-11-17
 ### Fix
 - set up backoffer to adhoc handler ([#363](https://github.com/grafana/synthetic-monitoring-agent/issues/363))
 
@@ -347,7 +354,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.1...HEAD
+[v0.11.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.0...v0.11.1
 [v0.11.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.2...v0.11.0
 [v0.10.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.1...v0.10.2
 [v0.10.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.0...v0.10.1
