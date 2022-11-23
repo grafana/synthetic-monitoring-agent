@@ -5,7 +5,8 @@ log=false
 if "$log" ; then
 	exec 6>&1
 	exec 7>&2
-	exec > "goreleaser.$(date +%s).log" 2>&1
+	exec > "goreleaser.$(date +%s).$$.log" 2>&1
+	trap 'exec 1>&6 2>&7 6>&- 7>&-' EXIT
 fi
 
 # On macOS, use GNU's getopt: "brew install gnu-getopt"
@@ -39,12 +40,20 @@ while true ; do
 	esac
 done
 
-make build \
-	"WANTED_OSES=${GOOS}" \
-	"WANTED_ARCHES=${GOARCH}" \
-	"COMMANDS=github.com/grafana/synthetic-monitoring-agent/cmd/synthetic-monitoring-agent" \
-	"OUTPUT_FILE=${OUTPUT}"
+case "$1" in
+	version)
+		go "$@"
+		;;
 
-if "$log" ; then
-	exec 1>&6 2>&7 6>&- 7>&-
-fi
+	build)
+		make build \
+			"PLATFORMS=${GOOS}/${GOARCH}" \
+			"COMMANDS=github.com/grafana/synthetic-monitoring-agent/cmd/synthetic-monitoring-agent" \
+			"OUTPUT_FILE=${OUTPUT}"
+		;;
+
+	*)
+		echo "E: Unhandled arguments: '$@'. Stop."
+		exit 100
+		;;
+esac
