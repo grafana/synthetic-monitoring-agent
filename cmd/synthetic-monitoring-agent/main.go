@@ -42,6 +42,7 @@ func run(args []string, stdout io.Writer) error {
 		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
 		apiToken          = flags.String("api-token", "", "synthetic monitoring probe authentication token")
 		enableDisconnect  = flags.Bool("enable-disconnect", false, "enable HTTP /disconnect endpoint")
+		enablePProf       = flags.Bool("enable-pprof", false, "exposes profiling data via HTTP /debug/pprof/ endpoint")
 	)
 
 	flags.Var(&features, "features", "optional feature flags")
@@ -114,6 +115,7 @@ func run(args []string, stdout io.Writer) error {
 		PromRegisterer:    promRegisterer,
 		isReady:           readynessHandler,
 		disconnectEnabled: *enableDisconnect,
+		pprofEnabled:      *enablePProf,
 	})
 
 	httpConfig := http.Config{
