@@ -39,7 +39,7 @@ func run(args []string, stdout io.Writer) error {
 		reportVersion     = flags.Bool("version", false, "report version and exit")
 		grpcApiServerAddr = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
 		grpcInsecure      = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
-		httpListenAddr    = flags.String("listen-address", ":4050", "listen address")
+		httpListenAddr    = flags.String("listen-address", "localhost:4050", "listen address")
 		apiToken          = flags.String("api-token", "", "synthetic monitoring probe authentication token")
 		enableDisconnect  = flags.Bool("enable-disconnect", false, "enable HTTP /disconnect endpoint")
 		enablePProf       = flags.Bool("enable-pprof", false, "exposes profiling data via HTTP /debug/pprof/ endpoint")
