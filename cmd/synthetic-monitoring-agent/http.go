@@ -28,6 +28,7 @@ type MuxOpts struct {
 	}
 	isReady           *readynessHandler
 	disconnectEnabled bool
+	pprofEnabled      bool
 }
 
 func NewMux(opts MuxOpts) *Mux {
@@ -54,11 +55,13 @@ func NewMux(opts MuxOpts) *Mux {
 	}
 
 	// Register pprof handlers
-	router.HandleFunc("/debug/pprof/", pprof.Index)
-	router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	router.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	router.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	if opts.pprofEnabled {
+		router.HandleFunc("/debug/pprof/", pprof.Index)
+		router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		router.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		router.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		router.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
 
 	requestCounter := prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: "http",
