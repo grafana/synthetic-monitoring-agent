@@ -6,7 +6,7 @@ Type=simple
 User=root
 Group=root
 EnvironmentFile=/etc/synthetic-monitoring/synthetic-monitoring-agent.conf
-ExecStart=/usr/bin/synthetic-monitoring-agent --api-token=${API_TOKEN} --api-server-address=${API_SERVER} --api-insecure=${API_INSECURE} --listen-address=${LISTEN_ADDRESS} --verbose=${VERBOSE} --debug=${DEBUG} --features=${FEATURES}
+ExecStart=/usr/bin/synthetic-monitoring-agent --api-server-address=${API_SERVER} --api-insecure=${API_INSECURE} --listen-address=${LISTEN_ADDRESS} --verbose=${VERBOSE} --debug=${DEBUG} --features=${FEATURES}
 Restart=always
 
 [Install]

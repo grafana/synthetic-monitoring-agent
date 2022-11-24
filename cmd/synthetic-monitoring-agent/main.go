@@ -62,6 +62,14 @@ func run(args []string, stdout io.Writer) error {
 		return nil
 	}
 
+	// If the token is provided on the command line, prefer that. Otherwise
+	// pull it from the environment variable SM_AGENT_API_TOKEN. If that's
+	// not available, fallback to API_TOKEN, which was the environment
+	// variable name previously used in the systemd unit files.
+	//
+	// Using API_TOKEN should be deprecated after March 1st, 2023.
+	*apiToken = stringFromEnv("API_TOKEN", stringFromEnv("SM_AGENT_API_TOKEN", *apiToken))
+
 	if *apiToken == "" {
 		return fmt.Errorf("invalid API token")
 	}
@@ -234,4 +242,12 @@ func newConnectionBackoff() *backoff.Backoff {
 		Factor: math.Pow(30./2., 1./8.), // reach the target in ~ 8 steps
 		Jitter: true,
 	}
+}
+
+func stringFromEnv(name string, override string) string {
+	if override != "" {
+		return override
+	}
+
+	return os.Getenv(name)
 }
