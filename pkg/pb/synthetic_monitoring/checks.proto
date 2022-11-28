@@ -326,6 +326,8 @@ message OAuth2Config {
 	string          tokenURL       = 3 [(gogoproto.jsontag) = "tokenURL"];                 // (Required) URL for the token endpoint
 	repeated string scopes         = 4 [(gogoproto.jsontag) = "scopes,omitempty"];				 // Service-specific list of scopes
 	repeated Label  endpointParams = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "endpointParams,omitempty"]; // Extra request parameters to use with token endpoint
+	TLSConfig       tlsConfig      = 6 [(gogoproto.jsontag) = "tlsConfig,omitempty"];
+	string          proxyURL       = 7 [(gogoproto.jsontag) = "proxyURL,omitempty"];
 }
 
 // HeaderMatch represents a single header that must match in order for
