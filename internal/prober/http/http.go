@@ -183,7 +183,25 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 		}
 	}
 
+	if settings.Oauth2Config != nil && settings.Oauth2Config.ClientId != "" {
+		m.HTTP.HTTPClientConfig.OAuth2 = convertOAuth2Config(settings.Oauth2Config)
+	}
+
 	return m, nil
+}
+
+func convertOAuth2Config(cfg *sm.OAuth2Config) *promconfig.OAuth2 {
+	r := &promconfig.OAuth2{}
+	r.ClientID = cfg.ClientId
+	r.ClientSecret = promconfig.Secret(cfg.ClientSecret)
+	r.TokenURL = cfg.TokenURL
+	r.Scopes = make([]string, len(cfg.Scopes))
+	copy(r.Scopes, cfg.Scopes)
+	r.EndpointParams = make(map[string]string, len(cfg.EndpointParams))
+	for _, pair := range cfg.EndpointParams {
+		r.EndpointParams[pair.Name] = pair.Value
+	}
+	return r
 }
 
 func buildHttpHeaders(headers []string) map[string]string {

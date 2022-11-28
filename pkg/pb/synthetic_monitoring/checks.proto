@@ -300,6 +300,7 @@ message HttpSettings {
 	BasicAuth             basicAuth                    = 101 [(gogoproto.jsontag) = "basicAuth,omitempty"];
 	string                bearerToken                  = 102 [(gogoproto.jsontag) = "bearerToken,omitempty"];
 	string                proxyURL                     = 103 [(gogoproto.jsontag) = "proxyURL,omitempty"];
+	OAuth2Config   				oauth2Config								 = 104 [(gogoproto.jsontag) = "oauth2Config,omitempty"];
 
 	// validations
 
@@ -316,6 +317,15 @@ message HttpSettings {
 	// custom settings not present in blackbox-exporter
 
 	string                cacheBustingQueryParamName   = 900 [(gogoproto.jsontag) = "cacheBustingQueryParamName,omitempty"];
+}
+
+// Configuration for two-legged OAuth2 (client_credentials grant type).
+message OAuth2Config {
+	string clientId                = 1 [(gogoproto.jsontag) = "clientId"];                 // (Required) client identifier
+	string clientSecret            = 2 [(gogoproto.jsontag) = "clientSecret"];	           // (Required) client secret
+	string tokenURL                = 3 [(gogoproto.jsontag) = "tokenURL"];                 // (Required) URL for the token endpoint
+	repeated string scopes         = 4 [(gogoproto.jsontag) = "scopes,omitempty"];				 // Service-specific list of scopes
+	repeated Label endpointParams = 5 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "endpointParams,omitempty"]; // Extra request parameters to use with token endpoint
 }
 
 // HeaderMatch represents a single header that must match in order for
