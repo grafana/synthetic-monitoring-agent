@@ -2,6 +2,16 @@
 ## [Unreleased]
 
 
+<a name="v0.12.0"></a>
+## [v0.12.0] - 2022-11-29
+### Adhoc
+- Reorder validation of adhoc checks
+
+### Fix
+- default to listening on localhost, not all interfaces
+- allow getting API token from environment
+
+
 <a name="v0.11.2"></a>
 ## [v0.11.2] - 2022-11-24
 
@@ -357,7 +367,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.2...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.12.0...HEAD
+[v0.12.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.2...v0.12.0
 [v0.11.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.1...v0.11.2
 [v0.11.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.0...v0.11.1
 [v0.11.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.10.2...v0.11.0
