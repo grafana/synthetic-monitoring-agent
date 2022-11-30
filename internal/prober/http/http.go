@@ -183,7 +183,42 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 		}
 	}
 
+	if settings.Oauth2Config != nil && settings.Oauth2Config.ClientId != "" {
+		var err error
+		m.HTTP.HTTPClientConfig.OAuth2, err = convertOAuth2Config(ctx, settings.Oauth2Config, logger.With().Str("prober", m.Prober).Logger())
+		if err != nil {
+			return m, fmt.Errorf("parsing OAuth2 settings: %w", err)
+		}
+	}
+
 	return m, nil
+}
+
+func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerolog.Logger) (*promconfig.OAuth2, error) {
+	r := &promconfig.OAuth2{}
+	r.ClientID = cfg.ClientId
+	r.ClientSecret = promconfig.Secret(cfg.ClientSecret)
+	r.TokenURL = cfg.TokenURL
+	r.Scopes = make([]string, len(cfg.Scopes))
+	copy(r.Scopes, cfg.Scopes)
+	r.EndpointParams = make(map[string]string, len(cfg.EndpointParams))
+	for _, pair := range cfg.EndpointParams {
+		r.EndpointParams[pair.Name] = pair.Value
+	}
+	var err error
+	if cfg.ProxyURL != "" {
+		r.ProxyURL.URL, err = url.Parse(cfg.ProxyURL)
+		if err != nil {
+			return nil, fmt.Errorf("parsing proxy URL: %w", err)
+		}
+	}
+	if cfg.TlsConfig != nil {
+		r.TLSConfig, err = tls.SMtoProm(ctx, logger, cfg.TlsConfig)
+		if err != nil {
+			return nil, fmt.Errorf("parsing TLS config: %w", err)
+		}
+	}
+	return r, nil
 }
 
 func buildHttpHeaders(headers []string) map[string]string {
