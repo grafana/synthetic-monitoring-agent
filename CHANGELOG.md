@@ -2,8 +2,11 @@
 ## [Unreleased]
 
 
+<a name="v0.12.1"></a>
+## [v0.12.1] - 2022-12-07
+
 <a name="v0.12.0"></a>
-## [v0.12.0] - 2022-11-29
+## [v0.12.0] - 2022-11-30
 ### Adhoc
 - Reorder validation of adhoc checks
 
@@ -367,7 +370,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.12.1...HEAD
+[v0.12.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.12.0...v0.12.1
 [v0.12.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.2...v0.12.0
 [v0.11.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.1...v0.11.2
 [v0.11.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.0...v0.11.1
