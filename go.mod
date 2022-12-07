@@ -90,6 +90,8 @@ replace github.com/Azure/go-autorest => github.com/Azure/go-autorest v13.3.0+inc
 //
 // 78d2af792bab is the commit tagged as v12.0.0.
 
-replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
+replace k8s.io/client-go => k8s.io/client-go v0.22.1
+
+// replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
 
 replace github.com/tonobo/mtr => github.com/grafana/mtr v0.1.1-0.20221107202107-a9806fdda166
