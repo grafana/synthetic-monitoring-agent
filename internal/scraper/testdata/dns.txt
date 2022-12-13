@@ -15,6 +15,9 @@ probe_dns_duration_seconds{phase="resolve"} 2.676e-06
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
 probe_dns_lookup_time_seconds 2.676e-06
+# HELP probe_dns_query_succeeded Displays whether or not the query was executed successfully
+# TYPE probe_dns_query_succeeded gauge
+probe_dns_query_succeeded 1
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
 probe_duration_seconds 0.000177556
