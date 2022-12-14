@@ -62,12 +62,15 @@ var (
 	ErrInvalidDnsRecordTypeString = errors.New("invalid DNS record type string")
 	ErrInvalidDnsRecordTypeValue  = errors.New("invalid DNS record type value")
 
-	ErrInvalidHttpUrl          = errors.New("invalid HTTP URL")
-	ErrInvalidHttpMethodString = errors.New("invalid HTTP method string")
-	ErrInvalidHttpMethodValue  = errors.New("invalid HTTP method value")
-	ErrInvalidHttpHeaders      = errors.New("invalid HTTP headers")
-	ErrHttpUrlContainsPassword = errors.New("HTTP URL contains username and password")
-	ErrHttpUrlContainsUsername = errors.New("HTTP URL contains username")
+	ErrInvalidHttpUrl             = errors.New("invalid HTTP URL")
+	ErrInvalidHttpMethodString    = errors.New("invalid HTTP method string")
+	ErrInvalidHttpMethodValue     = errors.New("invalid HTTP method value")
+	ErrInvalidHttpHeaders         = errors.New("invalid HTTP headers")
+	ErrHttpUrlContainsPassword    = errors.New("HTTP URL contains username and password")
+	ErrHttpUrlContainsUsername    = errors.New("HTTP URL contains username")
+	ErrInvalidProxyConnectHeaders = errors.New("invalid HTTP proxy connect headers")
+	ErrInvalidProxyUrl            = errors.New("invalid proxy URL")
+	ErrInvalidProxySettings       = errors.New("invalid proxy settings")
 
 	ErrInvalidTracerouteHostname = errors.New("invalid traceroute hostname")
 
@@ -483,6 +486,39 @@ func (s *HttpSettings) Validate() error {
 
 		if !httpguts.ValidHeaderFieldValue(fields[1]) {
 			return ErrInvalidHttpHeaders
+		}
+	}
+
+	if len(s.ProxyURL) > 0 {
+		u, err := url.Parse(s.ProxyURL)
+		if err != nil {
+			return ErrInvalidProxyUrl
+		}
+
+		if !(u.Scheme == "http" || u.Scheme == "https") {
+			return ErrInvalidProxyUrl
+		}
+	}
+
+	if len(s.ProxyConnectHeaders) > 0 && len(s.ProxyURL) == 0 {
+		return ErrInvalidProxySettings
+	}
+
+	for _, h := range s.ProxyConnectHeaders {
+		fields := strings.Split(h, ":")
+		if len(fields) != 2 {
+			return ErrInvalidProxyConnectHeaders
+		}
+
+		// remove optional leading and trailing whitespace
+		fields[1] = strings.TrimSpace(fields[1])
+
+		if !httpguts.ValidHeaderFieldName(fields[0]) {
+			return ErrInvalidProxyConnectHeaders
+		}
+
+		if !httpguts.ValidHeaderFieldValue(fields[1]) {
+			return ErrInvalidProxyConnectHeaders
 		}
 	}
 

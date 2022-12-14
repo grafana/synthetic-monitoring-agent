@@ -386,6 +386,16 @@ func TestSettingsToModule(t *testing.T) {
 				setHttpBody("This is a body").
 				getConfigModule(),
 		},
+		"proxy-settings": {
+			input: sm.HttpSettings{
+				ProxyURL:            "http://example.org/",
+				ProxyConnectHeaders: []string{"h1: v1", "h2:v2"},
+			},
+			expected: getDefaultModule().
+				setProxyUrl("http://example.org/").
+				setProxyConnectHeaders(map[string]string{"h1": "v1", "h2": "v2"}).
+				getConfigModule(),
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -481,5 +491,22 @@ func (m *testModule) setHttpMethod(method string) *testModule {
 
 func (m *testModule) setHttpBody(body string) *testModule {
 	m.HTTP.Body = body
+	return m
+}
+
+func (m *testModule) setProxyUrl(u string) *testModule {
+	var err error
+	m.HTTP.HTTPClientConfig.ProxyURL.URL, err = url.Parse(u)
+	if err != nil {
+		panic(err)
+	}
+	return m
+}
+
+func (m *testModule) setProxyConnectHeaders(headers map[string]string) *testModule {
+	m.HTTP.HTTPClientConfig.ProxyConnectHeader = make(httpConfig.Header)
+	for k, v := range headers {
+		m.HTTP.HTTPClientConfig.ProxyConnectHeader[k] = []httpConfig.Secret{httpConfig.Secret(v)}
+	}
 	return m
 }

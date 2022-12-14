@@ -2,8 +2,8 @@
 package accounting
 
 var activeSeriesByCheckType = map[string]int{
-	"dns":              84,
-	"dns_basic":        28,
+	"dns":              85,
+	"dns_basic":        29,
 	"http":             118,
 	"http_basic":       34,
 	"http_ssl":         122,
