@@ -17,7 +17,7 @@ require (
 	github.com/prometheus/blackbox_exporter v0.23.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
-	github.com/prometheus/common v0.38.0
+	github.com/prometheus/common v0.39.0
 	// This is actually version v2.16.0
 	//
 	// Without this, you get:
