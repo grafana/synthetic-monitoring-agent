@@ -146,6 +146,52 @@ func TestCheckValidate(t *testing.T) {
 			},
 			expectError: true,
 		},
+		"valid proxy URL": {
+			input: Check{
+				Target:    "http://example.org/",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{
+						ProxyURL: "http://proxy.example.org/",
+					},
+				},
+			},
+			expectError: false,
+		},
+		"valid proxy URL and headers": {
+			input: Check{
+				Target:    "http://example.org/",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{
+						ProxyURL:            "http://proxy.example.org/",
+						ProxyConnectHeaders: []string{"h1: v1", "h2:v2"},
+					},
+				},
+			},
+			expectError: false,
+		},
+		"proxy headers without url": {
+			input: Check{
+				Target:    "http://example.org/",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{
+						ProxyConnectHeaders: []string{"h1: v1", "h2:v2"},
+					},
+				},
+			},
+			expectError: true,
+		},
 	}
 
 	for name, testcase := range testcases {

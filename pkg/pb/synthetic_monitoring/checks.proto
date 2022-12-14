@@ -300,7 +300,8 @@ message HttpSettings {
 	BasicAuth             basicAuth                    = 101 [(gogoproto.jsontag) = "basicAuth,omitempty"];
 	string                bearerToken                  = 102 [(gogoproto.jsontag) = "bearerToken,omitempty"];
 	string                proxyURL                     = 103 [(gogoproto.jsontag) = "proxyURL,omitempty"];
-	OAuth2Config   				oauth2Config								 = 104 [(gogoproto.jsontag) = "oauth2Config,omitempty"];
+	OAuth2Config          oauth2Config                 = 104 [(gogoproto.jsontag) = "oauth2Config,omitempty"];
+        repeated string       proxyConnectHeaders          = 105 [(gogoproto.jsontag) = "proxyConnectHeaders,omitempty"];
 
 	// validations
 

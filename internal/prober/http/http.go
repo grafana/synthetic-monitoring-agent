@@ -88,26 +88,6 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 	m.HTTP.ValidHTTPVersions = make([]string, len(settings.ValidHTTPVersions))
 	copy(m.HTTP.ValidHTTPVersions, settings.ValidHTTPVersions)
 
-	// Enable HTTP2 for all checks.
-	m.HTTP.HTTPClientConfig.EnableHTTP2 = true
-
-	// We could do something like this instead:
-	//
-	// for _, v := range m.HTTP.ValidHTTPVersions {
-	// 	if strings.HasPrefix(v, "HTTP/2") {
-	// 		m.HTTP.HTTPClientConfig.EnableHTTP2 = true
-	// 		break
-	// 	}
-	// }
-	//
-	// but this needs to be evaluated. Go changed the behaviour so
-	// that HTTP2 is enabled, and blacbox exporter follows that in
-	// v0.21.0 (this setting defaults to true). We could add a
-	// setting to _disable_ HTTP2. Eventually we are going to
-	// introduce support for HTTP3, so that setting should be
-	// something closer to what Go itself does which is specify a
-	// supported / wanted protocol.
-
 	m.HTTP.FailIfBodyMatchesRegexp = make([]config.Regexp, 0, len(settings.FailIfBodyMatchesRegexp))
 	for _, str := range settings.FailIfBodyMatchesRegexp {
 		re, err := config.NewRegexp(str)
@@ -156,31 +136,14 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 		})
 	}
 
-	m.HTTP.HTTPClientConfig.FollowRedirects = !settings.NoFollowRedirects
-
-	if settings.TlsConfig != nil {
-		var err error
-		m.HTTP.HTTPClientConfig.TLSConfig, err = tls.SMtoProm(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
-		if err != nil {
-			return m, err
-		}
-	}
-
-	m.HTTP.HTTPClientConfig.BearerToken = promconfig.Secret(settings.BearerToken)
-
-	if settings.BasicAuth != nil {
-		m.HTTP.HTTPClientConfig.BasicAuth = &promconfig.BasicAuth{
-			Username: settings.BasicAuth.Username,
-			Password: promconfig.Secret(settings.BasicAuth.Password),
-		}
-	}
-
-	if settings.ProxyURL != "" {
-		var err error
-		m.HTTP.HTTPClientConfig.ProxyURL.URL, err = url.Parse(settings.ProxyURL)
-		if err != nil {
-			return m, fmt.Errorf("parsing proxy URL: %w", err)
-		}
+	var err error
+	m.HTTP.HTTPClientConfig, err = buildPrometheusHTTPClientConfig(
+		ctx,
+		settings,
+		logger.With().Str("prober", m.Prober).Logger(),
+	)
+	if err != nil {
+		return m, err
 	}
 
 	if settings.Oauth2Config != nil && settings.Oauth2Config.ClientId != "" {
@@ -192,6 +155,68 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 	}
 
 	return m, nil
+}
+
+func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger) (promconfig.HTTPClientConfig, error) {
+	var cfg promconfig.HTTPClientConfig
+
+	// Enable HTTP2 for all checks.
+	cfg.EnableHTTP2 = true
+
+	// We could do something like this instead:
+	//
+	// for _, v := range m.HTTP.ValidHTTPVersions {
+	// 	if strings.HasPrefix(v, "HTTP/2") {
+	// 		cfg.EnableHTTP2 = true
+	// 		break
+	// 	}
+	// }
+	//
+	// but this needs to be evaluated. Go changed the behaviour so
+	// that HTTP2 is enabled, and blacbox exporter follows that in
+	// v0.21.0 (this setting defaults to true). We could add a
+	// setting to _disable_ HTTP2. Eventually we are going to
+	// introduce support for HTTP3, so that setting should be
+	// something closer to what Go itself does which is specify a
+	// supported / wanted protocol.
+
+	cfg.FollowRedirects = !settings.NoFollowRedirects
+
+	if settings.TlsConfig != nil {
+		var err error
+		cfg.TLSConfig, err = tls.SMtoProm(ctx, logger, settings.TlsConfig)
+		if err != nil {
+			return cfg, err
+		}
+	}
+
+	cfg.BearerToken = promconfig.Secret(settings.BearerToken)
+
+	if settings.BasicAuth != nil {
+		cfg.BasicAuth = &promconfig.BasicAuth{
+			Username: settings.BasicAuth.Username,
+			Password: promconfig.Secret(settings.BasicAuth.Password),
+		}
+	}
+
+	if settings.ProxyURL != "" {
+		var err error
+		cfg.ProxyURL.URL, err = url.Parse(settings.ProxyURL)
+		if err != nil {
+			return cfg, fmt.Errorf("parsing proxy URL: %w", err)
+		}
+
+		if len(settings.ProxyConnectHeaders) > 0 {
+			headers := make(promconfig.Header)
+			for _, h := range settings.ProxyConnectHeaders {
+				name, value := strToHeaderNameValue(h)
+				headers[name] = []promconfig.Secret{promconfig.Secret(value)}
+			}
+			cfg.ProxyConnectHeader = headers
+		}
+	}
+
+	return cfg, nil
 }
 
 func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerolog.Logger) (*promconfig.OAuth2, error) {
@@ -229,14 +254,9 @@ func buildHttpHeaders(headers []string) map[string]string {
 	}
 
 	for _, header := range headers {
-		parts := strings.SplitN(header, ":", 2)
+		name, value := strToHeaderNameValue(header)
 
-		var value string
-		if len(parts) == 2 {
-			value = strings.TrimLeft(parts[1], " ")
-		}
-
-		if strings.ToLower(parts[0]) == userAgentHeader {
+		if strings.ToLower(name) == userAgentHeader {
 			// Remove the default user-agent header and
 			// replace it with the one the user is
 			// specifying, so that we respect whatever case
@@ -245,10 +265,21 @@ func buildHttpHeaders(headers []string) map[string]string {
 			delete(h, userAgentHeader)
 		}
 
-		h[parts[0]] = value
+		h[name] = value
 	}
 
 	return h
+}
+
+func strToHeaderNameValue(s string) (string, string) {
+	parts := strings.SplitN(s, ":", 2)
+
+	var value string
+	if len(parts) == 2 {
+		value = strings.TrimLeft(parts[1], " ")
+	}
+
+	return parts[0], value
 }
 
 func addCacheBustParam(target, paramName, salt string) string {
