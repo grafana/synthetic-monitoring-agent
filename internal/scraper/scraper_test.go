@@ -8,7 +8,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -278,7 +277,7 @@ func verifyProberMetrics(
 
 	summaries := make(map[uint64]prometheus.Summary)
 	histograms := make(map[uint64]prometheus.Histogram)
-	logger := &testLogger{w: ioutil.Discard}
+	logger := &testLogger{w: io.Discard}
 
 	if os.Getenv("CI") == "true" {
 		logger.w = os.Stdout
