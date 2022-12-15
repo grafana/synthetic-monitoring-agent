@@ -43,7 +43,7 @@ require (
 	github.com/gogo/status v1.1.1
 	github.com/jpillora/backoff v1.0.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
-	kernel.org/pub/linux/libs/security/libcap/cap v1.2.65
+	kernel.org/pub/linux/libs/security/libcap/cap v1.2.66
 )
 
 require (
@@ -71,7 +71,7 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	kernel.org/pub/linux/libs/security/libcap/psx v1.2.65 // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.66 // indirect
 )
 
 replace github.com/Azure/azure-sdk-for-go => github.com/Azure/azure-sdk-for-go v36.2.0+incompatible
