@@ -29,7 +29,7 @@ require (
 	github.com/prometheus/prometheus v1.8.2-0.20200727090838-6f296594a852
 	github.com/rs/zerolog v1.28.0
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
 	golang.org/x/net v0.4.0
 	golang.org/x/sync v0.1.0
