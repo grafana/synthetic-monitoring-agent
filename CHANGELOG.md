@@ -2,6 +2,16 @@
 ## [Unreleased]
 
 
+<a name="v0.13.0"></a>
+## [v0.13.0] - 2022-12-15
+### Feature
+- add support for proxy connect headers
+- update BBE to version 0.23.0
+
+### Fix
+- remove uses of io/ioutil
+
+
 <a name="v0.12.1"></a>
 ## [v0.12.1] - 2022-12-07
 
@@ -370,7 +380,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.12.1...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.13.0...HEAD
+[v0.13.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.12.1...v0.13.0
 [v0.12.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.12.0...v0.12.1
 [v0.12.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.2...v0.12.0
 [v0.11.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.11.1...v0.11.2
