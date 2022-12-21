@@ -76,6 +76,10 @@ var (
 
 	ErrInvalidK6Script = errors.New("invalid K6 script")
 
+	ErrInvalidMultiHttpEntries            = errors.New("not enough entries for multihttp request")
+	ErrInvalidMultiHttpEntryVariableType  = errors.New("invalid variable type")
+	ErrInvalidMultiHttpEntryAssertionType = errors.New("invalid assertion type")
+
 	ErrInvalidHostname = errors.New("invalid hostname")
 	ErrInvalidPort     = errors.New("invalid port")
 
@@ -451,6 +455,11 @@ func (s CheckSettings) Validate() error {
 		validateFn = s.K6.Validate
 	}
 
+	if s.Multihttp != nil {
+		settingsCount++
+		validateFn = s.Multihttp.Validate
+	}
+
 	if settingsCount != 1 {
 		return ErrInvalidCheckSettings
 	}
@@ -551,6 +560,74 @@ func (s *K6Settings) Validate() error {
 	}
 
 	return nil
+}
+
+func (s *MultiHttpSettings) Validate() error {
+	if len(s.Entries) == 0 {
+		return ErrInvalidMultiHttpEntries
+	}
+	for _, entry := range s.Entries {
+		if err := entry.Request.Validate(); err != nil {
+			return err
+		}
+		for _, variable := range entry.Variables {
+			if err := variable.Validate(); err != nil {
+				return err
+			}
+		}
+		for _, check := range entry.Assertions {
+			if err := check.Validate(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (r *MultiHttpEntryRequest) Validate() error {
+	err := validateHttpUrl(r.Url)
+	if err != nil {
+		return err
+	}
+	for _, header := range r.Headers {
+		headerNameValid := httpguts.ValidHeaderFieldName(header.Name)
+		headerValueValid := httpguts.ValidHeaderFieldValue(header.Value)
+		if !headerNameValid || !headerValueValid {
+			return ErrInvalidHttpHeaders
+		}
+	}
+
+	return nil
+}
+
+func (v *MultiHttpEntryVariable) Validate() error {
+	switch v.Type {
+	case MultiHttpEntryVariableType_CSS_SELECTOR:
+		return nil
+	case MultiHttpEntryVariableType_REGEX:
+		return nil
+	case MultiHttpEntryVariableType_JSON_PATH:
+		return nil
+	default:
+		return ErrInvalidMultiHttpEntryVariableType
+	}
+}
+
+func (c *MultiHttpEntryAssertion) Validate() error {
+	switch c.Type {
+	// TODO: Need to validate conditional values depending on the assertion type: https://github.com/grafana/har-to-k6/blob/master/li-har.spec.md#checks
+	// TODO: Optional keyword isn't currently supported in the protoc-gen tool we're using
+	case MultiHttpEntryAssertionType_TEXT:
+		return nil
+	case MultiHttpEntryAssertionType_REGEX_ASSERTION:
+		return nil
+	case MultiHttpEntryAssertionType_JSON_PATH_ASSERTION:
+		return nil
+	case MultiHttpEntryAssertionType_JSON_PATH_VALUE:
+		return nil
+	default:
+		return ErrInvalidMultiHttpEntryAssertionType
+	}
 }
 
 func (p *Probe) Validate() error {

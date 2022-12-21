@@ -476,26 +476,54 @@ message MultiHttpSettings {
 }
 
 message MultiHttpEntry {
-  string                          pageRef   = 1 [(gogoproto.jsontag) = "pageRef,omitempty"];
-  string                          comment   = 2 [(gogoproto.jsontag) = "comment,omitempty"];
-  MultiHttpEntryRequest           request   = 3 [(gogoproto.jsontag) = "request,omitempty"];
-  repeated MultiHttpEntryCheck    checks    = 4 [(gogoproto.jsontag) = "checks,omitempty"];
-  repeated MultiHttpEntryVariable variables = 5 [(gogoproto.jsontag) = "variable,omitempty"];
+  string                           pageRef    = 1 [(gogoproto.jsontag) = "pageRef,omitempty"];
+  string                           comment    = 2 [(gogoproto.jsontag) = "comment,omitempty"];
+  MultiHttpEntryRequest            request    = 3 [(gogoproto.jsontag) = "request,omitempty"];
+  repeated MultiHttpEntryAssertion assertions = 4 [(gogoproto.jsontag) = "checks,omitempty"];
+  repeated MultiHttpEntryVariable  variables  = 5 [(gogoproto.jsontag) = "variable,omitempty"];
+}
+
+enum MultiHttpEntryVariableType {
+  JSON_PATH    = 0;
+  REGEX        = 1;
+  CSS_SELECTOR = 2;
+}
+
+enum MultiHttpEntryAssertionType {
+  TEXT                = 0;
+  JSON_PATH_VALUE     = 1;
+  JSON_PATH_ASSERTION = 2;
+  REGEX_ASSERTION     = 3;
+}
+
+enum MultiHttpEntryAssertionSubjectVariant {
+  RESPONSE_BODY    = 0;
+  RESPONSE_HEADERS = 1;
+  HTTP_STATUS_CODE = 2;
+}
+
+enum MultiHttpEntryAssertionConditionVariant {
+  CONTAINS     = 0;
+  NOT_CONTAINS = 1;
+  EQUALS       = 2;
+  STARTS_WITH  = 3;
+  ENDS_WITH    = 4;
+  TYPE_OF      = 5;
 }
 
 message MultiHttpEntryVariable {
-  int64  type       = 1 [(gogoproto.jsontag) = "type"];
-  string name       = 2 [(gogoproto.jsontag) = "name,omitempty"];
-  string attribute  = 3 [(gogoproto.jsontag) = "attribute,omitempty"];
-  string expression = 4 [(gogoproto.jsontag) = "expression,omitempty"];
+  MultiHttpEntryVariableType type       = 1 [(gogoproto.jsontag) = "type"];
+  string                     name       = 2 [(gogoproto.jsontag) = "name,omitempty"];
+  string                     attribute  = 3 [(gogoproto.jsontag) = "attribute,omitempty"];
+  string                     expression = 4 [(gogoproto.jsontag) = "expression,omitempty"];
 }
 
-message MultiHttpEntryCheck {
-  int64  type       = 1 [(gogoproto.jsontag) = "type"];
-  int64  subject    = 2 [(gogoproto.jsontag) = "subject,omitempty"];
-  int64  condition  = 3 [(gogoproto.jsontag) = "condition,omitempty"];
-  string value      = 4 [(gogoproto.jsontag) = "value,omitempty"];
-  string expression = 5 [(gogoproto.jsontag) = "expression,omitempty"];
+message MultiHttpEntryAssertion {
+  MultiHttpEntryAssertionType             type       = 1 [(gogoproto.jsontag) = "type"];
+  MultiHttpEntryAssertionSubjectVariant   subject    = 2 [(gogoproto.jsontag) = "subject,omitempty"];
+  MultiHttpEntryAssertionConditionVariant condition  = 3 [(gogoproto.jsontag) = "condition,omitempty"];
+  string                                  value      = 4 [(gogoproto.jsontag) = "value,omitempty"];
+  string                                  expression = 5 [(gogoproto.jsontag) = "expression,omitempty"];
 }
 
 message MultiHttpEntryRequest {
