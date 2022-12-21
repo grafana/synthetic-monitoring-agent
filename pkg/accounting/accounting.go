@@ -56,6 +56,7 @@ func GetCheckAccountingClass(check synthetic_monitoring.Check) (string, error) {
 		}
 
 	case synthetic_monitoring.CheckTypeTraceroute:
+	case synthetic_monitoring.CheckTypeMultiHttp:
 
 	default:
 		return "", ErrUnhandledCheck

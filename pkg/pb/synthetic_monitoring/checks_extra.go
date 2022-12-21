@@ -267,6 +267,9 @@ func (c Check) validateTarget() error {
 	case CheckTypeK6:
 		return validateHttpUrl(c.Target)
 
+	case CheckTypeMultiHttp:
+		return nil
+
 	default:
 		panic("unhandled check type")
 	}
@@ -361,6 +364,9 @@ func (c AdHocCheck) Type() CheckType {
 	case c.Settings.K6 != nil:
 		return CheckTypeK6
 
+	case c.Settings.Multihttp != nil:
+		return CheckTypeMultiHttp
+
 	default:
 		panic("unhandled check type")
 	}
@@ -423,6 +429,9 @@ func (c AdHocCheck) validateTarget() error {
 		if err := validateHost(c.Target); err != nil {
 			return ErrInvalidTracerouteHostname
 		}
+
+	case CheckTypeMultiHttp:
+		return nil
 
 	default:
 		panic("unhandled check type")
