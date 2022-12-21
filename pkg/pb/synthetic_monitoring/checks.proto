@@ -473,6 +473,7 @@ message K6Settings {
 
 message MultiHttpSettings {
   repeated MultiHttpEntry entries = 1 [(gogoproto.jsontag) = "entries"];
+  bytes                   script  = 2 [(gogoproto.jsontag) = "script,omitempty"];
 }
 
 message MultiHttpEntry {

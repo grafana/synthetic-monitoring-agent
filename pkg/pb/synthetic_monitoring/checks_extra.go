@@ -17,10 +17,15 @@
 package synthetic_monitoring
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/url"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -122,6 +127,7 @@ const (
 	CheckTypeTcp        CheckType = 3
 	CheckTypeTraceroute CheckType = 4
 	CheckTypeK6         CheckType = 5
+	CheckTypeMultiHttp  CheckType = 6
 )
 
 var (
@@ -132,6 +138,7 @@ var (
 		CheckTypeTcp:        "tcp",
 		CheckTypeTraceroute: "traceroute",
 		CheckTypeK6:         "k6",
+		CheckTypeMultiHttp:  "multihttp",
 	}
 
 	checkType_value = map[string]CheckType{
@@ -141,6 +148,7 @@ var (
 		"tcp":        CheckTypeTcp,
 		"traceroute": CheckTypeTraceroute,
 		"k6":         CheckTypeK6,
+		"multihttp":  CheckTypeMultiHttp,
 	}
 )
 
@@ -187,6 +195,9 @@ func (c Check) Type() CheckType {
 
 	case c.Settings.K6 != nil:
 		return CheckTypeK6
+
+	case c.Settings.Multihttp != nil:
+		return CheckTypeMultiHttp
 
 	default:
 		panic("unhandled check type")
@@ -582,6 +593,90 @@ func (s *MultiHttpSettings) Validate() error {
 		}
 	}
 	return nil
+}
+
+// This is copied directly from the k6 runner and needs to be deleted
+func createTempFile(tag, dir, pattern string, content []byte) (string, error) {
+	fh, err := os.CreateTemp(dir, pattern)
+	if err != nil {
+		return "", fmt.Errorf("creating temporary file for %s: %w", tag, err)
+	}
+
+	if len(content) > 0 {
+		_, err = fh.Write(content)
+		if err != nil {
+			_ = fh.Close()
+			return "", fmt.Errorf("writing %s to file %s: %w", tag, fh.Name(), err)
+		}
+	}
+
+	err = fh.Close()
+	if err != nil {
+		return "", fmt.Errorf("closing file %s for %s: %w", fh.Name(), tag, err)
+	}
+
+	return fh.Name(), nil
+}
+
+type HarConfigFormat struct {
+	Log HarConfigLog `json:"log"`
+}
+
+type HarConfigLog struct {
+	Entries []*MultiHttpEntry `json:"entries"`
+}
+
+func (s *MultiHttpSettings) GenerateScript(ctx context.Context) ([]byte, error) {
+	var scriptBuf []byte
+	var harConfig = HarConfigFormat{}
+	harConfig.Log.Entries = s.Entries
+
+	dir, err := os.MkdirTemp("", "*")
+	if err != nil {
+		return scriptBuf, err
+	}
+
+	defer os.RemoveAll(dir)
+
+	h, err := json.Marshal(harConfig)
+	if err != nil {
+		return scriptBuf, err
+	}
+
+	tarFn, err := createTempFile("tar", dir, "archive-*.tar", h)
+	if err != nil {
+		return scriptBuf, err
+	}
+
+	empty := make([]byte, 0)
+	scriptFn, err := createTempFile("script", dir, "script-*.js", empty)
+	if err != nil {
+		return scriptBuf, err
+	}
+
+	cmd := exec.CommandContext(
+		ctx,
+		"har-to-k6",
+		tarFn,
+		"-o",
+		scriptFn,
+	)
+
+	var stdout, stderr bytes.Buffer
+
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return scriptBuf, err
+	}
+
+	scriptBuf, err = os.ReadFile(scriptFn)
+	if err != nil {
+		return scriptBuf, nil
+	}
+
+	return scriptBuf, nil
 }
 
 func (r *MultiHttpEntryRequest) Validate() error {
