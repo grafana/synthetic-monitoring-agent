@@ -481,7 +481,7 @@ message MultiHttpEntry {
   string                           comment    = 2 [(gogoproto.jsontag) = "comment,omitempty"];
   MultiHttpEntryRequest            request    = 3 [(gogoproto.jsontag) = "request,omitempty"];
   repeated MultiHttpEntryAssertion assertions = 4 [(gogoproto.jsontag) = "checks,omitempty"];
-  repeated MultiHttpEntryVariable  variables  = 5 [(gogoproto.jsontag) = "variable,omitempty"];
+  repeated MultiHttpEntryVariable  variables  = 5 [(gogoproto.jsontag) = "variables,omitempty"];
 }
 
 enum MultiHttpEntryVariableType {
@@ -533,7 +533,7 @@ message MultiHttpEntryRequest {
   string                               httpVersion = 3 [(gogoproto.jsontag) = "httpVersion,omitempty"];
   repeated MultiHttpRequestHeader      headers     = 4 [(gogoproto.jsontag) = "headers,omitempty"];
   repeated MultiHttpRequestQueryString queryString = 5 [(gogoproto.jsontag) = "queryString,omitempty"];
-  string                               postData    = 6 [(gogoproto.jsontag) = "postData,omitempty"];
+  MultiHttpRequestPostData             postData    = 6 [(gogoproto.jsontag) = "postData,omitempty"];
 }
 
 message MultiHttpRequestHeader {

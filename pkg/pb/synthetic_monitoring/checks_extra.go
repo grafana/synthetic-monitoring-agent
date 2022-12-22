@@ -685,6 +685,11 @@ func (s *MultiHttpSettings) GenerateScript(ctx context.Context) ([]byte, error) 
 		return scriptBuf, nil
 	}
 
+	// any problems with script generation will be output to stderr. We need to check and see if there was a problem and return that as an error if so
+	if len(stderr.String()) > 0 {
+		return scriptBuf, errors.New(stderr.String())
+	}
+
 	return scriptBuf, nil
 }
 

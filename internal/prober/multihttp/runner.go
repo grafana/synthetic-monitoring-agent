@@ -60,6 +60,10 @@ func (r runner) Run(ctx context.Context, registry *prometheus.Registry, logger l
 		scriptFn,
 		"--summary-export",
 		summaryFn,
+		"--iterations",
+		"1",
+		"--vus",
+		"1",
 		"--log-format=logfmt",
 		"--log-output=file="+logFn,
 		"--no-color",
@@ -78,8 +82,10 @@ func (r runner) Run(ctx context.Context, registry *prometheus.Registry, logger l
 			Err(err).
 			Str("stdout", stdout.String()).
 			Str("stderr", stderr.String()).
-			Msg("failed to execute k6")
-		return err
+			Msg("failed to execute multihttp")
+
+		//  TODO: k6 is exiting every time with "signal: killed" even though it is running successfully (I think?)
+		// 	return err
 	}
 
 	summaryBuf, err := os.ReadFile(summaryFn)

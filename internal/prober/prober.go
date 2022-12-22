@@ -9,6 +9,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/k6"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -55,6 +56,10 @@ func NewFromCheck(ctx context.Context, logger zerolog.Logger, check sm.Check) (P
 
 	case sm.CheckTypeK6:
 		p, err = k6.NewProber(ctx, check, logger)
+		target = check.Target
+
+	case sm.CheckTypeMultiHttp:
+		p, err = multihttp.NewProber(ctx, check, logger)
 		target = check.Target
 
 	default:
