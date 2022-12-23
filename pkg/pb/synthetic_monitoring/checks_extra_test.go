@@ -18,6 +18,8 @@ func TestCheckValidate(t *testing.T) {
 	}{
 		"trivial ping": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "127.0.0.1",
 				Job:       "job",
 				Frequency: 1000,
@@ -31,7 +33,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"invalid tenant": {
 			input: Check{
-				TenantId:  -1,
+				Id:        1,
+				TenantId:  BadID,
 				Target:    "127.0.0.1",
 				Job:       "job",
 				Frequency: 1000,
@@ -45,6 +48,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"invalid label": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "127.0.0.1",
 				Job:       "job",
 				Frequency: 1000,
@@ -59,6 +64,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"duplicate label names": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "127.0.0.1",
 				Job:       "job",
 				Frequency: 1000,
@@ -76,6 +83,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"duplicate label values": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "127.0.0.1",
 				Job:       "job",
 				Frequency: 1000,
@@ -93,6 +102,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"multiple settings": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "127.0.0.1",
 				Job:       "job",
 				Frequency: 1000,
@@ -108,6 +119,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"valid timeout & frequency": { // test for case when frequency > max timeout
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "127.0.0.1",
 				Job:       "job",
 				Frequency: 60000, // 60 seconds
@@ -121,6 +134,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"invalid timeout": { // issue #101
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "127.0.0.1",
 				Job:       "job",
 				Frequency: 1000,
@@ -134,6 +149,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"invalid HTTP target": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "ftp://example.org/",
 				Job:       "job",
 				Frequency: 1000,
@@ -148,6 +165,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"valid proxy URL": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "http://example.org/",
 				Job:       "job",
 				Frequency: 1000,
@@ -163,6 +182,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"valid proxy URL and headers": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "http://example.org/",
 				Job:       "job",
 				Frequency: 1000,
@@ -179,6 +200,8 @@ func TestCheckValidate(t *testing.T) {
 		},
 		"proxy headers without url": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "http://example.org/",
 				Job:       "job",
 				Frequency: 1000,
@@ -209,6 +232,8 @@ func TestCheckType(t *testing.T) {
 	}{
 		"dns": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "www.example.org",
 				Job:       "job",
 				Frequency: 1000,
@@ -224,6 +249,8 @@ func TestCheckType(t *testing.T) {
 		},
 		"http": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "http://www.example.org",
 				Job:       "job",
 				Frequency: 1000,
@@ -237,6 +264,8 @@ func TestCheckType(t *testing.T) {
 		},
 		"ping": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "127.0.0.1",
 				Job:       "job",
 				Frequency: 1000,
@@ -250,6 +279,8 @@ func TestCheckType(t *testing.T) {
 		},
 		"tcp": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "127.0.0.1:9000",
 				Job:       "job",
 				Frequency: 1000,
@@ -263,6 +294,8 @@ func TestCheckType(t *testing.T) {
 		},
 		"traceroute": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "127.0.0.1",
 				Job:       "job",
 				Frequency: 120000,
@@ -277,6 +310,8 @@ func TestCheckType(t *testing.T) {
 
 		"k6": {
 			input: Check{
+				Id:        1,
+				TenantId:  1,
 				Target:    "http://www.example.org",
 				Job:       "job",
 				Frequency: 10000,
