@@ -42,7 +42,7 @@ require (
 	github.com/go-ping/ping v0.0.0-20211130115550-779d1e919534
 	github.com/gogo/status v1.1.1
 	github.com/jpillora/backoff v1.0.0
-	github.com/quasilyte/go-ruleguard/dsl v0.3.21
+	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.66
 )
 
