@@ -165,6 +165,72 @@ func getTestCases() map[string]struct {
 			},
 			class: "traceroute_basic",
 		},
+		"multihttp": {
+			input: synthetic_monitoring.Check{
+				Target:           "127.0.0.1",
+				BasicMetricsOnly: false,
+				Settings: synthetic_monitoring.CheckSettings{
+					Multihttp: &synthetic_monitoring.MultiHttpSettings{
+						Entries: []*synthetic_monitoring.MultiHttpEntry{
+							{
+								Request: &synthetic_monitoring.MultiHttpEntryRequest{
+									Method: "GET",
+									Url:    "127.0.0.1",
+								},
+							},
+							{
+								Request: &synthetic_monitoring.MultiHttpEntryRequest{
+									Method: "GET",
+									Url:    "127.0.0.1",
+								},
+							},
+						},
+						Script: []byte(`
+							import http from "k6/http";
+
+							export default function() {
+								http.get("127.0.0.1");
+								http.get("127.0.0.1");
+							}
+						`),
+					},
+				},
+			},
+			class: "multihttp",
+		},
+		"multihttp_basic": {
+			input: synthetic_monitoring.Check{
+				Target:           "127.0.0.1",
+				BasicMetricsOnly: true,
+				Settings: synthetic_monitoring.CheckSettings{
+					Multihttp: &synthetic_monitoring.MultiHttpSettings{
+						Entries: []*synthetic_monitoring.MultiHttpEntry{
+							{
+								Request: &synthetic_monitoring.MultiHttpEntryRequest{
+									Method: "GET",
+									Url:    "127.0.0.1",
+								},
+							},
+							{
+								Request: &synthetic_monitoring.MultiHttpEntryRequest{
+									Method: "GET",
+									Url:    "127.0.0.1",
+								},
+							},
+						},
+						Script: []byte(`
+							import http from "k6/http";
+
+							export default function() {
+								http.get("127.0.0.1");
+								http.get("127.0.0.1");
+							}
+						`),
+					},
+				},
+			},
+			class: "multihttp_basic",
+		},
 	}
 }
 

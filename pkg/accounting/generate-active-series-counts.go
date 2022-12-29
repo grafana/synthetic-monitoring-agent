@@ -5,7 +5,7 @@ package main
 
 import (
 	"bufio"
-	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -18,7 +18,7 @@ func main() {
 		log.Fatalf("Syntax:\n\t%s {template} {files...}\n", os.Args[0])
 	}
 
-	contents, err := io.ReadFile(os.Args[1])
+	contents, err := ioutil.ReadFile(os.Args[1])
 	if err != nil {
 		log.Fatalf("E: cannot load template %s: %s", os.Args[1], err)
 	}
