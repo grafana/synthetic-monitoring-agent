@@ -547,9 +547,9 @@ message MultiHttpRequestQueryString {
 }
 
 message MultiHttpRequestPostData {
-  string                         mimeType = 1 [(gogoproto.jsontag) = "mimeType"];
-  string                         text     = 2 [(gogoproto.jsontag) = "text"];
-  MultiHttpRequestPostDataParams params   = 3 [(gogoproto.jsontag) = "params"];
+  string                                  mimeType = 1 [(gogoproto.jsontag) = "mimeType"];
+  string                                  text     = 2 [(gogoproto.jsontag) = "text"];
+  repeated MultiHttpRequestPostDataParams params   = 3 [(gogoproto.jsontag) = "params"];
 }
 
 message MultiHttpRequestPostDataParams {

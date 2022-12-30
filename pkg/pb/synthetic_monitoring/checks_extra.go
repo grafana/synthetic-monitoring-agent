@@ -82,8 +82,12 @@ var (
 	ErrInvalidK6Script = errors.New("invalid K6 script")
 
 	ErrInvalidMultiHttpEntries            = errors.New("not enough entries for multihttp request")
+	ErrInvalidMultiHttpEntryRequestUrl    = errors.New("invalid request URL")
 	ErrInvalidMultiHttpEntryVariableType  = errors.New("invalid variable type")
+	ErrInvalidMultiHttpEntryVariable      = errors.New("invalid variable")
 	ErrInvalidMultiHttpEntryAssertionType = errors.New("invalid assertion type")
+	ErrInvalidMultiHttpEntryAssertion     = errors.New("invalid assertion")
+	ErrInvalidMultiHttpRequestPostData    = errors.New("invalid post data")
 
 	ErrInvalidHostname = errors.New("invalid hostname")
 	ErrInvalidPort     = errors.New("invalid port")
@@ -696,7 +700,7 @@ func (s *MultiHttpSettings) GenerateScript(ctx context.Context) ([]byte, error) 
 func (r *MultiHttpEntryRequest) Validate() error {
 	err := validateHttpUrl(r.Url)
 	if err != nil {
-		return err
+		return fmt.Errorf("%s: %s", ErrInvalidMultiHttpEntryRequestUrl, err)
 	}
 	for _, header := range r.Headers {
 		headerNameValid := httpguts.ValidHeaderFieldName(header.Name)
@@ -712,10 +716,13 @@ func (r *MultiHttpEntryRequest) Validate() error {
 func (v *MultiHttpEntryVariable) Validate() error {
 	switch v.Type {
 	case MultiHttpEntryVariableType_CSS_SELECTOR:
-		return nil
+		fallthrough
 	case MultiHttpEntryVariableType_REGEX:
-		return nil
+		fallthrough
 	case MultiHttpEntryVariableType_JSON_PATH:
+		if v.Name == "" {
+			return fmt.Errorf("%s: %s", ErrInvalidMultiHttpEntryVariable, "variables names cannot be unnamed")
+		}
 		return nil
 	default:
 		return ErrInvalidMultiHttpEntryVariableType
@@ -729,14 +736,40 @@ func (c *MultiHttpEntryAssertion) Validate() error {
 	case MultiHttpEntryAssertionType_TEXT:
 		return nil
 	case MultiHttpEntryAssertionType_REGEX_ASSERTION:
+		if c.Expression == "" {
+			return fmt.Errorf("%s: %s", ErrInvalidMultiHttpEntryAssertion, "regex assertion cannot have an empty expression")
+		}
 		return nil
 	case MultiHttpEntryAssertionType_JSON_PATH_ASSERTION:
+		if c.Expression == "" {
+			return fmt.Errorf("%s: %s", ErrInvalidMultiHttpEntryAssertion, "json path expression cannot have an empty expression")
+		}
 		return nil
 	case MultiHttpEntryAssertionType_JSON_PATH_VALUE:
+		if c.Expression == "" {
+			return fmt.Errorf("%s: %s", ErrInvalidMultiHttpEntryAssertion, "json path value expression cannot have an empty expression")
+		}
 		return nil
 	default:
 		return ErrInvalidMultiHttpEntryAssertionType
 	}
+}
+
+func (c *MultiHttpRequestPostData) Validate() error {
+	if c.MimeType == "" {
+		return fmt.Errorf("%s: %s", ErrInvalidMultiHttpRequestPostData, "invalid mimeType")
+	}
+	if len(c.Params) > 0 {
+		var query = ""
+		for _, param := range c.Params {
+			query = fmt.Sprintf("%s&%s=%s", query, param.Name, param.Value)
+		}
+		_, err := url.ParseQuery(query)
+		if err != nil {
+			return fmt.Errorf("%s: %s", ErrInvalidMultiHttpRequestPostData, err)
+		}
+	}
+	return nil
 }
 
 func (p *Probe) Validate() error {
