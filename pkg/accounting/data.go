@@ -16,6 +16,6 @@ var activeSeriesByCheckType = map[string]int{
 	"tcp_ssl_basic":    27,
 	"traceroute":       22,
 	"traceroute_basic": 22,
-	"multhttp": 1,
-	"multihttp_basic": 1,
+	"multihttp": 				1,
+	"multihttp_basic":  1,
 }
