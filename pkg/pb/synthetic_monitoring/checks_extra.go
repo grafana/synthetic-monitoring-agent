@@ -667,6 +667,9 @@ func (s *MultiHttpSettings) GenerateScript(ctx context.Context) ([]byte, error) 
 		return scriptBuf, err
 	}
 
+	// TODO(russ): figure out a way to run this process, possibly in a
+	// sandbox or another container.
+	//#nosec see above
 	cmd := exec.CommandContext(
 		ctx,
 		"har-to-k6",
