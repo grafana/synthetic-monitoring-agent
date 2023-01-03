@@ -624,7 +624,6 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check sm.Check) error {
 
 	scraper, found := c.scrapers[check.Id]
 	if !found {
-
 		withCheckID(c.logger.Warn(), check.Id).Msg("delete request for an unknown check")
 		return errors.New("check not found")
 	}
