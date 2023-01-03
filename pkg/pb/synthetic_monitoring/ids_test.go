@@ -50,7 +50,6 @@ func TestLocalIDToGlobalID(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			//t.Parallel()
 			result, err := LocalIDToGlobalID(test.localID, test.regionID)
 			require.Equal(t, test.err, err)
 			require.Equal(t, test.expected, result)
