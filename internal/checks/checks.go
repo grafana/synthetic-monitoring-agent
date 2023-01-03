@@ -600,7 +600,7 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check sm.Check) error {
 func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check sm.Check) error {
 	scraper, found := c.scrapers[check.Id]
 	if !found {
-		c.logger.Warn().Int64("check_id", check.Id).Msg("update request for an unknown check")
+		withCheckID(c.logger.Warn(), check.Id).Msg("update request for an unknown check")
 		return c.addAndStartScraperWithLock(ctx, check)
 	}
 
@@ -624,7 +624,8 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check sm.Check) error {
 
 	scraper, found := c.scrapers[check.Id]
 	if !found {
-		c.logger.Warn().Int64("check_id", check.Id).Msg("delete request for an unknown check")
+
+		withCheckID(c.logger.Warn(), check.Id).Msg("delete request for an unknown check")
 		return errors.New("check not found")
 	}
 
@@ -667,9 +668,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 		case sm.CheckOperation_CHECK_ADD:
 			if err := c.handleInitialChangeAddWithLock(ctx, checkChange.Check); err != nil {
 				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
-				c.logger.Error().
-					Err(err).
-					Int64("check_id", checkChange.Check.Id).
+				withCheckID(c.logger.Error().Err(err), checkChange.Check.Id).
 					Msg("adding check failed, dropping check")
 				continue
 			}
@@ -695,8 +694,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 			continue
 		}
 
-		c.logger.Debug().
-			Int64("check_id", id).
+		withCheckID(c.logger.Debug(), id).
 			Msg("stopping scraper during first batch handling")
 
 		checkType := scraper.CheckType().String()
@@ -844,4 +842,13 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 	}
 
 	return err
+}
+
+// Helper to add a check ID and optionally a region ID to a log message.
+func withCheckID(ev *zerolog.Event, checkID int64) *zerolog.Event {
+	if localID, regionID, err := sm.GlobalIDToLocalID(checkID); err != nil {
+		ev = ev.Int("region_id", regionID)
+		checkID = localID
+	}
+	return ev.Int64("check_id", checkID)
 }

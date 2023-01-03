@@ -190,7 +190,7 @@ func (c Check) Type() CheckType {
 }
 
 func (c Check) Validate() error {
-	if c.TenantId == 0 {
+	if c.TenantId == BadID {
 		return ErrInvalidTenantId
 	}
 	if len(c.Probes) == 0 {
