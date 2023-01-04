@@ -792,6 +792,10 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 	// of view of the API, and skip running it here, e.g.
 
 	switch check.Type() {
+	case sm.CheckTypeMultiHttp:
+		if !c.features.IsSet(feature.Multihttp) {
+			return nil
+		}
 	case sm.CheckTypeK6:
 		if !c.features.IsSet(feature.K6) {
 			return nil

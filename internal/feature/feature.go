@@ -13,6 +13,7 @@ const (
 	Traceroute = "traceroute"
 	AdHoc      = "adhoc"
 	K6         = "k6"
+	Multihttp  = "multihttp"
 )
 
 // ErrInvalidCollection is returned when you try to set a flag in an
