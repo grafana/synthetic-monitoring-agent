@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// package synthetic_monitoring provides access to types and methods
+// Package synthetic_monitoring provides access to types and methods
 // that allow for the production and consumption of protocol buffer
 // messages used to communicate with synthetic-monitoring-api.
 package synthetic_monitoring
@@ -190,7 +190,7 @@ func (c Check) Type() CheckType {
 }
 
 func (c Check) Validate() error {
-	if c.TenantId < 0 {
+	if c.TenantId == BadID {
 		return ErrInvalidTenantId
 	}
 	if len(c.Probes) == 0 {

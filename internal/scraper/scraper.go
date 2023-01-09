@@ -97,8 +97,7 @@ type ScraperOpts struct {
 func NewWithOpts(ctx context.Context, check sm.Check, opts ScraperOpts) (*Scraper, error) {
 	checkName := check.Type().String()
 
-	logger := opts.Logger.With().
-		Int64("check_id", check.Id).
+	logger := withCheckID(opts.Logger.With(), check.Id).
 		Str("probe", opts.Probe.Name).
 		Str("target", check.Target).
 		Str("job", check.Job).
@@ -887,4 +886,13 @@ func getLabels(m *dto.Metric) map[string]string {
 	}
 
 	return labels
+}
+
+// Helper to add a check ID and optionally a region ID to a log context.
+func withCheckID(ctx zerolog.Context, checkID int64) zerolog.Context {
+	if localID, regionID, err := sm.GlobalIDToLocalID(checkID); err == nil {
+		ctx = ctx.Int("region_id", regionID)
+		checkID = localID
+	}
+	return ctx.Int64("check_id", checkID)
 }

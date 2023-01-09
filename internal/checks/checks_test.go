@@ -183,6 +183,7 @@ func TestHandleCheckOp(t *testing.T) {
 
 	check := sm.Check{
 		Id:        5000,
+		TenantId:  1,
 		Frequency: 1000,
 		Timeout:   1000,
 		Target:    "127.0.0.1",

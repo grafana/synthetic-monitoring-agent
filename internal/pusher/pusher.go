@@ -60,7 +60,7 @@ func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Lo
 			Name:      "push_total",
 			Help:      "Total number of push events.",
 		},
-		[]string{"type", "tenantID"})
+		[]string{"type", "regionID", "tenantID"})
 
 	promRegisterer.MustRegister(pushCounter)
 
@@ -71,7 +71,7 @@ func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Lo
 			Name:      "push_errors_total",
 			Help:      "Total number of push errors.",
 		},
-		[]string{"type", "tenantID", "status"})
+		[]string{"type", "regionID", "tenantID", "status"})
 
 	promRegisterer.MustRegister(errorCounter)
 
@@ -82,7 +82,7 @@ func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Lo
 			Name:      "push_failed_total",
 			Help:      "Total number of push failed.",
 		},
-		[]string{"type", "tenantID"})
+		[]string{"type", "regionID", "tenantID"})
 
 	promRegisterer.MustRegister(failedCounter)
 
@@ -93,7 +93,7 @@ func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Lo
 			Name:      "push_bytes",
 			Help:      "Total number of bytes pushed.",
 		},
-		[]string{"target", "tenantID"})
+		[]string{"target", "regionID", "tenantID"})
 
 	promRegisterer.MustRegister(bytesOut)
 
@@ -104,7 +104,7 @@ func NewPublisher(tm *TenantManager, publishCh <-chan Payload, logger zerolog.Lo
 			Name:      "retries_total",
 			Help:      "Total number of retries performed.",
 		},
-		[]string{"target", "tenantID"})
+		[]string{"target", "regionID", "tenantID"})
 
 	promRegisterer.MustRegister(retriesCounter)
 
@@ -134,17 +134,25 @@ func (p *Publisher) Run(ctx context.Context) error {
 }
 
 func (p *Publisher) publish(ctx context.Context, payload Payload) {
-	tenantID := payload.Tenant()
-	tenantStr := strconv.FormatInt(tenantID, 10)
-	newClient := false
+	var (
+		tenantID = payload.Tenant()
 
-	logger := p.logger.With().Int64("tenant", tenantID).Logger()
+		// The above tenant ID is potentially a global ID. This is valid
+		// for using internally but in logs and metrics we want to publish
+		// the region and local tenant ID.
+		localID, regionID = getLocalAndRegionIDs(tenantID)
+		regionStr         = strconv.FormatInt(int64(regionID), 10)
+		tenantStr         = strconv.FormatInt(localID, 10)
+
+		newClient = false
+		logger    = p.logger.With().Int("region", regionID).Int64("tenant", localID).Logger()
+	)
 
 	for retry := 2; retry > 0; retry-- {
 		client, err := p.getClient(ctx, tenantID, newClient)
 		if err != nil {
 			logger.Error().Err(err).Msg("get client failed")
-			p.failedCounter.WithLabelValues("client", tenantStr).Inc()
+			p.failedCounter.WithLabelValues("client", regionStr, tenantStr).Inc()
 			return
 		}
 
@@ -152,15 +160,15 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 			if n, err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Msg("publish events")
-				p.errorCounter.WithLabelValues("logs", tenantStr, strconv.Itoa(httpStatusCode)).Inc()
+				p.errorCounter.WithLabelValues("logs", regionStr, tenantStr, strconv.Itoa(httpStatusCode)).Inc()
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
 					newClient = true
 					continue
 				}
 			} else {
-				p.pushCounter.WithLabelValues("logs", tenantStr).Inc()
-				p.bytesOut.WithLabelValues("logs", tenantStr).Add(float64(n))
+				p.pushCounter.WithLabelValues("logs", regionStr, tenantStr).Inc()
+				p.bytesOut.WithLabelValues("logs", regionStr, tenantStr).Add(float64(n))
 			}
 		}
 
@@ -168,15 +176,15 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 			if n, err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Msg("publish metrics")
-				p.errorCounter.WithLabelValues("metrics", tenantStr, strconv.Itoa(httpStatusCode)).Inc()
+				p.errorCounter.WithLabelValues("metrics", regionStr, tenantStr, strconv.Itoa(httpStatusCode)).Inc()
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
 					newClient = true
 					continue
 				}
 			} else {
-				p.pushCounter.WithLabelValues("metrics", tenantStr).Inc()
-				p.bytesOut.WithLabelValues("metrics", tenantStr).Add(float64(n))
+				p.pushCounter.WithLabelValues("metrics", regionStr, tenantStr).Inc()
+				p.bytesOut.WithLabelValues("metrics", regionStr, tenantStr).Add(float64(n))
 			}
 		}
 
@@ -185,7 +193,7 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 	}
 
 	// if we are here, we retried and failed
-	p.failedCounter.WithLabelValues("retry_exhausted", tenantStr).Inc()
+	p.failedCounter.WithLabelValues("retry_exhausted", regionStr, tenantStr).Inc()
 	logger.Warn().Msg("failed to push payload")
 }
 
@@ -223,9 +231,11 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64, newClient boo
 		found  bool
 	)
 
+	localID, regionID := getLocalAndRegionIDs(tenantId)
+
 	p.clientsMutex.Lock()
 	if newClient {
-		p.logger.Info().Int64("tenantId", tenantId).Msg("removing tenant from cache")
+		p.logger.Info().Int("regionId", regionID).Int64("tenantId", localID).Msg("removing tenant from cache")
 		delete(p.clients, tenantId)
 	} else {
 		client, found = p.clients[tenantId]
@@ -236,7 +246,7 @@ func (p *Publisher) getClient(ctx context.Context, tenantId int64, newClient boo
 		return client, nil
 	}
 
-	p.logger.Info().Int64("tenantId", tenantId).Msg("fetching tenant credentials")
+	p.logger.Info().Int("regionId", regionID).Int64("tenantId", localID).Msg("fetching tenant credentials")
 
 	req := sm.TenantInfo{
 		Id: tenantId,
@@ -255,10 +265,13 @@ func (p *Publisher) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 		return nil, fmt.Errorf("creating metrics client configuration: %w", err)
 	}
 
-	tenantStr := strconv.FormatInt(tenant.Id, 10)
+	localID, regionID := getLocalAndRegionIDs(tenant.Id)
+
+	regionStr := strconv.FormatInt(int64(regionID), 10)
+	tenantStr := strconv.FormatInt(localID, 10)
 
 	mClient, err := prom.NewClient(tenant.MetricsRemote.Name, mClientCfg, func(c float64) {
-		p.retriesCounter.WithLabelValues("metrics", tenantStr).Add(c)
+		p.retriesCounter.WithLabelValues("metrics", regionStr, tenantStr).Add(c)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating metrics client: %w", err)
@@ -270,7 +283,7 @@ func (p *Publisher) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 	}
 
 	eClient, err := prom.NewClient(tenant.EventsRemote.Name, eClientCfg, func(c float64) {
-		p.retriesCounter.WithLabelValues("logs", tenantStr).Add(c)
+		p.retriesCounter.WithLabelValues("logs", regionStr, tenantStr).Add(c)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating events client: %w", err)
@@ -284,7 +297,7 @@ func (p *Publisher) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 	p.clientsMutex.Lock()
 	p.clients[tenant.Id] = clients
 	p.clientsMutex.Unlock()
-	p.logger.Debug().Int64("tenantId", tenant.Id).Int64("stackId", tenant.StackId).Msg("updated client")
+	p.logger.Debug().Int("regionId", regionID).Int64("tenantId", localID).Int64("stackId", tenant.StackId).Msg("updated client")
 
 	return clients, nil
 }
@@ -319,7 +332,17 @@ func clientFromRemoteInfo(tenantId int64, remote *sm.RemoteInfo) (*prom.ClientCo
 
 	clientCfg.Headers["X-Prometheus-Remote-Write-Version"] = "0.1.0"
 	// TODO: check if grafana cloud looks for this headers? or gets OrgID from BasicAuth
-	clientCfg.Headers["X-Scope-OrgID"] = strconv.FormatInt(tenantId, 10)
+	localID, _ := getLocalAndRegionIDs(tenantId)
+	clientCfg.Headers["X-Scope-OrgID"] = strconv.FormatInt(localID, 10)
 
 	return &clientCfg, nil
+}
+
+func getLocalAndRegionIDs(id int64) (localID int64, regionID int) {
+	var err error
+	if localID, regionID, err = sm.GlobalIDToLocalID(id); err != nil {
+		// Id is already local, use region 0.
+		return id, 0
+	}
+	return localID, regionID
 }
