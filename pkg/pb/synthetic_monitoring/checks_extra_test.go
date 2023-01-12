@@ -910,6 +910,12 @@ func TestHttpSettingsValidate(t *testing.T) {
 			},
 			expectError: true,
 		},
+		"multiple colons": {
+			input: HttpSettings{
+				Headers: []string{"origin:https://www.grafana.com"},
+			},
+			expectError: false,
+		},
 		"invalid name": {
 			input: HttpSettings{
 				Headers: []string{"hea;der: value"},
