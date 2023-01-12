@@ -472,8 +472,8 @@ func (s *PingSettings) Validate() error {
 
 func (s *HttpSettings) Validate() error {
 	for _, h := range s.Headers {
-		fields := strings.Split(h, ":")
-		if len(fields) != 2 {
+		fields := strings.SplitN(h, ":", 2)
+		if len(fields) < 2 {
 			return ErrInvalidHttpHeaders
 		}
 
@@ -505,8 +505,8 @@ func (s *HttpSettings) Validate() error {
 	}
 
 	for _, h := range s.ProxyConnectHeaders {
-		fields := strings.Split(h, ":")
-		if len(fields) != 2 {
+		fields := strings.SplitN(h, ":", 2)
+		if len(fields) < 2 {
 			return ErrInvalidProxyConnectHeaders
 		}
 
