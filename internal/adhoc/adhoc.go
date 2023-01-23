@@ -52,11 +52,12 @@ const (
 )
 
 type runner struct {
-	logger zerolog.Logger
-	prober prober.Prober
-	id     string
-	target string
-	probe  string
+	logger  zerolog.Logger
+	prober  prober.Prober
+	id      string
+	target  string
+	probe   string
+	timeout time.Duration
 }
 
 // ClientConn represents the GRPC client connection that can be used to
@@ -389,11 +390,12 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 	}
 
 	return &runner{
-		logger: h.logger,
-		prober: p,
-		id:     req.AdHocCheck.Id,
-		target: target,
-		probe:  h.probe.Name,
+		logger:  h.logger,
+		prober:  p,
+		id:      req.AdHocCheck.Id,
+		target:  target,
+		probe:   h.probe.Name,
+		timeout: time.Duration(req.AdHocCheck.Timeout) * time.Millisecond,
 	}, nil
 }
 
@@ -464,7 +466,10 @@ func (r *runner) Run(ctx context.Context, tenantId int64, publishCh chan<- pushe
 
 	start := time.Now()
 
-	if r.prober.Probe(ctx, r.target, registry, logger) {
+	rCtx, cancel := context.WithTimeout(ctx, r.timeout)
+	defer cancel()
+
+	if r.prober.Probe(rCtx, r.target, registry, logger) {
 		successGauge.Set(1)
 	} else {
 		successGauge.Set(0)
