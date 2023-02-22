@@ -394,6 +394,7 @@ func TestSettingsToModule(t *testing.T) {
 			expected: getDefaultModule().
 				setProxyUrl("http://example.org/").
 				setProxyConnectHeaders(map[string]string{"h1": "v1", "h2": "v2"}).
+				setSkipResolvePhaseWithProxy(true).
 				getConfigModule(),
 		},
 	}
@@ -508,5 +509,10 @@ func (m *testModule) setProxyConnectHeaders(headers map[string]string) *testModu
 	for k, v := range headers {
 		m.HTTP.HTTPClientConfig.ProxyConnectHeader[k] = []httpConfig.Secret{httpConfig.Secret(v)}
 	}
+	return m
+}
+
+func (m *testModule) setSkipResolvePhaseWithProxy(value bool) *testModule {
+	m.HTTP.SkipResolvePhaseWithProxy = value
 	return m
 }
