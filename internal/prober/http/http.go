@@ -146,6 +146,12 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 		return m, err
 	}
 
+	// Set BBE's SkipResolvePhaseWithProxy when a proxy is configured to avoid resolving the target.
+	// DNS should be done at the proxy server only.
+	if m.HTTP.HTTPClientConfig.ProxyURL.URL != nil {
+		m.HTTP.SkipResolvePhaseWithProxy = true
+	}
+
 	if settings.Oauth2Config != nil && settings.Oauth2Config.ClientId != "" {
 		var err error
 		m.HTTP.HTTPClientConfig.OAuth2, err = convertOAuth2Config(ctx, settings.Oauth2Config, logger.With().Str("prober", m.Prober).Logger())
