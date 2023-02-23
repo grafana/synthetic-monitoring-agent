@@ -2,8 +2,14 @@
 ## [Unreleased]
 
 
+<a name="v0.14.2"></a>
+## [v0.14.2] - 2023-02-22
+### Fix
+- do not resolve target in http with proxy
+
+
 <a name="v0.14.1"></a>
-## [v0.14.1] - 2023-01-24
+## [v0.14.1] - 2023-01-25
 ### Fix
 - setup timeout in ad-hoc checks
 
@@ -392,7 +398,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.1...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.2...HEAD
+[v0.14.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.1...v0.14.2
 [v0.14.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.0...v0.14.1
 [v0.14.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.13.0...v0.14.0
 [v0.13.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.12.1...v0.13.0
