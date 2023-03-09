@@ -255,6 +255,7 @@ func newRoundTripperFromConfig(cfg HTTPClientConfig, name string, disableKeepAli
 			IdleConnTimeout:       5 * time.Minute,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
+			Proxy:                 http.ProxyFromEnvironment,
 			DialContext: conntrack.NewDialContextFunc(
 				conntrack.DialWithTracing(),
 				conntrack.DialWithName(name),
