@@ -29,7 +29,7 @@ require (
 
 require (
 	github.com/go-kit/log v0.2.1
-	github.com/go-ping/ping v0.0.0-20211130115550-779d1e919534
+	github.com/go-ping/ping v1.1.0
 	github.com/gogo/status v1.1.1
 	github.com/jpillora/backoff v1.0.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
