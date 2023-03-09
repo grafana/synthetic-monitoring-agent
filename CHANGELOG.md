@@ -2,8 +2,14 @@
 ## [Unreleased]
 
 
+<a name="v0.14.3"></a>
+## [v0.14.3] - 2023-03-09
+### Fix
+- use proxy values from environment in metrics publisher
+
+
 <a name="v0.14.2"></a>
-## [v0.14.2] - 2023-02-22
+## [v0.14.2] - 2023-02-23
 ### Fix
 - do not resolve target in http with proxy
 
@@ -398,7 +404,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.2...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.3...HEAD
+[v0.14.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.2...v0.14.3
 [v0.14.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.1...v0.14.2
 [v0.14.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.0...v0.14.1
 [v0.14.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.13.0...v0.14.0
