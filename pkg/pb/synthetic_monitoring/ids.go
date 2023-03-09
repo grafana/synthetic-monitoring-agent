@@ -40,8 +40,8 @@ import (
 // They are constructed by multiplying the original ID by 1000 (MaxRegions)
 // and then adding a unique regionID (<1000).
 //
-// For example, check with ID 1234 in region 3 will have a global ID of:
-//  -1234003
+// For example, check with ID 1234 in region 3 will have a global ID of
+// -1234003.
 //
 // This reduces the space of IDs available by a factor of 1000, from 63 bits
 // to 53, which is still more than enough.
