@@ -534,6 +534,7 @@ message MultiHttpEntryRequest {
   repeated MultiHttpRequestHeader      headers     = 4 [(gogoproto.jsontag) = "headers,omitempty"];
   repeated MultiHttpRequestQueryString queryString = 5 [(gogoproto.jsontag) = "queryString,omitempty"];
   MultiHttpRequestPostData             postData    = 6 [(gogoproto.jsontag) = "postData,omitempty"];
+  string                               body        = 7 [(gogoproto.jsontag) = "body,omitempty"];
 }
 
 message MultiHttpRequestHeader {
