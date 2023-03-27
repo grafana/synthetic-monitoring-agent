@@ -159,7 +159,7 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 		if len(payload.Streams()) > 0 {
 			if n, err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
-				logger.Error().Err(err).Msg("publish events")
+				logger.Error().Err(err).Int("status", httpStatusCode).Msg("publish events")
 				p.errorCounter.WithLabelValues("logs", regionStr, tenantStr, strconv.Itoa(httpStatusCode)).Inc()
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
@@ -175,7 +175,7 @@ func (p *Publisher) publish(ctx context.Context, payload Payload) {
 		if len(payload.Metrics()) > 0 {
 			if n, err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
-				logger.Error().Err(err).Msg("publish metrics")
+				logger.Error().Err(err).Int("status", httpStatusCode).Msg("publish metrics")
 				p.errorCounter.WithLabelValues("metrics", regionStr, tenantStr, strconv.Itoa(httpStatusCode)).Inc()
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
