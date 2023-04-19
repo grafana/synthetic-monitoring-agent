@@ -13,7 +13,6 @@ This is the 'worker' for Grafana's [Synthetic Monitoring application](https://gi
 Please [install](https://grafana.com/grafana/plugins/grafana-synthetic-monitoring-app/installation) Synthetic Monitoring 
 in your Grafana Cloud or local Grafana instance before setting up your own private probe. You may need to generate a [new API key](https://grafana.com/profile/api-keys) to initialize the app.
 
-(Test)
 
 Probes
 ------
