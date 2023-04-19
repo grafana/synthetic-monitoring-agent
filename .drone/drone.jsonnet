@@ -263,7 +263,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
           NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
         },
       },
-      step('test release', ['make release-snapshot']) {
+      step('test release', ['make release-snapshot']) + devAndRelease + {
         environment: {
           NFPM_DEFAULT_PASSPHRASE: { from_secret: 'gpg_passphrase' },
           NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
