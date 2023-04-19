@@ -240,6 +240,10 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
 - commands:
   - ./scripts/package/verify-rpm-install.sh
   image: docker
@@ -248,6 +252,10 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
 - commands:
   - make release
   environment:
@@ -319,6 +327,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 0de9197ff9b89e51995ff6aa989da96d4085be28fe67a242fc404f42b58b6174
+hmac: 751d5fb2434e22d46fb36e2132c32bcb404e799e3f96517f13a719865accdc9b
 
 ...
