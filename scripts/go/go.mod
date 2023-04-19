@@ -3,7 +3,7 @@ module github.com/grafana/synthetic-monitoring-agent/scripts/go
 go 1.18
 
 require (
-	github.com/golangci/golangci-lint v1.49.0
+	github.com/golangci/golangci-lint v1.51.2
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/securego/gosec v0.0.0-20200401082031-e946c8c39989
 	github.com/unknwon/bra v0.0.0-20200517080246-1e3013ecaff8
