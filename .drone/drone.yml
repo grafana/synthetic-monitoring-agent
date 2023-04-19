@@ -13,19 +13,19 @@ steps:
   - ./scripts/enforce-clean
   depends_on:
   - runner identification
-  image: golang:1.18
+  image: golang:1.20.3
   name: deps
 - commands:
   - make lint
   depends_on:
   - deps
-  image: golang:1.18
+  image: golang:1.20.3
   name: lint
 - commands:
   - make test
   depends_on:
   - lint
-  image: golang:1.18
+  image: golang:1.20.3
   name: test
 - commands:
   - git fetch origin --tags
@@ -36,7 +36,7 @@ steps:
   - make build
   depends_on:
   - deps
-  image: golang:1.18
+  image: golang:1.20.3
   name: build
 - commands: []
   depends_on:
@@ -218,7 +218,7 @@ steps:
     NFPM_SIGNING_KEY:
       from_secret: gpg_private_key
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: golang:1.18
+  image: golang:1.20.3
   name: write-key
 - commands:
   - make release-snapshot
@@ -226,7 +226,7 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: golang:1.18
+  image: golang:1.20.3
   name: test release
   when:
     ref:
@@ -264,7 +264,7 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: golang:1.18
+  image: golang:1.20.3
   name: release
   when:
     ref:
@@ -327,6 +327,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 751d5fb2434e22d46fb36e2132c32bcb404e799e3f96517f13a719865accdc9b
+hmac: a78c8cada646cf4310e5e20d3ab0aaecba772ef372b3a97f4b676c33f4f5a926
 
 ...
