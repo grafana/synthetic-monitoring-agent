@@ -228,6 +228,10 @@ steps:
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
   image: golang:1.18
   name: test release
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
 - commands:
   - ./scripts/package/verify-deb-install.sh
   image: docker
@@ -236,6 +240,10 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
 - commands:
   - ./scripts/package/verify-rpm-install.sh
   image: docker
@@ -244,6 +252,10 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
 - commands:
   - make release
   environment:
@@ -315,6 +327,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: aefbf1c6a02e7bc3976ee73ad5a35538f50f55b0360f7726ef8bb5957daf040e
+hmac: 751d5fb2434e22d46fb36e2132c32bcb404e799e3f96517f13a719865accdc9b
 
 ...
