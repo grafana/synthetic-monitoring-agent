@@ -30,6 +30,7 @@ const (
 	ProbeSuccessMetricName = "probe_success"
 	CheckInfoMetricName    = "sm_check_info"
 	CheckInfoSource        = "synthetic-monitoring-agent"
+	maxLabelValueLength    = 2048 // this is the default value in Prometheus
 )
 
 var (
@@ -597,7 +598,7 @@ func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sha
 func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
 	metricLabels := make([]prompb.Label, 0, len(sharedLabels))
 	for _, label := range sharedLabels {
-		metricLabels = append(metricLabels, prompb.Label{Name: label.name, Value: label.value})
+		metricLabels = append(metricLabels, prompb.Label{Name: label.name, Value: truncateLabelValue(label.value)})
 	}
 
 	var ts []prompb.TimeSeries
@@ -678,7 +679,7 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 	labels = append(labels, prompb.Label{Name: "__name__", Value: mName})
 	labels = append(labels, sharedLabels...)
 	for _, l := range ml {
-		labels = append(labels, prompb.Label{Name: *(l.Name), Value: *(l.Value)})
+		labels = append(labels, prompb.Label{Name: *(l.Name), Value: truncateLabelValue(*(l.Value))})
 	}
 
 	switch mType {
@@ -895,4 +896,16 @@ func withCheckID(ctx zerolog.Context, checkID int64) zerolog.Context {
 		checkID = localID
 	}
 	return ctx.Int64("check_id", checkID)
+}
+
+func truncateLabelValue(str string) string {
+	if len(str) > maxLabelValueLength {
+		b := []byte(str[:maxLabelValueLength])
+		for i := maxLabelValueLength - 3; i < maxLabelValueLength; i++ {
+			b[i] = '.'
+		}
+		str = string(b)
+	}
+
+	return str
 }

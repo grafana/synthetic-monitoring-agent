@@ -1171,3 +1171,52 @@ func mergeMaps(maps ...map[string]string) map[string]string {
 	}
 	return out
 }
+
+func TestTruncateLabelValue(t *testing.T) {
+	testcases := map[string]struct {
+		length         int
+		expectedLength int
+	}{
+		"zero": {
+			length:         0,
+			expectedLength: 0,
+		},
+		"one": {
+			length:         1,
+			expectedLength: 1,
+		},
+		"max/2": {
+			length:         maxLabelValueLength / 2,
+			expectedLength: maxLabelValueLength / 2,
+		},
+		"max-1": {
+			length:         maxLabelValueLength - 1,
+			expectedLength: maxLabelValueLength - 1,
+		},
+		"max": {
+			length:         maxLabelValueLength,
+			expectedLength: maxLabelValueLength,
+		},
+		"max+1": {
+			length:         maxLabelValueLength + 1,
+			expectedLength: maxLabelValueLength,
+		},
+		"2*max": {
+			length:         2 * maxLabelValueLength,
+			expectedLength: maxLabelValueLength,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			input := strings.Repeat("a", tc.length)
+			expected := strings.Repeat("a", tc.expectedLength)
+			actual := truncateLabelValue(input)
+			require.Equal(t, len(expected), len(actual))
+			if tc.expectedLength < tc.length {
+				require.Equal(t, expected[:len(expected)-3], actual[:len(actual)-3])
+				require.Equal(t, "...", actual[len(actual)-3:])
+			}
+		})
+	}
+}
