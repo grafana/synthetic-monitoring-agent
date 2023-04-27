@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.14.5"></a>
+## [v0.14.5] - 2023-04-26
+### Fix
+- truncate long label values
+
+
 <a name="v0.14.4"></a>
 ## [v0.14.4] - 2023-04-19
 ### Build
@@ -413,7 +419,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.4...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.5...HEAD
+[v0.14.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.4...v0.14.5
 [v0.14.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.3...v0.14.4
 [v0.14.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.2...v0.14.3
 [v0.14.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.14.1...v0.14.2
