@@ -1,4 +1,4 @@
-local step(name, commands, image='golang:1.20.3') = {
+local step(name, commands, image='golang:1.20.4') = {
   name: name,
   commands: commands,
   image: image,
