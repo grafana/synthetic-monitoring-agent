@@ -16,7 +16,7 @@ require (
 	github.com/prometheus/blackbox_exporter v0.23.1-0.20221215210014-35f2661a935a
 	github.com/prometheus/client_golang v1.15.1
 	github.com/prometheus/client_model v0.4.0
-	github.com/prometheus/common v0.42.0
+	github.com/prometheus/common v0.43.0
 	github.com/prometheus/prometheus v0.43.0
 	github.com/rs/zerolog v1.29.1
 	github.com/stretchr/testify v1.8.2
