@@ -17,7 +17,7 @@ require (
 	github.com/prometheus/client_golang v1.15.1
 	github.com/prometheus/client_model v0.4.0
 	github.com/prometheus/common v0.43.0
-	github.com/prometheus/prometheus v0.43.0
+	github.com/prometheus/prometheus v0.43.1
 	github.com/rs/zerolog v1.29.1
 	github.com/stretchr/testify v1.8.2
 	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
