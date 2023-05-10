@@ -2,6 +2,7 @@ package synthetic_monitoring
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"strings"
 	"testing"
@@ -314,7 +315,7 @@ func TestCheckType(t *testing.T) {
 				TenantId:  1,
 				Target:    "http://www.example.org",
 				Job:       "job",
-				Frequency: 10000,
+				Frequency: 60000,
 				Timeout:   10000,
 				Probes:    []int64{1},
 				Settings: CheckSettings{
@@ -1064,6 +1065,8 @@ func TestCompressionAlgorithmUnmarshal(t *testing.T) {
 }
 
 func checkError(t *testing.T, expectError bool, err error, input interface{}) {
+	t.Helper()
+
 	switch {
 	case expectError && err == nil:
 		// unexpected success
@@ -1085,4 +1088,534 @@ func checkError(t *testing.T, expectError bool, err error, input interface{}) {
 			t.Logf("expecting success for input %q, got success", input)
 		}
 	}
+}
+
+type TestCases[T any] map[string]struct {
+	input       T
+	expectError bool
+}
+
+func testValidate[T validatable](t *testing.T, testcases TestCases[T]) {
+	t.Helper()
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			err := testcase.input.Validate()
+			if testcase.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+type testValidatable struct {
+	err error
+}
+
+func (v testValidatable) Validate() error {
+	return v.err
+}
+
+// TestValidateCollection vefifies that validateCollection calls `Validate` on
+// each member of a collection of `Validatable` objects.
+func TestValidateCollection(t *testing.T) {
+	invalid := errors.New("invalid")
+
+	testcases := map[string]struct {
+		input       []testValidatable
+		expectError bool
+	}{
+		"empty": {
+			input:       nil,
+			expectError: false,
+		},
+		"one valid": {
+			input:       []testValidatable{{err: nil}},
+			expectError: false,
+		},
+		"one invalid": {
+			input:       []testValidatable{{err: errors.New("invalid")}},
+			expectError: true,
+		},
+		"two valid": {
+			input:       []testValidatable{{err: nil}, {err: nil}},
+			expectError: false,
+		},
+		"two invalid": {
+			input:       []testValidatable{{err: invalid}, {err: invalid}},
+			expectError: true,
+		},
+		"mixed": {
+			input:       []testValidatable{{err: nil}, {err: invalid}},
+			expectError: true,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			err := validateCollection(testcase.input)
+			if testcase.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestHttpHeaderValidate(t *testing.T) {
+	testValidate(t, TestCases[HttpHeader]{
+		"valid": {
+			input:       HttpHeader{Name: "name", Value: "value"},
+			expectError: false,
+		},
+		"an empty value is valid": {
+			input:       HttpHeader{Name: "xyz", Value: ""},
+			expectError: false,
+		},
+		"an empty name is invalid": {
+			input:       HttpHeader{Name: "", Value: "xxx"},
+			expectError: true,
+		},
+		"invalid header name": {
+			input:       HttpHeader{Name: "x y z", Value: ""},
+			expectError: true,
+		},
+	})
+}
+
+func TestQueryFieldValidate(t *testing.T) {
+	testValidate(t, TestCases[QueryField]{
+		"valid": {
+			input:       QueryField{Name: "name", Value: "value"},
+			expectError: false,
+		},
+		"an empty value is valid": {
+			input:       QueryField{Name: "xyz", Value: ""},
+			expectError: false,
+		},
+		"an empty name is invalid": {
+			input:       QueryField{Name: "", Value: "xxx"},
+			expectError: true,
+		},
+		"a name with spaces is valid": {
+			input:       QueryField{Name: "x y z", Value: ""},
+			expectError: false,
+		},
+	})
+}
+
+func TestHttpRequestBodyValidate(t *testing.T) {
+	testValidate(t, TestCases[*HttpRequestBody]{
+		"nil is valid": {
+			input:       nil,
+			expectError: false,
+		},
+		"no content type is invalid": {
+			input: &HttpRequestBody{
+				ContentType:     "",
+				ContentEncoding: "identity",
+				Payload:         []byte{42},
+			},
+			expectError: true,
+		},
+		"empty content encoding is valid": {
+			input: &HttpRequestBody{
+				ContentType:     "text/plain",
+				ContentEncoding: "",
+				Payload:         []byte{42},
+			},
+			expectError: false,
+		},
+		"content type must be a valid media type": {
+			input: &HttpRequestBody{
+				// media types should not have space before the /
+				ContentType:     "json file",
+				ContentEncoding: "",
+				Payload:         []byte{42},
+			},
+			expectError: true,
+		},
+		"empty payload is valid": {
+			input: &HttpRequestBody{
+				ContentType:     "text/plain",
+				ContentEncoding: "identity",
+				Payload:         []byte{},
+			},
+			expectError: false,
+		},
+	})
+}
+
+func TestMultiHttpEntryAssertionValidate(t *testing.T) {
+	testValidate(t, TestCases[*MultiHttpEntryAssertion]{
+		"nil is valid": {
+			input:       nil,
+			expectError: false,
+		},
+		"zero value is invalid": {
+			// The zero value is a text assertion with "body" as the
+			// subject and "contains" as the condition. The
+			// "value" is empty, and that is not allowed.
+			input:       &MultiHttpEntryAssertion{},
+			expectError: true,
+		},
+		"text+body+contains with valid value": {
+			input: &MultiHttpEntryAssertion{
+				Type:      MultiHttpEntryAssertionType_TEXT,
+				Subject:   MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+				Condition: MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Value:     "foobar",
+			},
+			expectError: false,
+		},
+		"text does not allow expressions": {
+			input: &MultiHttpEntryAssertion{
+				Type:       MultiHttpEntryAssertionType_TEXT,
+				Subject:    MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+				Condition:  MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Expression: "foo",
+				Value:      "bar",
+			},
+			expectError: true,
+		},
+		"json path value with valid value": {
+			input: &MultiHttpEntryAssertion{
+				Type:      MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+				Condition: MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Value:     "bar",
+			},
+			expectError: false,
+		},
+		"json path value does not allow for setting the subject": {
+			input: &MultiHttpEntryAssertion{
+				Type:      MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+				Subject:   MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS, // invalid
+				Condition: MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Value:     "bar",
+			},
+			expectError: true,
+		},
+		"valid json path assertion": {
+			input: &MultiHttpEntryAssertion{
+				Type:       MultiHttpEntryAssertionType_JSON_PATH_ASSERTION,
+				Expression: "$.foo",
+			},
+			expectError: false,
+		},
+		"json path assertion does not allow subject": {
+			input: &MultiHttpEntryAssertion{
+				Type:       MultiHttpEntryAssertionType_JSON_PATH_ASSERTION,
+				Subject:    MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS, // invalid
+				Expression: "$.foo",
+			},
+			expectError: true,
+		},
+		"json path assertion does not allow condition": {
+			input: &MultiHttpEntryAssertion{
+				Type:       MultiHttpEntryAssertionType_JSON_PATH_ASSERTION,
+				Condition:  1, // invalid
+				Expression: "$.foo",
+			},
+			expectError: true,
+		},
+		"json path assertion does not allow value": {
+			input: &MultiHttpEntryAssertion{
+				Type:       MultiHttpEntryAssertionType_JSON_PATH_ASSERTION,
+				Value:      "bar", // invalid
+				Expression: "$.foo",
+			},
+			expectError: true,
+		},
+		"valid regexp assertion": {
+			input: &MultiHttpEntryAssertion{
+				Type:       MultiHttpEntryAssertionType_REGEX_ASSERTION,
+				Subject:    MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+				Expression: "foo",
+			},
+			expectError: false,
+		},
+		"regexp assertion does not allow value": {
+			input: &MultiHttpEntryAssertion{
+				Type:       MultiHttpEntryAssertionType_REGEX_ASSERTION,
+				Subject:    MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+				Expression: "foo",
+				Value:      "bar", // invalid
+			},
+			expectError: true,
+		},
+		"regexp assertion does not allow condition": {
+			input: &MultiHttpEntryAssertion{
+				Type:       MultiHttpEntryAssertionType_REGEX_ASSERTION,
+				Subject:    MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+				Expression: "foo",
+				Condition:  1, // invalid
+			},
+			expectError: true,
+		},
+	})
+}
+
+func TestMultiHttpEntryVariableValidate(t *testing.T) {
+	testValidate(t, TestCases[*MultiHttpEntryVariable]{
+		"zero value": {
+			// The zero value is invalid because a name and an
+			// expression are required.
+			input:       &MultiHttpEntryVariable{},
+			expectError: true,
+		},
+		"json path": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_JSON_PATH,
+				Name:       "foo",
+				Expression: "$.bar",
+			},
+			expectError: false,
+		},
+		"json path without a name is invalid": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_JSON_PATH,
+				Name:       "",
+				Expression: "$.bar",
+			},
+			expectError: true,
+		},
+		"json path without an expression is invalid": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_JSON_PATH,
+				Name:       "foo",
+				Expression: "",
+			},
+			expectError: true,
+		},
+		"json path with an attribute is invalid": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_JSON_PATH,
+				Name:       "foo",
+				Expression: "bar",
+				Attribute:  "baz",
+			},
+			expectError: true,
+		},
+		"regexp": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_REGEX,
+				Name:       "foo",
+				Expression: "bar",
+			},
+			expectError: false,
+		},
+		"regexp without a name is invalid": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_REGEX,
+				Name:       "",
+				Expression: "bar",
+			},
+			expectError: true,
+		},
+		"regexp without an expression is invalid": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_REGEX,
+				Name:       "foo",
+				Expression: "",
+			},
+			expectError: true,
+		},
+		"regexp with an attribute is invalid": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_REGEX,
+				Name:       "foo",
+				Expression: "bar",
+				Attribute:  "baz",
+			},
+			expectError: true,
+		},
+		"css selector": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_CSS_SELECTOR,
+				Name:       "foo",
+				Expression: "bar",
+			},
+			expectError: false,
+		},
+		"css selector without a name is invalid": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_CSS_SELECTOR,
+				Name:       "",
+				Expression: "bar",
+			},
+			expectError: true,
+		},
+		"css selector without an expression is invalid": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_CSS_SELECTOR,
+				Name:       "foo",
+				Expression: "",
+			},
+			expectError: true,
+		},
+		"css selector with attribute": {
+			input: &MultiHttpEntryVariable{
+				Type:       MultiHttpEntryVariableType_CSS_SELECTOR,
+				Name:       "foo",
+				Expression: "bar",
+				Attribute:  "baz",
+			},
+			expectError: false,
+		},
+	})
+}
+
+func TestMultiHttpEntryRequestValidate(t *testing.T) {
+	testValidate(t, TestCases[*MultiHttpEntryRequest]{
+		"nil": {
+			input:       nil,
+			expectError: false,
+		},
+		"zero value": {
+			// The zero value is invalid because it doesn't have a URL
+			input:       &MultiHttpEntryRequest{},
+			expectError: true,
+		},
+		"valid": {
+			input: &MultiHttpEntryRequest{
+				Method: HttpMethod_GET,
+				Url:    "http://example.com",
+			},
+			expectError: false,
+		},
+		"invalid headers": {
+			input: &MultiHttpEntryRequest{
+				Method: HttpMethod_GET,
+				Url:    "http://example.com",
+				Headers: []*HttpHeader{
+					{Name: "", Value: ""},
+				},
+			},
+			expectError: true,
+		},
+		"invalid query": {
+			input: &MultiHttpEntryRequest{
+				Method: HttpMethod_GET,
+				Url:    "http://example.com",
+				QueryFields: []*QueryField{
+					{Name: "", Value: ""},
+				},
+			},
+			expectError: true,
+		},
+		"invalid body": {
+			input: &MultiHttpEntryRequest{
+				Method: HttpMethod_GET,
+				Url:    "http://example.com",
+				Body: &HttpRequestBody{
+					ContentType:     "", // ContentType must not be empty
+					ContentEncoding: "",
+					Payload:         []byte(""),
+				},
+			},
+			expectError: true,
+		},
+	})
+}
+
+// TestMultiHttpSettingsValidate verifies that MultiHttpSettings.Validate
+// performs the expected validations.
+//
+// Other tests validate various invalid values. This test verifies that a
+// single invalid value is reported in order to verify that the inner
+// validations are happening.
+func TestMultiHttpSettingsValidate(t *testing.T) {
+	createEntries := func(n int, method HttpMethod, url string) []*MultiHttpEntry {
+		entries := make([]*MultiHttpEntry, n)
+
+		for i := 0; i < n; i++ {
+			entries[i] = &MultiHttpEntry{
+				Request: &MultiHttpEntryRequest{
+					Method: method,
+					Url:    url,
+				},
+			}
+		}
+
+		return entries
+	}
+
+	testValidate(t, TestCases[*MultiHttpSettings]{
+		"zero value": {
+			// the zero value for MultiHttpSettings is not usable
+			// because at least one entry is required.
+			input:       &MultiHttpSettings{},
+			expectError: true,
+		},
+		"valid": {
+			input: &MultiHttpSettings{
+				Entries: createEntries(1, HttpMethod_GET, "http://example.com"),
+			},
+			expectError: false,
+		},
+		"many entries": {
+			input: &MultiHttpSettings{
+				Entries: createEntries(MaxMultiHttpTargets, HttpMethod_GET, "http://example.com"),
+			},
+			expectError: false,
+		},
+		"too many entries": {
+			input: &MultiHttpSettings{
+				Entries: createEntries(MaxMultiHttpTargets+1, HttpMethod_GET, "http://example.com"),
+			},
+			expectError: true,
+		},
+		"invalid request": {
+			input: &MultiHttpSettings{
+				Entries: []*MultiHttpEntry{
+					{
+						Request: &MultiHttpEntryRequest{
+							Method: HttpMethod_GET,
+							Url:    "",
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		"invalid assertion": {
+			input: &MultiHttpSettings{
+				Entries: []*MultiHttpEntry{
+					{
+						Request: &MultiHttpEntryRequest{
+							Method: HttpMethod_GET,
+							Url:    "http://example.com",
+						},
+						Assertions: []*MultiHttpEntryAssertion{
+							{
+								Type: -1,
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		"invalid variable": {
+			input: &MultiHttpSettings{
+				Entries: []*MultiHttpEntry{
+					{
+						Request: &MultiHttpEntryRequest{
+							Method: HttpMethod_GET,
+							Url:    "http://example.com",
+						},
+						Variables: []*MultiHttpEntryVariable{
+							{
+								Type: -1,
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+	})
 }
