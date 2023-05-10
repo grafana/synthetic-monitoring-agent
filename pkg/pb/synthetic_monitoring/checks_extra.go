@@ -19,6 +19,7 @@ package synthetic_monitoring
 import (
 	"errors"
 	"fmt"
+	"mime"
 	"net"
 	"net/url"
 	"strconv"
@@ -76,6 +77,13 @@ var (
 
 	ErrInvalidK6Script = errors.New("invalid K6 script")
 
+	ErrInvalidMultiHttpTargets = errors.New("invalid multi-http targets")
+
+	ErrTooManyMultiHttpTargets         = errors.New("too many multi-http targets")
+	ErrTooManyMultiHttpAssertions      = errors.New("too many multi-http assertions")
+	ErrTooManyMultiHttpVariables       = errors.New("too many multi-http variables")
+	ErrMultiHttpVariableNamesNotUnique = errors.New("multi-http variable names must be unique")
+
 	ErrInvalidHostname = errors.New("invalid hostname")
 	ErrInvalidPort     = errors.New("invalid port")
 
@@ -92,6 +100,13 @@ var (
 	ErrTooManyProbeLabels            = errors.New("too many probe labels")
 	ErrInvalidProbeLatitude          = errors.New("invalid probe latitude")
 	ErrInvalidProbeLongitude         = errors.New("invalid probe longitude")
+
+	ErrInvalidHttpRequestBodyContentType = errors.New("invalid HTTP request body content type")
+	ErrInvalidHttpRequestBodyPayload     = errors.New("invalid HTTP request body payload")
+	ErrInvalidQueryFieldName             = errors.New("invalid query field name")
+
+	ErrInvalidMultiHttpAssertion     = errors.New("invalid multi-http assertion")
+	ErrInvalidMultiHttpEntryVariable = errors.New("invalid multi-http variable")
 )
 
 const (
@@ -100,13 +115,30 @@ const (
 )
 
 const (
-	MaxMetricLabels     = 20  // Prometheus allows for 32 labels, but limit to 20.
-	MaxLogLabels        = 15  // Loki allows a maximum of 15 labels.
-	MaxCheckLabels      = 10  // Allow 10 user labels for checks,
-	MaxProbeLabels      = 3   // 3 for probes, leaving 7 for internal use.
-	MaxLabelValueLength = 128 // Keep this number low so that the UI remains usable.
-	MaxPingPackets      = 10  // Allow 10 packets per ping.
+	MaxMetricLabels        = 20  // Prometheus allows for 32 labels, but limit to 20.
+	MaxLogLabels           = 15  // Loki allows a maximum of 15 labels.
+	MaxCheckLabels         = 10  // Allow 10 user labels for checks,
+	MaxProbeLabels         = 3   // 3 for probes, leaving 7 for internal use.
+	MaxLabelValueLength    = 128 // Keep this number low so that the UI remains usable.
+	MaxPingPackets         = 10  // Allow 10 packets per ping.
+	MaxMultiHttpTargets    = 10  // Max targets per multi-http check.
+	MaxMultiHttpAssertions = 5   // Max assertions per multi-http target.
+	MaxMultiHttpVariables  = 5   // Max variables per multi-http target.
 )
+
+type validatable interface {
+	Validate() error
+}
+
+func validateCollection[T validatable](collection []T) error {
+	for _, item := range collection {
+		if err := item.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 // CheckType represents the type of the associated check
 type CheckType int32
@@ -118,6 +150,7 @@ const (
 	CheckTypeTcp        CheckType = 3
 	CheckTypeTraceroute CheckType = 4
 	CheckTypeK6         CheckType = 5
+	CheckTypeMultiHttp  CheckType = 6
 )
 
 var (
@@ -128,6 +161,7 @@ var (
 		CheckTypeTcp:        "tcp",
 		CheckTypeTraceroute: "traceroute",
 		CheckTypeK6:         "k6",
+		CheckTypeMultiHttp:  "multi_http",
 	}
 
 	checkType_value = map[string]CheckType{
@@ -137,6 +171,7 @@ var (
 		"tcp":        CheckTypeTcp,
 		"traceroute": CheckTypeTraceroute,
 		"k6":         CheckTypeK6,
+		"multi_http": CheckTypeMultiHttp,
 	}
 )
 
@@ -183,6 +218,9 @@ func (c Check) Type() CheckType {
 
 	case c.Settings.K6 != nil:
 		return CheckTypeK6
+
+	case c.Settings.Multihttp != nil:
+		return CheckTypeMultiHttp
 
 	default:
 		panic("unhandled check type")
@@ -252,6 +290,11 @@ func (c Check) validateTarget() error {
 	case CheckTypeK6:
 		return validateHttpUrl(c.Target)
 
+	case CheckTypeMultiHttp:
+		// TODO(mem): checks MUST have a target, but in this case it's
+		// not true that the target must be a valid URL.
+		return validateHttpUrl(c.Target)
+
 	default:
 		panic("unhandled check type")
 	}
@@ -267,7 +310,14 @@ func (c Check) validateFrequency() error {
 			return ErrInvalidCheckFrequency
 		}
 
-	// TODO(mem): k6 probably needs special handling, too.
+	case c.Settings.K6 != nil || c.Settings.Multihttp != nil:
+		// TODO(mem): k6 and multihttp checks should allow for a lower
+		// frequency (a higher number), but that needs that we keep the
+		// metrics alive on the Prometheus side, i.e. we need to cache
+		// results and push them to Prometheus on a periodic basis.
+		if c.Frequency < 60*1000 || c.Frequency > 120*1000 {
+			return ErrInvalidCheckFrequency
+		}
 
 	default:
 		if c.Frequency < 1*1000 || c.Frequency > 120*1000 {
@@ -286,7 +336,14 @@ func (c Check) validateTimeout() error {
 			return ErrInvalidCheckTimeout
 		}
 
-	// TODO(mem): k6 probably needs special handling, too.
+	case c.Settings.K6 != nil || c.Settings.Multihttp != nil:
+		// This is expirimental. A 30 second timeout means we have more
+		// checks lingering around. timeout must be in [1, 30] seconds,
+		// and it must be less than frequency (otherwise we can end up
+		// running overlapping checks)
+		if c.Timeout < 1*1000 || c.Timeout > 30*1000 || c.Timeout > c.Frequency {
+			return ErrInvalidCheckTimeout
+		}
 
 	default:
 		// timeout must be in [1, 10] seconds, and it must be less than
@@ -345,6 +402,9 @@ func (c AdHocCheck) Type() CheckType {
 
 	case c.Settings.K6 != nil:
 		return CheckTypeK6
+
+	case c.Settings.Multihttp != nil:
+		return CheckTypeMultiHttp
 
 	default:
 		panic("unhandled check type")
@@ -451,6 +511,11 @@ func (s CheckSettings) Validate() error {
 		validateFn = s.K6.Validate
 	}
 
+	if s.Multihttp != nil {
+		settingsCount++
+		validateFn = s.Multihttp.Validate
+	}
+
 	if settingsCount != 1 {
 		return ErrInvalidCheckSettings
 	}
@@ -549,6 +614,283 @@ func (s *K6Settings) Validate() error {
 	if len(s.Script) == 0 {
 		return ErrInvalidK6Script
 	}
+
+	return nil
+}
+
+func (s *MultiHttpSettings) Validate() error {
+	if len(s.Entries) == 0 {
+		return ErrInvalidMultiHttpTargets
+	}
+
+	if len(s.Entries) > MaxMultiHttpTargets {
+		return ErrTooManyMultiHttpTargets
+	}
+
+	if err := validateCollection(s.Entries); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func hasUniqueValues[U any, V comparable](slice []U, fn func(U) V) bool {
+	set := make(map[V]struct{})
+
+	for _, elem := range slice {
+		value := fn(elem)
+		if _, found := set[value]; found {
+			return false
+		}
+		set[value] = struct{}{}
+	}
+
+	return true
+}
+
+func (e *MultiHttpEntry) Validate() error {
+	if err := e.Request.Validate(); err != nil {
+		return err
+	}
+
+	if len(e.Assertions) > MaxMultiHttpAssertions {
+		return ErrTooManyMultiHttpAssertions
+	}
+
+	if len(e.Variables) > MaxMultiHttpVariables {
+		return ErrTooManyMultiHttpVariables
+	}
+
+	if err := validateCollection(e.Assertions); err != nil {
+		return err
+	}
+
+	if err := validateCollection(e.Variables); err != nil {
+		return err
+	}
+
+	if !hasUniqueValues(e.Variables, func(v *MultiHttpEntryVariable) string { return v.Name }) {
+		return ErrMultiHttpVariableNamesNotUnique
+	}
+
+	return nil
+}
+
+func (h HttpHeader) Validate() error {
+	if !httpguts.ValidHeaderFieldName(h.Name) {
+		return ErrInvalidHttpHeaders
+	}
+
+	if !httpguts.ValidHeaderFieldValue(h.Value) {
+		return ErrInvalidHttpHeaders
+	}
+
+	return nil
+}
+
+func (f QueryField) Validate() error {
+	if len(f.Name) == 0 {
+		return ErrInvalidQueryFieldName
+	}
+
+	// the value might be empty
+
+	// The name can be anything. TODO(mem): is this true?
+
+	return nil
+}
+
+func (r *MultiHttpEntryRequest) Validate() error {
+	if r == nil {
+		return nil
+	}
+
+	if err := r.Method.Validate(); err != nil {
+		return err
+	}
+
+	if err := validateHttpUrl(r.Url); err != nil {
+		return err
+	}
+
+	// TODO(mem): do something with HttpVersion?
+
+	if err := r.Body.Validate(); err != nil {
+		return err
+	}
+
+	if err := validateCollection(r.Headers); err != nil {
+		return err
+	}
+
+	if err := validateCollection(r.QueryFields); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Validate verifies that the MultiHttpEntryAssertion is valid.
+//
+// Because of the structure represents multiple orthogonal variants, this
+// function has to branch based on the type.
+//
+//nolint:gocyclo
+func (a *MultiHttpEntryAssertion) Validate() error {
+	if a == nil {
+		return nil
+	}
+
+	if _, found := MultiHttpEntryAssertionType_name[int32(a.Type)]; !found {
+		// this should never happen
+		return ErrInvalidMultiHttpAssertion
+	}
+
+	if _, found := MultiHttpEntryAssertionSubjectVariant_name[int32(a.Subject)]; !found {
+		// this should never happen
+		return ErrInvalidMultiHttpAssertion
+	}
+
+	if _, found := MultiHttpEntryAssertionConditionVariant_name[int32(a.Condition)]; !found {
+		// this should never happen
+		return ErrInvalidMultiHttpAssertion
+	}
+
+	switch a.Type {
+	case MultiHttpEntryAssertionType_TEXT:
+		// Value is required
+		if len(a.Value) == 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+		// Expression is not allowed.
+		//
+		// This is super annoying because headers are stuffed with
+		// text, and expression could be used to validate specific
+		// headers.
+		if len(a.Expression) != 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+	case MultiHttpEntryAssertionType_JSON_PATH_VALUE:
+		// Subject must not be set
+		if a.Subject != 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+		// Value is required
+		if len(a.Value) == 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+		// Expression is not allowed.
+		if len(a.Expression) != 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+	case MultiHttpEntryAssertionType_JSON_PATH_ASSERTION:
+		// Subject must not be set
+		if a.Subject != 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+		// Condition must not be set
+		if a.Condition != 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+		// Value must not be set
+		if len(a.Value) != 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+		// Expression is required
+		if len(a.Expression) == 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+	case MultiHttpEntryAssertionType_REGEX_ASSERTION:
+		// Condition must not be set
+		if a.Condition != 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+		// Value must not be set
+		if len(a.Value) != 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+
+		// Expression is required
+		if len(a.Expression) == 0 {
+			return ErrInvalidMultiHttpAssertion
+		}
+	}
+
+	return nil
+}
+
+func (v *MultiHttpEntryVariable) Validate() error {
+	// 1. Type is valid
+	if _, found := MultiHttpEntryVariableType_name[int32(v.Type)]; !found {
+		return ErrInvalidMultiHttpEntryVariable
+	}
+
+	// 2. Name is not empty
+	if len(v.Name) == 0 {
+		return ErrInvalidMultiHttpEntryVariable
+	}
+
+	// 3. Expression is not empty
+	if len(v.Expression) == 0 {
+		return ErrInvalidMultiHttpEntryVariable
+	}
+
+	switch v.Type {
+	case MultiHttpEntryVariableType_JSON_PATH:
+		// 4. attribute must be empty
+		if len(v.Attribute) != 0 {
+			return ErrInvalidMultiHttpEntryVariable
+		}
+
+	case MultiHttpEntryVariableType_REGEX:
+		// 4. attribute must be empty
+		if len(v.Attribute) != 0 {
+			return ErrInvalidMultiHttpEntryVariable
+		}
+
+	case MultiHttpEntryVariableType_CSS_SELECTOR:
+		// 4. attribute might be empty
+	}
+
+	return nil
+}
+
+func (b *HttpRequestBody) Validate() error {
+	if b == nil {
+		return nil
+	}
+
+	if len(b.ContentType) == 0 {
+		return ErrInvalidHttpRequestBodyContentType
+	}
+
+	if !httpguts.ValidHeaderFieldValue(b.ContentType) {
+		return ErrInvalidHttpRequestBodyContentType
+	}
+
+	for _, v := range strings.Split(b.ContentType, ",") {
+		_, _, err := mime.ParseMediaType(v)
+		if err != nil {
+			return ErrInvalidHttpRequestBodyContentType
+		}
+	}
+
+	if len(b.ContentEncoding) > 0 && !httpguts.ValidHeaderFieldValue(b.ContentEncoding) {
+		return ErrInvalidHttpRequestBodyContentType
+	}
+
+	// Payload can be empty, since Content-Length can be 0.
+	// https://datatracker.ietf.org/doc/html/rfc9110#section-8.6
 
 	return nil
 }
@@ -693,6 +1035,14 @@ func (out *CompressionAlgorithm) UnmarshalJSON(b []byte) error {
 	}
 
 	return ErrInvalidCompressionAlgorithmString
+}
+
+func (v HttpMethod) Validate() error {
+	if _, found := HttpMethod_name[int32(v)]; !found {
+		return ErrInvalidHttpMethodValue
+	}
+
+	return nil
 }
 
 func (v HttpMethod) MarshalJSON() ([]byte, error) {
