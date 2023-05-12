@@ -783,10 +783,12 @@ func (a *MultiHttpEntryAssertion) Validate() error {
 			return ErrInvalidMultiHttpAssertion
 		}
 
-		// Expression is not allowed.
-		if len(a.Expression) != 0 {
+		// Expression is required
+		if len(a.Expression) == 0 {
 			return ErrInvalidMultiHttpAssertion
 		}
+
+		// Condition is covered above
 
 	case MultiHttpEntryAssertionType_JSON_PATH_ASSERTION:
 		// Subject must not be set

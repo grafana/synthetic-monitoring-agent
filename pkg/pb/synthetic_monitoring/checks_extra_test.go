@@ -1283,18 +1283,20 @@ func TestMultiHttpEntryAssertionValidate(t *testing.T) {
 		},
 		"json path value with valid value": {
 			input: &MultiHttpEntryAssertion{
-				Type:      MultiHttpEntryAssertionType_JSON_PATH_VALUE,
-				Condition: MultiHttpEntryAssertionConditionVariant_CONTAINS,
-				Value:     "bar",
+				Type:       MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+				Condition:  MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Expression: "$.data",
+				Value:      "foo",
 			},
 			expectError: false,
 		},
 		"json path value does not allow for setting the subject": {
 			input: &MultiHttpEntryAssertion{
-				Type:      MultiHttpEntryAssertionType_JSON_PATH_VALUE,
-				Subject:   MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS, // invalid
-				Condition: MultiHttpEntryAssertionConditionVariant_CONTAINS,
-				Value:     "bar",
+				Type:       MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+				Subject:    MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS, // invalid
+				Condition:  MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Expression: "$.data",
+				Value:      "foo",
 			},
 			expectError: true,
 		},
