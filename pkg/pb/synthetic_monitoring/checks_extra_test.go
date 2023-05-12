@@ -690,6 +690,11 @@ func TestValidateHostPort(t *testing.T) {
 			expectError: false,
 		},
 
+		"blank": {
+			input:       "",
+			expectError: true,
+		},
+
 		// invalid hosts
 		"no host": {
 			input:       ":25",
@@ -782,6 +787,15 @@ func TestValidateHttpUrl(t *testing.T) {
 		},
 		"with username and password": {
 			input:       "http://user:password@example.org/",
+			expectError: true,
+		},
+
+		"blank": {
+			input:       "",
+			expectError: true,
+		},
+		"no host": {
+			input:       "http://",
 			expectError: true,
 		},
 

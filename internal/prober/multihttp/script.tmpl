@@ -1,0 +1,63 @@
+import http from 'k6/http';
+import { check, fail } from 'k6';
+// TODO(mem): import jsonpath if there are json assertions
+import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js'
+
+export const options = {
+	scenarios: {
+		default: {
+			executor: 'shared-iterations',
+			tags: {
+				// TODO(mem): build tags out of options for the check?
+				environment: 'production',
+			},
+			// exec: 'runner',
+			maxDuration: '10s', // TODO(mem): this would be the timeout for the check
+			gracefulStop: '1s',
+		},
+	},
+
+	dns: {
+		ttl: '2m', // TODO(mem): this doesn't need to be much higher than the maxDuration
+		select: 'first',
+		// TODO(mem): we can build this maps to IP option in checks, more or less
+		policy: 'preferIPv4', // preferIPv6, onlyIPv4, onlyIPv6, any
+	},
+
+	// TODO(mem): we can build this out of check options
+	insecureSkipTLSVerify: false,
+	tlsVersion: {
+		// TODO(mem): we can build this out of check options
+		min: 'tls1.2',
+		max: 'tls1.3',
+	},
+	// TODO(mem): we can build this out of agent version
+	userAgent: 'synthetic-monitoring-agent/v0.14.3 (linux amd64; g64b8bab; +https://github.com/grafana/synthetic-monitoring-agent)',
+
+	maxRedirects: 10,
+	blacklistIPs: ['10.0.0.0/8'],
+	blockHostnames: ['*.cluster.local'],
+
+	// k6 options
+	vus: 1,
+	// linger: false,
+	summaryTimeUnit: 's',
+	discardResponseBodies: false, // enable only if there are checks?
+};
+
+export default function() {
+	let response;
+	const vars = {};
+
+	{{ range .Entries }}
+	response = http.request('{{ .Request.Method }}', '{{ buildUrl .Request }}', null, {
+		// TODO(mem): build params out of options for the check
+		redirects: 0,{{ if gt (len .Request.Headers) 0 }}
+		headers: {{ buildHeaders .Request.Headers }}{{ end }}
+	});
+	{{ range .Assertions }}{{ buildChecks . }}
+	{{ end -}}
+	{{ range .Variables }}{{ buildVars . }}
+	{{ end -}}
+	{{ end }}
+}

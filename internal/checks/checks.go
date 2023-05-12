@@ -794,6 +794,14 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 			return nil
 		}
 
+	case sm.CheckTypeMultiHttp:
+		// This is correct, MultiHttp is a K6 check. We probably want
+		// to abstrct this by adding a function to the settings that
+		// returns whether the check requires k6 or not.
+		if !c.features.IsSet(feature.K6) {
+			return nil
+		}
+
 	default:
 	}
 

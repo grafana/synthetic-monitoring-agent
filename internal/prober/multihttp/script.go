@@ -1,0 +1,266 @@
+package multihttp
+
+import (
+	"bytes"
+	"embed"
+	"fmt"
+	"net/url"
+	"strings"
+	"text/template"
+
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+)
+
+// embed script template
+//
+//go:embed script.tmpl
+var templateFS embed.FS
+
+func buildUrl(req *sm.MultiHttpEntryRequest) string {
+	// If we are here, the request has already been validated, and the URL
+	// should be valid. This function should never return an error.
+	u, _ := url.Parse(req.Url)
+
+	var buf strings.Builder
+
+	for _, field := range req.QueryFields {
+		if buf.Len() > 0 {
+			buf.WriteByte('&')
+		}
+		buf.WriteString(url.QueryEscape(field.Name))
+		if len(field.Value) > 0 {
+			buf.WriteByte('=')
+			buf.WriteString(url.QueryEscape(field.Value))
+		}
+	}
+
+	u.RawQuery = buf.String()
+
+	return template.JSEscapeString(u.String())
+}
+
+func buildHeaders(headers []*sm.HttpHeader) string {
+	var buf strings.Builder
+	buf.WriteRune('{')
+	for i, header := range headers {
+		if i > 0 {
+			buf.WriteRune(',')
+		}
+		buf.WriteRune('\'')
+		buf.WriteString(template.JSEscapeString(header.Name))
+		buf.WriteString(`':'`)
+		buf.WriteString(template.JSEscapeString(header.Value))
+		buf.WriteRune('\'')
+	}
+	buf.WriteRune('}')
+	return buf.String()
+}
+
+type assertionCondition sm.MultiHttpEntryAssertionConditionVariant
+
+func (c assertionCondition) Name(w *strings.Builder, subject, value string) {
+	w.WriteString(template.JSEscapeString(subject))
+	w.WriteRune(' ')
+
+	switch sm.MultiHttpEntryAssertionConditionVariant(c) {
+	case sm.MultiHttpEntryAssertionConditionVariant_NOT_CONTAINS:
+		w.WriteString(`does not contain`)
+
+	case sm.MultiHttpEntryAssertionConditionVariant_CONTAINS:
+		w.WriteString(`contains`)
+
+	case sm.MultiHttpEntryAssertionConditionVariant_EQUALS:
+		w.WriteString(`equals`)
+
+	case sm.MultiHttpEntryAssertionConditionVariant_STARTS_WITH:
+		w.WriteString(`starts with`)
+
+	case sm.MultiHttpEntryAssertionConditionVariant_ENDS_WITH:
+		w.WriteString(`ends with`)
+	}
+
+	w.WriteRune(' ')
+	w.WriteRune('"')
+	w.WriteString(template.JSEscapeString(value))
+	w.WriteRune('"')
+}
+
+func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
+	switch sm.MultiHttpEntryAssertionConditionVariant(c) {
+	case sm.MultiHttpEntryAssertionConditionVariant_NOT_CONTAINS:
+		w.WriteRune('!')
+		fallthrough
+
+	case sm.MultiHttpEntryAssertionConditionVariant_CONTAINS:
+		w.WriteString(subject)
+		w.WriteString(`.includes('`)
+		w.WriteString(template.JSEscapeString(value))
+		w.WriteString(`')`)
+
+	case sm.MultiHttpEntryAssertionConditionVariant_EQUALS:
+		w.WriteString(subject)
+		w.WriteString(` === '`)
+		w.WriteString(template.JSEscapeString(value))
+		w.WriteString(`'`)
+
+	case sm.MultiHttpEntryAssertionConditionVariant_STARTS_WITH:
+		w.WriteString(subject)
+		w.WriteString(`.startsWith('`)
+		w.WriteString(template.JSEscapeString(value))
+		w.WriteString(`')`)
+
+	case sm.MultiHttpEntryAssertionConditionVariant_ENDS_WITH:
+		w.WriteString(subject)
+		w.WriteString(`.endsWith('`)
+		w.WriteString(template.JSEscapeString(value))
+		w.WriteString(`')`)
+	}
+}
+
+// buildChecks takes a single assertion and produces the corresponding JavaScript code.
+//
+// This function is a mess because a single assertion represents multiple types
+// of checks.
+func buildChecks(assertion *sm.MultiHttpEntryAssertion) string {
+	var b strings.Builder
+
+	b.WriteString(`check(response, { '`)
+
+	switch assertion.Type {
+	case sm.MultiHttpEntryAssertionType_TEXT:
+		cond := assertionCondition(assertion.Condition)
+
+		switch assertion.Subject {
+		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY:
+			cond.Name(&b, "body", assertion.Value)
+			b.WriteString(`': response => `)
+			cond.Render(&b, "response.body", assertion.Value)
+
+		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
+			cond.Name(&b, "header", assertion.Value)
+			b.WriteString(`': response => { `)
+			b.WriteString(`const values = Object.entries(response.headers).map((key, value) => key + ': ' + value); `)
+			b.WriteString(`return !!values.find(value => `)
+			cond.Render(&b, "value", assertion.Value)
+			b.WriteString(`); }`)
+
+		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:
+			cond.Name(&b, "status code", assertion.Value)
+			b.WriteString(`': response => `)
+			cond.Render(&b, `response.status.toString()`, assertion.Value)
+		}
+
+	case sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE:
+		cond := assertionCondition(assertion.Condition)
+		cond.Name(&b, assertion.Expression, assertion.Value)
+		b.WriteString(`': response => jsonpath.query(response.json(), '`)
+		b.WriteString(template.JSEscapeString(assertion.Expression))
+		b.WriteString(`').some(values => `)
+		cond.Render(&b, `values`, assertion.Value)
+		b.WriteString(`)`)
+
+	case sm.MultiHttpEntryAssertionType_JSON_PATH_ASSERTION:
+		b.WriteString(assertion.Expression)
+		b.WriteString(` exists': response => jsonpath.query(response.json(), '`)
+		b.WriteString(assertion.Expression)
+		b.WriteString(`').length > 0`)
+
+	case sm.MultiHttpEntryAssertionType_REGEX_ASSERTION:
+		switch assertion.Subject {
+		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY:
+			b.WriteString(`body matches /`)
+			b.WriteString(template.JSEscapeString(assertion.Expression))
+			b.WriteString(`/': response => { const expr = new RegExp('`)
+			b.WriteString(template.JSEscapeString(assertion.Expression))
+			b.WriteString(`'); `)
+			b.WriteString(`return expr.test(response.body); }`)
+
+		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
+			b.WriteString(`headers matches /`)
+			b.WriteString(template.JSEscapeString(assertion.Expression))
+			b.WriteString(`/': response => { const expr = new RegExp('`)
+			b.WriteString(template.JSEscapeString(assertion.Expression))
+			b.WriteString(`'); `)
+			b.WriteString(`const values = Object.entries(response.headers).map((key, value) => key + ': ' + value); `)
+			b.WriteString(`return !!values.find(value => expr.test(value)); }`)
+
+		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:
+			b.WriteString(`status matches /`)
+			b.WriteString(template.JSEscapeString(assertion.Expression))
+			b.WriteString(`/': response => { const expr = new RegExp('`)
+			b.WriteString(template.JSEscapeString(assertion.Expression))
+			b.WriteString(`'); `)
+			b.WriteString(`return expr.test(response.status.toString()); }`)
+		}
+	}
+
+	b.WriteString(` });`)
+
+	return b.String()
+}
+
+func buildVars(variable *sm.MultiHttpEntryVariable) string {
+	var b strings.Builder
+
+	if variable.Type == sm.MultiHttpEntryVariableType_REGEX {
+		b.WriteString(`match = new RegExp('`)
+		b.WriteString(template.JSEscapeString(variable.Expression))
+		b.WriteString(`').exec(response.body); `)
+	}
+
+	b.WriteString(`vars['`)
+	b.WriteString(template.JSEscapeString(variable.Name))
+	b.WriteString(`'] = `)
+
+	switch variable.Type {
+	case sm.MultiHttpEntryVariableType_JSON_PATH:
+		b.WriteString(`jsonpath.query(response.json(), '`)
+		b.WriteString(template.JSEscapeString(variable.Expression))
+		b.WriteString(`')[0]`)
+
+	case sm.MultiHttpEntryVariableType_REGEX:
+		b.WriteString(`match ? match[1] || match[0] : null`)
+
+	case sm.MultiHttpEntryVariableType_CSS_SELECTOR:
+		b.WriteString(`response.html().find('`)
+		b.WriteString(template.JSEscapeString(variable.Expression))
+		b.WriteString(`')`)
+		if variable.Attribute == "" {
+			b.WriteString(`.html()`)
+		} else {
+			b.WriteString(`.first().attr('`)
+			b.WriteString(template.JSEscapeString(variable.Attribute))
+			b.WriteString(`')`)
+		}
+	}
+
+	b.WriteString(`;`)
+
+	return b.String()
+}
+
+func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
+	// Convert settings to script using a Go template
+	tmpl, err := template.
+		New("").
+		Funcs(template.FuncMap{
+			"buildHeaders": buildHeaders,
+			"buildUrl":     buildUrl,
+			"buildChecks":  buildChecks,
+			"buildVars":    buildVars,
+		}).
+		ParseFS(templateFS, "*.tmpl")
+	if err != nil {
+		return nil, fmt.Errorf("parsing script template: %w", err)
+	}
+
+	var buf bytes.Buffer
+
+	// TODO(mem): figure out if we need to transform the data in some way
+	// before executing the template
+	if err := tmpl.ExecuteTemplate(&buf, "script.tmpl", settings); err != nil {
+		return nil, fmt.Errorf("executing script template: %w", err)
+	}
+
+	return buf.Bytes(), nil
+}
