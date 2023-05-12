@@ -66,6 +66,7 @@ var (
 	ErrInvalidHttpUrl             = errors.New("invalid HTTP URL")
 	ErrInvalidHttpMethodString    = errors.New("invalid HTTP method string")
 	ErrInvalidHttpMethodValue     = errors.New("invalid HTTP method value")
+	ErrInvalidHttpUrlHost         = errors.New("invalid HTTP URL host")
 	ErrInvalidHttpHeaders         = errors.New("invalid HTTP headers")
 	ErrHttpUrlContainsPassword    = errors.New("HTTP URL contains username and password")
 	ErrHttpUrlContainsUsername    = errors.New("HTTP URL contains username")
@@ -649,6 +650,10 @@ func hasUniqueValues[U any, V comparable](slice []U, fn func(U) V) bool {
 }
 
 func (e *MultiHttpEntry) Validate() error {
+	if e.Request == nil {
+		return ErrInvalidMultiHttpTargets
+	}
+
 	if err := e.Request.Validate(); err != nil {
 		return err
 	}
@@ -1152,6 +1157,10 @@ func validateHostPort(target string) error {
 }
 
 func validateHttpUrl(target string) error {
+	if len(target) != len(strings.TrimSpace(target)) {
+		return ErrInvalidHttpUrl
+	}
+
 	u, err := url.Parse(target)
 	if err != nil {
 		return ErrInvalidHttpUrl
@@ -1167,6 +1176,10 @@ func validateHttpUrl(target string) error {
 
 	if !(u.Scheme == "http" || u.Scheme == "https") {
 		return ErrInvalidHttpUrl
+	}
+
+	if len(u.Host) == 0 {
+		return ErrInvalidHostname
 	}
 
 	hasPort := func(h string) bool {
