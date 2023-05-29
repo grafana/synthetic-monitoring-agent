@@ -16,6 +16,8 @@
 // messages used to communicate with synthetic-monitoring-api.
 package synthetic_monitoring
 
+//go:generate go run github.com/dmarkham/enumer -type=CheckType,CheckClass -trimprefix=CheckType,CheckClass -transform=snake -output=string.go
+
 import (
 	"errors"
 	"fmt"
@@ -154,50 +156,20 @@ const (
 	CheckTypeMultiHttp  CheckType = 6
 )
 
-var (
-	checkType_name = map[CheckType]string{
-		CheckTypeDns:        "dns",
-		CheckTypeHttp:       "http",
-		CheckTypePing:       "ping",
-		CheckTypeTcp:        "tcp",
-		CheckTypeTraceroute: "traceroute",
-		CheckTypeK6:         "k6",
-		CheckTypeMultiHttp:  "multi_http",
-	}
+type CheckClass int32
 
-	checkType_value = map[string]CheckType{
-		"dns":        CheckTypeDns,
-		"http":       CheckTypeHttp,
-		"ping":       CheckTypePing,
-		"tcp":        CheckTypeTcp,
-		"traceroute": CheckTypeTraceroute,
-		"k6":         CheckTypeK6,
-		"multi_http": CheckTypeMultiHttp,
-	}
+const (
+	CheckClassProtocol CheckClass = 0
+	CheckClassScripted CheckClass = 1
 )
 
-func (t CheckType) String() string {
-	str, found := checkType_name[t]
-	if !found {
-		panic("unhandled check type")
-	}
-
-	return str
-}
-
 func CheckTypeFromString(in string) (CheckType, bool) {
-	if checkType, found := checkType_value[in]; found {
-		return checkType, true
+	ct, err := CheckTypeString(in)
+	if err != nil {
+		return 0, false
 	}
 
-	// lowercase input, try again
-	in = strings.ToLower(in)
-
-	if checkType, found := checkType_value[in]; found {
-		return checkType, true
-	}
-
-	return 0, false
+	return ct, true
 }
 
 func (c Check) Type() CheckType {
@@ -225,6 +197,19 @@ func (c Check) Type() CheckType {
 
 	default:
 		panic("unhandled check type")
+	}
+}
+
+func (c Check) Class() CheckClass {
+	switch c.Type() {
+	case CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute:
+		return CheckClassProtocol
+
+	case CheckTypeK6, CheckTypeMultiHttp:
+		return CheckClassScripted
+
+	default:
+		panic("unhandled check class")
 	}
 }
 

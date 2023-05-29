@@ -12,24 +12,104 @@ import (
 
 var testDebugOutput = flag.Bool("test.debug-output", false, "include test debug output")
 
+var validCheckCases = map[CheckType]Check{
+	CheckTypeDns: {
+		Id:        1,
+		TenantId:  1,
+		Target:    "www.example.org",
+		Job:       "job",
+		Frequency: 1000,
+		Timeout:   1000,
+		Probes:    []int64{1},
+		Settings: CheckSettings{
+			Dns: &DnsSettings{
+				Server: "127.0.0.1",
+			},
+		},
+	},
+	CheckTypeHttp: {
+		Id:        1,
+		TenantId:  1,
+		Target:    "http://www.example.org",
+		Job:       "job",
+		Frequency: 1000,
+		Timeout:   1000,
+		Probes:    []int64{1},
+		Settings: CheckSettings{
+			Http: &HttpSettings{},
+		},
+	},
+	CheckTypePing: {
+		Id:        1,
+		TenantId:  1,
+		Target:    "127.0.0.1",
+		Job:       "job",
+		Frequency: 1000,
+		Timeout:   1000,
+		Probes:    []int64{1},
+		Settings: CheckSettings{
+			Ping: &PingSettings{},
+		},
+	},
+	CheckTypeTcp: {
+		Id:        1,
+		TenantId:  1,
+		Target:    "127.0.0.1:9000",
+		Job:       "job",
+		Frequency: 1000,
+		Timeout:   1000,
+		Probes:    []int64{1},
+		Settings: CheckSettings{
+			Tcp: &TcpSettings{},
+		},
+	},
+	CheckTypeTraceroute: {
+		Id:        1,
+		TenantId:  1,
+		Target:    "127.0.0.1",
+		Job:       "job",
+		Frequency: 120000,
+		Timeout:   30000,
+		Probes:    []int64{1},
+		Settings: CheckSettings{
+			Traceroute: &TracerouteSettings{},
+		},
+	},
+	CheckTypeK6: {
+		Id:        1,
+		TenantId:  1,
+		Target:    "http://www.example.org",
+		Job:       "job",
+		Frequency: 60000,
+		Timeout:   10000,
+		Probes:    []int64{1},
+		Settings: CheckSettings{
+			K6: &K6Settings{
+				Script: []byte("// test"),
+			},
+		},
+	},
+	CheckTypeMultiHttp: {
+		Id:        1,
+		TenantId:  1,
+		Target:    "http://www.example.org",
+		Job:       "job",
+		Frequency: 60000,
+		Timeout:   10000,
+		Probes:    []int64{1},
+		Settings: CheckSettings{
+			Multihttp: &MultiHttpSettings{},
+		},
+	},
+}
+
 func TestCheckValidate(t *testing.T) {
 	testcases := map[string]struct {
 		input       Check
 		expectError bool
 	}{
 		"trivial ping": {
-			input: Check{
-				Id:        1,
-				TenantId:  1,
-				Target:    "127.0.0.1",
-				Job:       "job",
-				Frequency: 1000,
-				Timeout:   1000,
-				Probes:    []int64{1},
-				Settings: CheckSettings{
-					Ping: &PingSettings{},
-				},
-			},
+			input:       validCheckCases[CheckTypePing],
 			expectError: false,
 		},
 		"invalid tenant": {
@@ -227,120 +307,81 @@ func TestCheckValidate(t *testing.T) {
 }
 
 func TestCheckType(t *testing.T) {
-	testcases := map[string]struct {
+	type testcase struct {
 		input    Check
 		expected CheckType
-	}{
-		"dns": {
-			input: Check{
-				Id:        1,
-				TenantId:  1,
-				Target:    "www.example.org",
-				Job:       "job",
-				Frequency: 1000,
-				Timeout:   1000,
-				Probes:    []int64{1},
-				Settings: CheckSettings{
-					Dns: &DnsSettings{
-						Server: "127.0.0.1",
-					},
-				},
-			},
-			expected: CheckTypeDns,
-		},
-		"http": {
-			input: Check{
-				Id:        1,
-				TenantId:  1,
-				Target:    "http://www.example.org",
-				Job:       "job",
-				Frequency: 1000,
-				Timeout:   1000,
-				Probes:    []int64{1},
-				Settings: CheckSettings{
-					Http: &HttpSettings{},
-				},
-			},
-			expected: CheckTypeHttp,
-		},
-		"ping": {
-			input: Check{
-				Id:        1,
-				TenantId:  1,
-				Target:    "127.0.0.1",
-				Job:       "job",
-				Frequency: 1000,
-				Timeout:   1000,
-				Probes:    []int64{1},
-				Settings: CheckSettings{
-					Ping: &PingSettings{},
-				},
-			},
-			expected: CheckTypePing,
-		},
-		"tcp": {
-			input: Check{
-				Id:        1,
-				TenantId:  1,
-				Target:    "127.0.0.1:9000",
-				Job:       "job",
-				Frequency: 1000,
-				Timeout:   1000,
-				Probes:    []int64{1},
-				Settings: CheckSettings{
-					Tcp: &TcpSettings{},
-				},
-			},
-			expected: CheckTypeTcp,
-		},
-		"traceroute": {
-			input: Check{
-				Id:        1,
-				TenantId:  1,
-				Target:    "127.0.0.1",
-				Job:       "job",
-				Frequency: 120000,
-				Timeout:   30000,
-				Probes:    []int64{1},
-				Settings: CheckSettings{
-					Traceroute: &TracerouteSettings{},
-				},
-			},
-			expected: CheckTypeTraceroute,
-		},
+	}
 
-		"k6": {
-			input: Check{
-				Id:        1,
-				TenantId:  1,
-				Target:    "http://www.example.org",
-				Job:       "job",
-				Frequency: 60000,
-				Timeout:   10000,
-				Probes:    []int64{1},
-				Settings: CheckSettings{
-					K6: &K6Settings{
-						Script: []byte("// test"),
-					},
-				},
-			},
-			expected: CheckTypeK6,
+	testcases := make(map[string]testcase)
+
+	for checkType, check := range validCheckCases {
+		testcases[checkType.String()] = testcase{
+			input:    check,
+			expected: checkType,
+		}
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual := testcase.input.Type()
+			require.Equal(t, testcase.expected, actual)
+		})
+	}
+}
+
+func TestCheckClass(t *testing.T) {
+	testcases := map[string]struct {
+		input    Check
+		expected CheckClass
+	}{
+		CheckTypeDns.String(): {
+			input:    validCheckCases[CheckTypeDns],
+			expected: CheckClassProtocol,
+		},
+		CheckTypeHttp.String(): {
+			input:    validCheckCases[CheckTypeHttp],
+			expected: CheckClassProtocol,
+		},
+		CheckTypePing.String(): {
+			input:    validCheckCases[CheckTypePing],
+			expected: CheckClassProtocol,
+		},
+		CheckTypeTcp.String(): {
+			input:    validCheckCases[CheckTypeTcp],
+			expected: CheckClassProtocol,
+		},
+		CheckTypeTraceroute.String(): {
+			input:    validCheckCases[CheckTypeTraceroute],
+			expected: CheckClassProtocol,
+		},
+		CheckTypeK6.String(): {
+			input:    validCheckCases[CheckTypeK6],
+			expected: CheckClassScripted,
+		},
+		CheckTypeMultiHttp.String(): {
+			input:    validCheckCases[CheckTypeMultiHttp],
+			expected: CheckClassScripted,
 		},
 	}
 
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
-			err := testcase.input.Validate()
-			checkError(t, false, err, testcase.input)
-			if err != nil {
-				return
-			}
-
-			actual := testcase.input.Type()
-			if testcase.expected != actual {
-				t.Errorf(`expecting %[1]d (%[1]s) for input %[3]q, but got %[2]d (%[2]s)`, testcase.expected, actual, &testcase.input)
-			}
+			actual := testcase.input.Class()
+			require.Equal(t, testcase.expected, actual)
 		})
+	}
+
+	hasTest := make(map[CheckType]bool)
+	for _, checkType := range CheckTypeValues() {
+		hasTest[checkType] = false
+	}
+
+	for _, testcase := range testcases {
+		hasTest[testcase.input.Type()] = true
+	}
+
+	for checkType, found := range hasTest {
+		require.True(t, found, "missing test for check type %s", checkType)
 	}
 }
 
@@ -369,15 +410,19 @@ func TestCheckTypeString(t *testing.T) {
 			input:    CheckTypeTraceroute,
 			expected: "traceroute",
 		},
+		"k6": {
+			input:    CheckTypeK6,
+			expected: "k6",
+		},
+		"multi_http": {
+			input:    CheckTypeMultiHttp,
+			expected: "multi_http",
+		},
 	}
 
 	for name, testcase := range testcases {
-		t.Run(name, func(t *testing.T) {
-			actual := testcase.input.String()
-			if testcase.expected != actual {
-				t.Errorf(`expecting %s for input %q, but got %s`, testcase.expected, &testcase.input, actual)
-			}
-		})
+		actual := testcase.input.String()
+		require.Equal(t, testcase.expected, actual, "testcase %s", name)
 	}
 }
 
