@@ -1,0 +1,46 @@
+time="2023-06-01T13:40:26-06:00" level=debug msg="Logger format: TEXT"
+time="2023-06-01T13:40:26-06:00" level=debug msg="k6 version: v0.43.1 ((devel), go1.20.4, linux/amd64)"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Resolving and reading test 'internal/k6runner/testdata/test.js'..."
+time="2023-06-01T13:40:26-06:00" level=debug msg=Loading... moduleSpecifier="file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js" originalModuleSpecifier=internal/k6runner/testdata/test.js
+time="2023-06-01T13:40:26-06:00" level=debug msg="'internal/k6runner/testdata/test.js' resolved to 'file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js' and successfully loaded 31 bytes!"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Gathering k6 runtime options..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Initializing k6 runner for 'internal/k6runner/testdata/test.js' (file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js)..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Detecting test type for..." test_path="file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Trying to load as a JS test..." test_path="file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Babel: Transformed" t=8.993963ms
+time="2023-06-01T13:40:26-06:00" level=debug msg="Runner successfully initialized!"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Parsing CLI flags..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Consolidating config layers..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Parsing thresholds and validating config..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Initializing the execution scheduler..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Starting 2 outputs..." component=output-manager
+time="2023-06-01T13:40:26-06:00" level=debug msg=Starting... component=metrics-engine-ingester
+time="2023-06-01T13:40:26-06:00" level=debug msg="Started!" component=metrics-engine-ingester
+time="2023-06-01T13:40:26-06:00" level=debug msg="Trapping interrupt signals so k6 can handle them gracefully..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Starting the REST API server on localhost:6565"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Starting emission of VUs and VUsMax metrics..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Start of initialization" executorsCount=1 neededVUs=1 phase=execution-scheduler-init
+time="2023-06-01T13:40:26-06:00" level=debug msg="Initialized VU #1" phase=execution-scheduler-init
+time="2023-06-01T13:40:26-06:00" level=debug msg="Finished initializing needed VUs, start initializing executors..." phase=execution-scheduler-init
+time="2023-06-01T13:40:26-06:00" level=debug msg="Initialized executor default" phase=execution-scheduler-init
+time="2023-06-01T13:40:26-06:00" level=debug msg="Initialization completed" phase=execution-scheduler-init
+time="2023-06-01T13:40:26-06:00" level=debug msg="Start of test run" executorsCount=1 phase=execution-scheduler-run
+time="2023-06-01T13:40:26-06:00" level=debug msg="setup() is not defined or not exported, skipping!"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Start all executors..." phase=execution-scheduler-run
+time="2023-06-01T13:40:26-06:00" level=debug msg="Starting executor" executor=default startTime=0s type=shared-iterations
+time="2023-06-01T13:40:26-06:00" level=debug msg="Starting executor run..." executor=shared-iterations iterations=1 maxDuration=10s scenario=default type=shared-iterations vus=1
+time="2023-06-01T13:40:26-06:00" level=debug msg="Regular duration is done, waiting for iterations to gracefully finish" executor=shared-iterations gracefulStop=30s scenario=default
+time="2023-06-01T13:40:26-06:00" level=debug msg="Executor finished successfully" executor=default startTime=0s type=shared-iterations
+time="2023-06-01T13:40:26-06:00" level=debug msg="teardown() is not defined or not exported, skipping!"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Test finished cleanly"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Stopping vus and vux_max metrics emission..." phase=execution-scheduler-init
+time="2023-06-01T13:40:26-06:00" level=debug msg="Metrics emission of VUs and VUsMax metrics stopped"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Releasing signal trap..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Waiting for metric processing to finish..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Metrics processing finished!"
+time="2023-06-01T13:40:26-06:00" level=debug msg="Stopping outputs..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Stopping 2 outputs..." component=output-manager
+time="2023-06-01T13:40:26-06:00" level=debug msg=Stopping... component=metrics-engine-ingester
+time="2023-06-01T13:40:26-06:00" level=debug msg="Stopped!" component=metrics-engine-ingester
+time="2023-06-01T13:40:26-06:00" level=debug msg="Generating the end-of-test summary..."
+time="2023-06-01T13:40:26-06:00" level=debug msg="Everything has finished, exiting k6 normally!"

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -77,7 +78,8 @@ func TestNewProber(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			p, err := NewProber(ctx, tc.check, logger)
+			var runner noopRunner
+			p, err := NewProber(ctx, tc.check, logger, runner)
 			if tc.expectFailure {
 				require.Error(t, err)
 				return
@@ -89,6 +91,17 @@ func TestNewProber(t *testing.T) {
 			// TODO: check script
 		})
 	}
+}
+
+type noopRunner struct{}
+
+func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
+	var r noopRunner
+	return r
+}
+
+func (noopRunner) Run(ctx context.Context, script []byte) (*k6runner.RunResponse, error) {
+	return &k6runner.RunResponse{}, nil
 }
 
 func testContext(t *testing.T) (context.Context, func()) {

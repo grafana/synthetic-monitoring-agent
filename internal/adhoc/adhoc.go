@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -37,6 +38,7 @@ type Handler struct {
 	tenantCh                     chan<- sm.Tenant
 	runnerFactory                func(context.Context, *sm.AdHocRequest) (*runner, error)
 	grpcAdhocChecksClientFactory func(conn ClientConn) (sm.AdHocChecksClient, error)
+	proberFactory                prober.ProberFactory
 }
 
 // Error represents errors returned from this package.
@@ -102,6 +104,7 @@ type HandlerOpts struct {
 	TenantCh       chan<- sm.Tenant
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
+	K6Runner       k6runner.Runner
 
 	// these two fields exists so that tests can pass alternate
 	// implementations, they are unexported so that clients of this
@@ -139,6 +142,7 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		tenantCh:                     opts.TenantCh,
 		runnerFactory:                opts.runnerFactory,
 		grpcAdhocChecksClientFactory: opts.grpcAdhocChecksClientFactory,
+		proberFactory:                prober.NewProberFactory(opts.K6Runner),
 		api: apiInfo{
 			conn: opts.Conn,
 		},
@@ -384,7 +388,7 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 		Settings: req.AdHocCheck.Settings,
 	}
 
-	p, target, err := prober.NewFromCheck(ctx, h.logger, check)
+	p, target, err := h.proberFactory.New(ctx, h.logger, check)
 	if err != nil {
 		return nil, err
 	}

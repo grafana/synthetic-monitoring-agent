@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/k6"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -25,7 +27,21 @@ func Run(ctx context.Context, p Prober, target string, registry *prometheus.Regi
 	return p.Probe(ctx, target, registry, logger)
 }
 
-func NewFromCheck(ctx context.Context, logger zerolog.Logger, check sm.Check) (Prober, string, error) {
+type ProberFactory interface {
+	New(ctx context.Context, logger zerolog.Logger, check sm.Check) (Prober, string, error)
+}
+
+type proberFactory struct {
+	runner k6runner.Runner
+}
+
+func NewProberFactory(runner k6runner.Runner) ProberFactory {
+	return proberFactory{
+		runner: runner,
+	}
+}
+
+func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check sm.Check) (Prober, string, error) {
 	var (
 		p      Prober
 		target string
@@ -54,11 +70,15 @@ func NewFromCheck(ctx context.Context, logger zerolog.Logger, check sm.Check) (P
 		target = check.Target
 
 	case sm.CheckTypeK6:
-		p, err = k6.NewProber(ctx, check, logger)
+		p, err = k6.NewProber(ctx, check, logger, f.runner)
+		target = check.Target
+
+	case sm.CheckTypeMultiHttp:
+		p, err = multihttp.NewProber(ctx, check, logger, f.runner)
 		target = check.Target
 
 	default:
-		return nil, "", fmt.Errorf("unsupported change")
+		return nil, "", fmt.Errorf("unsupported check type")
 	}
 
 	return p, target, err
