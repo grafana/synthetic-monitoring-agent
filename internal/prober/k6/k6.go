@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,10 +25,10 @@ type Module struct {
 type Prober struct {
 	logger zerolog.Logger
 	config Module
-	runner runner
+	script *k6runner.Script
 }
 
-func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger) (Prober, error) {
+func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner) (Prober, error) {
 	var p Prober
 
 	if check.Settings.K6 == nil {
@@ -37,12 +38,12 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger) (Prob
 	p.config = settingsToModule(check.Settings.K6)
 	p.config.Timeout = time.Duration(check.Timeout) * time.Millisecond
 
-	r, err := newRunner(check.Settings.K6.Script)
+	script, err := k6runner.NewScript(check.Settings.K6.Script, runner)
 	if err != nil {
 		return p, err
 	}
 
-	p.runner = r
+	p.script = script
 	p.logger = logger
 
 	return p, nil
@@ -53,7 +54,7 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
-	err := p.runner.Run(ctx, registry, logger, p.logger)
+	err := p.script.Run(ctx, registry, logger, p.logger)
 	if err != nil {
 		p.logger.Warn().Err(err).Msg("running probe")
 		return false

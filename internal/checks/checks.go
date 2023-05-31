@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
@@ -71,7 +72,8 @@ type Updater struct {
 	scrapersMutex  sync.Mutex
 	scrapers       map[int64]*scraper.Scraper
 	metrics        metrics
-	scraperFactory func(context.Context, sm.Check, chan<- pusher.Payload, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec) (*scraper.Scraper, error)
+	k6Runner       k6runner.Runner
+	scraperFactory func(context.Context, sm.Check, chan<- pusher.Payload, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec, k6runner.Runner) (*scraper.Scraper, error)
 }
 
 type apiInfo struct {
@@ -100,7 +102,8 @@ type UpdaterOptions struct {
 	IsConnected    func(bool)
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
-	ScraperFactory func(context.Context, sm.Check, chan<- pusher.Payload, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec) (*scraper.Scraper, error)
+	K6Runner       k6runner.Runner
+	ScraperFactory func(context.Context, sm.Check, chan<- pusher.Payload, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec, k6runner.Runner) (*scraper.Scraper, error)
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -215,6 +218,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantCh:       opts.TenantCh,
 		IsConnected:    opts.IsConnected,
 		scrapers:       make(map[int64]*scraper.Scraper),
+		k6Runner:       opts.K6Runner,
 		scraperFactory: scraperFactory,
 		metrics: metrics{
 			changeErrorsCounter: changeErrorsCounter,
@@ -816,7 +820,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 		return err
 	}
 
-	scraper, err := c.scraperFactory(ctx, check, c.publishCh, *c.probe, c.logger, scrapeCounter, scrapeErrorCounter)
+	scraper, err := c.scraperFactory(ctx, check, c.publishCh, *c.probe, c.logger, scrapeCounter, scrapeErrorCounter, c.k6Runner)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}

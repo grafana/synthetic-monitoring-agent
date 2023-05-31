@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -164,6 +165,8 @@ func run(args []string, stdout io.Writer) error {
 	}
 	defer conn.Close()
 
+	k6Runner := k6runner.New("k6") // FIXME(mem): get this from options
+
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:           conn,
 		Logger:         zl.With().Str("subsystem", "updater").Logger(),
@@ -173,6 +176,7 @@ func run(args []string, stdout io.Writer) error {
 		IsConnected:    readynessHandler.Set,
 		PromRegisterer: promRegisterer,
 		Features:       features,
+		K6Runner:       k6Runner,
 	})
 	if err != nil {
 		return fmt.Errorf("Cannot create checks updater: %w", err)
@@ -191,6 +195,7 @@ func run(args []string, stdout io.Writer) error {
 			TenantCh:       tenantCh,
 			PromRegisterer: promRegisterer,
 			Features:       features,
+			K6Runner:       k6Runner,
 		})
 		if err != nil {
 			return fmt.Errorf("Cannot create ad-hoc checks handler: %w", err)

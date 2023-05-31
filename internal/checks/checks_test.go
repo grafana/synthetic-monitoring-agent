@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -271,18 +272,21 @@ func (testProber) Probe(ctx context.Context, target string, registry *prometheus
 	return false
 }
 
-func testProbeFactory(ctx context.Context, logger zerolog.Logger, check sm.Check) (prober.Prober, string, error) {
+type testProbeFactory struct {
+}
+
+func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check sm.Check) (prober.Prober, string, error) {
 	return testProber{}, check.Target, nil
 }
 
-func testScraperFactory(ctx context.Context, check sm.Check, payloadCh chan<- pusher.Payload, _ sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, scrapeErrorCounter *prometheus.CounterVec) (*scraper.Scraper, error) {
+func testScraperFactory(ctx context.Context, check sm.Check, payloadCh chan<- pusher.Payload, _ sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, scrapeErrorCounter *prometheus.CounterVec, k6Runner k6runner.Runner) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
 		check,
 		scraper.ScraperOpts{
 			ErrorCounter:  scrapeErrorCounter,
 			Logger:        logger,
-			ProbeFactory:  testProbeFactory,
+			ProbeFactory:  testProbeFactory{},
 			PublishCh:     payloadCh,
 			ScrapeCounter: scrapeCounter,
 		},
