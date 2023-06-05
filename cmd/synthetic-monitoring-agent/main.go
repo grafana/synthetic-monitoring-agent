@@ -7,7 +7,9 @@ import (
 	"io"
 	"math"
 	"net"
+	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"syscall"
@@ -40,10 +42,11 @@ func run(args []string, stdout io.Writer) error {
 		reportVersion     = flags.Bool("version", false, "report version and exit")
 		grpcApiServerAddr = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
 		grpcInsecure      = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
-		httpListenAddr    = flags.String("listen-address", "localhost:4050", "listen address")
 		apiToken          = flags.String("api-token", "", "synthetic monitoring probe authentication token")
 		enableDisconnect  = flags.Bool("enable-disconnect", false, "enable HTTP /disconnect endpoint")
 		enablePProf       = flags.Bool("enable-pprof", false, "exposes profiling data via HTTP /debug/pprof/ endpoint")
+		httpListenAddr    = flags.String("listen-address", "localhost:4050", "listen address")
+		k6URI             = flags.String("k6-uri", "k6", "how to run k6 (path or URL)")
 	)
 
 	flags.Var(&features, "features", "optional feature flags")
@@ -73,6 +76,10 @@ func run(args []string, stdout io.Writer) error {
 
 	if *apiToken == "" {
 		return fmt.Errorf("invalid API token")
+	}
+
+	if err := validateK6URI(*k6URI); err != nil {
+		return fmt.Errorf("invalid k6 URI: %w", err)
 	}
 
 	baseCtx, cancel := context.WithCancel(context.Background())
@@ -165,7 +172,7 @@ func run(args []string, stdout io.Writer) error {
 	}
 	defer conn.Close()
 
-	k6Runner := k6runner.New("k6") // FIXME(mem): get this from options
+	k6Runner := k6runner.New(*k6URI)
 
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:           conn,
@@ -255,4 +262,30 @@ func stringFromEnv(name string, override string) string {
 	}
 
 	return os.Getenv(name)
+}
+
+func validateK6URI(uri string) error {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return err
+	}
+
+	switch u.Scheme {
+	case "http", "https":
+
+	case "":
+		if u.Path == "" {
+			return fmt.Errorf("missing path in %q", uri)
+		}
+
+		_, err := exec.LookPath(u.Path)
+		if err != nil {
+			return err
+		}
+
+	default:
+		return fmt.Errorf("invalid scheme %q", u.Scheme)
+	}
+
+	return nil
 }
