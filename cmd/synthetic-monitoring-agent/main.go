@@ -278,9 +278,11 @@ func validateK6URI(uri string) error {
 			return fmt.Errorf("missing path in %q", uri)
 		}
 
-		_, err := exec.LookPath(u.Path)
-		if err != nil {
-			return err
+		if false {
+			_, err := exec.LookPath(u.Path)
+			if err != nil {
+				return err
+			}
 		}
 
 	default:
