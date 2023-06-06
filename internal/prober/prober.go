@@ -70,12 +70,20 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check sm.
 		target = check.Target
 
 	case sm.CheckTypeK6:
-		p, err = k6.NewProber(ctx, check, logger, f.runner)
-		target = check.Target
+		if f.runner != nil {
+			p, err = k6.NewProber(ctx, check, logger, f.runner)
+			target = check.Target
+		} else {
+			err = fmt.Errorf("k6 checks are not enabled")
+		}
 
 	case sm.CheckTypeMultiHttp:
-		p, err = multihttp.NewProber(ctx, check, logger, f.runner)
-		target = check.Target
+		if f.runner != nil {
+			p, err = multihttp.NewProber(ctx, check, logger, f.runner)
+			target = check.Target
+		} else {
+			err = fmt.Errorf("k6 checks are not enabled")
+		}
 
 	default:
 		return nil, "", fmt.Errorf("unsupported check type")
