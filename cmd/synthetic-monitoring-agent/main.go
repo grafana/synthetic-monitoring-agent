@@ -78,10 +78,6 @@ func run(args []string, stdout io.Writer) error {
 		return fmt.Errorf("invalid API token")
 	}
 
-	if err := validateK6URI(*k6URI); err != nil {
-		return fmt.Errorf("invalid k6 URI: %w", err)
-	}
-
 	baseCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -116,6 +112,24 @@ func run(args []string, stdout io.Writer) error {
 		Str("buildstamp", version.Buildstamp()).
 		Str("features", features.String()).
 		Msg("starting")
+
+	if features.IsSet(feature.K6) {
+		newUri, err := validateK6URI(*k6URI)
+		if err != nil {
+			*k6URI = ""
+			zl.Warn().Str("k6URI", *k6URI).Err(err).Msg("invalid k6 URI")
+		} else if newUri != *k6URI {
+			*k6URI = newUri
+		}
+	} else {
+		*k6URI = ""
+	}
+
+	if len(*k6URI) > 0 {
+		zl.Info().Str("k6URI", *k6URI).Msg("enabling k6 checks")
+	} else {
+		zl.Info().Msg("disabling k6 checks")
+	}
 
 	promRegisterer := prometheus.NewRegistry()
 
@@ -172,7 +186,11 @@ func run(args []string, stdout io.Writer) error {
 	}
 	defer conn.Close()
 
-	k6Runner := k6runner.New(*k6URI)
+	var k6Runner k6runner.Runner
+
+	if features.IsSet(feature.K6) && len(*k6URI) > 0 {
+		k6Runner = k6runner.New(*k6URI)
+	}
 
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:           conn,
@@ -264,10 +282,10 @@ func stringFromEnv(name string, override string) string {
 	return os.Getenv(name)
 }
 
-func validateK6URI(uri string) error {
+func validateK6URI(uri string) (string, error) {
 	u, err := url.Parse(uri)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	switch u.Scheme {
@@ -275,19 +293,17 @@ func validateK6URI(uri string) error {
 
 	case "":
 		if u.Path == "" {
-			return fmt.Errorf("missing path in %q", uri)
+			return "", fmt.Errorf("missing path in %q", uri)
 		}
 
-		if false {
-			_, err := exec.LookPath(u.Path)
-			if err != nil {
-				return err
-			}
+		uri, err = exec.LookPath(u.Path)
+		if err != nil {
+			return "", err
 		}
 
 	default:
-		return fmt.Errorf("invalid scheme %q", u.Scheme)
+		return "", fmt.Errorf("invalid scheme %q", u.Scheme)
 	}
 
-	return nil
+	return uri, nil
 }
