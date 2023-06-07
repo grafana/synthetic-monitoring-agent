@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const proberName = "multi_http"
+const proberName = "multihttp"
 
 var errUnsupportedCheck = errors.New("unsupported check")
 

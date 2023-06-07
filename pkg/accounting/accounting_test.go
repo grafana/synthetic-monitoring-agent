@@ -165,6 +165,70 @@ func getTestCases() map[string]struct {
 			},
 			class: "traceroute_basic",
 		},
+		"k6": {
+			input: synthetic_monitoring.Check{
+				Target:  "http://127.0.0.1/",
+				Timeout: 2000,
+				Settings: synthetic_monitoring.CheckSettings{
+					K6: &synthetic_monitoring.K6Settings{
+						Script: []byte(`export default function() {}`),
+					},
+				},
+			},
+			class: "k6",
+		},
+		"k6_basic": {
+			input: synthetic_monitoring.Check{
+				Target:           "http://127.0.0.1/",
+				Timeout:          2000,
+				BasicMetricsOnly: true,
+				Settings: synthetic_monitoring.CheckSettings{
+					K6: &synthetic_monitoring.K6Settings{
+						Script: []byte(`export default function() {}`),
+					},
+				},
+			},
+			class: "k6_basic",
+		},
+		"multihttp": {
+			input: synthetic_monitoring.Check{
+				Target:  "http://127.0.0.1/",
+				Timeout: 2000,
+				Settings: synthetic_monitoring.CheckSettings{
+					Multihttp: &synthetic_monitoring.MultiHttpSettings{
+						Entries: []*synthetic_monitoring.MultiHttpEntry{
+							{
+								Request: &synthetic_monitoring.MultiHttpEntryRequest{
+									Method: synthetic_monitoring.HttpMethod_GET,
+									Url:    "http://127.0.0.1/",
+								},
+							},
+						},
+					},
+				},
+			},
+			class: "multihttp",
+		},
+		"multihttp_basic": {
+			input: synthetic_monitoring.Check{
+				Target:           "http://127.0.0.1/",
+				Timeout:          2000,
+				BasicMetricsOnly: true,
+				Settings: synthetic_monitoring.CheckSettings{
+					Multihttp: &synthetic_monitoring.MultiHttpSettings{
+						Entries: []*synthetic_monitoring.MultiHttpEntry{
+							{
+								Request: &synthetic_monitoring.MultiHttpEntryRequest{
+									Method: synthetic_monitoring.HttpMethod_GET,
+									Url:    "http://127.0.0.1/",
+								},
+							},
+						},
+					},
+				},
+			},
+			class: "multihttp_basic",
+		},
 	}
 }
 
@@ -185,7 +249,7 @@ func TestGetActiveSeriesForCheck(t *testing.T) {
 	// the keys in activeSeriesByCheckType.
 	for checkType := range activeSeriesByCheckType {
 		_, found := testcases[checkType]
-		require.True(t, found, "every element in activeSeriesByCheckType must be tested")
+		require.Truef(t, found, "every element in activeSeriesByCheckType must be tested, missing %s", checkType)
 	}
 
 	for name, tc := range testcases {
@@ -203,7 +267,7 @@ func TestGetCheckAccountingClass(t *testing.T) {
 	// See comment in TestGetActiveSeriesForCheck
 	for checkType := range activeSeriesByCheckType {
 		_, found := testcases[checkType]
-		require.True(t, found, "every element in activeSeriesByCheckType must be tested")
+		require.Truef(t, found, "every element in activeSeriesByCheckType must be tested, missing %s", checkType)
 	}
 
 	for name, tc := range testcases {
