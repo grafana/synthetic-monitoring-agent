@@ -340,6 +340,8 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 
 	start := time.Now()
 
+	r.logger.Info().Str("command", cmd.String()).Bytes("script", script).Msg("running k6 script")
+
 	if err := cmd.Run(); err != nil {
 		r.logger.Error().Err(err).Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("cannot run k6")
 		return nil, fmt.Errorf("cannot execute k6 script: %w", err)
@@ -363,6 +365,8 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 		r.logger.Error().Err(err).Str("filename", logsFn).Msg("cannot read metrics file")
 		return nil, fmt.Errorf("cannot read logs: %w", err)
 	}
+
+	r.logger.Debug().Bytes("metrics", result.Metrics).Bytes("logs", result.Logs).Msg("k6 result")
 
 	return &result, nil
 }

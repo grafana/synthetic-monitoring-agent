@@ -414,9 +414,9 @@ func TestCheckTypeString(t *testing.T) {
 			input:    CheckTypeK6,
 			expected: "k6",
 		},
-		"multi_http": {
+		"multihttp": {
 			input:    CheckTypeMultiHttp,
-			expected: "multi_http",
+			expected: "multihttp",
 		},
 	}
 

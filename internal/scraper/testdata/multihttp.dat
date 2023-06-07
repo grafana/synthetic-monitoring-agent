@@ -1,0 +1,15 @@
+probe_data_sent_bytes{scenario="default"} 188
+probe_data_received_bytes{scenario="default"} 94
+probe_iteration_duration_seconds{scenario="default"} 0.001219277
+probe_http_info{proto="HTTP/1.1",expected_response="true",url="http://127.0.0.1:41427",method="GET",scenario="default"} 1
+probe_http_requests_total{url="http://127.0.0.1:41427",method="GET",scenario="default"} 1
+probe_http_requests_failed_total{url="http://127.0.0.1:41427",method="GET",scenario="default"} 0
+probe_http_status_code{url="http://127.0.0.1:41427",method="GET",scenario="default"} 200
+probe_http_version{url="http://127.0.0.1:41427",method="GET",scenario="default"} 1.1
+probe_http_ssl{url="http://127.0.0.1:41427",method="GET",scenario="default"} 0
+probe_http_duration_seconds{phase="resolve",url="http://127.0.0.1:41427",method="GET",scenario="default"} 0
+probe_http_duration_seconds{phase="connect",url="http://127.0.0.1:41427",method="GET",scenario="default"} 0.000204212
+probe_http_duration_seconds{phase="tls",url="http://127.0.0.1:41427",method="GET",scenario="default"} 0
+probe_http_duration_seconds{phase="processing",url="http://127.0.0.1:41427",method="GET",scenario="default"} 0.000562602
+probe_http_duration_seconds{phase="transfer",url="http://127.0.0.1:41427",method="GET",scenario="default"} 9.5226e-05
+

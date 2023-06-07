@@ -16,7 +16,7 @@
 // messages used to communicate with synthetic-monitoring-api.
 package synthetic_monitoring
 
-//go:generate go run github.com/dmarkham/enumer -type=CheckType,CheckClass -trimprefix=CheckType,CheckClass -transform=snake -output=string.go
+//go:generate go run github.com/dmarkham/enumer -type=CheckType,CheckClass -trimprefix=CheckType,CheckClass -transform=lower -output=string.go
 
 import (
 	"errors"

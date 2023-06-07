@@ -20,14 +20,18 @@ import (
 	"time"
 
 	"github.com/go-logfmt/logfmt"
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	dnsProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/k6"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
+	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/miekg/dns"
 	"github.com/mmcloughlin/geohash"
@@ -244,6 +248,97 @@ func TestValidateMetrics(t *testing.T) {
 				}
 
 				return p, check, func() {}
+			},
+		},
+
+		"k6": {
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}))
+				httpSrv.Start()
+
+				check := sm.Check{
+					Target:  httpSrv.URL,
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						K6: &sm.K6Settings{
+							Script: []byte(`export default function() {}`),
+						},
+					},
+				}
+
+				var runner k6runner.Runner
+
+				if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
+					runner = k6runner.New(k6Path)
+				} else {
+					runner = &testRunner{
+						metrics: testhelper.MustReadFile(t, "testdata/k6.dat"),
+						logs:    nil,
+					}
+				}
+
+				prober, err := k6.NewProber(
+					ctx,
+					check,
+					zerolog.New(zerolog.NewTestWriter(t)),
+					runner,
+				)
+				if err != nil {
+					t.Fatalf("cannot create K6 prober: %s", err)
+				}
+
+				return prober, check, httpSrv.Close
+			},
+		},
+
+		"multihttp": {
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.WriteHeader(http.StatusOK)
+				}))
+				httpSrv.Start()
+
+				check := sm.Check{
+					Target:  httpSrv.URL,
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						Multihttp: &sm.MultiHttpSettings{
+							Entries: []*sm.MultiHttpEntry{
+								{
+									Request: &sm.MultiHttpEntryRequest{
+										Method: sm.HttpMethod_GET,
+										Url:    httpSrv.URL,
+									},
+								},
+							},
+						},
+					},
+				}
+
+				var runner k6runner.Runner
+
+				if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
+					runner = k6runner.New(k6Path)
+				} else {
+					runner = &testRunner{
+						metrics: testhelper.MustReadFile(t, "testdata/multihttp.dat"),
+						logs:    nil,
+					}
+				}
+
+				prober, err := multihttp.NewProber(
+					ctx,
+					check,
+					zerolog.New(zerolog.NewTestWriter(t)),
+					runner,
+				)
+				if err != nil {
+					t.Fatalf("cannot create MultiHTTP prober: %s", err)
+				}
+
+				return prober, check, httpSrv.Close
 			},
 		},
 	}
@@ -1219,4 +1314,22 @@ func TestTruncateLabelValue(t *testing.T) {
 			}
 		})
 	}
+}
+
+type testRunner struct {
+	metrics []byte
+	logs    []byte
+}
+
+var _ k6runner.Runner = &testRunner{}
+
+func (r *testRunner) Run(ctx context.Context, script []byte) (*k6runner.RunResponse, error) {
+	return &k6runner.RunResponse{
+		Metrics: r.metrics,
+		Logs:    r.logs,
+	}, nil
+}
+
+func (r *testRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
+	return r
 }
