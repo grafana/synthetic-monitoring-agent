@@ -13,6 +13,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/prometheus/prompb"
+	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
@@ -21,13 +29,6 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/prompb"
-	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type Error string
@@ -65,7 +66,7 @@ type Updater struct {
 	logger         zerolog.Logger
 	features       feature.Collection
 	backoff        Backoffer
-	publishCh      chan<- pusher.Payload
+	publisher      pusher.Publisher
 	tenantCh       chan<- sm.Tenant
 	IsConnected    func(bool)
 	probe          *sm.Probe
@@ -73,7 +74,7 @@ type Updater struct {
 	scrapers       map[int64]*scraper.Scraper
 	metrics        metrics
 	k6Runner       k6runner.Runner
-	scraperFactory func(context.Context, sm.Check, chan<- pusher.Payload, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec, k6runner.Runner) (*scraper.Scraper, error)
+	scraperFactory func(context.Context, sm.Check, pusher.Publisher, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec, k6runner.Runner) (*scraper.Scraper, error)
 }
 
 type apiInfo struct {
@@ -97,13 +98,13 @@ type UpdaterOptions struct {
 	Conn           *grpc.ClientConn
 	Logger         zerolog.Logger
 	Backoff        Backoffer
-	PublishCh      chan<- pusher.Payload
+	Publisher      pusher.Publisher
 	TenantCh       chan<- sm.Tenant
 	IsConnected    func(bool)
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
 	K6Runner       k6runner.Runner
-	ScraperFactory func(context.Context, sm.Check, chan<- pusher.Payload, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec, k6runner.Runner) (*scraper.Scraper, error)
+	ScraperFactory func(context.Context, sm.Check, pusher.Publisher, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec, k6runner.Runner) (*scraper.Scraper, error)
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -214,7 +215,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		logger:         opts.Logger,
 		features:       opts.Features,
 		backoff:        opts.Backoff,
-		publishCh:      opts.PublishCh,
+		publisher:      opts.Publisher,
 		tenantCh:       opts.TenantCh,
 		IsConnected:    opts.IsConnected,
 		scrapers:       make(map[int64]*scraper.Scraper),
@@ -820,7 +821,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 		return err
 	}
 
-	scraper, err := c.scraperFactory(ctx, check, c.publishCh, *c.probe, c.logger, scrapeCounter, scrapeErrorCounter, c.k6Runner)
+	scraper, err := c.scraperFactory(ctx, check, c.publisher, *c.probe, c.logger, scrapeCounter, scrapeErrorCounter, c.k6Runner)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}

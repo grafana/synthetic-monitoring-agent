@@ -14,17 +14,18 @@ import (
 	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-kit/kit/log/level"  //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-logfmt/logfmt"
-	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
-	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
-	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
-	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mmcloughlin/geohash"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
+
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
 const (
@@ -40,7 +41,7 @@ var (
 )
 
 type Scraper struct {
-	publishCh     chan<- pusher.Payload
+	publisher     pusher.Publisher
 	cancel        context.CancelFunc
 	checkName     string
 	target        string
@@ -76,10 +77,10 @@ func (d *probeData) Tenant() int64 {
 	return d.tenantId
 }
 
-func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, probe sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec, k6runner k6runner.Runner) (*Scraper, error) {
+func New(ctx context.Context, check sm.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec, k6runner k6runner.Runner) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
-		PublishCh:     publishCh,
+		Publisher:     publisher,
 		Logger:        logger,
 		ScrapeCounter: scrapeCounter,
 		ErrorCounter:  errorCounter,
@@ -89,7 +90,7 @@ func New(ctx context.Context, check sm.Check, publishCh chan<- pusher.Payload, p
 
 type ScraperOpts struct {
 	Probe         sm.Probe
-	PublishCh     chan<- pusher.Payload
+	Publisher     pusher.Publisher
 	Logger        zerolog.Logger
 	ScrapeCounter prometheus.Counter
 	ErrorCounter  *prometheus.CounterVec
@@ -114,7 +115,7 @@ func NewWithOpts(ctx context.Context, check sm.Check, opts ScraperOpts) (*Scrape
 	}
 
 	return &Scraper{
-		publishCh:     opts.PublishCh,
+		publisher:     opts.Publisher,
 		cancel:        cancel,
 		checkName:     checkName,
 		target:        target,
@@ -207,7 +208,7 @@ func (s *Scraper) Run(ctx context.Context) {
 		}
 
 		if payload != nil {
-			s.publishCh <- payload
+			s.publisher.Publish(payload)
 		}
 	}
 
@@ -230,7 +231,7 @@ func (s *Scraper) Run(ctx context.Context) {
 
 		payload.streams = nil
 
-		s.publishCh <- payload
+		s.publisher.Publish(payload)
 
 		payload = nil
 	}

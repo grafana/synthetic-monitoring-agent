@@ -15,6 +15,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jpillora/backoff"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc/grpclog"
+
 	"github.com/grafana/synthetic-monitoring-agent/internal/adhoc"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
@@ -23,11 +29,9 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
-	"github.com/jpillora/backoff"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/zerolog"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc/grpclog"
+
+	// Register pusher implementations
+	_ "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 )
 
 const exitFail = 1
@@ -49,6 +53,7 @@ func run(args []string, stdout io.Writer) error {
 		enablePProf          = flags.Bool("enable-pprof", false, "exposes profiling data via HTTP /debug/pprof/ endpoint")
 		httpListenAddr       = flags.String("listen-address", "localhost:4050", "listen address")
 		k6URI                = flags.String("k6-uri", "k6", "how to run k6 (path or URL)")
+		selectedPublisher    = flags.String("publisher", "v1", "publisher type (EXPERIMENTAL)")
 	)
 
 	flags.Var(&features, "features", "optional feature flags")
@@ -190,7 +195,6 @@ func run(args []string, stdout io.Writer) error {
 		return httpServer.Run(httpListener)
 	})
 
-	publishCh := make(chan pusher.Payload)
 	tenantCh := make(chan synthetic_monitoring.Tenant)
 
 	conn, err := dialAPIServer(ctx, *grpcApiServerAddr, *grpcInsecure, *apiToken)
@@ -205,11 +209,20 @@ func run(args []string, stdout io.Writer) error {
 		k6Runner = k6runner.New(*k6URI)
 	}
 
+	tm := pusher.NewTenantManager(ctx, synthetic_monitoring.NewTenantsClient(conn), tenantCh, 15*time.Minute)
+
+	publisherFactory, err := pusher.FactoryRegistry.Lookup(*selectedPublisher)
+	if err != nil {
+		return fmt.Errorf("creating publisher: %w", err)
+	}
+
+	publisher := publisherFactory(ctx, tm, zl.With().Str("subsystem", "publisher").Str("version", *selectedPublisher).Logger(), promRegisterer)
+
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:           conn,
 		Logger:         zl.With().Str("subsystem", "updater").Logger(),
 		Backoff:        newConnectionBackoff(),
-		PublishCh:      publishCh,
+		Publisher:      publisher,
 		TenantCh:       tenantCh,
 		IsConnected:    readynessHandler.Set,
 		PromRegisterer: promRegisterer,
@@ -229,7 +242,7 @@ func run(args []string, stdout io.Writer) error {
 			Conn:           conn,
 			Logger:         zl.With().Str("subsystem", "adhoc").Logger(),
 			Backoff:        newConnectionBackoff(),
-			PublishCh:      publishCh,
+			Publisher:      publisher,
 			TenantCh:       tenantCh,
 			PromRegisterer: promRegisterer,
 			Features:       features,
@@ -243,14 +256,6 @@ func run(args []string, stdout io.Writer) error {
 			return adhocHandler.Run(ctx)
 		})
 	}
-
-	tm := pusher.NewTenantManager(ctx, synthetic_monitoring.NewTenantsClient(conn), tenantCh, 15*time.Minute)
-
-	publisher := pusher.NewPublisher(tm, publishCh, zl.With().Str("subsystem", "publisher").Logger(), promRegisterer)
-
-	g.Go(func() error {
-		return publisher.Run(ctx)
-	})
 
 	return g.Wait()
 }

@@ -7,10 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
-	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
-	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -19,6 +15,11 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+
+	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
 func TestNewHandler(t *testing.T) {
@@ -28,7 +29,7 @@ func TestNewHandler(t *testing.T) {
 	opts := HandlerOpts{
 		Conn:           nil,
 		Logger:         zerolog.New(io.Discard),
-		PublishCh:      make(chan pusher.Payload),
+		Publisher:      channelPublisher(make(chan pusher.Payload)),
 		TenantCh:       make(chan sm.Tenant),
 		PromRegisterer: prometheus.NewPedanticRegistry(),
 		Features:       features,
@@ -41,7 +42,7 @@ func TestNewHandler(t *testing.T) {
 	require.Equal(t, opts.Conn, h.api.conn)
 	require.Equal(t, opts.Logger, h.logger)
 	require.Equal(t, opts.Features, h.features)
-	require.Equal(t, opts.PublishCh, h.publishCh)
+	require.Equal(t, opts.Publisher, h.publisher)
 	require.NotNil(t, h.runnerFactory)
 	require.NotNil(t, h.grpcAdhocChecksClientFactory)
 	require.Nil(t, h.probe, "probe should not be set at this point")
@@ -61,7 +62,7 @@ func TestHandlerRun(t *testing.T) {
 
 	opts := HandlerOpts{
 		Logger:         logger,
-		PublishCh:      publishCh,
+		Publisher:      channelPublisher(publishCh),
 		TenantCh:       make(chan sm.Tenant),
 		PromRegisterer: prometheus.NewPedanticRegistry(),
 		Features:       features,
@@ -91,6 +92,12 @@ func TestHandlerRun(t *testing.T) {
 	payload := <-publishCh
 	require.Len(t, payload.Metrics(), 0)
 	require.Len(t, payload.Streams(), 1)
+}
+
+type channelPublisher chan pusher.Payload
+
+func (c channelPublisher) Publish(payload pusher.Payload) {
+	c <- payload
 }
 
 type grpcTestError struct {
@@ -178,7 +185,7 @@ func TestHandlerRunErrors(t *testing.T) {
 			opts := HandlerOpts{
 				Conn:           &grpcTestConn{},
 				Logger:         logger,
-				PublishCh:      publishCh,
+				Publisher:      channelPublisher(publishCh),
 				Backoff:        testBackoff{},
 				TenantCh:       make(chan sm.Tenant),
 				PromRegisterer: prometheus.NewPedanticRegistry(),

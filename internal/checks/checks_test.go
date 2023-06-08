@@ -7,6 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
@@ -14,11 +20,6 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-	"github.com/rs/zerolog"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 )
 
 func TestNewUpdater(t *testing.T) {
@@ -34,7 +35,7 @@ func TestNewUpdater(t *testing.T) {
 			opts: UpdaterOptions{
 				Conn:           new(grpc.ClientConn),
 				PromRegisterer: prometheus.NewPedanticRegistry(),
-				PublishCh:      make(chan<- pusher.Payload),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
 				Logger:         zerolog.Nop(),
 				Features:       testFeatureCollection,
@@ -47,7 +48,7 @@ func TestNewUpdater(t *testing.T) {
 			u, err := NewUpdater(tc.opts)
 			require.NoError(t, err)
 			require.NotNil(t, u)
-			require.Equal(t, tc.opts.PublishCh, u.publishCh)
+			require.Equal(t, tc.opts.Publisher, u.publisher)
 			require.Equal(t, tc.opts.TenantCh, u.tenantCh)
 			require.Equal(t, tc.opts.Features, u.features)
 			require.Equal(t, tc.opts.Logger, u.logger)
@@ -153,13 +154,13 @@ func TestSleepCtx(t *testing.T) {
 // this is to decouple the testing of these functions from the testing
 // of the prober themselves.
 func TestHandleCheckOp(t *testing.T) {
-	publishCh := make(chan<- pusher.Payload, 100)
+	publishCh := make(chan pusher.Payload, 100)
 
 	u, err := NewUpdater(
 		UpdaterOptions{
 			Conn:           new(grpc.ClientConn),
 			PromRegisterer: prometheus.NewPedanticRegistry(),
-			PublishCh:      publishCh,
+			Publisher:      channelPublisher(publishCh),
 			TenantCh:       make(chan<- sm.Tenant),
 			Logger:         zerolog.Nop(),
 			ScraperFactory: testScraperFactory,
@@ -279,7 +280,7 @@ func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check 
 	return testProber{}, check.Target, nil
 }
 
-func testScraperFactory(ctx context.Context, check sm.Check, payloadCh chan<- pusher.Payload, _ sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, scrapeErrorCounter *prometheus.CounterVec, k6Runner k6runner.Runner) (*scraper.Scraper, error) {
+func testScraperFactory(ctx context.Context, check sm.Check, publisher pusher.Publisher, _ sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, scrapeErrorCounter *prometheus.CounterVec, k6Runner k6runner.Runner) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
 		check,
@@ -287,8 +288,14 @@ func testScraperFactory(ctx context.Context, check sm.Check, payloadCh chan<- pu
 			ErrorCounter:  scrapeErrorCounter,
 			Logger:        logger,
 			ProbeFactory:  testProbeFactory{},
-			PublishCh:     payloadCh,
+			Publisher:     publisher,
 			ScrapeCounter: scrapeCounter,
 		},
 	)
+}
+
+type channelPublisher chan pusher.Payload
+
+func (c channelPublisher) Publish(payload pusher.Payload) {
+	c <- payload
 }
