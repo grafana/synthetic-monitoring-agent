@@ -201,7 +201,11 @@ func (c Check) Type() CheckType {
 }
 
 func (c Check) Class() CheckClass {
-	switch c.Type() {
+	return c.Type().Class()
+}
+
+func (c CheckType) Class() CheckClass {
+	switch c {
 	case CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute:
 		return CheckClassProtocol
 

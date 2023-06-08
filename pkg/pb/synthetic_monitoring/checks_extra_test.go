@@ -426,6 +426,62 @@ func TestCheckTypeString(t *testing.T) {
 	}
 }
 
+func TestCheckTypeClass(t *testing.T) {
+	testcases := map[string]struct {
+		input    CheckType
+		expected CheckClass
+	}{
+		CheckTypeDns.String(): {
+			input:    CheckTypeDns,
+			expected: CheckClassProtocol,
+		},
+		CheckTypeHttp.String(): {
+			input:    CheckTypeHttp,
+			expected: CheckClassProtocol,
+		},
+		CheckTypePing.String(): {
+			input:    CheckTypePing,
+			expected: CheckClassProtocol,
+		},
+		CheckTypeTcp.String(): {
+			input:    CheckTypeTcp,
+			expected: CheckClassProtocol,
+		},
+		CheckTypeTraceroute.String(): {
+			input:    CheckTypeTraceroute,
+			expected: CheckClassProtocol,
+		},
+		CheckTypeK6.String(): {
+			input:    CheckTypeK6,
+			expected: CheckClassScripted,
+		},
+		CheckTypeMultiHttp.String(): {
+			input:    CheckTypeMultiHttp,
+			expected: CheckClassScripted,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual := testcase.input.Class()
+			require.Equal(t, testcase.expected, actual)
+		})
+	}
+
+	hasTest := make(map[CheckType]bool)
+	for _, checkType := range CheckTypeValues() {
+		hasTest[checkType] = false
+	}
+
+	for _, testcase := range testcases {
+		hasTest[testcase.input] = true
+	}
+
+	for checkType, found := range hasTest {
+		require.True(t, found, "missing test for check type %s", checkType)
+	}
+}
+
 func TestValidateHost(t *testing.T) {
 	testcases := map[string]struct {
 		input       string
