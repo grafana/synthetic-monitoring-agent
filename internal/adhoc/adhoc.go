@@ -8,13 +8,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
-	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
-	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
-	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
-	"github.com/grafana/synthetic-monitoring-agent/internal/version"
-	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -22,6 +15,14 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/status"
+
+	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/version"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
 // Handler is in charge of retrieving ad-hoc checks from the
@@ -34,7 +35,7 @@ type Handler struct {
 	backoff                      Backoffer
 	probe                        *sm.Probe
 	metrics                      metrics
-	publishCh                    chan<- pusher.Payload
+	publisher                    pusher.Publisher
 	tenantCh                     chan<- sm.Tenant
 	runnerFactory                func(context.Context, *sm.AdHocRequest) (*runner, error)
 	grpcAdhocChecksClientFactory func(conn ClientConn) (sm.AdHocChecksClient, error)
@@ -100,7 +101,7 @@ type HandlerOpts struct {
 	Conn           ClientConn
 	Logger         zerolog.Logger
 	Backoff        Backoffer
-	PublishCh      chan<- pusher.Payload
+	Publisher      pusher.Publisher
 	TenantCh       chan<- sm.Tenant
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
@@ -138,7 +139,7 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		logger:                       opts.Logger,
 		features:                     opts.Features,
 		backoff:                      opts.Backoff,
-		publishCh:                    opts.PublishCh,
+		publisher:                    opts.Publisher,
 		tenantCh:                     opts.TenantCh,
 		runnerFactory:                opts.runnerFactory,
 		grpcAdhocChecksClientFactory: opts.grpcAdhocChecksClientFactory,
@@ -361,7 +362,7 @@ func (h *Handler) handleAdHocCheck(ctx context.Context, ahReq *sm.AdHocRequest) 
 		return err
 	}
 
-	go runner.Run(ctx, ahReq.AdHocCheck.TenantId, h.publishCh)
+	go runner.Run(ctx, ahReq.AdHocCheck.TenantId, h.publisher)
 
 	// If there's a tenant in the request, this should be forwarded
 	// to the changes handler.
@@ -446,7 +447,7 @@ func (l *jsonLogger) Log(keyvals ...interface{}) error {
 
 // Run runs the specified prober once and captures the results using
 // jsonLogger.
-func (r *runner) Run(ctx context.Context, tenantId int64, publishCh chan<- pusher.Payload) {
+func (r *runner) Run(ctx context.Context, tenantId int64, publisher pusher.Publisher) {
 	r.logger.Info().Msg("running ad-hoc check")
 
 	registry := prometheus.NewRegistry()
@@ -503,7 +504,7 @@ func (r *runner) Run(ctx context.Context, tenantId int64, publishCh chan<- pushe
 		Str("check_name", r.prober.Name()).
 		Msg("ad-hoc check done")
 
-	publishCh <- adhocData{
+	publisher.Publish(adhocData{
 		tenantId: tenantId,
 		streams: Streams{
 			{
@@ -516,7 +517,7 @@ func (r *runner) Run(ctx context.Context, tenantId int64, publishCh chan<- pushe
 				},
 			},
 		},
-	}
+	})
 
 	r.logger.Debug().
 		Str("id", r.id).
