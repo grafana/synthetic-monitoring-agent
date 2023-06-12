@@ -265,6 +265,8 @@ func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error
 		return nil, fmt.Errorf("decoding script result: %w", err)
 	}
 
+	r.logger.Debug().Bytes("metrics", result.Metrics).Bytes("logs", result.Logs).Msg("script result")
+
 	return &result, nil
 }
 
