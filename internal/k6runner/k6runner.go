@@ -85,7 +85,26 @@ func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger l
 	return nil
 }
 
+type customCollector struct {
+	metrics []prometheus.Metric
+}
+
+func (c *customCollector) Describe(ch chan<- *prometheus.Desc) {
+	// We do not send any descriptions in order to create an unchecked
+	// metric. This allows us to have a metric with the same name and
+	// different label values.
+	//
+	// TODO(mem): reevaluate if this is really want we want to do.
+}
+
+func (c *customCollector) Collect(ch chan<- prometheus.Metric) {
+	for _, m := range c.metrics {
+		ch <- m
+	}
+}
+
 func textToRegistry(metrics []byte, registry prometheus.Registerer, logger zerolog.Logger) error {
+	collector := &customCollector{}
 	promDecoder := expfmt.NewDecoder(bytes.NewBuffer(metrics), expfmt.FmtText)
 	decoderOpts := expfmt.DecodeOptions{Timestamp: model.Now()}
 	for {
@@ -117,21 +136,23 @@ func textToRegistry(metrics []byte, registry prometheus.Registerer, logger zerol
 
 				delete(sample.Metric, model.MetricNameLabel)
 
-				g := prometheus.NewGauge(prometheus.GaugeOpts{
-					Name:        string(name),
-					ConstLabels: metricToLabels(sample.Metric),
-				})
-
-				err := registry.Register(g)
+				desc := prometheus.NewDesc(string(name), mf.GetHelp(), nil, metricToLabels(sample.Metric))
+				// TODO(mem): maybe change this to untyped?
+				m, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, float64(sample.Value))
 				if err != nil {
+					logger.Error().Err(err).Msg("creating prometheus metric")
 					return err
 				}
 
-				g.Set(float64(sample.Value))
+				collector.metrics = append(collector.metrics, m)
 			}
 
 		case io.EOF:
 			// nothing was returned, we are done
+			if err := registry.Register(collector); err != nil {
+				return err
+			}
+
 			return nil
 
 		default:
