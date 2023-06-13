@@ -51,6 +51,14 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 		return p, err
 	}
 
+	logger.Debug().
+		Int64("tenantId", check.TenantId).
+		Int64("checkId", check.Id).
+		Str("target", check.Target).
+		Str("job", check.Job).
+		Bytes("script", script).
+		Msg("created prober")
+
 	p.script = k6Script
 	p.logger = logger
 
