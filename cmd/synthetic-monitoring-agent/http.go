@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/pprof"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -26,9 +28,10 @@ type MuxOpts struct {
 		prometheus.Registerer
 		prometheus.Gatherer
 	}
-	isReady           *readynessHandler
-	disconnectEnabled bool
-	pprofEnabled      bool
+	isReady               *readynessHandler
+	changeLogLevelEnabled bool
+	disconnectEnabled     bool
+	pprofEnabled          bool
 }
 
 func NewMux(opts MuxOpts) *Mux {
@@ -48,6 +51,10 @@ func NewMux(opts MuxOpts) *Mux {
 	isReady := &atomic.Value{}
 	isReady.Store(false)
 	router.Handle("/ready", opts.isReady)
+
+	if opts.changeLogLevelEnabled {
+		router.Handle("/logger", loggerHandler(opts.Logger))
+	}
 
 	// disconnect this agent from the API
 	if opts.disconnectEnabled {
@@ -186,4 +193,39 @@ func disconnectHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "disconnecting this agent from the API for 1 minute.")
+}
+
+func loggerHandler(logger zerolog.Logger) http.Handler {
+	defaultLevel := logger.GetLevel()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+			return
+		}
+
+		level, err := io.ReadAll(&io.LimitedReader{R: r.Body, N: 10})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Consume the rest of the request if there's anything there.
+		_, _ = io.Copy(io.Discard, r.Body)
+
+		_ = r.Body.Close()
+
+		switch strings.TrimSpace(strings.ToLower(string(level))) {
+		case "debug":
+			zerolog.SetGlobalLevel(zerolog.DebugLevel)
+			logger.Warn().Stringer("level", zerolog.DebugLevel).Msg("changed log level")
+
+		case "default":
+			zerolog.SetGlobalLevel(defaultLevel)
+			logger.Warn().Stringer("level", defaultLevel).Msg("changed log level")
+
+		default:
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		}
+	})
 }

@@ -36,17 +36,19 @@ func run(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet(filepath.Base(args[0]), flag.ExitOnError)
 
 	var (
-		features          = feature.NewCollection()
-		debug             = flags.Bool("debug", false, "debug output (enables verbose)")
-		verbose           = flags.Bool("verbose", false, "verbose logging")
-		reportVersion     = flags.Bool("version", false, "report version and exit")
-		grpcApiServerAddr = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
-		grpcInsecure      = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
-		apiToken          = flags.String("api-token", "", "synthetic monitoring probe authentication token")
-		enableDisconnect  = flags.Bool("enable-disconnect", false, "enable HTTP /disconnect endpoint")
-		enablePProf       = flags.Bool("enable-pprof", false, "exposes profiling data via HTTP /debug/pprof/ endpoint")
-		httpListenAddr    = flags.String("listen-address", "localhost:4050", "listen address")
-		k6URI             = flags.String("k6-uri", "k6", "how to run k6 (path or URL)")
+		features             = feature.NewCollection()
+		devMode              = flags.Bool("dev", false, "turn on all development flags")
+		debug                = flags.Bool("debug", false, "debug output (enables verbose)")
+		verbose              = flags.Bool("verbose", false, "verbose logging")
+		reportVersion        = flags.Bool("version", false, "report version and exit")
+		grpcApiServerAddr    = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
+		grpcInsecure         = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
+		apiToken             = flags.String("api-token", "", "synthetic monitoring probe authentication token")
+		enableChangeLogLevel = flags.Bool("enable-change-log-level", false, "enable changing the log level at runtime")
+		enableDisconnect     = flags.Bool("enable-disconnect", false, "enable HTTP /disconnect endpoint")
+		enablePProf          = flags.Bool("enable-pprof", false, "exposes profiling data via HTTP /debug/pprof/ endpoint")
+		httpListenAddr       = flags.String("listen-address", "localhost:4050", "listen address")
+		k6URI                = flags.String("k6-uri", "k6", "how to run k6 (path or URL)")
 	)
 
 	flags.Var(&features, "features", "optional feature flags")
@@ -64,6 +66,13 @@ func run(args []string, stdout io.Writer) error {
 			version.Commit(),
 		)
 		return nil
+	}
+
+	if *devMode {
+		*debug = true
+		*enableChangeLogLevel = true
+		*enableDisconnect = true
+		*enablePProf = true
 	}
 
 	// If the token is provided on the command line, prefer that. Otherwise
@@ -111,6 +120,9 @@ func run(args []string, stdout io.Writer) error {
 		Str("commit", version.Commit()).
 		Str("buildstamp", version.Buildstamp()).
 		Str("features", features.String()).
+		Bool("change-log-level-enabled", *enableChangeLogLevel).
+		Bool("disconnect-enabled", *enableDisconnect).
+		Bool("pprof-enabled", *enablePProf).
 		Msg("starting")
 
 	if features.IsSet(feature.K6) {
@@ -141,11 +153,12 @@ func run(args []string, stdout io.Writer) error {
 	readynessHandler := NewReadynessHandler()
 
 	router := NewMux(MuxOpts{
-		Logger:            zl.With().Str("subsystem", "mux").Logger(),
-		PromRegisterer:    promRegisterer,
-		isReady:           readynessHandler,
-		disconnectEnabled: *enableDisconnect,
-		pprofEnabled:      *enablePProf,
+		Logger:                zl.With().Str("subsystem", "mux").Logger(),
+		PromRegisterer:        promRegisterer,
+		isReady:               readynessHandler,
+		changeLogLevelEnabled: *enableChangeLogLevel,
+		disconnectEnabled:     *enableDisconnect,
+		pprofEnabled:          *enablePProf,
 	})
 
 	httpConfig := http.Config{
