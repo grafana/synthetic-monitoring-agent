@@ -213,37 +213,47 @@ func TestAssertionConditionRender(t *testing.T) {
 
 func TestBuildChecks(t *testing.T) {
 	testcases := map[string]struct {
+		url       string
+		method    string
 		assertion *sm.MultiHttpEntryAssertion
 		expected  string
 	}{
 		"TestBuildChecksTextAssertionWithBodySubject": {
+			url:    "http://example.com",
+			method: "GET",
 			assertion: &sm.MultiHttpEntryAssertion{
 				Type:      sm.MultiHttpEntryAssertionType_TEXT,
 				Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
 				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
 				Value:     "value",
 			},
-			expected: `check(response, { 'body contains "value"': response => response.body.includes('value') });`,
+			expected: `check(response, { 'body contains "value"': response => response.body.includes('value') }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksTextAssertionWithHeadersSubject": {
+			url:    "http://example.com",
+			method: "GET",
 			assertion: &sm.MultiHttpEntryAssertion{
 				Type:      sm.MultiHttpEntryAssertionType_TEXT,
 				Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
 				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
 				Value:     "value",
 			},
-			expected: `check(response, { 'header contains "value"': response => { const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => value.includes('value')); } });`,
+			expected: `check(response, { 'header contains "value"': response => { const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => value.includes('value')); } }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksTextAssertionWithStatusCodeSubject": {
+			url:    "http://example.com",
+			method: "GET",
 			assertion: &sm.MultiHttpEntryAssertion{
 				Type:      sm.MultiHttpEntryAssertionType_TEXT,
 				Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
 				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE,
 				Value:     "value",
 			},
-			expected: `check(response, { 'status code contains "value"': response => response.status.toString().includes('value') });`,
+			expected: `check(response, { 'status code contains "value"': response => response.status.toString().includes('value') }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksJsonPathValueAssertionWithBodySubject": {
+			url:    "http://example.com",
+			method: "GET",
 			assertion: &sm.MultiHttpEntryAssertion{
 				Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE,
 				Condition:  sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
@@ -251,45 +261,53 @@ func TestBuildChecks(t *testing.T) {
 				Expression: "/path/to/value",
 				Value:      "value",
 			},
-			expected: `check(response, { '/path/to/value contains "value"': response => jsonpath.query(response.json(), '/path/to/value').some(values => values.includes('value')) });`,
+			expected: `check(response, { '/path/to/value contains "value"': response => jsonpath.query(response.json(), '/path/to/value').some(values => values.includes('value')) }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksJsonPathAssertionWithBodySubject": {
+			url:    "http://example.com",
+			method: "GET",
 			assertion: &sm.MultiHttpEntryAssertion{
 				Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_ASSERTION,
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
 				Expression: "/path/to/value",
 			},
-			expected: `check(response, { '/path/to/value exists': response => jsonpath.query(response.json(), '/path/to/value').length > 0 });`,
+			expected: `check(response, { '/path/to/value exists': response => jsonpath.query(response.json(), '/path/to/value').length > 0 }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksRegexAssertionWithBodySubject": {
+			url:    "http://example.com",
+			method: "GET",
 			assertion: &sm.MultiHttpEntryAssertion{
 				Type:       sm.MultiHttpEntryAssertionType_REGEX_ASSERTION,
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
 				Expression: "regex",
 			},
-			expected: `check(response, { 'body matches /regex/': response => { const expr = new RegExp('regex'); return expr.test(response.body); } });`,
+			expected: `check(response, { 'body matches /regex/': response => { const expr = new RegExp('regex'); return expr.test(response.body); } }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksRegexAssertionWithHeadersSubject": {
+			url:    "http://example.com",
+			method: "GET",
 			assertion: &sm.MultiHttpEntryAssertion{
 				Type:       sm.MultiHttpEntryAssertionType_REGEX_ASSERTION,
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
 				Expression: "regex",
 			},
-			expected: `check(response, { 'headers matches /regex/': response => { const expr = new RegExp('regex'); const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => expr.test(value)); } });`,
+			expected: `check(response, { 'headers matches /regex/': response => { const expr = new RegExp('regex'); const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => expr.test(value)); } }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksRegexAssertionWithStatusCodeSubject": {
+			url:    "http://example.com",
+			method: "GET",
 			assertion: &sm.MultiHttpEntryAssertion{
 				Type:       sm.MultiHttpEntryAssertionType_REGEX_ASSERTION,
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE,
 				Expression: "regex",
 			},
-			expected: `check(response, { 'status matches /regex/': response => { const expr = new RegExp('regex'); return expr.test(response.status.toString()); } });`,
+			expected: `check(response, { 'status matches /regex/': response => { const expr = new RegExp('regex'); return expr.test(response.status.toString()); } }, {"url": "http://example.com", "method": "GET"});`,
 		},
 	}
 
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
-			actual := buildChecks(testcase.assertion)
+			actual := buildChecks(testcase.url, testcase.method, testcase.assertion)
 			require.Equal(t, testcase.expected, actual)
 		})
 	}

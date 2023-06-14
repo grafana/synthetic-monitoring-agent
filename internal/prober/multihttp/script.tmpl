@@ -50,12 +50,14 @@ export default function() {
 	const vars = {};
 
 	{{ range .Entries }}
-	response = http.request('{{ .Request.Method }}', '{{ buildUrl .Request }}', null, {
+	{{- $url := buildUrl .Request }}
+	{{- $method := .Request.Method.String }}
+	response = http.request('{{ $method }}', '{{ $url }}', null, {
 		// TODO(mem): build params out of options for the check
 		redirects: 0,{{ if gt (len .Request.Headers) 0 }}
 		headers: {{ buildHeaders .Request.Headers }}{{ end }}
 	});
-	{{ range .Assertions }}{{ buildChecks . }}
+	{{ range .Assertions }}{{ buildChecks $url $method . }}
 	{{ end -}}
 	{{ range .Variables }}{{ buildVars . }}
 	{{ end -}}
