@@ -121,7 +121,7 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 //
 // This function is a mess because a single assertion represents multiple types
 // of checks.
-func buildChecks(assertion *sm.MultiHttpEntryAssertion) string {
+func buildChecks(url, method string, assertion *sm.MultiHttpEntryAssertion) string {
 	var b strings.Builder
 
 	b.WriteString(`check(response, { '`)
@@ -194,7 +194,19 @@ func buildChecks(assertion *sm.MultiHttpEntryAssertion) string {
 		}
 	}
 
-	b.WriteString(` });`)
+	b.WriteString(` }`)
+	b.WriteString(`, `)
+
+	// Add tags to the check: url, method
+	b.WriteString(`{`)
+	b.WriteString(`"url": "`)
+	b.WriteString(url)
+	b.WriteString(`", "method": "`)
+	b.WriteString(method)
+	b.WriteRune('"')
+	b.WriteString(`}`)
+
+	b.WriteString(`);`)
 
 	return b.String()
 }
