@@ -139,7 +139,7 @@ func buildChecks(assertion *sm.MultiHttpEntryAssertion) string {
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
 			cond.Name(&b, "header", assertion.Value)
 			b.WriteString(`': response => { `)
-			b.WriteString(`const values = Object.entries(response.headers).map((key, value) => key + ': ' + value); `)
+			b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
 			b.WriteString(`return !!values.find(value => `)
 			cond.Render(&b, "value", assertion.Value)
 			b.WriteString(`); }`)
@@ -181,7 +181,7 @@ func buildChecks(assertion *sm.MultiHttpEntryAssertion) string {
 			b.WriteString(`/': response => { const expr = new RegExp('`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
 			b.WriteString(`'); `)
-			b.WriteString(`const values = Object.entries(response.headers).map((key, value) => key + ': ' + value); `)
+			b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
 			b.WriteString(`return !!values.find(value => expr.test(value)); }`)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:

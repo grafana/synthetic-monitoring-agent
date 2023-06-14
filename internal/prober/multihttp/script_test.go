@@ -232,7 +232,7 @@ func TestBuildChecks(t *testing.T) {
 				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
 				Value:     "value",
 			},
-			expected: `check(response, { 'header contains "value"': response => { const values = Object.entries(response.headers).map((key, value) => key + ': ' + value); return !!values.find(value => value.includes('value')); } });`,
+			expected: `check(response, { 'header contains "value"': response => { const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => value.includes('value')); } });`,
 		},
 		"TestBuildChecksTextAssertionWithStatusCodeSubject": {
 			assertion: &sm.MultiHttpEntryAssertion{
@@ -275,7 +275,7 @@ func TestBuildChecks(t *testing.T) {
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
 				Expression: "regex",
 			},
-			expected: `check(response, { 'headers matches /regex/': response => { const expr = new RegExp('regex'); const values = Object.entries(response.headers).map((key, value) => key + ': ' + value); return !!values.find(value => expr.test(value)); } });`,
+			expected: `check(response, { 'headers matches /regex/': response => { const expr = new RegExp('regex'); const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => expr.test(value)); } });`,
 		},
 		"TestBuildChecksRegexAssertionWithStatusCodeSubject": {
 			assertion: &sm.MultiHttpEntryAssertion{
