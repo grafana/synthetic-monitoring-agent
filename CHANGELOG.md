@@ -2,8 +2,14 @@
 ## [Unreleased]
 
 
+<a name="v0.16.5"></a>
+## [v0.16.5] - 2023-07-14
+### Fix
+- don't use 0 in subject and condition enums
+
+
 <a name="v0.16.4"></a>
-## [v0.16.4] - 2023-06-14
+## [v0.16.4] - 2023-07-05
 
 <a name="v0.16.3"></a>
 ## [v0.16.3] - 2023-06-13
@@ -443,7 +449,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.4...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.5...HEAD
+[v0.16.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.4...v0.16.5
 [v0.16.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.3...v0.16.4
 [v0.16.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.2...v0.16.3
 [v0.16.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.1...v0.16.2
