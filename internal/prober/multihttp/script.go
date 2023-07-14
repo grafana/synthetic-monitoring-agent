@@ -66,7 +66,7 @@ func (c assertionCondition) Name(w *strings.Builder, subject, value string) {
 	case sm.MultiHttpEntryAssertionConditionVariant_NOT_CONTAINS:
 		w.WriteString(`does not contain`)
 
-	case sm.MultiHttpEntryAssertionConditionVariant_CONTAINS:
+	case sm.MultiHttpEntryAssertionConditionVariant_CONTAINS, sm.MultiHttpEntryAssertionConditionVariant_DEFAULT_CONDITION:
 		w.WriteString(`contains`)
 
 	case sm.MultiHttpEntryAssertionConditionVariant_EQUALS:
@@ -91,7 +91,7 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 		w.WriteRune('!')
 		fallthrough
 
-	case sm.MultiHttpEntryAssertionConditionVariant_CONTAINS:
+	case sm.MultiHttpEntryAssertionConditionVariant_CONTAINS, sm.MultiHttpEntryAssertionConditionVariant_DEFAULT_CONDITION:
 		w.WriteString(subject)
 		w.WriteString(`.includes('`)
 		w.WriteString(template.JSEscapeString(value))
@@ -131,7 +131,7 @@ func buildChecks(url, method string, assertion *sm.MultiHttpEntryAssertion) stri
 		cond := assertionCondition(assertion.Condition)
 
 		switch assertion.Subject {
-		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY:
+		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY, sm.MultiHttpEntryAssertionSubjectVariant_DEFAULT_SUBJECT:
 			cond.Name(&b, "body", assertion.Value)
 			b.WriteString(`': response => `)
 			cond.Render(&b, "response.body", assertion.Value)
@@ -167,7 +167,7 @@ func buildChecks(url, method string, assertion *sm.MultiHttpEntryAssertion) stri
 
 	case sm.MultiHttpEntryAssertionType_REGEX_ASSERTION:
 		switch assertion.Subject {
-		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY:
+		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY, sm.MultiHttpEntryAssertionSubjectVariant_DEFAULT_SUBJECT:
 			b.WriteString(`body matches /`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
 			b.WriteString(`/': response => { const expr = new RegExp('`)

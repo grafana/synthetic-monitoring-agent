@@ -507,19 +507,21 @@ enum MultiHttpEntryAssertionType {
 
 // MultiHttpEntryAssertionSubjectVariant represents the subject of the assertion.
 enum MultiHttpEntryAssertionSubjectVariant {
-  RESPONSE_BODY    = 0;
+  DEFAULT_SUBJECT  = 0;
   RESPONSE_HEADERS = 1;
   HTTP_STATUS_CODE = 2;
+  RESPONSE_BODY    = 3;
 }
 
 // MultiHttpEntryAssertionConditionVariant represents the condition between the assertion's expression and value.
 enum MultiHttpEntryAssertionConditionVariant {
-  CONTAINS     = 0;
-  NOT_CONTAINS = 1;
-  EQUALS       = 2;
-  STARTS_WITH  = 3;
-  ENDS_WITH    = 4;
-  TYPE_OF      = 5;
+  DEFAULT_CONDITION = 0;
+  NOT_CONTAINS      = 1;
+  EQUALS            = 2;
+  STARTS_WITH       = 3;
+  ENDS_WITH         = 4;
+  TYPE_OF           = 5;
+  CONTAINS          = 6;
 }
 
 // MultiHttpEntryAssertion represents a single assertion to be made on the response.
