@@ -25,20 +25,20 @@ next_version_patch() {
 	major=$(echo "${parts}" | cut -d. -f1)
 	minor=$(echo "${parts}" | cut -d. -f2)
 	patch=$(echo "${parts}" | cut -d. -f3)
-	echo "${major}.${minor}.$((${patch}+1))"
+	echo "${major}.${minor}.$((patch+1))"
 }
 
 next_version_minor() {
 	parts=$(current_version)
 	major=$(echo "${parts}" | cut -d. -f1)
 	minor=$(echo "${parts}" | cut -d. -f2)
-	echo "${major}.$((${minor}+1)).0"
+	echo "${major}.$((minor+1)).0"
 }
 
 next_version_major() {
 	parts=$(current_version)
 	major=$(echo "${parts}" | cut -d. -f1)
-	echo "$((${major}+1)).0.0"
+	echo "$((major+1)).0.0"
 }
 
 if test -z "${next_version}" ; then
@@ -65,6 +65,8 @@ if test -z "${next_version}" ; then
 	exit 4
 fi
 
+last_subject=$(git log --format=%s --max-count=1)
+
 commit_msg=$(mktemp)
 
 cleanup() {
@@ -73,18 +75,42 @@ cleanup() {
 
 trap cleanup EXIT
 
-cur_version=$(git describe --tags | cut -d- -f1)
+if test "${last_subject}" != "Release ${next_version}" ; then
+	# Need to create release notes.
+	cur_version=$(git describe --tags | cut -d- -f1)
 
-git chglog --next-tag "${next_version}" > CHANGELOG.md
+	git chglog --next-tag "${next_version}" > CHANGELOG.md
 
-git add CHANGELOG.md
+	git add CHANGELOG.md
 
-cat > "${commit_msg}" <<EOT
-Release ${next_version}
+	git switch --create "release-${next_version}"
 
-$(git log --oneline "${cur_version}".. | cut -d' ' -f2- | sed -e 's,^,* ,')
-EOT
+	cat > "${commit_msg}" <<-EOT
+	Release ${next_version}
 
-git commit --signoff --file="${commit_msg}"
+	$(git log --oneline --reverse "${cur_version}".. | cut -d' ' -f2- | sed -e 's,^,* ,')
+	EOT
 
-git tag --annotate --file="${commit_msg}" "${next_version}"
+	git commit --signoff --file="${commit_msg}"
+
+	cat <<-EOT
+
+	A commit has been created to update the CHANGELOG.md file and prepare a
+	release for version ${next_version}.
+
+	Please open a PR and once that is merged, run this script again with the
+	same version number as argument.
+	EOT
+else
+	# Need to create tag.
+	git show --pretty=format:"%B" --no-patch > "${commit_msg}"
+
+	git tag --annotate --file="${commit_msg}" "${next_version}"
+
+	cat <<-EOT
+	An annotated tag has been created for version ${next_version}.
+
+	You must push this tag to the remote repository in order to trigger the
+	release process.
+	EOT
+fi
