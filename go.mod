@@ -32,7 +32,7 @@ require (
 	github.com/go-ping/ping v1.1.0
 	github.com/gogo/status v1.1.1
 	github.com/jpillora/backoff v1.0.0
-	github.com/mccutchen/go-httpbin/v2 v2.8.0
+	github.com/mccutchen/go-httpbin/v2 v2.10.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	github.com/spf13/afero v1.9.5
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.69
