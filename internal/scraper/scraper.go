@@ -114,6 +114,16 @@ func NewWithOpts(ctx context.Context, check sm.Check, opts ScraperOpts) (*Scrape
 		return nil, err
 	}
 
+	// If the check frequency is longer than the maximum metrics gaps,
+	// wrap the publisher in a MetricGapFiller to prevent discontinuities
+	// in time series.
+	if time.Duration(check.Frequency)*time.Millisecond > pusher.MetricsMaxGap {
+		opts.Publisher = &pusher.MetricGapFiller{
+			MaxGap:    maxGap,
+			Publisher: opts.Publisher,
+		}
+	}
+
 	return &Scraper{
 		publisher:     opts.Publisher,
 		cancel:        cancel,
