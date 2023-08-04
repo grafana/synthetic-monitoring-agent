@@ -119,7 +119,7 @@ func NewWithOpts(ctx context.Context, check sm.Check, opts ScraperOpts) (*Scrape
 	// in time series.
 	if time.Duration(check.Frequency)*time.Millisecond > pusher.MetricsMaxGap {
 		opts.Publisher = &pusher.MetricGapFiller{
-			MaxGap:    maxGap,
+			MaxGap:    pusher.MetricsMaxGap,
 			Publisher: opts.Publisher,
 		}
 	}

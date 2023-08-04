@@ -37,6 +37,12 @@ func TestGap(t *testing.T) {
 		}
 	}
 
+	// The format for representing a timeseries here is:
+	//
+	// metric_name{"key"="value",...} value@time[,value2@time2...]
+	//
+	// This results in a prompb.TimeSeries with Labels __name__="metric_name", the rest of the labels,
+	// and one or more samples with the given value and timestamp.
 	type subtest struct {
 		input, expected Payload
 	}
