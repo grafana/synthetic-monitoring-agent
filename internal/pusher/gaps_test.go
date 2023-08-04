@@ -37,12 +37,21 @@ func TestGap(t *testing.T) {
 		}
 	}
 
+	// Format
+	// ======
+	//
 	// The format for representing a timeseries here is:
 	//
 	// metric_name{"key"="value",...} value@time[,value2@time2...]
 	//
 	// This results in a prompb.TimeSeries with Labels __name__="metric_name", the rest of the labels,
 	// and one or more samples with the given value and timestamp.
+	//
+	// Expected
+	// ========
+	//
+	// A missing expected field for a test means the output is expected to be the same
+	// as the input.g
 	type subtest struct {
 		input, expected Payload
 	}
