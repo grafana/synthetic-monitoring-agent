@@ -1,8 +1,10 @@
 package prom_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
@@ -13,7 +15,11 @@ type FailNTimesPrometheusClient struct {
 	FailuresLeft   int64
 }
 
-func (f *FailNTimesPrometheusClient) Store(ctx context.Context, req []byte) error {
+func (f *FailNTimesPrometheusClient) StoreBytes(ctx context.Context, req []byte) error {
+	return f.StoreStream(ctx, bytes.NewReader(req))
+}
+
+func (f *FailNTimesPrometheusClient) StoreStream(ctx context.Context, req io.Reader) error {
 	if f.FailuresLeft == 0 {
 		return nil
 	}
