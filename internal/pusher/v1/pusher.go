@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"sync"
 	"time"
@@ -17,7 +16,6 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/loki"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
-	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -133,7 +131,7 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 		// The above tenant ID is potentially a global ID. This is valid
 		// for using internally but in logs and metrics we want to publish
 		// the region and local tenant ID.
-		localID, regionID = getLocalAndRegionIDs(tenantID)
+		localID, regionID = pusher.GetLocalAndRegionIDs(tenantID)
 		regionStr         = strconv.FormatInt(int64(regionID), 10)
 		tenantStr         = strconv.FormatInt(localID, 10)
 
@@ -224,7 +222,7 @@ func (p *publisherImpl) getClient(ctx context.Context, tenantId int64, newClient
 		found  bool
 	)
 
-	localID, regionID := getLocalAndRegionIDs(tenantId)
+	localID, regionID := pusher.GetLocalAndRegionIDs(tenantId)
 
 	p.clientsMutex.Lock()
 	if newClient {
@@ -253,12 +251,12 @@ func (p *publisherImpl) getClient(ctx context.Context, tenantId int64, newClient
 }
 
 func (p *publisherImpl) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
-	mClientCfg, err := clientFromRemoteInfo(tenant.Id, tenant.MetricsRemote)
+	mClientCfg, err := pusher.ClientFromRemoteInfo(tenant.MetricsRemote)
 	if err != nil {
 		return nil, fmt.Errorf("creating metrics client configuration: %w", err)
 	}
 
-	localID, regionID := getLocalAndRegionIDs(tenant.Id)
+	localID, regionID := pusher.GetLocalAndRegionIDs(tenant.Id)
 
 	regionStr := strconv.FormatInt(int64(regionID), 10)
 	tenantStr := strconv.FormatInt(localID, 10)
@@ -270,7 +268,7 @@ func (p *publisherImpl) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 		return nil, fmt.Errorf("creating metrics client: %w", err)
 	}
 
-	eClientCfg, err := clientFromRemoteInfo(tenant.Id, tenant.EventsRemote)
+	eClientCfg, err := pusher.ClientFromRemoteInfo(tenant.EventsRemote)
 	if err != nil {
 		return nil, fmt.Errorf("creating events client configuration: %w", err)
 	}
@@ -293,49 +291,4 @@ func (p *publisherImpl) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 	p.logger.Debug().Int("regionId", regionID).Int64("tenantId", localID).Int64("stackId", tenant.StackId).Msg("updated client")
 
 	return clients, nil
-}
-
-func clientFromRemoteInfo(tenantId int64, remote *sm.RemoteInfo) (*prom.ClientConfig, error) {
-	// TODO(mem): this is hacky.
-	//
-	// it's trying to deal with the fact that the URL shown to users
-	// is not the push URL but the base for the API endpoints
-	u, err := url.Parse(remote.Url + "/push")
-	if err != nil {
-		// XXX(mem): do we really return an error here?
-		return nil, fmt.Errorf("parsing URL: %w", err)
-	}
-
-	clientCfg := prom.ClientConfig{
-		URL:       u,
-		Timeout:   5 * time.Second,
-		UserAgent: version.UserAgent(),
-	}
-
-	if remote.Username != "" {
-		clientCfg.HTTPClientConfig.BasicAuth = &prom.BasicAuth{
-			Username: remote.Username,
-			Password: remote.Password,
-		}
-	}
-
-	if clientCfg.Headers == nil {
-		clientCfg.Headers = make(map[string]string)
-	}
-
-	clientCfg.Headers["X-Prometheus-Remote-Write-Version"] = "0.1.0"
-	// TODO: check if grafana cloud looks for this headers? or gets OrgID from BasicAuth
-	localID, _ := getLocalAndRegionIDs(tenantId)
-	clientCfg.Headers["X-Scope-OrgID"] = strconv.FormatInt(localID, 10)
-
-	return &clientCfg, nil
-}
-
-func getLocalAndRegionIDs(id int64) (localID int64, regionID int) {
-	var err error
-	if localID, regionID, err = sm.GlobalIDToLocalID(id); err != nil {
-		// Id is already local, use region 0.
-		return id, 0
-	}
-	return localID, regionID
 }
