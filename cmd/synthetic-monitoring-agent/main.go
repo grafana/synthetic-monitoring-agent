@@ -28,6 +28,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
+	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
@@ -211,6 +212,7 @@ func run(args []string, stdout io.Writer) error {
 
 	pusherRegistry := pusher.NewRegistry[pusher.Factory]()
 	pusherRegistry.MustRegister(pusherV1.Name, pusherV1.NewPublisher)
+	pusherRegistry.MustRegister(pusherV2.Name, pusherV2.NewPublisher)
 
 	publisherFactory, err := pusherRegistry.Lookup(*selectedPublisher)
 	if err != nil {
