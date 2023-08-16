@@ -37,86 +37,23 @@ type remoteTarget struct {
 }
 
 type publisherImpl struct {
-	ctx            context.Context
-	tenantManager  pusher.TenantProvider
-	logger         zerolog.Logger
-	clientsMutex   sync.Mutex
-	clients        map[int64]*remoteTarget
-	pushCounter    *prometheus.CounterVec
-	errorCounter   *prometheus.CounterVec
-	bytesOut       *prometheus.CounterVec
-	failedCounter  *prometheus.CounterVec
-	retriesCounter *prometheus.CounterVec
+	ctx           context.Context
+	tenantManager pusher.TenantProvider
+	logger        zerolog.Logger
+	clientsMutex  sync.Mutex
+	clients       map[int64]*remoteTarget
+	metrics       pusher.Metrics
 }
 
 var _ pusher.Publisher = &publisherImpl{}
 
 func NewPublisher(ctx context.Context, tm pusher.TenantProvider, logger zerolog.Logger, promRegisterer prometheus.Registerer) pusher.Publisher {
-	pushCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
-			Name:      "push_total",
-			Help:      "Total number of push events.",
-		},
-		[]string{"type", "regionID", "tenantID"})
-
-	promRegisterer.MustRegister(pushCounter)
-
-	errorCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
-			Name:      "push_errors_total",
-			Help:      "Total number of push errors.",
-		},
-		[]string{"type", "regionID", "tenantID", "status"})
-
-	promRegisterer.MustRegister(errorCounter)
-
-	failedCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
-			Name:      "push_failed_total",
-			Help:      "Total number of push failed.",
-		},
-		[]string{"type", "regionID", "tenantID"})
-
-	promRegisterer.MustRegister(failedCounter)
-
-	bytesOut := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
-			Name:      "push_bytes",
-			Help:      "Total number of bytes pushed.",
-		},
-		[]string{"target", "regionID", "tenantID"})
-
-	promRegisterer.MustRegister(bytesOut)
-
-	retriesCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
-			Name:      "retries_total",
-			Help:      "Total number of retries performed.",
-		},
-		[]string{"target", "regionID", "tenantID"})
-
-	promRegisterer.MustRegister(retriesCounter)
-
 	return &publisherImpl{
-		ctx:            ctx,
-		tenantManager:  tm,
-		clients:        make(map[int64]*remoteTarget),
-		logger:         logger,
-		pushCounter:    pushCounter,
-		errorCounter:   errorCounter,
-		bytesOut:       bytesOut,
-		failedCounter:  failedCounter,
-		retriesCounter: retriesCounter,
+		ctx:           ctx,
+		tenantManager: tm,
+		clients:       make(map[int64]*remoteTarget),
+		logger:        logger,
+		metrics:       pusher.NewMetrics(promRegisterer),
 	}
 }
 
@@ -143,7 +80,7 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 		client, err := p.getClient(ctx, tenantID, newClient)
 		if err != nil {
 			logger.Error().Err(err).Msg("get client failed")
-			p.failedCounter.WithLabelValues("client", regionStr, tenantStr).Inc()
+			p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueClient).Inc()
 			return
 		}
 
@@ -151,15 +88,15 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 			if n, err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Int("status", httpStatusCode).Msg("publish events")
-				p.errorCounter.WithLabelValues("logs", regionStr, tenantStr, strconv.Itoa(httpStatusCode)).Inc()
+				p.metrics.ErrorCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs, strconv.Itoa(httpStatusCode)).Inc()
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
 					newClient = true
 					continue
 				}
 			} else {
-				p.pushCounter.WithLabelValues("logs", regionStr, tenantStr).Inc()
-				p.bytesOut.WithLabelValues("logs", regionStr, tenantStr).Add(float64(n))
+				p.metrics.PushCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs).Inc()
+				p.metrics.BytesOut.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs).Add(float64(n))
 			}
 		}
 
@@ -167,15 +104,15 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 			if n, err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Int("status", httpStatusCode).Msg("publish metrics")
-				p.errorCounter.WithLabelValues("metrics", regionStr, tenantStr, strconv.Itoa(httpStatusCode)).Inc()
+				p.metrics.ErrorCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics, strconv.Itoa(httpStatusCode)).Inc()
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
 					newClient = true
 					continue
 				}
 			} else {
-				p.pushCounter.WithLabelValues("metrics", regionStr, tenantStr).Inc()
-				p.bytesOut.WithLabelValues("metrics", regionStr, tenantStr).Add(float64(n))
+				p.metrics.PushCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics).Inc()
+				p.metrics.BytesOut.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics).Add(float64(n))
 			}
 		}
 
@@ -184,7 +121,7 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 	}
 
 	// if we are here, we retried and failed
-	p.failedCounter.WithLabelValues("retry_exhausted", regionStr, tenantStr).Inc()
+	p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueRetryExhausted).Inc()
 	logger.Warn().Msg("failed to push payload")
 }
 
@@ -262,7 +199,7 @@ func (p *publisherImpl) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 	tenantStr := strconv.FormatInt(localID, 10)
 
 	mClient, err := prom.NewClient(tenant.MetricsRemote.Name, mClientCfg, func(c float64) {
-		p.retriesCounter.WithLabelValues("metrics", regionStr, tenantStr).Add(c)
+		p.metrics.RetriesCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics).Add(c)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating metrics client: %w", err)
@@ -274,7 +211,7 @@ func (p *publisherImpl) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 	}
 
 	eClient, err := prom.NewClient(tenant.EventsRemote.Name, eClientCfg, func(c float64) {
-		p.retriesCounter.WithLabelValues("logs", regionStr, tenantStr).Add(c)
+		p.metrics.RetriesCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs).Add(c)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating events client: %w", err)
