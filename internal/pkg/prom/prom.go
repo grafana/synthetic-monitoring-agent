@@ -18,7 +18,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
-	conntrack "github.com/mwitkow/go-conntrack"
+	"github.com/mwitkow/go-conntrack"
 	"github.com/pkg/errors"
 	"github.com/prometheus/prometheus/prompb"
 )
@@ -39,15 +39,23 @@ func NewRecoverableError(cause error) error {
 	return recoverableError{cause}
 }
 
-type httpError struct {
+type HttpError struct {
 	StatusCode int
 	Status     string
-	error
+	Err        error
+}
+
+func (e *HttpError) Unwrap() error {
+	return e.Err
+}
+
+func (e *HttpError) Error() string {
+	return e.Err.Error()
 }
 
 func GetHttpStatusCode(err error) (int, bool) {
 	for ; err != nil; err = errors.Unwrap(err) {
-		err2, ok := err.(*httpError)
+		err2, ok := err.(*HttpError)
 		if ok {
 			return err2.StatusCode, true
 		}
@@ -57,11 +65,18 @@ func GetHttpStatusCode(err error) (int, bool) {
 }
 
 type PrometheusClient interface {
-	Store(ctx context.Context, req []byte) error
+	StoreBytes(ctx context.Context, req []byte) error
+	StoreStream(ctx context.Context, req io.Reader) error
 	CountRetries(retries float64)
 }
 
 func SendBytesWithBackoff(ctx context.Context, client PrometheusClient, req []byte) error {
+	return withBackoff(ctx, client, func(ctx context.Context, client PrometheusClient) error {
+		return client.StoreBytes(ctx, req)
+	})
+}
+
+func withBackoff(ctx context.Context, client PrometheusClient, store func(ctx context.Context, prometheusClient PrometheusClient) error) error {
 	clampBackoff := func(a time.Duration) time.Duration {
 		if a > maxBackoff {
 			return maxBackoff
@@ -85,7 +100,7 @@ func SendBytesWithBackoff(ctx context.Context, client PrometheusClient, req []by
 		default:
 		}
 
-		err = client.Store(ctx, req)
+		err = store(ctx, client)
 
 		if err == nil {
 			return nil
@@ -358,10 +373,17 @@ func (c *Client) CountRetries(retries float64) {
 	c.countRetriesFunc(retries)
 }
 
-// Store sends a batch of samples to the HTTP endpoint, the request is the proto marshalled
+// StoreBytes sends a batch of samples to the HTTP endpoint, the request is the proto marshalled
 // and encoded bytes from codec.go.
-func (c *Client) Store(ctx context.Context, req []byte) error {
-	httpReq, err := http.NewRequest("POST", c.url.String(), bytes.NewReader(req))
+func (c *Client) StoreBytes(ctx context.Context, req []byte) error {
+	return c.StoreStream(ctx, bytes.NewReader(req))
+}
+
+// StoreStream sends a batch of samples to the HTTP endpoint, the request is the proto marshalled
+// and encoded bytes from codec.go.
+func (c *Client) StoreStream(ctx context.Context, req io.Reader) error {
+	// Setup the new request...
+	httpReq, err := http.NewRequest("POST", c.url.String(), req)
 	if err != nil {
 		// Errors from NewRequest are from unparsable URLs, so are not
 		// recoverable.
@@ -373,9 +395,10 @@ func (c *Client) Store(ctx context.Context, req []byte) error {
 	for k, v := range c.headers {
 		httpReq.Header.Set(k, v)
 	}
-	httpReq = httpReq.WithContext(ctx)
 
-	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	// ... and add a context with timeout as late as possible to give it as
+	// much chance to finish as possible.
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
 	httpResp, err := c.client.Do(httpReq.WithContext(ctx))
@@ -400,10 +423,10 @@ func (c *Client) Store(ctx context.Context, req []byte) error {
 		if scanner.Scan() {
 			line = scanner.Text()
 		}
-		err = &httpError{
+		err = &HttpError{
 			Status:     httpResp.Status,
 			StatusCode: httpResp.StatusCode,
-			error:      errors.Errorf("server returned HTTP status %s: %s", httpResp.Status, line),
+			Err:        errors.Errorf("server returned HTTP status %s: %s", httpResp.Status, line),
 		}
 	}
 	if httpResp.StatusCode/100 == 5 {
