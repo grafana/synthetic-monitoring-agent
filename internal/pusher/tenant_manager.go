@@ -16,6 +16,8 @@ type TenantManager struct {
 	tenants       map[int64]*tenantInfo
 }
 
+var _ TenantProvider = &TenantManager{}
+
 type tenantInfo struct {
 	mutex      sync.Mutex // protects the entire structure
 	validUntil time.Time
