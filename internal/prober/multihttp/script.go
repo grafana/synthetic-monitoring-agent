@@ -3,6 +3,7 @@ package multihttp
 import (
 	"bytes"
 	"embed"
+	"encoding/base64"
 	"fmt"
 	"net/url"
 	"strings"
@@ -39,20 +40,68 @@ func buildUrl(req *sm.MultiHttpEntryRequest) string {
 	return template.JSEscapeString(u.String())
 }
 
-func buildHeaders(headers []*sm.HttpHeader) string {
+func buildBody(body *sm.HttpRequestBody) string {
+	switch {
+	case body == nil:
+		return "null"
+
+	case len(body.Payload) == 0:
+		return `""`
+
+	default:
+		var buf strings.Builder
+
+		buf.WriteString(`encoding.b64decode("`)
+		buf.WriteString(base64.RawStdEncoding.EncodeToString(body.Payload))
+		buf.WriteString(`", 'rawstd', "b")`)
+
+		return buf.String()
+	}
+}
+
+func buildHeaders(headers []*sm.HttpHeader, body *sm.HttpRequestBody) string {
 	var buf strings.Builder
+
+	if len(headers) == 0 && body == nil {
+		return ""
+	}
+
 	buf.WriteRune('{')
-	for i, header := range headers {
-		if i > 0 {
-			buf.WriteRune(',')
+
+	comma := ""
+
+	if body != nil {
+		if len(body.ContentType) > 0 {
+			buf.WriteString(`'Content-Type':'`)
+			buf.WriteString(template.JSEscapeString(body.ContentType))
+			buf.WriteRune('\'')
+			comma = ","
 		}
+
+		buf.WriteString(comma)
+
+		if len(body.ContentEncoding) > 0 {
+			buf.WriteString(`'Content-Encoding':'`)
+			buf.WriteString(template.JSEscapeString(body.ContentEncoding))
+			buf.WriteRune('\'')
+			comma = ","
+		}
+	}
+
+	for _, header := range headers {
+		buf.WriteString(comma)
+
 		buf.WriteRune('\'')
 		buf.WriteString(template.JSEscapeString(header.Name))
 		buf.WriteString(`':'`)
 		buf.WriteString(template.JSEscapeString(header.Value))
 		buf.WriteRune('\'')
+
+		comma = ","
 	}
+
 	buf.WriteRune('}')
+
 	return buf.String()
 }
 
@@ -256,9 +305,10 @@ func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
 	tmpl, err := template.
 		New("").
 		Funcs(template.FuncMap{
+			"buildBody":    buildBody,
+			"buildChecks":  buildChecks,
 			"buildHeaders": buildHeaders,
 			"buildUrl":     buildUrl,
-			"buildChecks":  buildChecks,
 			"buildVars":    buildVars,
 		}).
 		ParseFS(templateFS, "*.tmpl")

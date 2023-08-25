@@ -68,46 +68,137 @@ func TestBuildUrl(t *testing.T) {
 }
 
 func TestBuildHeaders(t *testing.T) {
+	type input struct {
+		headers []*sm.HttpHeader
+		body    *sm.HttpRequestBody
+	}
+
 	testcases := map[string]struct {
-		input    []*sm.HttpHeader
+		input    input
 		expected string
 	}{
 		"one header": {
-			input: []*sm.HttpHeader{
-				{
-					Name:  "Content-Type",
-					Value: "application/json",
+			input: input{
+				headers: []*sm.HttpHeader{
+					{
+						Name:  "Content-Type",
+						Value: "application/json",
+					},
 				},
 			},
 			expected: `{'Content-Type':'application/json'}`,
 		},
 		"two headers": {
-			input: []*sm.HttpHeader{
-				{
-					Name:  "Content-Type",
-					Value: "application/json",
-				},
-				{
-					Name:  "Accept",
-					Value: "text/html",
+			input: input{
+				headers: []*sm.HttpHeader{
+					{
+						Name:  "Content-Type",
+						Value: "application/json",
+					},
+					{
+						Name:  "Accept",
+						Value: "text/html",
+					},
 				},
 			},
 			expected: `{'Content-Type':'application/json','Accept':'text/html'}`,
 		},
 		"blank value": {
-			input: []*sm.HttpHeader{
-				{
-					Name:  "Content-Type",
-					Value: "",
+			input: input{
+				headers: []*sm.HttpHeader{
+					{
+						Name:  "Content-Type",
+						Value: "",
+					},
 				},
 			},
 			expected: `{'Content-Type':''}`,
+		},
+		"body": {
+			input: input{
+				body: &sm.HttpRequestBody{
+					ContentType:     "text/plain",
+					ContentEncoding: "none",
+					Payload:         []byte("test"),
+				},
+			},
+			expected: `{'Content-Type':'text/plain','Content-Encoding':'none'}`,
+		},
+		"body+headers": {
+			input: input{
+				body: &sm.HttpRequestBody{
+					ContentType:     "text/plain",
+					ContentEncoding: "none",
+					Payload:         []byte("test"),
+				},
+				headers: []*sm.HttpHeader{
+					{
+						Name:  "X-Some-Header",
+						Value: "some value",
+					},
+				},
+			},
+			expected: `{'Content-Type':'text/plain','Content-Encoding':'none','X-Some-Header':'some value'}`,
+		},
+		"empty": {
+			input: input{
+				body:    nil,
+				headers: nil,
+			},
+			expected: ``,
+		},
+		"do what I say": {
+			input: input{
+				body: &sm.HttpRequestBody{
+					ContentType:     "text/plain",
+					ContentEncoding: "none",
+					Payload:         []byte("test"),
+				},
+				headers: []*sm.HttpHeader{
+					{
+						Name:  "Content-Type",
+						Value: "application/json",
+					},
+				},
+			},
+			expected: `{'Content-Type':'text/plain','Content-Encoding':'none','Content-Type':'application/json'}`,
 		},
 	}
 
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
-			actual := buildHeaders(testcase.input)
+			actual := buildHeaders(testcase.input.headers, testcase.input.body)
+			require.Equal(t, testcase.expected, actual)
+		})
+	}
+}
+
+func TestBuildBody(t *testing.T) {
+	type input struct {
+		body *sm.HttpRequestBody
+	}
+
+	testcases := map[string]struct {
+		input    input
+		expected string
+	}{
+		"not empty": {
+			input:    input{body: &sm.HttpRequestBody{Payload: []byte("test")}},
+			expected: `encoding.b64decode("dGVzdA", 'rawstd', "b")`,
+		},
+		"nil": {
+			input:    input{body: nil},
+			expected: "null",
+		},
+		"empty": {
+			input:    input{body: &sm.HttpRequestBody{Payload: []byte("")}},
+			expected: `""`,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual := buildBody(testcase.input.body)
 			require.Equal(t, testcase.expected, actual)
 		})
 	}
