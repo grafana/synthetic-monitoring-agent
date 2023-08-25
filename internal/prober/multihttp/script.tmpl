@@ -1,6 +1,9 @@
 import http from 'k6/http';
 import { check, fail } from 'k6';
-// TODO(mem): import jsonpath if there are json assertions
+// TODO(mem): conditionally import these modules
+// - import encoding if base64 decoding is required
+// - import jsonpath if there are json assertions
+import encoding from "k6/encoding";
 import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js'
 
 export const options = {
@@ -52,10 +55,12 @@ export default function() {
 	{{ range .Entries }}
 	{{- $url := buildUrl .Request }}
 	{{- $method := .Request.Method.String }}
-	response = http.request('{{ $method }}', '{{ $url }}', null, {
+	{{- $body := buildBody .Request.Body }}
+	{{- $headers := buildHeaders .Request.Headers .Request.Body }}
+	response = http.request('{{ $method }}', '{{ $url }}', {{ $body }}, {
 		// TODO(mem): build params out of options for the check
-		redirects: 0,{{ if gt (len .Request.Headers) 0 }}
-		headers: {{ buildHeaders .Request.Headers }}{{ end }}
+		redirects: 0{{ if gt (len $headers) 0 }},
+		headers: {{ $headers }}{{ end }}
 	});
 	{{ range .Assertions }}{{ buildChecks $url $method . }}
 	{{ end -}}
