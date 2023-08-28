@@ -4,7 +4,8 @@ import { check, fail } from 'k6';
 // - import encoding if base64 decoding is required
 // - import jsonpath if there are json assertions
 import encoding from "k6/encoding";
-import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js'
+import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js';
+import { URL } from 'https://jslib.k6.io/url/1.0.0/index.js';
 
 export const options = {
 	scenarios: {
@@ -67,19 +68,23 @@ function assertHeader(headers, name, matcher) {
 
 export default function() {
 	let response;
+	let url;
 	const vars = {};
 
 	{{ range .Entries }}
-	{{- $url := buildUrl .Request }}
+	url = new URL({{ buildUrl .Request.Url }});
+	{{- $queries := buildQueryParams "url" .Request }}
+	{{ range $queries }}{{ . }};
+	{{ end -}}
 	{{- $method := .Request.Method.String }}
 	{{- $body := buildBody .Request.Body }}
 	{{- $headers := buildHeaders .Request.Headers .Request.Body }}
-	response = http.request('{{ $method }}', '{{ $url }}', {{ $body }}, {
+	response = http.request('{{ $method }}', url.toString(), {{ $body }}, {
 		// TODO(mem): build params out of options for the check
 		redirects: 0{{ if gt (len $headers) 0 }},
 		headers: {{ $headers }}{{ end }}
 	});
-	{{ range .Assertions }}{{ buildChecks $url $method . }}
+	{{ range .Assertions }}{{ buildChecks "url" $method . }}
 	{{ end -}}
 	{{ range .Variables }}{{ buildVars . }}
 	{{ end -}}

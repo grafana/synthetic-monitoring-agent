@@ -286,6 +286,9 @@ func (c Check) validateTarget() error {
 	case CheckTypeMultiHttp:
 		// TODO(mem): checks MUST have a target, but in this case it's
 		// not true that the target must be a valid URL.
+		if strings.Contains(c.Target, "${") {
+			return nil
+		}
 		return validateHttpUrl(c.Target)
 
 	default:
