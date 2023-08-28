@@ -5,7 +5,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"fmt"
-	"net/url"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -17,27 +17,73 @@ import (
 //go:embed script.tmpl
 var templateFS embed.FS
 
-func buildUrl(req *sm.MultiHttpEntryRequest) string {
-	// If we are here, the request has already been validated, and the URL
-	// should be valid. This function should never return an error.
-	u, _ := url.Parse(req.Url)
+var userVariables = regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
 
-	var buf strings.Builder
-
-	for _, field := range req.QueryFields {
-		if buf.Len() > 0 {
-			buf.WriteByte('&')
-		}
-		buf.WriteString(url.QueryEscape(field.Name))
-		if len(field.Value) > 0 {
-			buf.WriteByte('=')
-			buf.WriteString(url.QueryEscape(field.Value))
-		}
+func performVariableExpansion(in string) string {
+	if len(in) == 0 {
+		return `''`
 	}
 
-	u.RawQuery = buf.String()
+	var s strings.Builder
+	buf := []byte(in)
+	locs := userVariables.FindAllSubmatchIndex(buf, -1)
 
-	return template.JSEscapeString(u.String())
+	p := 0
+	for _, loc := range locs {
+		if len(loc) < 4 { // put the bounds checker at ease
+			panic("unexpected result while building URL")
+		}
+
+		if s.Len() > 0 {
+			s.WriteRune('+')
+		}
+
+		if pre := buf[p:loc[0]]; len(pre) > 0 {
+			s.WriteRune('\'')
+			template.JSEscape(&s, pre)
+			s.WriteRune('\'')
+			s.WriteRune('+')
+		}
+
+		s.WriteString(`vars['`)
+		// Because of the capture in the regular expression, the result
+		// has two indices that represent the matched substring, and
+		// two more indices that represent the capture group.
+		s.Write(buf[loc[2]:loc[3]])
+		s.WriteString(`']`)
+
+		p = loc[1]
+	}
+
+	if len(buf[p:]) > 0 {
+		if s.Len() > 0 {
+			s.WriteRune('+')
+		}
+
+		s.WriteRune('\'')
+		template.JSEscape(&s, buf[p:])
+		s.WriteRune('\'')
+	}
+
+	return s.String()
+}
+
+// Query params must be appended to a URL that has already been created.
+// urlVarName is the variable name to reference when appending params.
+func buildQueryParams(urlVarName string, req *sm.MultiHttpEntryRequest) []string {
+	var buf strings.Builder
+	out := make([]string, 0, len(req.QueryFields))
+	for _, field := range req.QueryFields {
+		buf.Reset()
+		buf.WriteString(urlVarName)
+		buf.WriteString(".searchParams.append(")
+		buf.WriteString(performVariableExpansion(field.Name))
+		buf.WriteString(", ")
+		buf.WriteString(performVariableExpansion(field.Value))
+		buf.WriteString(")")
+		out = append(out, buf.String())
+	}
+	return out
 }
 
 func buildBody(body *sm.HttpRequestBody) string {
@@ -93,9 +139,8 @@ func buildHeaders(headers []*sm.HttpHeader, body *sm.HttpRequestBody) string {
 
 		buf.WriteRune('"')
 		buf.WriteString(template.JSEscapeString(header.Name))
-		buf.WriteString(`":"`)
-		buf.WriteString(template.JSEscapeString(header.Value))
-		buf.WriteRune('"')
+		buf.WriteString(`":`)
+		buf.WriteString(performVariableExpansion(header.Value))
 
 		comma = ","
 	}
@@ -169,7 +214,7 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 //
 // This function is a mess because a single assertion represents multiple types
 // of checks.
-func buildChecks(url, method string, assertion *sm.MultiHttpEntryAssertion) string {
+func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertion) string {
 	var b strings.Builder
 
 	b.WriteString(`check(response, { "`)
@@ -259,9 +304,10 @@ func buildChecks(url, method string, assertion *sm.MultiHttpEntryAssertion) stri
 
 	// Add tags to the check: url, method
 	b.WriteString(`{`)
-	b.WriteString(`"url": "`)
-	b.WriteString(url)
-	b.WriteString(`", "method": "`)
+	b.WriteString(`"url": `)
+	b.WriteString(urlVarName)
+	b.WriteString(`.toString(), `)
+	b.WriteString(`"method": "`)
 	b.WriteString(method)
 	b.WriteRune('"')
 	b.WriteString(`}`)
@@ -316,11 +362,12 @@ func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
 	tmpl, err := template.
 		New("").
 		Funcs(template.FuncMap{
-			"buildBody":    buildBody,
-			"buildChecks":  buildChecks,
-			"buildHeaders": buildHeaders,
-			"buildUrl":     buildUrl,
-			"buildVars":    buildVars,
+			"buildBody":        buildBody,
+			"buildChecks":      buildChecks,
+			"buildHeaders":     buildHeaders,
+			"buildUrl":         performVariableExpansion,
+			"buildQueryParams": buildQueryParams,
+			"buildVars":        buildVars,
 		}).
 		ParseFS(templateFS, "*.tmpl")
 	if err != nil {
