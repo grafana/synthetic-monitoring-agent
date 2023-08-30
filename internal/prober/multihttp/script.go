@@ -187,10 +187,22 @@ func buildChecks(url, method string, assertion *sm.MultiHttpEntryAssertion) stri
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
 			cond.Name(&b, "header", assertion.Value)
 			b.WriteString(`": response => { `)
-			b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
-			b.WriteString(`return !!values.find(value => `)
-			cond.Render(&b, "value", assertion.Value)
-			b.WriteString(`); }`)
+			if len(assertion.Expression) == 0 {
+				// No expression provided, match the entire value against all headers.
+				b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
+				b.WriteString(`return !!values.find(value => `)
+				cond.Render(&b, "value", assertion.Value)
+				b.WriteString(`);`)
+			} else {
+				// Expression provided, search for a matching header.
+				b.WriteString(`return assertHeader(response.headers, "`)
+				b.WriteString(template.JSEscapeString(assertion.Expression))
+				b.WriteString(`", `)
+				b.WriteString(`v => `)
+				cond.Render(&b, "value", assertion.Value)
+				b.WriteString(`);`)
+			}
+			b.WriteString(` }`)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:
 			cond.Name(&b, "status code", assertion.Value)

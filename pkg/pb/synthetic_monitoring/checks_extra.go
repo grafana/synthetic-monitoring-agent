@@ -108,8 +108,11 @@ var (
 	ErrInvalidHttpRequestBodyPayload     = errors.New("invalid HTTP request body payload")
 	ErrInvalidQueryFieldName             = errors.New("invalid query field name")
 
-	ErrInvalidMultiHttpAssertion     = errors.New("invalid multi-http assertion")
-	ErrInvalidMultiHttpEntryVariable = errors.New("invalid multi-http variable")
+	ErrInvalidMultiHttpAssertion                     = errors.New("invalid multi-http assertion")
+	ErrInvalidMultiHttpEntryVariable                 = errors.New("invalid multi-http variable")
+	ErrInvalidMultiHttpAssertionMissingValue         = errors.New("invalid multi-http assertion, missing value")
+	ErrInvalidMultiHttpAssertionExpressionNotAllowed = errors.New("invalid multi-http assertion, expression not allowed")
+	ErrInvalidMultiHttpAssertionMissingHeaderName    = errors.New("invalid multi-http assertion, missing header name")
 )
 
 const (
@@ -754,16 +757,12 @@ func (a *MultiHttpEntryAssertion) Validate() error {
 	case MultiHttpEntryAssertionType_TEXT:
 		// Value is required
 		if len(a.Value) == 0 {
-			return ErrInvalidMultiHttpAssertion
+			return ErrInvalidMultiHttpAssertionMissingValue
 		}
 
-		// Expression is not allowed.
-		//
-		// This is super annoying because headers are stuffed with
-		// text, and expression could be used to validate specific
-		// headers.
-		if len(a.Expression) != 0 {
-			return ErrInvalidMultiHttpAssertion
+		// Expression is not allowed for subjects other than response headers.
+		if a.Subject != MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS && len(a.Expression) != 0 {
+			return ErrInvalidMultiHttpAssertionExpressionNotAllowed
 		}
 
 	case MultiHttpEntryAssertionType_JSON_PATH_VALUE:

@@ -525,6 +525,19 @@ enum MultiHttpEntryAssertionConditionVariant {
 }
 
 // MultiHttpEntryAssertion represents a single assertion to be made on the response.
+//
+// The `value` field specifies the _value_ that the subject and the condition
+// should meet, e.g. if the subject is body and the condition is contains,
+// value specifies the substring that should be found in the body.
+//
+// For the JSON_PATH_VALUE type, `expression` specifies the JSON path to match against `value`.
+//
+// For the JSON_PATH_ASSERTION type, `expression` specifies the JSON path to assert.
+//
+// For the TEXT type, if the subject is `RESPONSE_HEADERS`, `expression`
+// specifies which specific header should be used as the subject of the
+// operation. Headers are case-insensitive (RFC 7230, section 3.2,
+// https://datatracker.ietf.org/doc/html/rfc7230#section-3.2).
 message MultiHttpEntryAssertion {
   MultiHttpEntryAssertionType             type       = 1 [(gogoproto.jsontag) = "type"];
   MultiHttpEntryAssertionSubjectVariant   subject    = 2 [(gogoproto.jsontag) = "subject,omitempty"];
