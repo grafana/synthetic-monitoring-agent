@@ -72,18 +72,18 @@ func buildHeaders(headers []*sm.HttpHeader, body *sm.HttpRequestBody) string {
 
 	if body != nil {
 		if len(body.ContentType) > 0 {
-			buf.WriteString(`'Content-Type':'`)
+			buf.WriteString(`'Content-Type':"`)
 			buf.WriteString(template.JSEscapeString(body.ContentType))
-			buf.WriteRune('\'')
+			buf.WriteRune('"')
 			comma = ","
 		}
 
 		if len(body.ContentEncoding) > 0 {
 			buf.WriteString(comma)
 
-			buf.WriteString(`'Content-Encoding':'`)
+			buf.WriteString(`'Content-Encoding':"`)
 			buf.WriteString(template.JSEscapeString(body.ContentEncoding))
-			buf.WriteRune('\'')
+			buf.WriteRune('"')
 			comma = ","
 		}
 	}
@@ -91,11 +91,11 @@ func buildHeaders(headers []*sm.HttpHeader, body *sm.HttpRequestBody) string {
 	for _, header := range headers {
 		buf.WriteString(comma)
 
-		buf.WriteRune('\'')
+		buf.WriteRune('"')
 		buf.WriteString(template.JSEscapeString(header.Name))
-		buf.WriteString(`':'`)
+		buf.WriteString(`":"`)
 		buf.WriteString(template.JSEscapeString(header.Value))
-		buf.WriteRune('\'')
+		buf.WriteRune('"')
 
 		comma = ","
 	}
@@ -128,10 +128,9 @@ func (c assertionCondition) Name(w *strings.Builder, subject, value string) {
 		w.WriteString(`ends with`)
 	}
 
-	w.WriteRune(' ')
-	w.WriteRune('"')
+	w.WriteString(` \"`)
 	w.WriteString(template.JSEscapeString(value))
-	w.WriteRune('"')
+	w.WriteString(`\"`)
 }
 
 func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
@@ -142,27 +141,27 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 
 	case sm.MultiHttpEntryAssertionConditionVariant_CONTAINS, sm.MultiHttpEntryAssertionConditionVariant_DEFAULT_CONDITION:
 		w.WriteString(subject)
-		w.WriteString(`.includes('`)
+		w.WriteString(`.includes("`)
 		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`')`)
+		w.WriteString(`")`)
 
 	case sm.MultiHttpEntryAssertionConditionVariant_EQUALS:
 		w.WriteString(subject)
-		w.WriteString(` === '`)
+		w.WriteString(` === "`)
 		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`'`)
+		w.WriteString(`"`)
 
 	case sm.MultiHttpEntryAssertionConditionVariant_STARTS_WITH:
 		w.WriteString(subject)
-		w.WriteString(`.startsWith('`)
+		w.WriteString(`.startsWith("`)
 		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`')`)
+		w.WriteString(`")`)
 
 	case sm.MultiHttpEntryAssertionConditionVariant_ENDS_WITH:
 		w.WriteString(subject)
-		w.WriteString(`.endsWith('`)
+		w.WriteString(`.endsWith("`)
 		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`')`)
+		w.WriteString(`")`)
 	}
 }
 
@@ -173,7 +172,7 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 func buildChecks(url, method string, assertion *sm.MultiHttpEntryAssertion) string {
 	var b strings.Builder
 
-	b.WriteString(`check(response, { '`)
+	b.WriteString(`check(response, { "`)
 
 	switch assertion.Type {
 	case sm.MultiHttpEntryAssertionType_TEXT:
@@ -182,12 +181,12 @@ func buildChecks(url, method string, assertion *sm.MultiHttpEntryAssertion) stri
 		switch assertion.Subject {
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY, sm.MultiHttpEntryAssertionSubjectVariant_DEFAULT_SUBJECT:
 			cond.Name(&b, "body", assertion.Value)
-			b.WriteString(`': response => `)
+			b.WriteString(`": response => `)
 			cond.Render(&b, "response.body", assertion.Value)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
 			cond.Name(&b, "header", assertion.Value)
-			b.WriteString(`': response => { `)
+			b.WriteString(`": response => { `)
 			b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
 			b.WriteString(`return !!values.find(value => `)
 			cond.Render(&b, "value", assertion.Value)
@@ -195,50 +194,50 @@ func buildChecks(url, method string, assertion *sm.MultiHttpEntryAssertion) stri
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:
 			cond.Name(&b, "status code", assertion.Value)
-			b.WriteString(`': response => `)
+			b.WriteString(`": response => `)
 			cond.Render(&b, `response.status.toString()`, assertion.Value)
 		}
 
 	case sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE:
 		cond := assertionCondition(assertion.Condition)
 		cond.Name(&b, assertion.Expression, assertion.Value)
-		b.WriteString(`': response => jsonpath.query(response.json(), '`)
+		b.WriteString(`": response => jsonpath.query(response.json(), "`)
 		b.WriteString(template.JSEscapeString(assertion.Expression))
-		b.WriteString(`').some(values => `)
+		b.WriteString(`").some(values => `)
 		cond.Render(&b, `values`, assertion.Value)
 		b.WriteString(`)`)
 
 	case sm.MultiHttpEntryAssertionType_JSON_PATH_ASSERTION:
-		b.WriteString(assertion.Expression)
-		b.WriteString(` exists': response => jsonpath.query(response.json(), '`)
-		b.WriteString(assertion.Expression)
-		b.WriteString(`').length > 0`)
+		b.WriteString(template.JSEscapeString(assertion.Expression))
+		b.WriteString(` exists": response => jsonpath.query(response.json(), "`)
+		b.WriteString(template.JSEscapeString(assertion.Expression))
+		b.WriteString(`").length > 0`)
 
 	case sm.MultiHttpEntryAssertionType_REGEX_ASSERTION:
 		switch assertion.Subject {
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY, sm.MultiHttpEntryAssertionSubjectVariant_DEFAULT_SUBJECT:
 			b.WriteString(`body matches /`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`/': response => { const expr = new RegExp('`)
+			b.WriteString(`/": response => { const expr = new RegExp("`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`'); `)
+			b.WriteString(`"); `)
 			b.WriteString(`return expr.test(response.body); }`)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
 			b.WriteString(`headers matches /`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`/': response => { const expr = new RegExp('`)
+			b.WriteString(`/": response => { const expr = new RegExp("`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`'); `)
+			b.WriteString(`"); `)
 			b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
 			b.WriteString(`return !!values.find(value => expr.test(value)); }`)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:
 			b.WriteString(`status matches /`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`/': response => { const expr = new RegExp('`)
+			b.WriteString(`/": response => { const expr = new RegExp("`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`'); `)
+			b.WriteString(`"); `)
 			b.WriteString(`return expr.test(response.status.toString()); }`)
 		}
 	}

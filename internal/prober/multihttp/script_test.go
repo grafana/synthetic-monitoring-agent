@@ -86,7 +86,7 @@ func TestBuildHeaders(t *testing.T) {
 					},
 				},
 			},
-			expected: `{'Content-Type':'application/json'}`,
+			expected: `{"Content-Type":"application/json"}`,
 		},
 		"two headers": {
 			input: input{
@@ -101,7 +101,7 @@ func TestBuildHeaders(t *testing.T) {
 					},
 				},
 			},
-			expected: `{'Content-Type':'application/json','Accept':'text/html'}`,
+			expected: `{"Content-Type":"application/json","Accept":"text/html"}`,
 		},
 		"blank value": {
 			input: input{
@@ -112,7 +112,7 @@ func TestBuildHeaders(t *testing.T) {
 					},
 				},
 			},
-			expected: `{'Content-Type':''}`,
+			expected: `{"Content-Type":""}`,
 		},
 		"body-content-type+content-encoding": {
 			input: input{
@@ -122,7 +122,7 @@ func TestBuildHeaders(t *testing.T) {
 					Payload:         []byte("test"),
 				},
 			},
-			expected: `{'Content-Type':'text/plain','Content-Encoding':'none'}`,
+			expected: `{'Content-Type':"text/plain",'Content-Encoding':"none"}`,
 		},
 		"body-content-type": {
 			input: input{
@@ -131,7 +131,7 @@ func TestBuildHeaders(t *testing.T) {
 					Payload:     []byte("test"),
 				},
 			},
-			expected: `{'Content-Type':'text/plain'}`,
+			expected: `{'Content-Type':"text/plain"}`,
 		},
 		"body-content-encoding": {
 			input: input{
@@ -140,7 +140,7 @@ func TestBuildHeaders(t *testing.T) {
 					Payload:         []byte("test"),
 				},
 			},
-			expected: `{'Content-Encoding':'none'}`,
+			expected: `{'Content-Encoding':"none"}`,
 		},
 		"body-content-type+content-encoding+headers": {
 			input: input{
@@ -156,7 +156,7 @@ func TestBuildHeaders(t *testing.T) {
 					},
 				},
 			},
-			expected: `{'Content-Type':'text/plain','Content-Encoding':'none','X-Some-Header':'some value'}`,
+			expected: `{'Content-Type':"text/plain",'Content-Encoding':"none","X-Some-Header":"some value"}`,
 		},
 		"body-content-type+headers": {
 			input: input{
@@ -171,7 +171,7 @@ func TestBuildHeaders(t *testing.T) {
 					},
 				},
 			},
-			expected: `{'Content-Type':'text/plain','X-Some-Header':'some value'}`,
+			expected: `{'Content-Type':"text/plain","X-Some-Header":"some value"}`,
 		},
 		"body-content-encoding+headers": {
 			input: input{
@@ -186,7 +186,7 @@ func TestBuildHeaders(t *testing.T) {
 					},
 				},
 			},
-			expected: `{'Content-Encoding':'none','X-Some-Header':'some value'}`,
+			expected: `{'Content-Encoding':"none","X-Some-Header":"some value"}`,
 		},
 		"empty": {
 			input: input{
@@ -209,7 +209,7 @@ func TestBuildHeaders(t *testing.T) {
 					},
 				},
 			},
-			expected: `{'Content-Type':'text/plain','Content-Encoding':'none','Content-Type':'application/json'}`,
+			expected: `{'Content-Type':"text/plain",'Content-Encoding':"none","Content-Type":"application/json"}`,
 		},
 	}
 
@@ -263,31 +263,31 @@ func TestAssertionConditionName(t *testing.T) {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_NOT_CONTAINS,
 			subject:   "subject",
 			value:     "value",
-			expected:  "subject does not contain \"value\"",
+			expected:  `subject does not contain \"value\"`,
 		},
 		"TestAssertionConditionNameContains": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
 			subject:   "subject",
 			value:     "value",
-			expected:  "subject contains \"value\"",
+			expected:  `subject contains \"value\"`,
 		},
 		"TestAssertionConditionNameEquals": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
 			subject:   "subject",
 			value:     "value",
-			expected:  "subject equals \"value\"",
+			expected:  `subject equals \"value\"`,
 		},
 		"TestAssertionConditionNameStartsWith": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_STARTS_WITH,
 			subject:   "subject",
 			value:     "value",
-			expected:  "subject starts with \"value\"",
+			expected:  `subject starts with \"value\"`,
 		},
 		"TestAssertionConditionNameEndsWith": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_ENDS_WITH,
 			subject:   "subject",
 			value:     "value",
-			expected:  "subject ends with \"value\"",
+			expected:  `subject ends with \"value\"`,
 		},
 	}
 
@@ -312,31 +312,31 @@ func TestAssertionConditionRender(t *testing.T) {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_NOT_CONTAINS,
 			subject:   "subject",
 			value:     "val'ue",
-			expected:  "!subject.includes('val\\'ue')",
+			expected:  `!subject.includes("val\'ue")`,
 		},
 		"TestAssertionConditionRenderContains": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
 			subject:   "subject",
 			value:     "val'ue",
-			expected:  "subject.includes('val\\'ue')",
+			expected:  `subject.includes("val\'ue")`,
 		},
 		"TestAssertionConditionRenderEquals": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
 			subject:   "subject",
 			value:     "val'ue",
-			expected:  "subject === 'val\\'ue'",
+			expected:  `subject === "val\'ue"`,
 		},
 		"TestAssertionConditionRenderStartsWith": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_STARTS_WITH,
 			subject:   "subject",
 			value:     "val'ue",
-			expected:  "subject.startsWith('val\\'ue')",
+			expected:  `subject.startsWith("val\'ue")`,
 		},
 		"TestAssertionConditionRenderEndsWith": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_ENDS_WITH,
 			subject:   "subject",
 			value:     "val'ue",
-			expected:  "subject.endsWith('val\\'ue')",
+			expected:  `subject.endsWith("val\'ue")`,
 		},
 	}
 
@@ -366,7 +366,7 @@ func TestBuildChecks(t *testing.T) {
 				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
 				Value:     "value",
 			},
-			expected: `check(response, { 'body contains "value"': response => response.body.includes('value') }, {"url": "http://example.com", "method": "GET"});`,
+			expected: `check(response, { "body contains \"value\"": response => response.body.includes("value") }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksTextAssertionWithHeadersSubject": {
 			url:    "http://example.com",
@@ -377,7 +377,7 @@ func TestBuildChecks(t *testing.T) {
 				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
 				Value:     "value",
 			},
-			expected: `check(response, { 'header contains "value"': response => { const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => value.includes('value')); } }, {"url": "http://example.com", "method": "GET"});`,
+			expected: `check(response, { "header contains \"value\"": response => { const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => value.includes("value")); } }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksTextAssertionWithStatusCodeSubject": {
 			url:    "http://example.com",
@@ -388,7 +388,7 @@ func TestBuildChecks(t *testing.T) {
 				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE,
 				Value:     "value",
 			},
-			expected: `check(response, { 'status code contains "value"': response => response.status.toString().includes('value') }, {"url": "http://example.com", "method": "GET"});`,
+			expected: `check(response, { "status code contains \"value\"": response => response.status.toString().includes("value") }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksJsonPathValueAssertionWithBodySubject": {
 			url:    "http://example.com",
@@ -400,7 +400,7 @@ func TestBuildChecks(t *testing.T) {
 				Expression: "/path/to/value",
 				Value:      "value",
 			},
-			expected: `check(response, { '/path/to/value contains "value"': response => jsonpath.query(response.json(), '/path/to/value').some(values => values.includes('value')) }, {"url": "http://example.com", "method": "GET"});`,
+			expected: `check(response, { "/path/to/value contains \"value\"": response => jsonpath.query(response.json(), "/path/to/value").some(values => values.includes("value")) }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksJsonPathAssertionWithBodySubject": {
 			url:    "http://example.com",
@@ -410,7 +410,7 @@ func TestBuildChecks(t *testing.T) {
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
 				Expression: "/path/to/value",
 			},
-			expected: `check(response, { '/path/to/value exists': response => jsonpath.query(response.json(), '/path/to/value').length > 0 }, {"url": "http://example.com", "method": "GET"});`,
+			expected: `check(response, { "/path/to/value exists": response => jsonpath.query(response.json(), "/path/to/value").length > 0 }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksRegexAssertionWithBodySubject": {
 			url:    "http://example.com",
@@ -420,7 +420,7 @@ func TestBuildChecks(t *testing.T) {
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
 				Expression: "regex",
 			},
-			expected: `check(response, { 'body matches /regex/': response => { const expr = new RegExp('regex'); return expr.test(response.body); } }, {"url": "http://example.com", "method": "GET"});`,
+			expected: `check(response, { "body matches /regex/": response => { const expr = new RegExp("regex"); return expr.test(response.body); } }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksRegexAssertionWithHeadersSubject": {
 			url:    "http://example.com",
@@ -430,7 +430,7 @@ func TestBuildChecks(t *testing.T) {
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
 				Expression: "regex",
 			},
-			expected: `check(response, { 'headers matches /regex/': response => { const expr = new RegExp('regex'); const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => expr.test(value)); } }, {"url": "http://example.com", "method": "GET"});`,
+			expected: `check(response, { "headers matches /regex/": response => { const expr = new RegExp("regex"); const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => expr.test(value)); } }, {"url": "http://example.com", "method": "GET"});`,
 		},
 		"TestBuildChecksRegexAssertionWithStatusCodeSubject": {
 			url:    "http://example.com",
@@ -440,7 +440,7 @@ func TestBuildChecks(t *testing.T) {
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE,
 				Expression: "regex",
 			},
-			expected: `check(response, { 'status matches /regex/': response => { const expr = new RegExp('regex'); return expr.test(response.status.toString()); } }, {"url": "http://example.com", "method": "GET"});`,
+			expected: `check(response, { "status matches /regex/": response => { const expr = new RegExp("regex"); return expr.test(response.status.toString()); } }, {"url": "http://example.com", "method": "GET"});`,
 		},
 	}
 
