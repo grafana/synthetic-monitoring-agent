@@ -7,10 +7,25 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - depguard
+    # TODO(mem): - containedctx
+    # TODO(mem):- contextcheck
+    # TODO(mem): - cyclop
+    - decorder
+    # - depguard
     - dogsled
+    # TODO(mem): - dupl
+    - dupword
+    - durationcheck
+    - errchkjson
     - errcheck
+    - errname
+    # TODO(mem): - errorlint
+    - execinquery
+    # TODO(mem): - exhaustive
     - exportloopref
+    - gocheckcompilerdirectives
+    # - TODO(mem): gochecknoglobals
+    - gochecknoinits
     - goconst
     - gocritic
     # - gocognit
@@ -19,20 +34,49 @@ linters:
     # - gofumpt
     - goimports
     # - golint
+    # TODO(mem): - gomnd
     - goprintffuncname
     # - gosec
+    - gosmopolitan
+    - grouper
     - gosimple
     - govet
+    - importas
     - ineffassign
+    - interfacebloat
+    # TODO(mem): - ireturn
     # - lll
+    - loggercheck
+    # TODO(mem): - maintidx
+    - mirror
     - misspell
+    - musttag
     - nakedret
+    - nestif
+    # TODO(mem): - noctx
+    - nolintlint
+    - nosprintfhostport
+    # TODO(mem): - paralleltest
+    # TODO(mem): - prealloc
+    # TODO(mem): - promlinter
+    - reassign
+    # TODO(mem): - revive
     - rowserrcheck
+    - sqlclosecheck
     - staticcheck
+    # TODO(mem): - tagalign
+    - tenv
+    - testableexamples
+    # TODO(mem): - thelper
     - typecheck
     - unconvert
+    # TODO(mem): - unparam
+    # TODO(mem): - varnamelen
+    - wastedassign
     - unused
     - whitespace
+    # TODO(mem): - wsl
+    - zerologlint
 
 linters-settings:
   goconst:
