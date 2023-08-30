@@ -114,7 +114,7 @@ func TestBuildHeaders(t *testing.T) {
 			},
 			expected: `{'Content-Type':''}`,
 		},
-		"body": {
+		"body-content-type+content-encoding": {
 			input: input{
 				body: &sm.HttpRequestBody{
 					ContentType:     "text/plain",
@@ -124,7 +124,25 @@ func TestBuildHeaders(t *testing.T) {
 			},
 			expected: `{'Content-Type':'text/plain','Content-Encoding':'none'}`,
 		},
-		"body+headers": {
+		"body-content-type": {
+			input: input{
+				body: &sm.HttpRequestBody{
+					ContentType: "text/plain",
+					Payload:     []byte("test"),
+				},
+			},
+			expected: `{'Content-Type':'text/plain'}`,
+		},
+		"body-content-encoding": {
+			input: input{
+				body: &sm.HttpRequestBody{
+					ContentEncoding: "none",
+					Payload:         []byte("test"),
+				},
+			},
+			expected: `{'Content-Encoding':'none'}`,
+		},
+		"body-content-type+content-encoding+headers": {
 			input: input{
 				body: &sm.HttpRequestBody{
 					ContentType:     "text/plain",
@@ -139,6 +157,36 @@ func TestBuildHeaders(t *testing.T) {
 				},
 			},
 			expected: `{'Content-Type':'text/plain','Content-Encoding':'none','X-Some-Header':'some value'}`,
+		},
+		"body-content-type+headers": {
+			input: input{
+				body: &sm.HttpRequestBody{
+					ContentType: "text/plain",
+					Payload:     []byte("test"),
+				},
+				headers: []*sm.HttpHeader{
+					{
+						Name:  "X-Some-Header",
+						Value: "some value",
+					},
+				},
+			},
+			expected: `{'Content-Type':'text/plain','X-Some-Header':'some value'}`,
+		},
+		"body-content-encoding+headers": {
+			input: input{
+				body: &sm.HttpRequestBody{
+					ContentEncoding: "none",
+					Payload:         []byte("test"),
+				},
+				headers: []*sm.HttpHeader{
+					{
+						Name:  "X-Some-Header",
+						Value: "some value",
+					},
+				},
+			},
+			expected: `{'Content-Encoding':'none','X-Some-Header':'some value'}`,
 		},
 		"empty": {
 			input: input{

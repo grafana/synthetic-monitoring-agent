@@ -78,9 +78,9 @@ func buildHeaders(headers []*sm.HttpHeader, body *sm.HttpRequestBody) string {
 			comma = ","
 		}
 
-		buf.WriteString(comma)
-
 		if len(body.ContentEncoding) > 0 {
+			buf.WriteString(comma)
+
 			buf.WriteString(`'Content-Encoding':'`)
 			buf.WriteString(template.JSEscapeString(body.ContentEncoding))
 			buf.WriteRune('\'')
