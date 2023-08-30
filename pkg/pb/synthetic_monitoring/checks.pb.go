@@ -2007,6 +2007,19 @@ func (m *HttpRequestBody) XXX_DiscardUnknown() {
 var xxx_messageInfo_HttpRequestBody proto.InternalMessageInfo
 
 // MultiHttpEntryAssertion represents a single assertion to be made on the response.
+//
+// The `value` field specifies the _value_ that the subject and the condition
+// should meet, e.g. if the subject is body and the condition is contains,
+// value specifies the substring that should be found in the body.
+//
+// For the JSON_PATH_VALUE type, `expression` specifies the JSON path to match against `value`.
+//
+// For the JSON_PATH_ASSERTION type, `expression` specifies the JSON path to assert.
+//
+// For the TEXT type, if the subject is `RESPONSE_HEADERS`, `expression`
+// specifies which specific header should be used as the subject of the
+// operation. Headers are case-insensitive (RFC 7230, section 3.2,
+// https://datatracker.ietf.org/doc/html/rfc7230#section-3.2).
 type MultiHttpEntryAssertion struct {
 	Type       MultiHttpEntryAssertionType             `protobuf:"varint,1,opt,name=type,proto3,enum=synthetic_monitoring.MultiHttpEntryAssertionType" json:"type"`
 	Subject    MultiHttpEntryAssertionSubjectVariant   `protobuf:"varint,2,opt,name=subject,proto3,enum=synthetic_monitoring.MultiHttpEntryAssertionSubjectVariant" json:"subject,omitempty"`

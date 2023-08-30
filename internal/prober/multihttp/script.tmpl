@@ -48,6 +48,23 @@ export const options = {
 	discardResponseBodies: false, // enable only if there are checks?
 };
 
+function assertHeader(headers, name, matcher) {
+	const lcName = name.toLowerCase();
+	const values = Object.entries(headers).
+		filter(h => h[0].toLowerCase() === lcName).
+		map(h => h[1]);
+
+	if (values.find(v => matcher(v)) !== undefined) {
+		return true;
+	} else if (values.length === 0) {
+		console.warn(`'${name}' not present in response`);
+	} else {
+		values.forEach(v => console.warn(`'${name}' has the value '${v}'`));
+	}
+
+	return false;
+}
+
 export default function() {
 	let response;
 	const vars = {};

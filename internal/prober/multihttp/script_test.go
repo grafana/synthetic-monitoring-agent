@@ -379,6 +379,18 @@ func TestBuildChecks(t *testing.T) {
 			},
 			expected: `check(response, { "header contains \"value\"": response => { const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => value.includes("value")); } }, {"url": "http://example.com", "method": "GET"});`,
 		},
+		"TestBuildChecksTextAssertionWithHeadersSubjectAndExpression": {
+			url:    "http://example.com",
+			method: "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:       sm.MultiHttpEntryAssertionType_TEXT,
+				Condition:  sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
+				Expression: "Content-Type",
+				Value:      "value",
+			},
+			expected: `check(response, { "header contains \"value\"": response => { return assertHeader(response.headers, "Content-Type", v => value.includes("value")); } }, {"url": "http://example.com", "method": "GET"});`,
+		},
 		"TestBuildChecksTextAssertionWithStatusCodeSubject": {
 			url:    "http://example.com",
 			method: "GET",
