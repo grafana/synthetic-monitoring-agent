@@ -69,7 +69,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	if err != nil {
 		logErr := logger.Log(err)
 		if logErr != nil {
-			p.logger.Error().Err(logErr)
+			p.logger.Error().Err(logErr).Msg("logging error")
 			return false
 		}
 		return false
@@ -89,7 +89,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	if err != nil {
 		err = logger.Log("Level", "error", "msg", err.Error())
 		if err != nil {
-			p.logger.Err(err)
+			p.logger.Err(err).Msg("logging error")
 		}
 		success = false
 	}
@@ -111,7 +111,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		hosts[ttl] = t
 		err := logger.Log("Level", "info", "Destination", m.Address, "Hosts", t, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TracerouteID", tracerouteID)
 		if err != nil {
-			p.logger.Error().Err(err)
+			p.logger.Error().Err(err).Msg("logging error")
 			continue
 		}
 	}
@@ -128,9 +128,8 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 
 	traceHash := fnv.New32()
 	_, err = traceHash.Write([]byte(hostsString))
-
 	if err != nil {
-		p.logger.Error().Err(err)
+		p.logger.Error().Err(err).Msg("computing trace hash")
 		return false
 	}
 
