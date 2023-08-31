@@ -30,7 +30,6 @@ type Metrics struct {
 var (
 	labelsWithType       = []string{"regionID", "tenantID", "type"}
 	labelsWithTypeStatus = []string{"regionID", "tenantID", "type", "status"}
-	labelsWithTarget     = []string{"regionID", "tenantID", "target"}
 )
 
 // NewMetrics returns a new set of publisher metrics registered in the given registerer.
@@ -73,9 +72,9 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 			Namespace: "sm_agent",
 			Subsystem: "publisher",
 			Name:      "push_bytes",
-			Help:      "Total number of bytes pushed by target.",
+			Help:      "Total number of bytes pushed by type.",
 		},
-		labelsWithTarget)
+		labelsWithType)
 
 	promRegisterer.MustRegister(m.BytesOut)
 
@@ -84,9 +83,9 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 			Namespace: "sm_agent",
 			Subsystem: "publisher",
 			Name:      "retries_total",
-			Help:      "Total number of retries performed by target.",
+			Help:      "Total number of retries performed by type.",
 		},
-		labelsWithTarget)
+		labelsWithType)
 
 	promRegisterer.MustRegister(m.RetriesCounter)
 
@@ -135,20 +134,16 @@ func (m Metrics) WithTenant(localID int64, regionID int) Metrics {
 
 // WithType returns a new set of Metrics with the given type label.
 func (m Metrics) WithType(t string) Metrics {
-	var (
-		typeLabels = prometheus.Labels{
-			"type": t,
-		}
-		targetLabels = prometheus.Labels{
-			"target": t,
-		}
-	)
+	var typeLabels = prometheus.Labels{
+		"type": t,
+	}
+
 	return Metrics{
 		PushCounter:     m.PushCounter.MustCurryWith(typeLabels),
 		ErrorCounter:    m.ErrorCounter.MustCurryWith(typeLabels),
-		BytesOut:        m.BytesOut.MustCurryWith(targetLabels),
+		BytesOut:        m.BytesOut.MustCurryWith(typeLabels),
 		FailedCounter:   m.FailedCounter, // type in failed counter servers a different purpose.
-		RetriesCounter:  m.RetriesCounter.MustCurryWith(targetLabels),
+		RetriesCounter:  m.RetriesCounter.MustCurryWith(typeLabels),
 		DroppedCounter:  m.DroppedCounter.MustCurryWith(typeLabels),
 		ResponseCounter: m.ResponseCounter.MustCurryWith(typeLabels),
 	}
