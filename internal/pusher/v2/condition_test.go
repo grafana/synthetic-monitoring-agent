@@ -8,7 +8,14 @@ import (
 )
 
 func TestCondition(t *testing.T) {
-	const timeout = time.Second
+	const fastTimeout = 50 * time.Millisecond
+	const slowTimeout = 1000 * time.Millisecond
+
+	var timeout = slowTimeout
+	if testing.Short() {
+		timeout = fastTimeout
+	}
+
 	t.Run("don't fire until signaled", func(t *testing.T) {
 		c := newCondition()
 		wait(t, &c, false, timeout)

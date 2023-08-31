@@ -174,12 +174,12 @@ func TestQueue(t *testing.T) {
 		},
 		"max queued time": {
 			options: &pusherOptions{
-				maxQueuedTime: time.Second,
+				maxQueuedTime: 100 * time.Millisecond,
 			},
 			actions: []testAction{
 				insert(1),
 				insert(2),
-				sleep(time.Second + time.Second/2),
+				sleep(150 * time.Millisecond),
 				insert(3),
 				expect(timeout, []int{3}),
 				expectEmpty(),
@@ -212,6 +212,10 @@ func TestQueue(t *testing.T) {
 }
 
 func TestQueuePush(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+
 	body := "HELLO WORLD!"
 	records := makeRecords([][]byte{
 		snap(body[:6]),

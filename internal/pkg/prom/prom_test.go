@@ -55,6 +55,7 @@ func TestSendBytesWithBackoffRetriesCounter(t *testing.T) {
 		args                 args
 		wantErr              bool
 		expectedRetriesCount float64
+		isSlow               bool
 	}{
 		{
 			name: "should count 0 retries when successful at first",
@@ -83,6 +84,7 @@ func TestSendBytesWithBackoffRetriesCounter(t *testing.T) {
 			},
 			wantErr:              true,
 			expectedRetriesCount: 10,
+			isSlow:               true,
 		},
 	}
 	for _, tt := range tests {
@@ -91,6 +93,10 @@ func TestSendBytesWithBackoffRetriesCounter(t *testing.T) {
 			FailuresLeft:   tt.args.timesToFail,
 		}
 		t.Run(tt.name, func(t *testing.T) {
+			if testing.Short() && tt.isSlow {
+				t.Skip("skipping in short mode")
+			}
+
 			if err := prom.SendBytesWithBackoff(tt.args.ctx, client, tt.args.req); (err != nil) != tt.wantErr {
 				t.Errorf("SendBytesWithBackoff() error = %v, wantErr %v", err, tt.wantErr)
 				return
