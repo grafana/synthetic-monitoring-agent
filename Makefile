@@ -138,8 +138,16 @@ test-go: $(GOTESTSUM) ## Run Go tests.
 		$(GO_TEST_ARGS)
 	$(S) $(ROOTDIR)/scripts/report-test-coverage $(TEST_OUTPUT).cov
 
+.PHONY: test-go-fast
+test-go-fast: GO_TEST_ARGS += -short
+test-go-fast: test-go ## Run only fast Go tests.
+	$(S) true
+
 .PHONY: test
 test: test-go ## Run all tests.
+
+.PHONY: test-fast
+test-fast: test-go-fast ## Run only fast tests.
 
 ##@ Linting
 
