@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/miekg/dns"
@@ -1332,4 +1334,107 @@ func (r *testRunner) Run(ctx context.Context, script []byte) (*k6runner.RunRespo
 
 func (r *testRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 	return r
+}
+
+type testCounter struct {
+	count atomic.Int32
+}
+
+func (c *testCounter) Inc() {
+	c.count.Add(1)
+}
+
+type testCounterVec struct {
+	counters map[string]Incrementer
+	t        *testing.T
+}
+
+func (c *testCounterVec) WithLabelValues(v ...string) Incrementer {
+	require.Len(c.t, v, 1)
+
+	if _, found := c.counters[v[0]]; !found {
+		c.counters[v[0]] = &testCounter{}
+	}
+
+	return c.counters[v[0]]
+}
+
+type testProberB struct {
+	wantedFailures int32
+	execCount      int32
+	failureCount   int32
+}
+
+func (p testProberB) Name() string {
+	return "test prober"
+}
+
+func (p *testProberB) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+	p.execCount++
+
+	if p.failureCount < p.wantedFailures {
+		p.failureCount++
+		return false
+	}
+
+	return true
+}
+
+type testProbeFactory struct {
+	builder func() prober.Prober
+}
+
+func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check sm.Check) (prober.Prober, string, error) {
+	return f.builder(), check.Target, nil
+}
+
+type testPublisher struct {
+}
+
+func (testPublisher) Publish(pusher.Payload) {
+}
+
+// TestScraperRun will set up a scraper in such a way that it runs 5 times, and fails 2 out of those 5.
+//
+// This checks that the probe gets run, and that the metrics are correctly collected.
+func TestScraperRun(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	t.Cleanup(cancel)
+
+	check := sm.Check{
+		Id:        1,
+		TenantId:  1000,
+		Frequency: 100,
+		Timeout:   1000,
+		Enabled:   true,
+		Target:    "127.0.0.1",
+		Job:       "test",
+		Settings: sm.CheckSettings{
+			Ping: &sm.PingSettings{},
+		},
+	}
+
+	var counter testCounter
+	errCounter := testCounterVec{counters: make(map[string]Incrementer), t: t}
+
+	testProber := &testProberB{wantedFailures: 2}
+
+	s, err := NewWithOpts(ctx, check, ScraperOpts{
+		ScrapeCounter: &counter,
+		ErrorCounter:  &errCounter,
+		ProbeFactory:  testProbeFactory{builder: func() prober.Prober { return testProber }},
+		Logger:        zerolog.New(zerolog.NewTestWriter(t)),
+		Publisher:     &testPublisher{},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, s)
+
+	s.Run(ctx)
+
+	require.Equal(t, testProber.execCount, counter.count.Load())
+	require.Len(t, errCounter.counters, 1)
+	checkErrCounter, found := errCounter.counters["check"]
+	require.True(t, found)
+	require.Equal(t, testProber.failureCount, checkErrCounter.(*testCounter).count.Load())
 }

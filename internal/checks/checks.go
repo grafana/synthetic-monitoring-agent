@@ -74,7 +74,7 @@ type Updater struct {
 	scrapers       map[int64]*scraper.Scraper
 	metrics        metrics
 	k6Runner       k6runner.Runner
-	scraperFactory func(context.Context, sm.Check, pusher.Publisher, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec, k6runner.Runner) (*scraper.Scraper, error)
+	scraperFactory func(context.Context, sm.Check, pusher.Publisher, sm.Probe, zerolog.Logger, scraper.Incrementer, scraper.IncrementerVec, k6runner.Runner) (*scraper.Scraper, error)
 }
 
 type apiInfo struct {
@@ -104,7 +104,7 @@ type UpdaterOptions struct {
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
 	K6Runner       k6runner.Runner
-	ScraperFactory func(context.Context, sm.Check, pusher.Publisher, sm.Probe, zerolog.Logger, prometheus.Counter, *prometheus.CounterVec, k6runner.Runner) (*scraper.Scraper, error)
+	ScraperFactory func(context.Context, sm.Check, pusher.Publisher, sm.Probe, zerolog.Logger, scraper.Incrementer, scraper.IncrementerVec, k6runner.Runner) (*scraper.Scraper, error)
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -154,6 +154,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		Help:      "Total number of scrape operations performed by type.",
 	}, []string{
 		"type",
+		"tenantId",
 	})
 
 	if err := opts.PromRegisterer.Register(scrapesCounter); err != nil {
@@ -168,6 +169,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	}, []string{
 		"type",
 		"source",
+		"tenantId",
 	})
 
 	if err := opts.PromRegisterer.Register(scrapeErrorCounter); err != nil {
@@ -812,16 +814,17 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check sm.Check
 
 	checkType := check.Type().String()
 
-	scrapeCounter := c.metrics.scrapesCounter.WithLabelValues(checkType)
+	scrapeCounter := c.metrics.scrapesCounter.WithLabelValues(checkType, strconv.FormatInt(check.TenantId, 10))
 
 	scrapeErrorCounter, err := c.metrics.scrapeErrorCounter.CurryWith(prometheus.Labels{
-		"type": checkType,
+		"type":     checkType,
+		"tenantId": strconv.FormatInt(check.TenantId, 10),
 	})
 	if err != nil {
 		return err
 	}
 
-	scraper, err := c.scraperFactory(ctx, check, c.publisher, *c.probe, c.logger, scrapeCounter, scrapeErrorCounter, c.k6Runner)
+	scraper, err := c.scraperFactory(ctx, check, c.publisher, *c.probe, c.logger, scrapeCounter, scraper.NewIncrementerFromCounterVec(scrapeErrorCounter), c.k6Runner)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}

@@ -280,7 +280,7 @@ func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check 
 	return testProber{}, check.Target, nil
 }
 
-func testScraperFactory(ctx context.Context, check sm.Check, publisher pusher.Publisher, _ sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, scrapeErrorCounter *prometheus.CounterVec, k6Runner k6runner.Runner) (*scraper.Scraper, error) {
+func testScraperFactory(ctx context.Context, check sm.Check, publisher pusher.Publisher, _ sm.Probe, logger zerolog.Logger, scrapeCounter scraper.Incrementer, scrapeErrorCounter scraper.IncrementerVec, k6Runner k6runner.Runner) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
 		check,
