@@ -40,6 +40,26 @@ var (
 	staleMarker float64 = math.Float64frombits(staleNaN)
 )
 
+type Incrementer interface {
+	Inc()
+}
+
+type IncrementerVec interface {
+	WithLabelValues(...string) Incrementer
+}
+
+type counterVecWrapper struct {
+	c *prometheus.CounterVec
+}
+
+func (c *counterVecWrapper) WithLabelValues(v ...string) Incrementer {
+	return c.c.WithLabelValues(v...)
+}
+
+func NewIncrementerFromCounterVec(c *prometheus.CounterVec) IncrementerVec {
+	return &counterVecWrapper{c: c}
+}
+
 type Scraper struct {
 	publisher     pusher.Publisher
 	cancel        context.CancelFunc
@@ -50,8 +70,8 @@ type Scraper struct {
 	probe         sm.Probe
 	prober        prober.Prober
 	stop          chan struct{}
-	scrapeCounter prometheus.Counter
-	errorCounter  *prometheus.CounterVec
+	scrapeCounter Incrementer
+	errorCounter  IncrementerVec
 	summaries     map[uint64]prometheus.Summary
 	histograms    map[uint64]prometheus.Histogram
 }
@@ -77,7 +97,7 @@ func (d *probeData) Tenant() int64 {
 	return d.tenantId
 }
 
-func New(ctx context.Context, check sm.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger, scrapeCounter prometheus.Counter, errorCounter *prometheus.CounterVec, k6runner k6runner.Runner) (*Scraper, error) {
+func New(ctx context.Context, check sm.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger, scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
 		Publisher:     publisher,
@@ -92,8 +112,8 @@ type ScraperOpts struct {
 	Probe         sm.Probe
 	Publisher     pusher.Publisher
 	Logger        zerolog.Logger
-	ScrapeCounter prometheus.Counter
-	ErrorCounter  *prometheus.CounterVec
+	ScrapeCounter Incrementer
+	ErrorCounter  IncrementerVec
 	ProbeFactory  prober.ProberFactory
 }
 
@@ -101,6 +121,7 @@ func NewWithOpts(ctx context.Context, check sm.Check, opts ScraperOpts) (*Scrape
 	checkName := check.Type().String()
 
 	logger := withCheckID(opts.Logger.With(), check.Id).
+		Int64("tenantId", check.TenantId).
 		Str("probe", opts.Probe.Name).
 		Str("target", check.Target).
 		Str("job", check.Job).
