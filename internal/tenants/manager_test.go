@@ -1,4 +1,4 @@
-package pusher
+package tenants
 
 import (
 	"context"
@@ -61,7 +61,7 @@ func TestTenantManagerGetTenant(t *testing.T) {
 
 	tenantCh := make(chan sm.Tenant)
 
-	tm := NewTenantManager(ctx, &tc, tenantCh, 500*time.Millisecond)
+	tm := NewManager(ctx, &tc, tenantCh, 500*time.Millisecond)
 
 	t1 := tc.tenants[1]
 

@@ -1,14 +1,15 @@
-package pusher
+package tenants
 
 import (
 	"context"
 	"sync"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
-type TenantManager struct {
+type Manager struct {
 	tenantCh      <-chan sm.Tenant
 	tenantsClient sm.TenantsClient
 	timeout       time.Duration
@@ -16,7 +17,7 @@ type TenantManager struct {
 	tenants       map[int64]*tenantInfo
 }
 
-var _ TenantProvider = &TenantManager{}
+var _ pusher.TenantProvider = &Manager{}
 
 type tenantInfo struct {
 	mutex      sync.Mutex // protects the entire structure
@@ -31,8 +32,8 @@ type tenantInfo struct {
 //
 // A new goroutine is started which stops when the provided context is
 // cancelled.
-func NewTenantManager(ctx context.Context, tenantsClient sm.TenantsClient, tenantCh <-chan sm.Tenant, timeout time.Duration) *TenantManager {
-	tm := &TenantManager{
+func NewManager(ctx context.Context, tenantsClient sm.TenantsClient, tenantCh <-chan sm.Tenant, timeout time.Duration) *Manager {
+	tm := &Manager{
 		tenantCh:      tenantCh,
 		tenantsClient: tenantsClient,
 		timeout:       timeout,
@@ -44,7 +45,7 @@ func NewTenantManager(ctx context.Context, tenantsClient sm.TenantsClient, tenan
 	return tm
 }
 
-func (tm *TenantManager) run(ctx context.Context) {
+func (tm *Manager) run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -56,7 +57,7 @@ func (tm *TenantManager) run(ctx context.Context) {
 	}
 }
 
-func (tm *TenantManager) updateTenant(tenant sm.Tenant) {
+func (tm *Manager) updateTenant(tenant sm.Tenant) {
 	tm.tenantsMutex.Lock()
 
 	info, found := tm.tenants[tenant.Id]
@@ -94,7 +95,7 @@ func (tm *TenantManager) updateTenant(tenant sm.Tenant) {
 
 // GetTenant retrieves the tenant specified by `req`, either from a
 // local cache or by making a request to the API.
-func (tm *TenantManager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenant, error) {
+func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenant, error) {
 	tm.tenantsMutex.Lock()
 	now := time.Now()
 	info, found := tm.tenants[req.Id]
