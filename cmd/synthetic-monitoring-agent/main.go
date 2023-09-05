@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
+	"github.com/grafana/synthetic-monitoring-agent/internal/tenants"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
@@ -208,7 +209,7 @@ func run(args []string, stdout io.Writer) error {
 		k6Runner = k6runner.New(*k6URI)
 	}
 
-	tm := pusher.NewTenantManager(ctx, synthetic_monitoring.NewTenantsClient(conn), tenantCh, 15*time.Minute)
+	tm := tenants.NewManager(ctx, synthetic_monitoring.NewTenantsClient(conn), tenantCh, 15*time.Minute)
 
 	pusherRegistry := pusher.NewRegistry[pusher.Factory]()
 	pusherRegistry.MustRegister(pusherV1.Name, pusherV1.NewPublisher)
