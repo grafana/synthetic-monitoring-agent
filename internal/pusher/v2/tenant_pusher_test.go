@@ -11,36 +11,41 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
+	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
 func TestTenantPusher(t *testing.T) {
+	// This is an extremely basic test that verifies that a tenant pusher
+	// can be constructed.
 	tenantProvider := testTenantProvider{
 		1: &sm.Tenant{
 			Id:            1,
 			OrgId:         1,
-			MetricsRemote: nil,
-			EventsRemote:  nil,
+			MetricsRemote: &sm.RemoteInfo{},
+			EventsRemote:  &sm.RemoteInfo{},
 			Status:        sm.TenantStatus_ACTIVE,
 		},
 	}
 
-	for title, tc := range map[string]struct {
-		tenantID int64
-		options  pusherOptions
-	}{} {
-		t.Run(title, func(t *testing.T) {
-			p := newTenantPusher(tc.tenantID, tenantProvider, tc.options)
-			deadline, ok := t.Deadline()
-			if !ok {
-				deadline = time.Now().Add(time.Minute * 5)
-			}
-			ctx, cancel := context.WithDeadline(context.Background(), deadline)
-			defer cancel()
-			go p.run(ctx)
-		})
-	}
+	registry := prometheus.NewPedanticRegistry()
+	metrics := pusher.NewMetrics(registry)
+
+	p := newTenantPusher(1, tenantProvider, pusherOptions{
+		metrics: metrics,
+	})
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(50*time.Millisecond))
+	defer cancel()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		p.run(ctx)
+		wg.Done()
+	}()
+	wg.Wait()
 }
 
 func makeRecords(blocks [][]byte) []queueEntry {

@@ -7,12 +7,13 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
 type Payload interface {
-	Tenant() int64
+	Tenant() model.GlobalID
 	Metrics() []prompb.TimeSeries
 	Streams() []logproto.Stream
 }

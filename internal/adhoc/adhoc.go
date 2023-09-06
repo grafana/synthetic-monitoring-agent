@@ -18,6 +18,7 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -362,7 +363,7 @@ func (h *Handler) handleAdHocCheck(ctx context.Context, ahReq *sm.AdHocRequest) 
 		return err
 	}
 
-	go runner.Run(ctx, ahReq.AdHocCheck.TenantId, h.publisher)
+	go runner.Run(ctx, model.GlobalID(ahReq.AdHocCheck.TenantId), h.publisher)
 
 	// If there's a tenant in the request, this should be forwarded
 	// to the changes handler.
@@ -383,10 +384,12 @@ func defaultGrpcAdhocChecksClientFactory(conn ClientConn) (sm.AdHocChecksClient,
 }
 
 func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest) (*runner, error) {
-	check := sm.Check{
-		Target:   req.AdHocCheck.Target,
-		Timeout:  req.AdHocCheck.Timeout,
-		Settings: req.AdHocCheck.Settings,
+	check := model.Check{
+		Check: sm.Check{
+			Target:   req.AdHocCheck.Target,
+			Timeout:  req.AdHocCheck.Timeout,
+			Settings: req.AdHocCheck.Settings,
+		},
 	}
 
 	p, target, err := h.proberFactory.New(ctx, h.logger, check)
@@ -447,7 +450,7 @@ func (l *jsonLogger) Log(keyvals ...interface{}) error {
 
 // Run runs the specified prober once and captures the results using
 // jsonLogger.
-func (r *runner) Run(ctx context.Context, tenantId int64, publisher pusher.Publisher) {
+func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pusher.Publisher) {
 	r.logger.Info().Msg("running ad-hoc check")
 
 	registry := prometheus.NewRegistry()
@@ -531,7 +534,7 @@ type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
 type adhocData struct {
-	tenantId int64
+	tenantId model.GlobalID
 	streams  Streams
 }
 
@@ -543,6 +546,6 @@ func (d adhocData) Streams() Streams {
 	return d.streams
 }
 
-func (d adhocData) Tenant() int64 {
+func (d adhocData) Tenant() model.GlobalID {
 	return d.tenantId
 }

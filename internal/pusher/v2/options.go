@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 )
 
@@ -89,8 +90,8 @@ type pusherOptions struct {
 	pool           bufferPool
 }
 
-func (o pusherOptions) withTenant(id int64) pusherOptions {
-	localID, regionID := pusher.GetLocalAndRegionIDs(id)
+func (o pusherOptions) withTenant(id model.GlobalID) pusherOptions {
+	localID, regionID := model.GetLocalAndRegionIDs(id)
 	o.logger = o.logger.With().Int("region", regionID).Int64("tenant", localID).Logger()
 	o.metrics = o.metrics.WithTenant(localID, regionID)
 	return o
