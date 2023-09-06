@@ -41,12 +41,3 @@ func ClientFromRemoteInfo(remote *sm.RemoteInfo) (*prom.ClientConfig, error) {
 	clientCfg.Headers["X-Prometheus-Remote-Write-Version"] = "0.1.0"
 	return &clientCfg, nil
 }
-
-func GetLocalAndRegionIDs(id int64) (localID int64, regionID int) {
-	var err error
-	if localID, regionID, err = sm.GlobalIDToLocalID(id); err != nil {
-		// Id is already local, use region 0.
-		return id, 0
-	}
-	return localID, regionID
-}

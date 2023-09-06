@@ -11,6 +11,7 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -18,8 +19,8 @@ import (
 
 // tenantPusher is in charge of pushing changes for a specific tenant.
 type tenantPusher struct {
-	tenantID       int64
-	pushCounter    uint64
+	tenantID       model.GlobalID
+	pushCounter    uint64 // FIXME(mem)
 	logs, metrics  queue
 	tenantProvider pusher.TenantProvider
 	options        pusherOptions
@@ -27,7 +28,7 @@ type tenantPusher struct {
 
 var _ payloadHandler = &tenantPusher{}
 
-func newTenantPusher(tenantID int64, tenantProvider pusher.TenantProvider, options pusherOptions) *tenantPusher {
+func newTenantPusher(tenantID model.GlobalID, tenantProvider pusher.TenantProvider, options pusherOptions) *tenantPusher {
 	mOptions := options.withType(pusher.LabelValueMetrics)
 	eOptions := options.withType(pusher.LabelValueLogs)
 	tp := &tenantPusher{
@@ -91,7 +92,7 @@ func (p *tenantPusher) run(ctx context.Context) payloadHandler {
 func (p *tenantPusher) runPushers(ctx context.Context) error {
 	// TODO(adrian): If tenant had the plan in here, we could have different retention for paid tenants.
 	tenant, err := p.tenantProvider.GetTenant(ctx, &sm.TenantInfo{
-		Id: p.tenantID,
+		Id: int64(p.tenantID),
 	})
 	if err != nil {
 		p.options.metrics.FailedCounter.WithLabelValues(pusher.LabelValueTenant).Inc()

@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/loki"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
@@ -41,7 +42,7 @@ type publisherImpl struct {
 	tenantManager pusher.TenantProvider
 	logger        zerolog.Logger
 	clientsMutex  sync.Mutex
-	clients       map[int64]*remoteTarget
+	clients       map[model.GlobalID]*remoteTarget
 	metrics       pusher.Metrics
 }
 
@@ -51,7 +52,7 @@ func NewPublisher(ctx context.Context, tm pusher.TenantProvider, logger zerolog.
 	return &publisherImpl{
 		ctx:           ctx,
 		tenantManager: tm,
-		clients:       make(map[int64]*remoteTarget),
+		clients:       make(map[model.GlobalID]*remoteTarget),
 		logger:        logger,
 		metrics:       pusher.NewMetrics(promRegisterer),
 	}
@@ -68,7 +69,7 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 		// The above tenant ID is potentially a global ID. This is valid
 		// for using internally but in logs and metrics we want to publish
 		// the region and local tenant ID.
-		localID, regionID = pusher.GetLocalAndRegionIDs(tenantID)
+		localID, regionID = model.GetLocalAndRegionIDs(tenantID)
 		regionStr         = strconv.FormatInt(int64(regionID), 10)
 		tenantStr         = strconv.FormatInt(localID, 10)
 
@@ -153,13 +154,13 @@ func (p *publisherImpl) pushMetrics(ctx context.Context, client *prom.Client, me
 	return len(*buf), nil
 }
 
-func (p *publisherImpl) getClient(ctx context.Context, tenantId int64, newClient bool) (*remoteTarget, error) {
+func (p *publisherImpl) getClient(ctx context.Context, tenantId model.GlobalID, newClient bool) (*remoteTarget, error) {
 	var (
 		client *remoteTarget
 		found  bool
 	)
 
-	localID, regionID := pusher.GetLocalAndRegionIDs(tenantId)
+	localID, regionID := model.GetLocalAndRegionIDs(tenantId)
 
 	p.clientsMutex.Lock()
 	if newClient {
@@ -177,7 +178,7 @@ func (p *publisherImpl) getClient(ctx context.Context, tenantId int64, newClient
 	p.logger.Info().Int("regionId", regionID).Int64("tenantId", localID).Msg("fetching tenant credentials")
 
 	req := sm.TenantInfo{
-		Id: tenantId,
+		Id: int64(tenantId),
 	}
 	tenant, err := p.tenantManager.GetTenant(ctx, &req)
 	if err != nil {
@@ -193,7 +194,7 @@ func (p *publisherImpl) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 		return nil, fmt.Errorf("creating metrics client configuration: %w", err)
 	}
 
-	localID, regionID := pusher.GetLocalAndRegionIDs(tenant.Id)
+	localID, regionID := model.GetLocalAndRegionIDs(model.GlobalID(tenant.Id))
 
 	regionStr := strconv.FormatInt(int64(regionID), 10)
 	tenantStr := strconv.FormatInt(localID, 10)
@@ -223,7 +224,7 @@ func (p *publisherImpl) updateClient(tenant *sm.Tenant) (*remoteTarget, error) {
 	}
 
 	p.clientsMutex.Lock()
-	p.clients[tenant.Id] = clients
+	p.clients[model.GlobalID(tenant.Id)] = clients
 	p.clientsMutex.Unlock()
 	p.logger.Debug().Int("regionId", regionID).Int64("tenantId", localID).Int64("stackId", tenant.StackId).Msg("updated client")
 

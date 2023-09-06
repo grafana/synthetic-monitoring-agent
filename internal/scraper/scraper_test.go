@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	dnsProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
@@ -1146,18 +1147,20 @@ func TestScraperCollectData(t *testing.T) {
 			prober:     testProber{},
 			summaries:  make(map[uint64]prometheus.Summary),
 			histograms: make(map[uint64]prometheus.Histogram),
-			check: sm.Check{
-				Id:               1,
-				TenantId:         2,
-				Frequency:        frequency,
-				Timeout:          frequency,
-				Enabled:          true,
-				Target:           checkTarget,
-				Job:              job,
-				BasicMetricsOnly: true,
-				Created:          modifiedTs,
-				Modified:         modifiedTs,
-				Labels:           tc.checkLabels,
+			check: model.Check{
+				Check: sm.Check{
+					Id:               1,
+					TenantId:         2,
+					Frequency:        frequency,
+					Timeout:          frequency,
+					Enabled:          true,
+					Target:           checkTarget,
+					Job:              job,
+					BasicMetricsOnly: true,
+					Created:          modifiedTs,
+					Modified:         modifiedTs,
+					Labels:           tc.checkLabels,
+				},
 			},
 			probe: sm.Probe{
 				Id:        100,
@@ -1384,7 +1387,7 @@ type testProbeFactory struct {
 	builder func() prober.Prober
 }
 
-func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check sm.Check) (prober.Prober, string, error) {
+func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check model.Check) (prober.Prober, string, error) {
 	return f.builder(), check.Target, nil
 }
 
@@ -1401,7 +1404,8 @@ func TestScraperRun(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	t.Cleanup(cancel)
 
-	check := sm.Check{
+	var check model.Check
+	check.FromSM(sm.Check{
 		Id:        1,
 		TenantId:  1000,
 		Frequency: 100,
@@ -1412,7 +1416,7 @@ func TestScraperRun(t *testing.T) {
 		Settings: sm.CheckSettings{
 			Ping: &sm.PingSettings{},
 		},
-	}
+	})
 
 	var counter testCounter
 	errCounter := testCounterVec{counters: make(map[string]Incrementer), t: t}

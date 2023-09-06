@@ -17,11 +17,12 @@ import (
 	"github.com/mmcloughlin/geohash"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/model"
+	prom "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -66,7 +67,7 @@ type Scraper struct {
 	checkName     string
 	target        string
 	logger        zerolog.Logger
-	check         sm.Check
+	check         model.Check
 	probe         sm.Probe
 	prober        prober.Prober
 	stop          chan struct{}
@@ -80,7 +81,7 @@ type TimeSeries = []prompb.TimeSeries
 type Streams = []logproto.Stream
 
 type probeData struct {
-	tenantId int64
+	tenantId model.GlobalID
 	ts       TimeSeries
 	streams  Streams
 }
@@ -93,11 +94,11 @@ func (d *probeData) Streams() Streams {
 	return d.streams
 }
 
-func (d *probeData) Tenant() int64 {
+func (d *probeData) Tenant() model.GlobalID {
 	return d.tenantId
 }
 
-func New(ctx context.Context, check sm.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger, scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner) (*Scraper, error) {
+func New(ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger, scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
 		Publisher:     publisher,
@@ -117,11 +118,13 @@ type ScraperOpts struct {
 	ProbeFactory  prober.ProberFactory
 }
 
-func NewWithOpts(ctx context.Context, check sm.Check, opts ScraperOpts) (*Scraper, error) {
+func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
 	checkName := check.Type().String()
 
-	logger := withCheckID(opts.Logger.With(), check.Id).
+	logger := opts.Logger.With().
+		Int("region_id", check.RegionId).
 		Int64("tenantId", check.TenantId).
+		Int64("check_id", check.Id).
 		Str("probe", opts.Probe.Name).
 		Str("target", check.Target).
 		Str("job", check.Job).
@@ -414,7 +417,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// loki does not support joins
 	streams := s.extractLogs(t, logs.Bytes(), logLabels)
 
-	return &probeData{ts: ts, streams: streams, tenantId: s.check.TenantId}, err
+	return &probeData{ts: ts, streams: streams, tenantId: s.check.GlobalTenantID()}, err
 }
 
 func getProbeMetrics(
@@ -887,12 +890,12 @@ func updateHistogramFromMetric(mName, help string, m *dto.Metric, histograms map
 }
 
 func hashMetricNameAndLabels(name string, dtoLabels []*dto.LabelPair) uint64 {
-	ls := model.LabelSet{
-		model.MetricNameLabel: model.LabelValue(name),
+	ls := prom.LabelSet{
+		prom.MetricNameLabel: prom.LabelValue(name),
 	}
 
 	for _, label := range dtoLabels {
-		ls[model.LabelName(label.GetName())] = model.LabelValue(label.GetValue())
+		ls[prom.LabelName(label.GetName())] = prom.LabelValue(label.GetValue())
 	}
 
 	return uint64(ls.Fingerprint())
@@ -910,15 +913,6 @@ func getLabels(m *dto.Metric) map[string]string {
 	}
 
 	return labels
-}
-
-// Helper to add a check ID and optionally a region ID to a log context.
-func withCheckID(ctx zerolog.Context, checkID int64) zerolog.Context {
-	if localID, regionID, err := sm.GlobalIDToLocalID(checkID); err == nil {
-		ctx = ctx.Int("region_id", regionID)
-		checkID = localID
-	}
-	return ctx.Int64("check_id", checkID)
 }
 
 func truncateLabelValue(str string) string {

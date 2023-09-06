@@ -15,6 +15,7 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -183,7 +184,8 @@ func TestHandleCheckOp(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 
-	check := sm.Check{
+	var check model.Check
+	check.FromSM(sm.Check{
 		Id:        5000,
 		TenantId:  1,
 		Frequency: 1000,
@@ -196,12 +198,12 @@ func TestHandleCheckOp(t *testing.T) {
 		},
 		Created:  0,
 		Modified: 0,
-	}
+	})
 
 	scraperExists := func() bool {
 		u.scrapersMutex.Lock()
 		defer u.scrapersMutex.Unlock()
-		_, found := u.scrapers[check.Id]
+		_, found := u.scrapers[check.GlobalID()]
 		return found
 	}
 
@@ -276,11 +278,11 @@ func (testProber) Probe(ctx context.Context, target string, registry *prometheus
 type testProbeFactory struct {
 }
 
-func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check sm.Check) (prober.Prober, string, error) {
+func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check model.Check) (prober.Prober, string, error) {
 	return testProber{}, check.Target, nil
 }
 
-func testScraperFactory(ctx context.Context, check sm.Check, publisher pusher.Publisher, _ sm.Probe, logger zerolog.Logger, scrapeCounter scraper.Incrementer, scrapeErrorCounter scraper.IncrementerVec, k6Runner k6runner.Runner) (*scraper.Scraper, error) {
+func testScraperFactory(ctx context.Context, check model.Check, publisher pusher.Publisher, _ sm.Probe, logger zerolog.Logger, scrapeCounter scraper.Incrementer, scrapeErrorCounter scraper.IncrementerVec, k6Runner k6runner.Runner) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
 		check,

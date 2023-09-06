@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 )
 
@@ -20,7 +21,7 @@ func NewPublisher(ctx context.Context, tenantProvider pusher.TenantProvider, log
 		ctx:            ctx,
 		tenantProvider: tenantProvider,
 		options:        defaultPusherOptions,
-		handlers:       make(map[int64]payloadHandler),
+		handlers:       make(map[model.GlobalID]payloadHandler),
 	}
 	impl.options.logger = logger
 	impl.options.metrics = pusher.NewMetrics(pr)
@@ -40,7 +41,7 @@ type publisherImpl struct {
 	tenantProvider pusher.TenantProvider
 	options        pusherOptions
 	handlerMutex   sync.Mutex // protects the handlers map
-	handlers       map[int64]payloadHandler
+	handlers       map[model.GlobalID]payloadHandler
 }
 
 var _ pusher.Publisher = &publisherImpl{}
@@ -59,15 +60,16 @@ func (p *publisherImpl) Publish(payload pusher.Payload) {
 	handler.publish(payload)
 }
 
-func (p *publisherImpl) runHandler(tenantID int64, h payloadHandler) {
-	p.options.logger.Info().Int64("tenantID", tenantID).Msg("started push handler")
-	defer p.options.logger.Info().Int64("tenantID", tenantID).Msg("stopped push handler")
+func (p *publisherImpl) runHandler(tenantID model.GlobalID, h payloadHandler) {
+	tid, rid := model.GetLocalAndRegionIDs(tenantID)
+	p.options.logger.Info().Int64("tenant_id", tid).Int("region_id", rid).Msg("started push handler")
+	defer p.options.logger.Info().Int64("tenant_id", tid).Int("region_id", rid).Msg("stopped push handler")
 
 	for ok := true; ok && h != nil; {
 		next := h.run(p.ctx)
 		h, ok = p.replaceHandler(tenantID, h, next)
 		if !ok {
-			p.options.logger.Error().Int64("tenantID", tenantID).Msg("unable to swap handler, tenant hijacked")
+			p.options.logger.Error().Int64("tenant_id", tid).Int("region_id", rid).Msg("unable to swap handler, tenant hijacked")
 		}
 	}
 }
@@ -80,7 +82,7 @@ func (p *publisherImpl) runHandler(tenantID int64, h payloadHandler) {
 //
 // The handler currently in effect is returned, along with whether the handler
 // was changed or not.
-func (p *publisherImpl) replaceHandler(tenantID int64, old, new payloadHandler) (payloadHandler, bool) {
+func (p *publisherImpl) replaceHandler(tenantID model.GlobalID, old, new payloadHandler) (payloadHandler, bool) {
 	p.handlerMutex.Lock()
 	defer p.handlerMutex.Unlock()
 
@@ -112,7 +114,7 @@ func (p *publisherImpl) replaceHandler(tenantID int64, old, new payloadHandler) 
 	return new, true
 }
 
-func (p *publisherImpl) getHandler(tenantID int64) (payloadHandler, bool) {
+func (p *publisherImpl) getHandler(tenantID model.GlobalID) (payloadHandler, bool) {
 	p.handlerMutex.Lock()
 	defer p.handlerMutex.Unlock()
 
