@@ -116,7 +116,7 @@ func TestCheckFromSM(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			var c Check
-			c.FromSM(tc.input)
+			require.NoError(t, c.FromSM(tc.input))
 
 			require.Equal(t, tc.expected.check, c)
 			require.Equal(t, GlobalID(tc.input.Id), c.GlobalID())

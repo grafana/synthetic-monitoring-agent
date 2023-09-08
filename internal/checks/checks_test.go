@@ -185,7 +185,7 @@ func TestHandleCheckOp(t *testing.T) {
 	defer cancel()
 
 	var check model.Check
-	check.FromSM(sm.Check{
+	err = check.FromSM(sm.Check{
 		Id:        5000,
 		TenantId:  1,
 		Frequency: 1000,
@@ -199,6 +199,7 @@ func TestHandleCheckOp(t *testing.T) {
 		Created:  0,
 		Modified: 0,
 	})
+	require.NoError(t, err)
 
 	scraperExists := func() bool {
 		u.scrapersMutex.Lock()
