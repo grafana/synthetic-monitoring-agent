@@ -1405,7 +1405,7 @@ func TestScraperRun(t *testing.T) {
 	t.Cleanup(cancel)
 
 	var check model.Check
-	check.FromSM(sm.Check{
+	err := check.FromSM(sm.Check{
 		Id:        1,
 		TenantId:  1000,
 		Frequency: 100,
@@ -1417,6 +1417,7 @@ func TestScraperRun(t *testing.T) {
 			Ping: &sm.PingSettings{},
 		},
 	})
+	require.NoError(t, err)
 
 	var counter testCounter
 	errCounter := testCounterVec{counters: make(map[string]Incrementer), t: t}

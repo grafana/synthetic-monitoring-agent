@@ -13,29 +13,32 @@ type Check struct {
 	RegionId int `json:"regionId"`
 }
 
-func (c *Check) FromSM(check sm.Check) {
+func (c *Check) FromSM(check sm.Check) error {
 	// This implementation is a bit wasteful, but it ensures that it
 	// remains in sync with the protobuf definition.
 
 	data, err := check.Marshal()
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("failed to marshal check %d tenant %d: %w", check.Id, check.TenantId, err)
 	}
 
 	if err := c.Check.Unmarshal(data); err != nil {
-		panic(err)
+		return fmt.Errorf("failed to unmarshal data for check %d tenant %d: %w", check.Id, check.TenantId, err)
 	}
 
 	cid, crid := GetLocalAndRegionIDs(GlobalID(check.Id))
 	tid, trid := GetLocalAndRegionIDs(GlobalID(check.TenantId))
 
 	if crid != trid {
-		panic(fmt.Sprintf("inconsistent region ids %d and %d, checkId %d, tenantId %d", crid, trid, check.Id, check.TenantId))
+		// This should never happen.
+		return fmt.Errorf("inconsistent region ids %d and %d, checkId %d, tenantId %d", crid, trid, check.Id, check.TenantId)
 	}
 
 	c.Id = cid
 	c.TenantId = tid
 	c.RegionId = crid
+
+	return nil
 }
 
 func (c *Check) GlobalID() GlobalID {

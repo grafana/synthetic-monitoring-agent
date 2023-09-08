@@ -680,7 +680,10 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 		switch checkChange.Operation {
 		case sm.CheckOperation_CHECK_ADD:
 			var check model.Check
-			check.FromSM(checkChange.Check)
+			if err := check.FromSM(checkChange.Check); err != nil {
+				c.logger.Error().Err(err).Interface("check_change", checkChange).Msg("dropping check during add operation")
+				continue
+			}
 
 			if err := c.handleInitialChangeAddWithLock(ctx, check); err != nil {
 				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
@@ -776,7 +779,10 @@ func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, fi
 		c.logger.Debug().Interface("check change", checkChange).Msg("got check change")
 
 		var check model.Check
-		check.FromSM(checkChange.Check)
+		if err := check.FromSM(checkChange.Check); err != nil {
+			c.logger.Error().Err(err).Interface("check_change", checkChange).Msg("droppping check change")
+			continue
+		}
 
 		switch checkChange.Operation {
 		case sm.CheckOperation_CHECK_ADD:
