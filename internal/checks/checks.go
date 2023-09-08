@@ -780,7 +780,7 @@ func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, fi
 
 		var check model.Check
 		if err := check.FromSM(checkChange.Check); err != nil {
-			c.logger.Error().Err(err).Interface("check_change", checkChange).Msg("droppping check change")
+			c.logger.Error().Err(err).Interface("check_change", checkChange).Msg("dropping check change")
 			continue
 		}
 
