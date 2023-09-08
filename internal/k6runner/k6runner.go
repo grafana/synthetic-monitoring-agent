@@ -344,7 +344,7 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 		"--blacklist-ip", "10.0.0.0/8", // TODO(mem): make this configurable
 		"--block-hostnames", "*.cluster.local", // TODO(mem): make this configurable
 		"--summary-time-unit", "s",
-		"--discard-response-bodies",                        // TODO(mem): make this configurable
+		// "--discard-response-bodies",                        // TODO(mem): make this configurable
 		"--dns", "ttl=30s,select=random,policy=preferIPv4", // TODO(mem): this needs fixing, preferIPv4 is probably not what we want
 		"--no-thresholds",
 		"--no-usage-report",
