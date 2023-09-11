@@ -491,7 +491,7 @@ func TestBuildVars(t *testing.T) {
 				Type:       sm.MultiHttpEntryVariableType_CSS_SELECTOR,
 				Expression: "cssSelector",
 			},
-			expected: `vars['name'] = response.html().find('cssSelector').html();`,
+			expected: `vars['name'] = response.html('cssSelector').html();`,
 		},
 		"TestBuildVarsCssSelectorWithAttribute": {
 			input: sm.MultiHttpEntryVariable{
@@ -500,7 +500,7 @@ func TestBuildVars(t *testing.T) {
 				Expression: "cssSelector",
 				Attribute:  "attribute",
 			},
-			expected: `vars['name'] = response.html().find('cssSelector').first().attr('attribute');`,
+			expected: `vars['name'] = response.html('cssSelector').first().attr('attribute');`,
 		},
 	}
 

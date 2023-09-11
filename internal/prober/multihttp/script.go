@@ -294,7 +294,7 @@ func buildVars(variable *sm.MultiHttpEntryVariable) string {
 		b.WriteString(`match ? match[1] || match[0] : null`)
 
 	case sm.MultiHttpEntryVariableType_CSS_SELECTOR:
-		b.WriteString(`response.html().find('`)
+		b.WriteString(`response.html('`)
 		b.WriteString(template.JSEscapeString(variable.Expression))
 		b.WriteString(`')`)
 		if variable.Attribute == "" {
