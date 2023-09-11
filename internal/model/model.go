@@ -26,17 +26,14 @@ func (c *Check) FromSM(check sm.Check) error {
 		return fmt.Errorf("failed to unmarshal data for check %d tenant %d: %w", check.Id, check.TenantId, err)
 	}
 
-	cid, crid := GetLocalAndRegionIDs(GlobalID(check.Id))
-	tid, trid := GetLocalAndRegionIDs(GlobalID(check.TenantId))
-
-	if crid != trid {
-		// This should never happen.
-		return fmt.Errorf("inconsistent region ids %d and %d, checkId %d, tenantId %d", crid, trid, check.Id, check.TenantId)
+	// Note that in some cases (e.g. check delete operations) we receive a
+	// check that only contains the check ID and nothing else, not even the
+	// tenant ID. We obtain the region ID from the check ID, and ignore the
+	// value that comes with the tenant ID.
+	c.Id, c.RegionId = GetLocalAndRegionIDs(GlobalID(check.Id))
+	if c.TenantId != 0 {
+		c.TenantId, _ = GetLocalAndRegionIDs(GlobalID(check.TenantId))
 	}
-
-	c.Id = cid
-	c.TenantId = tid
-	c.RegionId = crid
 
 	return nil
 }
