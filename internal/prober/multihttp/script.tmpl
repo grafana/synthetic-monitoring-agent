@@ -79,9 +79,9 @@ export default function() {
 		redirects: 0{{ if gt (len $headers) 0 }},
 		headers: {{ $headers }}{{ end }}
 	});
-	{{ range .Assertions }}{{ buildChecks $url $method . }}
-	{{ end -}}
 	{{ range .Variables }}{{ buildVars . }}
+	{{ end -}}
+	{{ range .Assertions }}{{ buildChecks $url $method . }}
 	{{ end -}}
 	{{ end }}
 }
