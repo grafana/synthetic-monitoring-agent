@@ -77,16 +77,24 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 		logger    = p.logger.With().Int("region", regionID).Int64("tenant", localID).Logger()
 	)
 
+	streams := payload.Streams()
+	metrics := payload.Metrics()
+
 	for retry := 2; retry > 0; retry-- {
 		client, err := p.getClient(ctx, tenantID, newClient)
 		if err != nil {
 			logger.Error().Err(err).Msg("get client failed")
-			p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueClient).Inc()
+			if len(streams) > 0 {
+				p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs, pusher.LabelValueClient).Inc()
+			}
+			if len(metrics) > 0 {
+				p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics, pusher.LabelValueClient).Inc()
+			}
 			return
 		}
 
-		if len(payload.Streams()) > 0 {
-			if n, err := p.pushEvents(ctx, client.Events, payload.Streams()); err != nil {
+		if len(streams) > 0 {
+			if n, err := p.pushEvents(ctx, client.Events, streams); err != nil {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Int("status", httpStatusCode).Msg("publish events")
 				p.metrics.ErrorCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs, strconv.Itoa(httpStatusCode)).Inc()
@@ -98,11 +106,12 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 			} else {
 				p.metrics.PushCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs).Inc()
 				p.metrics.BytesOut.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs).Add(float64(n))
+				streams = nil
 			}
 		}
 
-		if len(payload.Metrics()) > 0 {
-			if n, err := p.pushMetrics(ctx, client.Metrics, payload.Metrics()); err != nil {
+		if len(metrics) > 0 {
+			if n, err := p.pushMetrics(ctx, client.Metrics, metrics); err != nil {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Int("status", httpStatusCode).Msg("publish metrics")
 				p.metrics.ErrorCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics, strconv.Itoa(httpStatusCode)).Inc()
@@ -114,15 +123,23 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 			} else {
 				p.metrics.PushCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics).Inc()
 				p.metrics.BytesOut.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics).Add(float64(n))
+				metrics = nil
 			}
 		}
 
-		// if we make it here we have sent everything we could send, we are done.
-		return
+		if len(streams) == 0 && len(metrics) == 0 {
+			// if we make it here we have sent everything we could send, we are done.
+			return
+		}
 	}
 
 	// if we are here, we retried and failed
-	p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueRetryExhausted).Inc()
+	if len(streams) > 0 {
+		p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs, pusher.LabelValueRetryExhausted).Inc()
+	}
+	if len(metrics) > 0 {
+		p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics, pusher.LabelValueRetryExhausted).Inc()
+	}
 	logger.Warn().Msg("failed to push payload")
 }
 
