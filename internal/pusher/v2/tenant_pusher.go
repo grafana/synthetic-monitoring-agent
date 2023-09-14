@@ -8,6 +8,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"golang.org/x/sync/errgroup"
 
@@ -95,7 +96,8 @@ func (p *tenantPusher) runPushers(ctx context.Context) error {
 		Id: int64(p.tenantID),
 	})
 	if err != nil {
-		p.options.metrics.FailedCounter.WithLabelValues(pusher.LabelValueTenant).Inc()
+		p.options.metrics.FailedCounter.With(prometheus.Labels{"type": pusher.LabelValueMetrics, "reason": pusher.LabelValueTenant}).Inc()
+		p.options.metrics.FailedCounter.With(prometheus.Labels{"type": pusher.LabelValueLogs, "reason": pusher.LabelValueTenant}).Inc()
 		return pushError{
 			kind:  errKindFatal,
 			inner: err,
