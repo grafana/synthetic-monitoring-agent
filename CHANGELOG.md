@@ -2,8 +2,19 @@
 ## [Unreleased]
 
 
+<a name="v0.17.1"></a>
+## [v0.17.1] - 2023-09-12
+### Feature
+- keep track of scraper executions on a per-tenant level
+
+### Fix
+- add type to failure metrics
+- for CSS selectors, the expression is not a predicate
+- remove --discard-response-bodies
+
+
 <a name="v0.17.0"></a>
-## [v0.17.0] - 2023-08-31
+## [v0.17.0] - 2023-09-05
 ### Feature
 - use expression to match specific headers in multiHTTP
 
@@ -460,7 +471,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.1...HEAD
+[v0.17.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.0...v0.17.1
 [v0.17.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.5...v0.17.0
 [v0.16.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.4...v0.16.5
 [v0.16.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.3...v0.16.4
