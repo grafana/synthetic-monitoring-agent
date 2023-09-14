@@ -12,6 +12,8 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -46,6 +48,49 @@ func TestTenantPusher(t *testing.T) {
 		wg.Done()
 	}()
 	wg.Wait()
+}
+
+func TestTenantPusherRunPushers(t *testing.T) {
+	// This test will make sure that runPushers handles error conditions correctly.
+	tenantProvider := testTenantProvider{
+		1: &sm.Tenant{
+			Id:            1,
+			OrgId:         1,
+			MetricsRemote: &sm.RemoteInfo{},
+			EventsRemote:  &sm.RemoteInfo{},
+			Status:        sm.TenantStatus_ACTIVE,
+		},
+	}
+
+	registry := prometheus.NewPedanticRegistry()
+	metrics := pusher.NewMetrics(registry).WithTenant(2, 1)
+
+	// use tenant ID 2 to force an error
+	p := newTenantPusher(2, tenantProvider, pusherOptions{
+		metrics: metrics,
+	})
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(50*time.Millisecond))
+	defer cancel()
+
+	g, gCtx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		// Make sure the deadline is handled. If the runPushers method
+		// below returns before the deadline, the group context will be
+		// cancelled and the line below will return. If the deadline is
+		// met, the line below will return instead (if runPushers
+		// doesn't handle it correctly).
+		<-gCtx.Done()
+		return gCtx.Err()
+	})
+
+	g.Go(func() error { return p.runPushers(gCtx) })
+
+	err := g.Wait()
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, errTestNoTenant)
 }
 
 func makeRecords(blocks [][]byte) []queueEntry {
