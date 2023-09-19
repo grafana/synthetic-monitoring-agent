@@ -3,7 +3,7 @@ module github.com/grafana/synthetic-monitoring-agent
 go 1.20
 
 require (
-	github.com/go-kit/kit v0.12.0
+	github.com/go-kit/kit v0.13.0
 	github.com/go-logfmt/logfmt v0.6.0
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
