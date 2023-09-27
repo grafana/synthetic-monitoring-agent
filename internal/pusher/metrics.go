@@ -25,12 +25,15 @@ type Metrics struct {
 	// For experimental publisher only
 	DroppedCounter  *prometheus.CounterVec
 	ResponseCounter *prometheus.CounterVec
+
+	InstalledHandlers *prometheus.GaugeVec
 }
 
 var (
-	labelsWithType       = []string{"regionID", "tenantID", "type"}
-	labelsWithTypeStatus = []string{"regionID", "tenantID", "type", "status"}
-	labelsWithTypeReason = []string{"regionID", "tenantID", "type", "reason"}
+	labelsWithType             = []string{"type"}
+	labelsWithTenantType       = []string{"regionID", "tenantID", "type"}
+	labelsWithTenantTypeStatus = []string{"regionID", "tenantID", "type", "status"}
+	labelsWithTenantTypeReason = []string{"regionID", "tenantID", "type", "reason"}
 )
 
 // NewMetrics returns a new set of publisher metrics registered in the given registerer.
@@ -42,7 +45,7 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 			Name:      "push_total",
 			Help:      "Total number of push events by type.",
 		},
-		labelsWithType)
+		labelsWithTenantType)
 
 	promRegisterer.MustRegister(m.PushCounter)
 
@@ -53,7 +56,7 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 			Name:      "push_errors_total",
 			Help:      "Total number of push errors by type and status.",
 		},
-		labelsWithTypeStatus)
+		labelsWithTenantTypeStatus)
 
 	promRegisterer.MustRegister(m.ErrorCounter)
 
@@ -64,7 +67,7 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 			Name:      "push_failed_total",
 			Help:      "Total number of push failures by type.",
 		},
-		labelsWithTypeReason)
+		labelsWithTenantTypeReason)
 
 	promRegisterer.MustRegister(m.FailedCounter)
 
@@ -75,7 +78,7 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 			Name:      "push_bytes",
 			Help:      "Total number of bytes pushed by type.",
 		},
-		labelsWithType)
+		labelsWithTenantType)
 
 	promRegisterer.MustRegister(m.BytesOut)
 
@@ -86,7 +89,7 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 			Name:      "retries_total",
 			Help:      "Total number of retries performed by type.",
 		},
-		labelsWithType)
+		labelsWithTenantType)
 
 	promRegisterer.MustRegister(m.RetriesCounter)
 
@@ -97,7 +100,7 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 			Name:      "drop_total",
 			Help:      "Total number of results dropped by type.",
 		},
-		labelsWithType)
+		labelsWithTenantType)
 
 	promRegisterer.MustRegister(m.DroppedCounter)
 
@@ -108,9 +111,21 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 			Name:      "responses_total",
 			Help:      "Total number of responses received by type and status code.",
 		},
-		labelsWithTypeStatus)
+		labelsWithTenantTypeStatus)
 
 	promRegisterer.MustRegister(m.ResponseCounter)
+
+	m.InstalledHandlers = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "sm_agent",
+			Subsystem: "publisher",
+			Name:      "handlers_total",
+			Help:      "Total number of installed publisher handlers.",
+		},
+		labelsWithType,
+	)
+
+	promRegisterer.MustRegister(m.InstalledHandlers)
 
 	return m
 }
@@ -123,13 +138,14 @@ func (m Metrics) WithTenant(localID int64, regionID int) Metrics {
 		"tenantID": strconv.FormatInt(localID, 10),
 	}
 	return Metrics{
-		PushCounter:     m.PushCounter.MustCurryWith(labels),
-		ErrorCounter:    m.ErrorCounter.MustCurryWith(labels),
-		BytesOut:        m.BytesOut.MustCurryWith(labels),
-		FailedCounter:   m.FailedCounter.MustCurryWith(labels),
-		RetriesCounter:  m.RetriesCounter.MustCurryWith(labels),
-		DroppedCounter:  m.DroppedCounter.MustCurryWith(labels),
-		ResponseCounter: m.ResponseCounter.MustCurryWith(labels),
+		PushCounter:       m.PushCounter.MustCurryWith(labels),
+		ErrorCounter:      m.ErrorCounter.MustCurryWith(labels),
+		BytesOut:          m.BytesOut.MustCurryWith(labels),
+		FailedCounter:     m.FailedCounter.MustCurryWith(labels),
+		RetriesCounter:    m.RetriesCounter.MustCurryWith(labels),
+		DroppedCounter:    m.DroppedCounter.MustCurryWith(labels),
+		ResponseCounter:   m.ResponseCounter.MustCurryWith(labels),
+		InstalledHandlers: m.InstalledHandlers,
 	}
 }
 
@@ -140,12 +156,13 @@ func (m Metrics) WithType(t string) Metrics {
 	}
 
 	return Metrics{
-		PushCounter:     m.PushCounter.MustCurryWith(typeLabels),
-		ErrorCounter:    m.ErrorCounter.MustCurryWith(typeLabels),
-		BytesOut:        m.BytesOut.MustCurryWith(typeLabels),
-		FailedCounter:   m.FailedCounter.MustCurryWith(typeLabels),
-		RetriesCounter:  m.RetriesCounter.MustCurryWith(typeLabels),
-		DroppedCounter:  m.DroppedCounter.MustCurryWith(typeLabels),
-		ResponseCounter: m.ResponseCounter.MustCurryWith(typeLabels),
+		PushCounter:       m.PushCounter.MustCurryWith(typeLabels),
+		ErrorCounter:      m.ErrorCounter.MustCurryWith(typeLabels),
+		BytesOut:          m.BytesOut.MustCurryWith(typeLabels),
+		FailedCounter:     m.FailedCounter.MustCurryWith(typeLabels),
+		RetriesCounter:    m.RetriesCounter.MustCurryWith(typeLabels),
+		DroppedCounter:    m.DroppedCounter.MustCurryWith(typeLabels),
+		ResponseCounter:   m.ResponseCounter.MustCurryWith(typeLabels),
+		InstalledHandlers: m.InstalledHandlers.MustCurryWith(typeLabels),
 	}
 }

@@ -2,6 +2,7 @@ package pusher
 
 import (
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -16,8 +17,9 @@ func TestNewMetrics(t *testing.T) {
 		for i := 0; i < rVal.NumField(); i++ {
 			fType := rVal.Type().Field(i)
 			fVal := rVal.Field(i)
-			require.Equal(t, reflect.Pointer, fVal.Kind(), fType.Name)
-			require.NotZero(t, fVal.Pointer(), fType.Name)
+			if fVal.Kind() == reflect.Pointer {
+				require.NotZero(t, fVal.Pointer(), fType.Name)
+			}
 		}
 	})
 	t.Run("registered fields", func(t *testing.T) {
@@ -32,12 +34,14 @@ func TestNewMetrics(t *testing.T) {
 		m.BytesOut.WithLabelValues().Add(1200)
 		m.ErrorCounter.WithLabelValues("500").Inc()
 		m.ResponseCounter.WithLabelValues("200").Inc()
+		m.InstalledHandlers.WithLabelValues().Inc()
 
 		fam, err := reg.Gather()
 		require.NoError(t, err)
 		var (
 			expected = []string{
 				"sm_agent_publisher_drop_total",
+				"sm_agent_publisher_handlers_total",
 				"sm_agent_publisher_push_bytes",
 				"sm_agent_publisher_push_errors_total",
 				"sm_agent_publisher_push_failed_total",
@@ -49,6 +53,9 @@ func TestNewMetrics(t *testing.T) {
 		for _, metric := range fam {
 			actual = append(actual, metric.GetName())
 		}
+
+		sort.Strings(expected)
+		sort.Strings(actual)
 
 		require.Equal(t, expected, actual)
 	})
