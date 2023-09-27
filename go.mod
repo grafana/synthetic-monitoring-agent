@@ -34,7 +34,7 @@ require (
 	github.com/jpillora/backoff v1.0.0
 	github.com/mccutchen/go-httpbin/v2 v2.11.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
-	github.com/spf13/afero v1.9.5
+	github.com/spf13/afero v1.10.0
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.69
 )
 
