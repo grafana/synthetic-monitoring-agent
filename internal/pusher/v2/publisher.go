@@ -122,7 +122,7 @@ func (p *publisherImpl) replaceHandler(tenantID model.GlobalID, old, new payload
 		delete(p.handlers, tenantID)
 	}
 
-	p.options.metrics.InstalledHandlers.WithLabelValues().Set(float64(len(p.handlers)))
+	p.options.metrics.InstalledHandlers.Set(float64(len(p.handlers)))
 
 	return new, true
 }

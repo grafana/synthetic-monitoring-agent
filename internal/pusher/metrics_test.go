@@ -34,7 +34,7 @@ func TestNewMetrics(t *testing.T) {
 		m.BytesOut.WithLabelValues().Add(1200)
 		m.ErrorCounter.WithLabelValues("500").Inc()
 		m.ResponseCounter.WithLabelValues("200").Inc()
-		m.InstalledHandlers.WithLabelValues().Inc()
+		m.InstalledHandlers.Inc()
 
 		fam, err := reg.Gather()
 		require.NoError(t, err)
