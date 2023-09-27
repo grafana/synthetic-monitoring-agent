@@ -2,8 +2,14 @@
 ## [Unreleased]
 
 
+<a name="v0.17.2"></a>
+## [v0.17.2] - 2023-09-27
+### Fix
+- handle failed counter correctly
+
+
 <a name="v0.17.1"></a>
-## [v0.17.1] - 2023-09-12
+## [v0.17.1] - 2023-09-14
 ### Feature
 - keep track of scraper executions on a per-tenant level
 
@@ -471,7 +477,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.1...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.2...HEAD
+[v0.17.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.1...v0.17.2
 [v0.17.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.0...v0.17.1
 [v0.17.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.5...v0.17.0
 [v0.16.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.16.4...v0.16.5
