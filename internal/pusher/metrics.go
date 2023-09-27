@@ -26,11 +26,10 @@ type Metrics struct {
 	DroppedCounter  *prometheus.CounterVec
 	ResponseCounter *prometheus.CounterVec
 
-	InstalledHandlers *prometheus.GaugeVec
+	InstalledHandlers prometheus.Gauge
 }
 
 var (
-	labelsWithType             = []string{"type"}
 	labelsWithTenantType       = []string{"regionID", "tenantID", "type"}
 	labelsWithTenantTypeStatus = []string{"regionID", "tenantID", "type", "status"}
 	labelsWithTenantTypeReason = []string{"regionID", "tenantID", "type", "reason"}
@@ -115,14 +114,13 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 
 	promRegisterer.MustRegister(m.ResponseCounter)
 
-	m.InstalledHandlers = prometheus.NewGaugeVec(
+	m.InstalledHandlers = prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace: "sm_agent",
 			Subsystem: "publisher",
 			Name:      "handlers_total",
 			Help:      "Total number of installed publisher handlers.",
 		},
-		labelsWithType,
 	)
 
 	promRegisterer.MustRegister(m.InstalledHandlers)
@@ -163,6 +161,6 @@ func (m Metrics) WithType(t string) Metrics {
 		RetriesCounter:    m.RetriesCounter.MustCurryWith(typeLabels),
 		DroppedCounter:    m.DroppedCounter.MustCurryWith(typeLabels),
 		ResponseCounter:   m.ResponseCounter.MustCurryWith(typeLabels),
-		InstalledHandlers: m.InstalledHandlers.MustCurryWith(typeLabels),
+		InstalledHandlers: m.InstalledHandlers,
 	}
 }
