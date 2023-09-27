@@ -89,6 +89,17 @@ func (p *publisherImpl) replaceHandler(tenantID model.GlobalID, old, new payload
 	// Get the existing handler if any.
 	current := p.handlers[tenantID]
 
+	//  old     | current | new     | op
+	//  --------+---------+---------+---------------
+	//  nil     | nil     | nil     | delete (noop)
+	//  nil     | nil     | non-nil | add
+	// *nil     | non-nil | nil     | delete
+	// *nil     | non-nil | non-nil | replace
+	// *non-nil | nil     | nil     | delete (noop)
+	// *non-nil | nil     | non-nil | add
+	//  non-nil | non-nil | nil     | delete
+	//  non-nil | non-nil | non-nil | replace
+
 	// If old is nil, that means we are trying to add a handler. If current
 	// is not nil, that means there's an existing handler, and the addition
 	// is not necessary. If current is nil, we go ahead and add the new handler.
@@ -110,6 +121,8 @@ func (p *publisherImpl) replaceHandler(tenantID model.GlobalID, old, new payload
 	} else {
 		delete(p.handlers, tenantID)
 	}
+
+	p.options.metrics.InstalledHandlers.WithLabelValues().Set(float64(len(p.handlers)))
 
 	return new, true
 }
