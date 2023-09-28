@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"errors"
+	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -121,7 +122,11 @@ func (p *tenantPusher) runPushers(ctx context.Context) error {
 	}
 
 	if p.options.maxLifetime > 0 {
-		g.Go(maxLifetimeChecker(gCtx, p.options.maxLifetime))
+		// generate a random number [-maxLifetimeJitter/2, maxLifetimeJitter/2)
+		jitter := (rand.Float64() - 0.5) * p.options.maxLifetimeJitter
+		// adjust maxLifetime by that amount
+		maxLifetime := p.options.maxLifetime + time.Duration(jitter*float64(p.options.maxLifetime))
+		g.Go(maxLifetimeChecker(gCtx, maxLifetime))
 	}
 
 	return g.Wait()
