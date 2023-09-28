@@ -928,13 +928,13 @@ func (p testProber) Probe(ctx context.Context, target string, registry *promethe
 func TestScraperCollectData(t *testing.T) {
 	const (
 		checkName     = "check name"
-		checkTarget   = "target"
+		checkTarget   = "target name"
 		frequency     = 2000
-		job           = "job"
+		job           = "job name"
 		modifiedTs    = 42
 		probeLatitude = -1
 		probeLongitde = -2
-		probeName     = "probe"
+		probeName     = "probe name"
 		region        = "REGION"
 		sampleTsMs    = int64(3141000)
 	)
@@ -945,6 +945,7 @@ func TestScraperCollectData(t *testing.T) {
 			"instance":       checkTarget,
 			"job":            job,
 			"probe":          probeName,
+			"source":         CheckInfoSource,
 		}
 		baseExpectedInfoLabels = map[string]string{
 			"check_name": checkName,
@@ -996,21 +997,21 @@ func TestScraperCollectData(t *testing.T) {
 	testcases := map[string]testcase{
 		"trivial": {
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedInfoLabels),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels),
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels),
 		},
 		"probe labels": {
 			probeLabels:          generateLabels(1, 3, "p"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedInfoLabels, generateLabelSet(1, 3, "p")),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(1, 3, "p")),
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "p")),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "p")),
 		},
 		"check labels": {
 			checkLabels:          generateLabels(1, 3, "c"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedInfoLabels, generateLabelSet(1, 3, "c")),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(1, 3, "c")),
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c")),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c")),
 		},
@@ -1018,7 +1019,7 @@ func TestScraperCollectData(t *testing.T) {
 			checkLabels:          generateLabels(1, 2, "c"),
 			probeLabels:          generateLabels(3, 1, "p"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedInfoLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
 		},
@@ -1026,7 +1027,7 @@ func TestScraperCollectData(t *testing.T) {
 			checkLabels:          generateLabels(1, 2, "c"),
 			probeLabels:          generateLabels(2, 2, "p"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedInfoLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
 		},
@@ -1034,7 +1035,7 @@ func TestScraperCollectData(t *testing.T) {
 			checkLabels:          generateLabels(0, 10, "c"),
 			probeLabels:          generateLabels(10, 3, "p"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedInfoLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 3, "p")),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 3, "p")),
 			// Since Loki allows for 15 labels, so anything
 			// after 15 will be dropped from the _labels_,
 			// not from the entry.
@@ -1043,29 +1044,34 @@ func TestScraperCollectData(t *testing.T) {
 		},
 	}
 
+	getMetricName := func(t *testing.T, ts prompb.TimeSeries) string {
+		for _, l := range ts.GetLabels() {
+			if l.GetName() != labels.MetricName {
+				continue
+			}
+
+			return l.GetValue()
+		}
+
+		require.Fail(t, "metric name not found")
+
+		return ""
+	}
+
 	validateMetrics := func(t *testing.T, ts prompb.TimeSeries, tc testcase) {
 		require.NotNil(t, ts)
 
-		var metricName string
-		for _, l := range ts.GetLabels() {
-			if l.GetName() == labels.MetricName {
-				metricName = l.GetValue()
-				break
-			}
-		}
+		metricName := getMetricName(t, ts)
+
+		actualLabels := make(map[string]string)
+		actualLabelsCount := 0
+		actualInfoLabels := make(map[string]string)
+		actualInfoLabelsCount := 0
 
 		// Verify that all the expected metric labels are present
-		found := 0
-		foundInfoLabels := 0
 
 		for _, l := range ts.GetLabels() {
-			expected, ok := tc.expectedMetricLabels[l.GetName()]
-
 			switch {
-			case ok:
-				require.Equal(t, expected, l.GetValue())
-				found++
-
 			case l.GetName() == labels.MetricName:
 				// ignore
 
@@ -1073,21 +1079,27 @@ func TestScraperCollectData(t *testing.T) {
 				// ignore
 
 			case metricName == CheckInfoMetricName:
-				// t.Logf("found info label %s=%s set=%#v", l.GetName(), l.GetValue(), tc.expectedInfoLabels)
-				expected, ok := tc.expectedInfoLabels[l.GetName()]
-				require.Truef(t, ok, "metric=%s label=%s value=%s", metricName, l.GetName(), l.GetValue())
-				require.Equal(t, expected, l.GetValue())
-				foundInfoLabels++
+				expectedValue, isExpected := tc.expectedInfoLabels[l.GetName()]
+				require.Truef(t, isExpected, "metric=%s label=%s value=%s", metricName, l.GetName(), l.GetValue())
+				require.Equal(t, expectedValue, l.GetValue())
+				actualInfoLabels[l.GetName()] = l.GetValue()
+				actualInfoLabelsCount++
 
 			default:
-				require.Failf(t, "unexpected label", "metric=%s label=%s value=%s", metricName, l.GetName(), l.GetValue())
+				expectedValue, isExpected := tc.expectedMetricLabels[l.GetName()]
+				require.Truef(t, isExpected, "unexpected label: metric=%s label=%s value=%s", metricName, l.GetName(), l.GetValue())
+				require.Equal(t, expectedValue, l.GetValue())
+				actualLabels[l.GetName()] = l.GetValue()
+				actualLabelsCount++
 			}
 		}
 
-		require.Equal(t, len(tc.expectedMetricLabels), found)
-
 		if metricName == CheckInfoMetricName {
-			require.Equal(t, len(tc.expectedInfoLabels), foundInfoLabels)
+			require.Equal(t, tc.expectedInfoLabels, actualInfoLabels)
+			require.Equal(t, len(tc.expectedInfoLabels), actualInfoLabelsCount)
+		} else {
+			require.Equal(t, tc.expectedMetricLabels, actualLabels)
+			require.Equal(t, len(tc.expectedMetricLabels), actualLabelsCount)
 		}
 
 		for _, sample := range ts.GetSamples() {
@@ -1140,40 +1152,40 @@ func TestScraperCollectData(t *testing.T) {
 
 	for name, tc := range testcases {
 		tc := tc
-		s := Scraper{
-			checkName:  checkName,
-			target:     "test target",
-			logger:     zerolog.Nop(),
-			prober:     testProber{},
-			summaries:  make(map[uint64]prometheus.Summary),
-			histograms: make(map[uint64]prometheus.Histogram),
-			check: model.Check{
-				Check: sm.Check{
-					Id:               1,
-					TenantId:         2,
-					Frequency:        frequency,
-					Timeout:          frequency,
-					Enabled:          true,
-					Target:           checkTarget,
-					Job:              job,
-					BasicMetricsOnly: true,
-					Created:          modifiedTs,
-					Modified:         modifiedTs,
-					Labels:           tc.checkLabels,
-				},
-			},
-			probe: sm.Probe{
-				Id:        100,
-				TenantId:  200,
-				Name:      probeName,
-				Latitude:  probeLatitude,
-				Longitude: probeLongitde,
-				Region:    region,
-				Labels:    tc.probeLabels,
-			},
-		}
-
 		t.Run(name, func(t *testing.T) {
+			s := Scraper{
+				checkName:  checkName,
+				target:     "test target",
+				logger:     zerolog.Nop(),
+				prober:     testProber{},
+				summaries:  make(map[uint64]prometheus.Summary),
+				histograms: make(map[uint64]prometheus.Histogram),
+				check: model.Check{
+					Check: sm.Check{
+						Id:               1,
+						TenantId:         2,
+						Frequency:        frequency,
+						Timeout:          frequency,
+						Enabled:          true,
+						Target:           checkTarget,
+						Job:              job,
+						BasicMetricsOnly: true,
+						Created:          modifiedTs,
+						Modified:         modifiedTs,
+						Labels:           tc.checkLabels,
+					},
+				},
+				probe: sm.Probe{
+					Id:        100,
+					TenantId:  200,
+					Name:      probeName,
+					Latitude:  probeLatitude,
+					Longitude: probeLongitde,
+					Region:    region,
+					Labels:    tc.probeLabels,
+				},
+			}
+
 			data, err := s.collectData(context.Background(), time.Unix(sampleTsMs/1000, 0))
 			require.NoError(t, err)
 			require.NotNil(t, data)
