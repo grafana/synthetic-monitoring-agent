@@ -47,6 +47,9 @@ var (
 		// to be refreshed.
 		maxLifetime: 2 * time.Hour,
 
+		// Apply a jitter of 25% of maxLifetime.
+		maxLifetimeJitter: 0.25,
+
 		// How long without receiving check results until a tenant pusher is stopped.
 		// This is to cleanup tenants that don't have active checks anymore.
 		// Set it to a value higher than the max interval between a single check run.
@@ -73,21 +76,22 @@ var (
 )
 
 type pusherOptions struct {
-	maxPushBytes   uint64        // Max bytes to send on a single push request
-	maxQueuedBytes uint64        // Max bytes to hold queued
-	maxQueuedItems int           // Max items (check results) to hold in memory
-	maxQueuedTime  time.Duration // Max time an item can be queued until it expires
-	maxRetries     int           // Max retries for a push
-	minBackoff     time.Duration
-	maxBackoff     time.Duration
-	maxLifetime    time.Duration // How long to run a tenant pusher before re-fetching the tenant
-	maxIdleTime    time.Duration // How long without receiving pushes until a tenant pusher is cleaned up
-	tenantDelay    time.Duration // How long to wait between GetTenant calls.
-	waitPeriod     time.Duration // How long to wait in case of errors
-	discardPeriod  time.Duration // How long to discard metrics when a fatal error is encountered.
-	logger         zerolog.Logger
-	metrics        pusher.Metrics
-	pool           bufferPool
+	maxPushBytes      uint64        // Max bytes to send on a single push request
+	maxQueuedBytes    uint64        // Max bytes to hold queued
+	maxQueuedItems    int           // Max items (check results) to hold in memory
+	maxQueuedTime     time.Duration // Max time an item can be queued until it expires
+	maxRetries        int           // Max retries for a push
+	minBackoff        time.Duration
+	maxBackoff        time.Duration
+	maxLifetime       time.Duration // How long to run a tenant pusher before re-fetching the tenant
+	maxLifetimeJitter float64       // Jitter to apply to maxLifetime, expressed as % of maxLifetime
+	maxIdleTime       time.Duration // How long without receiving pushes until a tenant pusher is cleaned up
+	tenantDelay       time.Duration // How long to wait between GetTenant calls.
+	waitPeriod        time.Duration // How long to wait in case of errors
+	discardPeriod     time.Duration // How long to discard metrics when a fatal error is encountered.
+	logger            zerolog.Logger
+	metrics           pusher.Metrics
+	pool              bufferPool
 }
 
 func (o pusherOptions) withTenant(id model.GlobalID) pusherOptions {
