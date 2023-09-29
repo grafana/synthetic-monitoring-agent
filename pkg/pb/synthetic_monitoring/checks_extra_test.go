@@ -296,6 +296,142 @@ func TestCheckValidate(t *testing.T) {
 			},
 			expectError: true,
 		},
+		"valid multihttp variable": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "${variable}",
+				Job:       "job",
+				Frequency: 60000,
+				Timeout:   10000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Multihttp: &MultiHttpSettings{
+						Entries: []*MultiHttpEntry{
+							{
+								Request: &MultiHttpEntryRequest{
+									Url: "${variable}",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		"valid multihttp with variable in second url": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "https://www.example.com",
+				Job:       "job",
+				Frequency: 60000,
+				Timeout:   10000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Multihttp: &MultiHttpSettings{
+						Entries: []*MultiHttpEntry{
+							{
+								Request: &MultiHttpEntryRequest{
+									Url: "https://www.example.com",
+								},
+							},
+							{
+								Request: &MultiHttpEntryRequest{
+									Url: "${variable}",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		"invalid multihttp target": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "example.com",
+				Job:       "job",
+				Frequency: 60000,
+				Timeout:   10000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Multihttp: &MultiHttpSettings{
+						Entries: []*MultiHttpEntry{
+							{
+								Request: &MultiHttpEntryRequest{
+									Url: "example.com",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		"invalid multihttp second target": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "https://www.example.com",
+				Job:       "job",
+				Frequency: 60000,
+				Timeout:   10000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Multihttp: &MultiHttpSettings{
+						Entries: []*MultiHttpEntry{
+							{
+								Request: &MultiHttpEntryRequest{
+									Url: "https://www.example.com",
+								},
+							},
+							{
+								Request: &MultiHttpEntryRequest{
+									Url: "notavalidurlatall",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		"valid multihttp variables everywhere": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "${variable}",
+				Job:       "job",
+				Frequency: 60000,
+				Timeout:   10000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Multihttp: &MultiHttpSettings{
+						Entries: []*MultiHttpEntry{
+							{
+								Request: &MultiHttpEntryRequest{
+									Url: "${variable}",
+									Headers: []*HttpHeader{
+										{
+											Name:  "Authorization",
+											Value: "Bearer ${variable}",
+										},
+									},
+									Body: &HttpRequestBody{
+										ContentType:     "application/json",
+										ContentEncoding: "gzip",
+										Payload:         []byte("${variable}"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
 	}
 
 	for name, testcase := range testcases {
