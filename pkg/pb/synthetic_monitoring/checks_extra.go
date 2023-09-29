@@ -286,11 +286,8 @@ func (c Check) validateTarget() error {
 	case CheckTypeMultiHttp:
 		// TODO(mem): checks MUST have a target, but in this case it's
 		// not true that the target must be a valid URL.
-		if strings.Contains(c.Target, "${") {
-			return nil
-		}
-		return validateHttpUrl(c.Target)
-
+		// validation of URLs is the responsibility of the MultihttpEntryRequest
+		return nil
 	default:
 		panic("unhandled check type")
 	}
@@ -464,6 +461,9 @@ func (c AdHocCheck) validateTarget() error {
 		if err := validateHost(c.Target); err != nil {
 			return ErrInvalidTracerouteHostname
 		}
+
+	case CheckTypeMultiHttp:
+		return nil
 
 	default:
 		panic("unhandled check type")
@@ -709,8 +709,10 @@ func (r *MultiHttpEntryRequest) Validate() error {
 		return err
 	}
 
-	if err := validateHttpUrl(r.Url); err != nil {
-		return err
+	if !strings.Contains(r.Url, "${") {
+		if err := validateHttpUrl(r.Url); err != nil {
+			return err
+		}
 	}
 
 	// TODO(mem): do something with HttpVersion?
