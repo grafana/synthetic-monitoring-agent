@@ -229,7 +229,8 @@ help: ## Display this help.
 
 .PHONY: docker
 docker: build
-	$(S) docker build -t $(DOCKER_TAG) ./
+	$(S) echo "Building docker image..."
+	$(V) DOCKER_BUILDKIT=1 docker build -t $(DOCKER_TAG) ./
 
 .PHONY: docker-push
 docker-push:  docker
