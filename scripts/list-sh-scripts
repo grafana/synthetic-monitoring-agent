@@ -1,0 +1,6 @@
+#!/bin/sh
+
+git ls-files -z |
+	xargs -r0 file --no-pad --mime-type |
+	grep ': text/x-shellscript' |
+	cut -d: -f1

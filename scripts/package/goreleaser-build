@@ -12,6 +12,7 @@ fi
 # On macOS, use GNU's getopt: "brew install gnu-getopt"
 TEMP=$(getopt --alternative --longoptions ldflags: --options o: -- "$@")
 
+# shellcheck disable=SC2181
 if [ $? != 0 ] ; then
 	echo "Terminating..." >&2
 	exit 1
@@ -53,7 +54,7 @@ case "$1" in
 		;;
 
 	*)
-		echo "E: Unhandled arguments: '$@'. Stop."
+		echo "E: Unhandled arguments: '$*'. Stop."
 		exit 100
 		;;
 esac

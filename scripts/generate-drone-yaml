@@ -1,0 +1,34 @@
+#!/bin/sh
+
+set -e
+set -u
+
+syntax() {
+	cat <<-EOT
+Syntax:
+
+	$0 <tools_image> <gh_repo_name> <target>
+EOT
+}
+
+tools_image=$1
+gh_repo_name=$2
+target=$3
+src=${4:-${PWD}/scripts/configs/drone/main.jsonnet}
+
+test -z "${tools_image}" && syntax && exit 1
+test -z "${target}" && syntax && exit 1
+
+drone_json=$(mktemp)
+drone_yaml=$(mktemp)
+
+trap 'rm -f "${drone_json}" "${drone_yaml}"' EXIT
+
+jsonnet \
+	--jpath "${PWD}/scripts/configs/drone/vendor" \
+	--tla-str image="${tools_image}" \
+	"${src}" > "${drone_json}"
+drone jsonnet --stream --format --source "${drone_json}" --target "${drone_yaml}"
+drone lint --trusted "${drone_yaml}"
+drone sign --save "${gh_repo_name}" "${drone_yaml}"
+mv "${drone_yaml}" "${target}"

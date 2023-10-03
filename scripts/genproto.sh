@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC3044
 #
 # Generate all protobuf bindings.
 # Run from repository root.
@@ -10,7 +11,7 @@ if test ! -e "scripts/genproto.sh" ; then
 	exit 255
 fi
 
-if ! command -v protoc &> /dev/null ; then
+if ! command -v protoc > /dev/null 2>&1 ; then
 	echo "could not find protoc 3.5.1, is it installed + in PATH?"
 	exit 255
 fi
@@ -25,7 +26,6 @@ for pkg in ${INSTALL_PKGS}; do
 done
 
 PB_ROOT="$(GO111MODULE=on go list -f '{{.Dir}}' ./pkg/pb)"
-PB_IMPORT_PATH="$(GO111MODULE=on go list -f '{{.ImportPath}}' ./pkg/pb)"
 PB_PATH="${PB_ROOT}"
 GOGO_PROTOBUF_ROOT="$(GO111MODULE=on go list -f '{{ .Dir }}' -m github.com/gogo/protobuf)"
 GOGO_PROTOBUF_PATH="${GOGO_PROTOBUF_ROOT}:${GOGO_PROTOBUF_ROOT}/protobuf"

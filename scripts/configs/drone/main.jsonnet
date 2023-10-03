@@ -1,3 +1,5 @@
+local go_tools_image = 'us.gcr.io/kubernetes-dev/go-tools:2023-10-04-v379665-2ea0c2a4f';
+
 local step(name, commands, image='golang:1.20.4') = {
   name: name,
   commands: commands,
@@ -112,20 +114,28 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
     ])
     + dependsOn(['runner identification']),
 
-    step('lint', ['make lint'])
+    step(
+      'lint',
+      ['make lint'],
+      go_tools_image,
+    )
     + dependsOn(['deps']),
 
     step('test', ['make test'])
     + dependsOn(['lint']),
 
-    step('build', [
-      'git fetch origin --tags',
-      'git status --porcelain --untracked-files=no',
-      'git diff --no-ext-diff --quiet',  // fail if the workspace has modified files
-      './scripts/version',
-      '{ echo -n latest, ; ./scripts/version ; } > .tags',  // save version in special file for docker plugin
-      'make build',
-    ])
+    step(
+      'build',
+      [
+        'git fetch origin --tags',
+        'git status --porcelain --untracked-files=no',
+        'git diff --no-ext-diff --quiet',  // fail if the workspace has modified files
+        './scripts/version',
+        '{ echo -n latest, ; ./scripts/version ; } > .tags',  // save version in special file for docker plugin
+        'make build',
+      ],
+      go_tools_image,
+    )
     + dependsOn(['deps']),
 
     docker_build('linux', 'amd64'),
