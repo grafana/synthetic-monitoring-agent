@@ -1,12 +1,19 @@
 package multihttp
 
 import (
+	"bytes"
+	"context"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mccutchen/go-httpbin/v2/httpbin"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -746,6 +753,25 @@ func TestSettingsToScript(t *testing.T) {
 	actual, err := settingsToScript(settings)
 	require.NoError(t, err)
 	require.NotEmpty(t, actual)
+
+	check := sm.Check{
+		Settings: sm.CheckSettings{
+			Multihttp: settings,
+		},
+	}
+
+	ctx, cancel := testhelper.Context(context.Background(), t)
+	t.Cleanup(cancel)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	runner := k6runner.New("k6")
+
+	prober, err := NewProber(ctx, check, logger, runner)
+	require.NoError(t, err)
+
+	reg := prometheus.NewPedanticRegistry()
+	var buf bytes.Buffer
+	plogger := kitlog.NewLogfmtLogger(&buf)
+	prober.Probe(ctx, "foo", reg, plogger)
 }
 
 func TestReplaceVariablesInString(t *testing.T) {
