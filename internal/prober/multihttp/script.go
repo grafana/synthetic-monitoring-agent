@@ -216,8 +216,8 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 // of checks.
 func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertion) string {
 	var b strings.Builder
-
-	b.WriteString(`check(response, { "`)
+	var assertionDescriptor strings.Builder
+	b.WriteString(`currentCheck = check(response, { "`)
 
 	switch assertion.Type {
 	case sm.MultiHttpEntryAssertionType_TEXT:
@@ -228,6 +228,7 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 			cond.Name(&b, "body", assertion.Value)
 			b.WriteString(`": response => `)
 			cond.Render(&b, "response.body", assertion.Value)
+			cond.Render(&assertionDescriptor, "response.body", assertion.Value)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
 			cond.Name(&b, "header", assertion.Value)
@@ -237,6 +238,7 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 				b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
 				b.WriteString(`return !!values.find(value => `)
 				cond.Render(&b, "value", assertion.Value)
+				cond.Render(&assertionDescriptor, "value", assertion.Value)
 				b.WriteString(`);`)
 			} else {
 				// Expression provided, search for a matching header.
@@ -245,6 +247,7 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 				b.WriteString(`", `)
 				b.WriteString(`v => `)
 				cond.Render(&b, "value", assertion.Value)
+				cond.Render(&assertionDescriptor, "value", assertion.Value)
 				b.WriteString(`);`)
 			}
 			b.WriteString(` }`)
@@ -253,6 +256,7 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 			cond.Name(&b, "status code", assertion.Value)
 			b.WriteString(`": response => `)
 			cond.Render(&b, `response.status.toString()`, assertion.Value)
+			cond.Render(&assertionDescriptor, `response.status.toString()`, assertion.Value)
 		}
 
 	case sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE:
@@ -262,12 +266,15 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 		b.WriteString(template.JSEscapeString(assertion.Expression))
 		b.WriteString(`").some(values => `)
 		cond.Render(&b, `values`, assertion.Value)
+		cond.Render(&assertionDescriptor, `values`, assertion.Value)
 		b.WriteString(`)`)
 
 	case sm.MultiHttpEntryAssertionType_JSON_PATH_ASSERTION:
 		b.WriteString(template.JSEscapeString(assertion.Expression))
 		b.WriteString(` exists": response => jsonpath.query(response.json(), "`)
 		b.WriteString(template.JSEscapeString(assertion.Expression))
+		assertionDescriptor.WriteString(`JsonPath expression `)
+		assertionDescriptor.WriteString(assertion.Expression)
 		b.WriteString(`").length > 0`)
 
 	case sm.MultiHttpEntryAssertionType_REGEX_ASSERTION:
@@ -279,6 +286,8 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 			b.WriteString(template.JSEscapeString(assertion.Expression))
 			b.WriteString(`"); `)
 			b.WriteString(`return expr.test(response.body); }`)
+			assertionDescriptor.WriteString("Body matches")
+			assertionDescriptor.WriteString(assertion.Expression)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
 			b.WriteString(`headers matches /`)
@@ -288,6 +297,8 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 			b.WriteString(`"); `)
 			b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
 			b.WriteString(`return !!values.find(value => expr.test(value)); }`)
+			assertionDescriptor.WriteString("Headers match")
+			assertionDescriptor.WriteString(assertion.Expression)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:
 			b.WriteString(`status matches /`)
@@ -296,6 +307,8 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 			b.WriteString(template.JSEscapeString(assertion.Expression))
 			b.WriteString(`"); `)
 			b.WriteString(`return expr.test(response.status.toString()); }`)
+			assertionDescriptor.WriteString("Status matches")
+			assertionDescriptor.WriteString(assertion.Expression)
 		}
 	}
 
@@ -313,6 +326,18 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 	b.WriteString(`}`)
 
 	b.WriteString(`);`)
+
+	b.WriteString("\n\t")
+	b.WriteString(`if(!currentCheck) {`)
+	b.WriteString("\n\t\t")
+	b.WriteString(`console.error("Assertion failed: ", "`)
+	b.WriteString(template.JSEscapeString(assertionDescriptor.String()))
+	b.WriteString(`");`)
+	b.WriteString("\n\t\t")
+	b.WriteString(`test.abort()`)
+	b.WriteString("\n\t")
+	b.WriteString(`};`)
+	b.WriteString("\n")
 
 	return b.String()
 }

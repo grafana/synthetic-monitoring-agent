@@ -1,9 +1,10 @@
 import http from 'k6/http';
 import { check, fail } from 'k6';
+import { test } from 'k6/execution';
 // TODO(mem): conditionally import these modules
 // - import encoding if base64 decoding is required
 // - import jsonpath if there are json assertions
-import encoding from "k6/encoding";
+import encoding from 'k6/encoding';
 import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js';
 import { URL } from 'https://jslib.k6.io/url/1.0.0/index.js';
 
@@ -69,10 +70,18 @@ function assertHeader(headers, name, matcher) {
 export default function() {
 	let response;
 	let url;
+	let currentCheck;
+	let match;
 	const vars = {};
 
-	{{ range .Entries }}
-	url = new URL({{ buildUrl .Request.Url }});
+ {{ range .Entries }}
+	console.log("Starting request to {{.Request.Url}}...");
+	try {
+		url = new URL({{ buildUrl .Request.Url }});
+	} catch(e) {
+		console.error("Invalid URL: {{ .Request.Url }}");
+		fail()
+	}
 	{{- $queries := buildQueryParams "url" .Request }}
 	{{ range $queries }}{{ . }};
 	{{ end -}}
@@ -84,6 +93,10 @@ export default function() {
 		redirects: 0{{ if gt (len $headers) 0 }},
 		headers: {{ $headers }}{{ end }}
 	});
+	console.log("Response received from {{.Request.Url}}");
+	if(response.error) {
+		console.error("Request error:" + url.toString() + ": " + response.error)
+	}
 	{{ range .Assertions }}{{ buildChecks "url" $method . }}
 	{{ end -}}
 	{{ range .Variables }}{{ buildVars . }}

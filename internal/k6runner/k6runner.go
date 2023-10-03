@@ -361,13 +361,17 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
+	var checkError error
+
 	start := time.Now()
 
 	r.logger.Info().Str("command", cmd.String()).Bytes("script", script).Msg("running k6 script")
 
 	if err := cmd.Run(); err != nil {
-		r.logger.Error().Err(err).Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("cannot run k6")
-		return nil, fmt.Errorf("cannot execute k6 script: %w", err)
+		r.logger.Error().Err(err).Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("k6 exited with error")
+		// We can't return early here, because exiting with an error status might just mean a check failure, not an actual runtime problem
+		// return nil, fmt.Errorf("cannot execute k6 script: %w", err)
+		checkError = err
 	}
 
 	duration := time.Since(start)
@@ -391,7 +395,7 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 
 	r.logger.Debug().Bytes("metrics", result.Metrics).Bytes("logs", result.Logs).Msg("k6 result")
 
-	return &result, nil
+	return &result, checkError
 }
 
 func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
