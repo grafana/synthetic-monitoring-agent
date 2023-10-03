@@ -2,6 +2,7 @@
 
 set -e
 
+# shellcheck disable=SC2046
 go get -d -u $(go list -tags tools -f '{{ join .Imports " " }}' .)
 go mod download
 go mod tidy -compat=1.18

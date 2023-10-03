@@ -1,6 +1,6 @@
 #!/bin/sh
 
-echo -n 'Overall test coverage: '
+printf 'Overall test coverage: '
 go tool cover -func "$1" |
 grep ^total: |
 expand |

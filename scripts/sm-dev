@@ -17,7 +17,6 @@ usage() {
 
 k3d_context=k3d-sm-test
 k3d_cluster=sm-test
-keep_current=true
 build_agent=true
 while getopts ":hn" arg ; do
 	case "$arg" in
@@ -60,7 +59,7 @@ if test -z "${cfg_file}" -o ! -e "${cfg_file}" ; then
 fi
 
 agent_yaml=$(mktemp)
-cat ${cfg_file} | gomplate -d config=stdin:///in.env --file "${agent_yaml_tmpl}" > "${agent_yaml}"
+gomplate -d config=stdin:///in.env --file "${agent_yaml_tmpl}" < "${cfg_file}" > "${agent_yaml}"
 
 if "${build_agent}" ; then
   ./scripts/docker_build
