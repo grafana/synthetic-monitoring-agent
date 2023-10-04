@@ -93,7 +93,7 @@ export default function() {
 		redirects: 0{{ if gt (len $headers) 0 }},
 		headers: {{ $headers }}{{ end }}
 	});
-	console.log("Response received from {{.Request.Url}}");
+	console.log("Response received from {{.Request.Url}}, status", response.status);
 	if(response.error) {
 		console.error("Request error:" + url.toString() + ": " + response.error)
 	}

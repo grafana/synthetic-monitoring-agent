@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -63,10 +64,22 @@ func NewScript(script []byte, k6runner Runner) (*Script, error) {
 func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) error {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
-	result, err := k6runner.Run(ctx, r.script)
-	if err != nil {
-		return err
+	var runResult error
+
+	result, scriptExited := k6runner.Run(ctx, r.script)
+	internalLogger.Debug().
+		Err(scriptExited).
+		Msg("k6 script exited with error code")
+
+	if scriptExited != nil {
+		runResult = scriptExited
 	}
+	if !result.Success {
+		runResult = errors.New("finished run with errors")
+	}
+	// if err != nil {
+	// 	return err
+	// }
 
 	if err := textToRegistry(result.Metrics, registry, internalLogger); err != nil {
 		internalLogger.Debug().
@@ -82,7 +95,7 @@ func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger l
 		return err
 	}
 
-	return nil
+	return runResult
 }
 
 type customCollector struct {
@@ -217,6 +230,7 @@ type RunRequest struct {
 type RunResponse struct {
 	Metrics []byte `json:"metrics"`
 	Logs    []byte `json:"logs"`
+	Success bool   `json:"success"`
 }
 
 func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
@@ -266,6 +280,14 @@ func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error
 	}
 
 	r.logger.Debug().Bytes("metrics", result.Metrics).Bytes("logs", result.Logs).Msg("script result")
+
+	result.Success = true
+
+	for _, log := range result.Logs {
+		if strings.Contains(string(log), "Assertion failed") {
+			result.Success = false
+		}
+	}
 
 	return &result, nil
 }
@@ -391,6 +413,14 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 	if err != nil {
 		r.logger.Error().Err(err).Str("filename", logsFn).Msg("cannot read metrics file")
 		return nil, fmt.Errorf("cannot read logs: %w", err)
+	}
+
+	result.Success = true
+
+	for _, log := range result.Logs {
+		if strings.Contains(string(log), "Assertion failed") {
+			result.Success = false
+		}
 	}
 
 	r.logger.Debug().Bytes("metrics", result.Metrics).Bytes("logs", result.Logs).Msg("k6 result")

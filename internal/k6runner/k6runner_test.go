@@ -154,6 +154,7 @@ func (r *testRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 	return &RunResponse{
 		Metrics: r.metrics,
 		Logs:    r.logs,
+		Success: true,
 	}, nil
 }
 
