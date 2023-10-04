@@ -67,19 +67,17 @@ func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger l
 	var runResult error
 
 	result, scriptExited := k6runner.Run(ctx, r.script)
-	internalLogger.Debug().
-		Err(scriptExited).
-		Msg("k6 script exited with error code")
 
 	if scriptExited != nil {
 		runResult = scriptExited
+		internalLogger.Debug().
+			Err(scriptExited).
+			Msg("k6 script exited with error code")
 	}
-	if !result.Success {
+
+	if !result.Success && runResult == nil {
 		runResult = errors.New("finished run with errors")
 	}
-	// if err != nil {
-	// 	return err
-	// }
 
 	if err := textToRegistry(result.Metrics, registry, internalLogger); err != nil {
 		internalLogger.Debug().
@@ -415,7 +413,11 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 		return nil, fmt.Errorf("cannot read logs: %w", err)
 	}
 
-	result.Success = true
+	if checkError == nil {
+		result.Success = true
+	} else {
+		result.Success = false
+	}
 
 	for _, log := range result.Logs {
 		if strings.Contains(string(log), "Assertion failed") {
@@ -425,7 +427,7 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 
 	r.logger.Debug().Bytes("metrics", result.Metrics).Bytes("logs", result.Logs).Msg("k6 result")
 
-	return &result, checkError
+	return &result, nil
 }
 
 func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
