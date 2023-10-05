@@ -15,8 +15,10 @@ import (
 	"go.k6.io/k6/output"
 )
 
+const ExtensionName = "sm"
+
 func init() {
-	output.RegisterExtension("sm", New)
+	output.RegisterExtension(ExtensionName, New)
 }
 
 // Output is a k6 output plugin that writes metrics to an io.Writer in
@@ -118,6 +120,7 @@ func (o *Output) Stop() error {
 				// might end up with invalid label values. This is probably a job for Loki,
 				// meaning we need an structured way of storing this information in logs.
 				fields := logrus.Fields{
+					"source":   ExtensionName,
 					"metric":   metricName,
 					"scenario": scenario,
 					"value":    value,
