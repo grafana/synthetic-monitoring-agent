@@ -19,7 +19,7 @@ steps:
   - make lint
   depends_on:
   - deps
-  image: golang:1.20.4
+  image: us.gcr.io/kubernetes-dev/go-tools:2023-10-04-v379665-2ea0c2a4f
   name: lint
 - commands:
   - make test
@@ -36,7 +36,7 @@ steps:
   - make build
   depends_on:
   - deps
-  image: golang:1.20.4
+  image: us.gcr.io/kubernetes-dev/go-tools:2023-10-04-v379665-2ea0c2a4f
   name: build
 - commands: []
   depends_on:
@@ -327,6 +327,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: ecb595d4bccb21b4d2d882334bffd65c503907a9fc256178d62e062a6544c8b5
+hmac: 0d1da3d322dccff936e42f080c968928d358c288fa22bc75df888762831c8067
 
 ...

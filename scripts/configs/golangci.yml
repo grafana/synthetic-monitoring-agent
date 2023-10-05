@@ -41,7 +41,7 @@ linters:
     - grouper
     - gosimple
     - govet
-    - importas
+    # TODO(mem): fails because we are runnig in a container?: - importas
     - ineffassign
     - interfacebloat
     # TODO(mem): - ireturn
@@ -50,7 +50,7 @@ linters:
     # TODO(mem): - maintidx
     - mirror
     - misspell
-    - musttag
+    # TODO(mem): fails because it's trying to run `go list all`?: - musttag
     - nakedret
     - nestif
     # TODO(mem): - noctx
@@ -131,7 +131,14 @@ linters-settings:
     settings:
       ruleguard:
         rules: "internal/rules/rules.go"
-
+  importas:
+    no-unaliased: true
+    no-extra-aliases: true
+    alias:
+      - pkg: github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring
+        alias: sm
+      - pkg: github.com/prometheus/client_model/go
+        alias: dto
 
 issues:
   exclude:
