@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
+	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -755,6 +757,8 @@ func TestSettingsToScript(t *testing.T) {
 	require.NotEmpty(t, actual)
 
 	check := sm.Check{
+		Target: settings.Entries[0].Request.Url,
+		Job:    "test",
 		Settings: sm.CheckSettings{
 			Multihttp: settings,
 		},
@@ -762,16 +766,25 @@ func TestSettingsToScript(t *testing.T) {
 
 	ctx, cancel := testhelper.Context(context.Background(), t)
 	t.Cleanup(cancel)
-	logger := zerolog.New(zerolog.NewTestWriter(t))
-	runner := k6runner.New("k6")
+	// logger := zerolog.New(zerolog.NewTestWriter(t))
+	logger := zerolog.Nop()
+	k6path := filepath.Join(testhelper.ModuleDir(t), "dist", "k6")
+	runner := k6runner.New(k6path)
 
 	prober, err := NewProber(ctx, check, logger, runner)
 	require.NoError(t, err)
 
 	reg := prometheus.NewPedanticRegistry()
+	require.NotNil(t, reg)
+
 	var buf bytes.Buffer
-	plogger := kitlog.NewLogfmtLogger(&buf)
-	prober.Probe(ctx, "foo", reg, plogger)
+	userLogger := level.NewFilter(kitlog.NewLogfmtLogger(&buf), level.AllowInfo(), level.SquelchNoLevel(false))
+	require.NotNil(t, userLogger)
+
+	success := prober.Probe(ctx, check.Target, reg, userLogger)
+	require.True(t, success)
+
+	t.Log(buf.String())
 }
 
 func TestReplaceVariablesInString(t *testing.T) {

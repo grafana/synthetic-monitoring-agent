@@ -181,12 +181,23 @@ func k6LogsToLogger(logs []byte, logger logger.Logger) error {
 	// labels.
 	dec := logfmt.NewDecoder(bytes.NewBuffer(logs))
 
+NEXT_RECORD:
 	for dec.ScanRecord() {
 		var line []interface{}
+		var source, level string
 		for dec.ScanKeyval() {
-			key := dec.Key()
-			value := dec.Value()
-			line = append(line, string(key), string(value))
+			key := string(dec.Key())
+			value := string(dec.Value())
+			switch key {
+			case "source":
+				source = value
+			case "level":
+				level = value
+			}
+			line = append(line, key, value)
+		}
+		if level == "debug" && source == "" { // if there's no source, it's probably coming from k6
+			continue NEXT_RECORD
 		}
 		_ = logger.Log(line...)
 	}
