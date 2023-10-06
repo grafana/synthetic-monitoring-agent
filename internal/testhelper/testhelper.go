@@ -3,6 +3,8 @@ package testhelper
 import (
 	"context"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -26,4 +28,30 @@ func MustReadFile(t *testing.T, filename string) []byte {
 	require.NotEmpty(t, data)
 
 	return data
+}
+
+func ModuleDir(t *testing.T) string {
+	t.Helper()
+
+	_, filename, _, ok := runtime.Caller(1)
+	if !ok {
+		// uh?
+		return ""
+	}
+	dir := filepath.Dir(filename)
+	for dir != "/" {
+		gomod := filepath.Join(dir, "go.mod")
+		_, err := os.Stat(gomod)
+		switch {
+		case err == nil:
+			return dir
+		case os.IsNotExist(err):
+			dir = filepath.Join(dir, "..")
+			continue
+		default:
+			panic(err)
+		}
+	}
+
+	return dir
 }
