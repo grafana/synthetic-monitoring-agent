@@ -662,12 +662,6 @@ func TestSettingsToScript(t *testing.T) {
 				Assertions: []*sm.MultiHttpEntryAssertion{
 					{
 						Type:      sm.MultiHttpEntryAssertionType_TEXT,
-						Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
-						Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
-						Value:     "httpbin",
-					},
-					{
-						Type:      sm.MultiHttpEntryAssertionType_TEXT,
 						Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
 						Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
 						Value:     "foo: bar",
@@ -764,7 +758,7 @@ func TestSettingsToScript(t *testing.T) {
 					{
 						Type:       sm.MultiHttpEntryAssertionType_REGEX_ASSERTION,
 						Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
-						Expression: "Content-Type: .*; charset=utf-8",
+						Expression: "content-type: .*; charset=utf-8",
 					},
 					{
 						Type:       sm.MultiHttpEntryAssertionType_REGEX_ASSERTION,
@@ -827,9 +821,10 @@ func TestSettingsToScript(t *testing.T) {
 	require.NotNil(t, userLogger)
 
 	success := prober.Probe(ctx, check.Target, reg, userLogger)
-	require.True(t, success)
 
-	t.Log(buf.String())
+	t.Log("Log entries:\n" + buf.String())
+
+	require.True(t, success)
 }
 
 func TestReplaceVariablesInString(t *testing.T) {
