@@ -60,29 +60,44 @@ func NewScript(script []byte, k6runner Runner) (*Script, error) {
 	return &r, nil
 }
 
-func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) error {
+func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) (bool, error) {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
 	result, err := k6runner.Run(ctx, r.script)
 	if err != nil {
-		return err
-	}
-
-	if err := textToRegistry(result.Metrics, registry, internalLogger); err != nil {
 		internalLogger.Debug().
 			Err(err).
-			Msg("cannot add metrics to registry")
-		return err
+			Msg("k6 script exited with error code")
+		return false, err
+	}
+
+	var (
+		collector       sampleCollector
+		resultCollector checkResultCollector
+	)
+
+	if err := extractMetricSamples(result.Metrics, internalLogger, collector.process, resultCollector.process); err != nil {
+		internalLogger.Debug().
+			Err(err).
+			Msg("cannot extract metric samples")
+		return false, err
+	}
+
+	if err := registry.Register(&collector.collector); err != nil {
+		internalLogger.Error().
+			Err(err).
+			Msg("cannot register collector")
+		return false, err
 	}
 
 	if err := k6LogsToLogger(result.Logs, logger); err != nil {
 		internalLogger.Debug().
 			Err(err).
 			Msg("cannot load logs to logger")
-		return err
+		return false, err
 	}
 
-	return nil
+	return !resultCollector.failure, nil
 }
 
 type customCollector struct {
@@ -103,8 +118,60 @@ func (c *customCollector) Collect(ch chan<- prometheus.Metric) {
 	}
 }
 
-func textToRegistry(metrics []byte, registry prometheus.Registerer, logger zerolog.Logger) error {
-	collector := &customCollector{}
+type sampleProcessorFunc func(*dto.MetricFamily, *model.Sample) error
+
+type sampleCollector struct {
+	collector customCollector
+}
+
+func (sc *sampleCollector) process(mf *dto.MetricFamily, sample *model.Sample) error {
+	// TODO(mem): This is really crappy. We have a
+	// set of metric families, and we are
+	// converting back to samples so that we can
+	// add that to the registry. We need to rework
+	// the logic in the prober so that it can
+	// return a set of metric families. The probes
+	// that don't have this, can create a registry
+	// locally and get the metric families from
+	// that.
+	name, found := sample.Metric[model.MetricNameLabel]
+	if !found {
+		return fmt.Errorf("missing metric name")
+	}
+
+	desc := prometheus.NewDesc(string(name), mf.GetHelp(), nil, metricToLabels(sample.Metric))
+	// TODO(mem): maybe change this to untyped?
+	m, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, float64(sample.Value))
+	if err != nil {
+		return fmt.Errorf("creating prometheus metric: %w", err)
+	}
+
+	sc.collector.metrics = append(sc.collector.metrics, m)
+
+	return nil
+}
+
+type checkResultCollector struct {
+	failure bool
+}
+
+func (rc *checkResultCollector) process(mf *dto.MetricFamily, sample *model.Sample) error {
+	if sample.Metric[model.MetricNameLabel] != "probe_checks_total" {
+		return nil
+	}
+
+	if sample.Metric["result"] != "fail" {
+		return nil
+	}
+
+	if sample.Value != 0 {
+		rc.failure = true
+	}
+
+	return nil
+}
+
+func extractMetricSamples(metrics []byte, logger zerolog.Logger, processors ...sampleProcessorFunc) error {
 	promDecoder := expfmt.NewDecoder(bytes.NewBuffer(metrics), expfmt.FmtText)
 	decoderOpts := expfmt.DecodeOptions{Timestamp: model.Now()}
 	for {
@@ -119,40 +186,17 @@ func textToRegistry(metrics []byte, registry prometheus.Registerer, logger zerol
 			}
 
 			for _, sample := range samples {
-				// TODO(mem): This is really crappy. We have a
-				// set of metric families, and we are
-				// converting back to samples so that we can
-				// add that to the registry. We need to rework
-				// the logic in the prober so that it can
-				// return a set of metric families. The probes
-				// that don't have this, can create a registry
-				// locally and get the metric families from
-				// that.
-				name, found := sample.Metric[model.MetricNameLabel]
-				if !found {
-					logger.Error().Err(err).Msg("missing metric name")
-					return fmt.Errorf("missing metric name")
+				for _, p := range processors {
+					err := p(&mf, sample)
+					if err != nil {
+						logger.Error().Err(err).Msg("processing samples")
+						return err
+					}
 				}
-
-				delete(sample.Metric, model.MetricNameLabel)
-
-				desc := prometheus.NewDesc(string(name), mf.GetHelp(), nil, metricToLabels(sample.Metric))
-				// TODO(mem): maybe change this to untyped?
-				m, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, float64(sample.Value))
-				if err != nil {
-					logger.Error().Err(err).Msg("creating prometheus metric")
-					return err
-				}
-
-				collector.metrics = append(collector.metrics, m)
 			}
 
 		case io.EOF:
 			// nothing was returned, we are done
-			if err := registry.Register(collector); err != nil {
-				return err
-			}
-
 			return nil
 
 		default:
@@ -166,7 +210,11 @@ func metricToLabels(metrics model.Metric) prometheus.Labels {
 	// Ugh.
 	labels := make(prometheus.Labels)
 	for name, value := range metrics {
-		labels[string(name)] = string(value)
+		name := string(name)
+		if name == model.MetricNameLabel {
+			continue
+		}
+		labels[name] = string(value)
 	}
 	return labels
 }
@@ -377,7 +425,7 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 	r.logger.Info().Str("command", cmd.String()).Bytes("script", script).Msg("running k6 script")
 
 	if err := cmd.Run(); err != nil {
-		r.logger.Error().Err(err).Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("cannot run k6")
+		r.logger.Error().Err(err).Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("k6 exited with error")
 		return nil, fmt.Errorf("cannot execute k6 script: %w", err)
 	}
 

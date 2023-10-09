@@ -455,7 +455,12 @@ func TestBuildChecks(t *testing.T) {
 				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
 				Value:     "value",
 			},
-			expected: `check(response, { "body contains \"value\"": response => response.body.includes("value") }, {"url": url.toString(), "method": "GET"});`,
+			expected: `currentCheck = check(response, { "body contains \"value\"": response => response.body.includes("value") }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "response.body.includes(\"value\")");
+		fail()
+	};
+`,
 		},
 		"TestBuildChecksTextAssertionWithHeadersSubject": {
 			urlVarName: "url",
@@ -466,7 +471,12 @@ func TestBuildChecks(t *testing.T) {
 				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
 				Value:     "value",
 			},
-			expected: `check(response, { "header contains \"value\"": response => { const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => value.includes("value")); } }, {"url": url.toString(), "method": "GET"});`,
+			expected: `currentCheck = check(response, { "header contains \"value\"": response => { const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => value.includes("value")); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "value.includes(\"value\")");
+		fail()
+	};
+`,
 		},
 		"TestBuildChecksTextAssertionWithHeadersSubjectAndExpression": {
 			urlVarName: "url",
@@ -478,7 +488,12 @@ func TestBuildChecks(t *testing.T) {
 				Expression: "Content-Type",
 				Value:      "value",
 			},
-			expected: `check(response, { "header contains \"value\"": response => { return assertHeader(response.headers, "Content-Type", v => value.includes("value")); } }, {"url": url.toString(), "method": "GET"});`,
+			expected: `currentCheck = check(response, { "header contains \"value\"": response => { return assertHeader(response.headers, "Content-Type", v => value.includes("value")); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "value.includes(\"value\")");
+		fail()
+	};
+`,
 		},
 		"TestBuildChecksTextAssertionWithStatusCodeSubject": {
 			urlVarName: "url",
@@ -489,7 +504,12 @@ func TestBuildChecks(t *testing.T) {
 				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE,
 				Value:     "value",
 			},
-			expected: `check(response, { "status code contains \"value\"": response => response.status.toString().includes("value") }, {"url": url.toString(), "method": "GET"});`,
+			expected: `currentCheck = check(response, { "status code contains \"value\"": response => response.status.toString().includes("value") }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "response.status.toString().includes(\"value\")");
+		fail()
+	};
+`,
 		},
 		"TestBuildChecksJsonPathValueAssertionWithBodySubject": {
 			urlVarName: "url",
@@ -501,7 +521,12 @@ func TestBuildChecks(t *testing.T) {
 				Expression: "/path/to/value",
 				Value:      "value",
 			},
-			expected: `check(response, { "/path/to/value contains \"value\"": response => jsonpath.query(response.json(), "/path/to/value").some(values => values.includes("value")) }, {"url": url.toString(), "method": "GET"});`,
+			expected: `currentCheck = check(response, { "/path/to/value contains \"value\"": response => jsonpath.query(response.json(), "/path/to/value").some(values => values.includes("value")) }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "values.includes(\"value\")");
+		fail()
+	};
+`,
 		},
 		"TestBuildChecksJsonPathAssertionWithBodySubject": {
 			urlVarName: "url",
@@ -511,7 +536,12 @@ func TestBuildChecks(t *testing.T) {
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
 				Expression: "/path/to/value",
 			},
-			expected: `check(response, { "/path/to/value exists": response => jsonpath.query(response.json(), "/path/to/value").length > 0 }, {"url": url.toString(), "method": "GET"});`,
+			expected: `currentCheck = check(response, { "/path/to/value exists": response => jsonpath.query(response.json(), "/path/to/value").length > 0 }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "JsonPath expression /path/to/value");
+		fail()
+	};
+`,
 		},
 		"TestBuildChecksRegexAssertionWithBodySubject": {
 			urlVarName: "url",
@@ -521,7 +551,12 @@ func TestBuildChecks(t *testing.T) {
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
 				Expression: "regex",
 			},
-			expected: `check(response, { "body matches /regex/": response => { const expr = new RegExp("regex"); return expr.test(response.body); } }, {"url": url.toString(), "method": "GET"});`,
+			expected: `currentCheck = check(response, { "body matches /regex/": response => { const expr = new RegExp("regex"); return expr.test(response.body); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "Body matchesregex");
+		fail()
+	};
+`,
 		},
 		"TestBuildChecksRegexAssertionWithHeadersSubject": {
 			urlVarName: "url",
@@ -531,7 +566,12 @@ func TestBuildChecks(t *testing.T) {
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
 				Expression: "regex",
 			},
-			expected: `check(response, { "headers matches /regex/": response => { const expr = new RegExp("regex"); const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => expr.test(value)); } }, {"url": url.toString(), "method": "GET"});`,
+			expected: `currentCheck = check(response, { "headers matches /regex/": response => { const expr = new RegExp("regex"); const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => expr.test(value)); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "Headers matchregex");
+		fail()
+	};
+`,
 		},
 		"TestBuildChecksRegexAssertionWithStatusCodeSubject": {
 			urlVarName: "url",
@@ -541,7 +581,12 @@ func TestBuildChecks(t *testing.T) {
 				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE,
 				Expression: "regex",
 			},
-			expected: `check(response, { "status matches /regex/": response => { const expr = new RegExp("regex"); return expr.test(response.status.toString()); } }, {"url": url.toString(), "method": "GET"});`,
+			expected: `currentCheck = check(response, { "status matches /regex/": response => { const expr = new RegExp("regex"); return expr.test(response.status.toString()); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "Status matchesregex");
+		fail()
+	};
+`,
 		},
 	}
 
@@ -615,12 +660,6 @@ func TestSettingsToScript(t *testing.T) {
 					Url:    testServer.URL + "/response-headers?foo=bar",
 				},
 				Assertions: []*sm.MultiHttpEntryAssertion{
-					{
-						Type:      sm.MultiHttpEntryAssertionType_TEXT,
-						Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
-						Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
-						Value:     "httpbin",
-					},
 					{
 						Type:      sm.MultiHttpEntryAssertionType_TEXT,
 						Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
@@ -719,7 +758,7 @@ func TestSettingsToScript(t *testing.T) {
 					{
 						Type:       sm.MultiHttpEntryAssertionType_REGEX_ASSERTION,
 						Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
-						Expression: "Content-Type: .*; charset=utf-8",
+						Expression: "content-type: .*; charset=utf-8",
 					},
 					{
 						Type:       sm.MultiHttpEntryAssertionType_REGEX_ASSERTION,
@@ -782,9 +821,10 @@ func TestSettingsToScript(t *testing.T) {
 	require.NotNil(t, userLogger)
 
 	success := prober.Probe(ctx, check.Target, reg, userLogger)
-	require.True(t, success)
 
-	t.Log(buf.String())
+	t.Log("Log entries:\n" + buf.String())
+
+	require.True(t, success)
 }
 
 func TestReplaceVariablesInString(t *testing.T) {

@@ -65,8 +65,9 @@ func TestScriptRun(t *testing.T) {
 	// We already know tha parsing the metrics and the logs is working, so
 	// we are only interested in verifying that the script runs without
 	// errors.
-	err = script.Run(ctx, registry, &logger, zlogger)
+	success, err := script.Run(ctx, registry, &logger, zlogger)
 	require.NoError(t, err)
+	require.True(t, success)
 }
 
 func TestHttpRunnerRun(t *testing.T) {
@@ -182,10 +183,16 @@ DEC_LOOP:
 		}
 	}
 
-	registry := prometheus.NewRegistry()
+	var sampleCollector sampleCollector
+
 	buf := bytes.Buffer{}
 	logger := zerolog.New(&buf)
-	err := textToRegistry(data, registry, logger)
+
+	err := extractMetricSamples(data, logger, sampleCollector.process)
+	require.NoError(t, err)
+
+	registry := prometheus.NewRegistry()
+	err = registry.Register(&sampleCollector.collector)
 	require.NoError(t, err)
 
 	mfs, err := registry.Gather()

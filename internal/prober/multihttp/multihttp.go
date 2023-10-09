@@ -70,13 +70,13 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
-	err := p.script.Run(ctx, registry, logger, p.logger)
+	success, err := p.script.Run(ctx, registry, logger, p.logger)
 	if err != nil {
 		p.logger.Warn().Err(err).Msg("running probe")
 		return false
 	}
 
-	return true
+	return success
 }
 
 func settingsToModule(settings *sm.MultiHttpSettings) Module {

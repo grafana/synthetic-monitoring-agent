@@ -431,9 +431,29 @@ func (c AdHocCheck) Validate() error {
 }
 
 func (c AdHocCheck) validateTimeout() error {
-	// Timeout must be in [1, 2.5] seconds.
-	if c.Timeout < 1*1000 || c.Timeout > 2500 {
-		return ErrInvalidCheckTimeout
+	switch {
+	case c.Settings.Traceroute != nil:
+		// We are hardcoding traceroute frequency and timeout until we can get data on what the boundaries should be
+		if c.Timeout != 30*1000 {
+			return ErrInvalidCheckTimeout
+		}
+
+	case c.Settings.K6 != nil || c.Settings.Multihttp != nil:
+		// This is expirimental. A 30 second timeout means we have more
+		// checks lingering around. timeout must be in [1, 30] seconds,
+		// and it must be less than frequency (otherwise we can end up
+		// running overlapping checks)
+		if c.Timeout < 1*1000 || c.Timeout > 30*1000 {
+			return ErrInvalidCheckTimeout
+		}
+
+	default:
+		// timeout must be in [1, 10] seconds, and it must be less than
+		// frequency (otherwise we can end up running overlapping
+		// checks)
+		if c.Timeout < 1*1000 || c.Timeout > 10*1000 {
+			return ErrInvalidCheckTimeout
+		}
 	}
 
 	return nil
