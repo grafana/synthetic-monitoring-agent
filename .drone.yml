@@ -13,19 +13,19 @@ steps:
   - ./scripts/enforce-clean
   depends_on:
   - runner identification
-  image: golang:1.20.4
+  image: golang:1.21.3
   name: deps
 - commands:
   - make lint
   depends_on:
   - deps
-  image: us.gcr.io/kubernetes-dev/go-tools:2023-10-04-v379665-2ea0c2a4f
+  image: us.gcr.io/kubernetes-dev/go-tools:2023-10-10-v384623-f09f9eb30
   name: lint
 - commands:
   - make test
   depends_on:
   - lint
-  image: golang:1.20.4
+  image: golang:1.21.3
   name: test
 - commands:
   - git fetch origin --tags
@@ -36,7 +36,7 @@ steps:
   - make build
   depends_on:
   - deps
-  image: us.gcr.io/kubernetes-dev/go-tools:2023-10-04-v379665-2ea0c2a4f
+  image: us.gcr.io/kubernetes-dev/go-tools:2023-10-10-v384623-f09f9eb30
   name: build
 - commands: []
   depends_on:
@@ -218,7 +218,7 @@ steps:
     NFPM_SIGNING_KEY:
       from_secret: gpg_private_key
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: golang:1.20.4
+  image: golang:1.21.3
   name: write-key
 - commands:
   - make release-snapshot
@@ -226,7 +226,7 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: golang:1.20.4
+  image: golang:1.21.3
   name: test release
   when:
     ref:
@@ -264,7 +264,7 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: golang:1.20.4
+  image: golang:1.21.3
   name: release
   when:
     ref:
@@ -327,6 +327,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 0d1da3d322dccff936e42f080c968928d358c288fa22bc75df888762831c8067
+hmac: 54c785c8e8fd11b62163bd704f1e56dbc7dcd9c3ebc4eac0d0e08aa0905bf13e
 
 ...
