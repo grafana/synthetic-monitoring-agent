@@ -1,6 +1,6 @@
-local go_tools_image = 'us.gcr.io/kubernetes-dev/go-tools:2023-10-04-v379665-2ea0c2a4f';
+local go_tools_image = 'us.gcr.io/kubernetes-dev/go-tools:2023-10-10-v384623-f09f9eb30';
 
-local step(name, commands, image='golang:1.20.4') = {
+local step(name, commands, image='golang:1.21.3') = {
   name: name,
   commands: commands,
   image: image,
