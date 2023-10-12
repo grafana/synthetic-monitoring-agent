@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.18.0"></a>
+## [v0.18.0] - 2023-10-10
+### Feature
+- add support for interpolating variables
+
+
 <a name="v0.17.3"></a>
 ## [v0.17.3] - 2023-09-28
 
@@ -480,7 +486,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.3...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.0...HEAD
+[v0.18.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.3...v0.18.0
 [v0.17.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.2...v0.17.3
 [v0.17.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.1...v0.17.2
 [v0.17.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.0...v0.17.1
