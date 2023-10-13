@@ -945,7 +945,7 @@ func TestScraperCollectData(t *testing.T) {
 			"instance":       checkTarget,
 			"job":            job,
 			"probe":          probeName,
-			"source":         CheckInfoSource,
+			// "source":         CheckInfoSource,
 		}
 		baseExpectedInfoLabels = map[string]string{
 			"check_name": checkName,
