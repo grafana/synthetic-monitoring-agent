@@ -398,7 +398,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		{name: "config_version", value: s.check.ConfigVersion()},
 		{name: "instance", value: s.check.Target},
 		{name: "job", value: s.check.Job},
-		{name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
+		// {name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
 	}
 
 	ts := s.extractTimeseries(t, mfs, metricLabels)
