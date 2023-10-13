@@ -65,8 +65,6 @@ if test -z "${next_version}" ; then
 	exit 4
 fi
 
-last_subject=$(git log --format=%s --max-count=1)
-
 commit_msg=$(mktemp)
 
 cleanup() {
@@ -75,7 +73,9 @@ cleanup() {
 
 trap cleanup EXIT
 
-if test "${last_subject}" != "Release ${next_version}" ; then
+last_subject=$(git log --format=%s --max-count=1 | grep -E "^Release ${next_version}( \(#[0-9]+\))?\$")
+
+if test -z "${last_subject}" ; then
 	# Need to create release notes.
 	cur_version=$(git describe --tags | cut -d- -f1)
 
