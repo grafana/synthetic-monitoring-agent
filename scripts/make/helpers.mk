@@ -70,9 +70,33 @@ docker-push:  docker
 	$(S) docker tag $(DOCKER_TAG) $(DOCKER_TAG):$(BUILD_VERSION)
 	$(S) docker push $(DOCKER_TAG):$(BUILD_VERSION)
 
+.PHONY: generate
+generate: $(ROOTDIR)/pkg/accounting/data.go
+generate: $(ROOTDIR)/pkg/pb/synthetic_monitoring/checks.pb.go
+generate: $(ROOTDIR)/pkg/pb/synthetic_monitoring/string.go
+generate: $(ROOTDIR)/pkg/pb/synthetic_monitoring/multihttp_string.go
+generate:
+	$(S) true
+
+$(ROOTDIR)/pkg/accounting/data.go: $(ROOTDIR)/pkg/accounting/data.go.tmpl $(wildcard $(ROOTDIR)/internal/scraper/testdata/*.txt)
+	$(S) echo "Generating $@ ..."
+	$(V) $(GO) generate -v "$(@D)"
+
+$(ROOTDIR)/pkg/pb/synthetic_monitoring/%.pb.go: $(ROOTDIR)/pkg/pb/synthetic_monitoring/%.proto
+	$(S) echo "Generating $@ ..."
+	$(V) $(ROOTDIR)/scripts/genproto.sh
+
+$(ROOTDIR)/pkg/pb/synthetic_monitoring/string.go: $(wildcard $(ROOTDIR)/pkg/pb/synthetic_monitoring/*.pb.go) $(ROOTDIR)/pkg/pb/synthetic_monitoring/checks_extra.go
+	$(S) echo "Generating $@ ..."
+	$(V) $(GO) generate -v "$(@D)"
+
+$(ROOTDIR)/pkg/pb/synthetic_monitoring/multihttp_string.go: $(wildcard $(ROOTDIR)/pkg/pb/synthetic_monitoring/*.pb.go) $(ROOTDIR)/pkg/pb/synthetic_monitoring/checks_extra.go
+	$(S) echo "Generating $@ ..."
+	$(V) $(GO) generate -v "$(@D)"
+
 .PHONY: testdata
 testdata: ## Update golden files for tests.
-	$(S) true
+	$(V) $(GO) test -v -run TestValidateMetrics ./internal/scraper -args -update-golden
 
 .PHONY: drone
 drone: .drone.yml ## Update drone files

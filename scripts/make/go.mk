@@ -22,3 +22,24 @@ COMMANDS := $(shell $(GO) list $(GO_BUILD_MOD_FLAGS) -f '{{if (eq .Name "main")}
 ifeq ($(origin GH_REPO_NAME),undefined)
 	GH_REPO_NAME := $(GO_MODULE_NAME:github.com/%=%)
 endif
+
+ifeq ($(origin ENUMER),undefined)
+ifneq ($(LOCAL_ENUMER),yes)
+ENUMER ?= docker run \
+		 --rm \
+		 -v '$(ROOTDIR):/mnt' \
+		 -v '$(HOME)/.cache/go-build:/root/.cache/go-build' \
+		 --env GOFLAGS=-buildvcs=false \
+		 --workdir /mnt \
+		 '$(GO_TOOLS_IMAGE)' \
+		 enumer
+endif
+endif
+
+ifeq ($(LOCAL_ENUMER),yes)
+ENUMER ?= $(ROOTDIR)/scripts/go/bin/enumer
+$(ENUMER): scripts/go/go.mod scripts/go/go.sum
+	$(S) cd scripts/go && \
+		$(GO) mod download && \
+		$(GO) build -o $(ENUMER) github.com/dmarkham/enumer
+endif
