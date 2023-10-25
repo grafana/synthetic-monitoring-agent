@@ -25,6 +25,7 @@ option (gogoproto.goproto_unrecognized_all) = false;
 option (gogoproto.marshaler_all)            = true;
 option (gogoproto.sizer_all)                = true;
 option (gogoproto.unmarshaler_all)          = true;
+option (gogoproto.enum_stringer_all)        = false;
 
 service Checks {
   // RegisterProbe causes this probe to be reported as online with
@@ -503,6 +504,7 @@ enum MultiHttpEntryAssertionType {
   JSON_PATH_VALUE     = 1;
   JSON_PATH_ASSERTION = 2;
   REGEX_ASSERTION     = 3;
+  option (gogoproto.goproto_enum_stringer) = false;
 }
 
 // MultiHttpEntryAssertionSubjectVariant represents the subject of the assertion.
@@ -511,6 +513,7 @@ enum MultiHttpEntryAssertionSubjectVariant {
   RESPONSE_HEADERS = 1;
   HTTP_STATUS_CODE = 2;
   RESPONSE_BODY    = 3;
+  option (gogoproto.goproto_enum_stringer) = false;
 }
 
 // MultiHttpEntryAssertionConditionVariant represents the condition between the assertion's expression and value.
@@ -522,6 +525,7 @@ enum MultiHttpEntryAssertionConditionVariant {
   ENDS_WITH         = 4;
   TYPE_OF           = 5;
   CONTAINS          = 6;
+  option (gogoproto.goproto_enum_stringer) = false;
 }
 
 // MultiHttpEntryAssertion represents a single assertion to be made on the response.
@@ -551,6 +555,7 @@ enum MultiHttpEntryVariableType {
   JSON_PATH    = 0;
   REGEX        = 1;
   CSS_SELECTOR = 2;
+  option (gogoproto.goproto_enum_stringer) = false;
 }
 
 // MultiHttpEntryVariable represents a single variable to be used in the request.
