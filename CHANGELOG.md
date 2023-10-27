@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.18.3"></a>
+## [v0.18.3] - 2023-10-26
+### Fix
+- make sure the String() methods match the proto defintion
+
+
 <a name="v0.18.2"></a>
 ## [v0.18.2] - 2023-10-25
 
@@ -492,7 +498,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.2...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.3...HEAD
+[v0.18.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.2...v0.18.3
 [v0.18.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.1...v0.18.2
 [v0.18.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.0...v0.18.1
 [v0.18.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.17.3...v0.18.0
