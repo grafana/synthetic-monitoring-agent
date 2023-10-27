@@ -35,6 +35,7 @@ require (
 	github.com/mccutchen/go-httpbin/v2 v2.11.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	github.com/spf13/afero v1.10.0
+	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.69
 )
 
@@ -55,7 +56,6 @@ require (
 	github.com/prometheus/procfs v0.10.1 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/goleak v1.2.1 // indirect
-	golang.org/x/exp v0.0.0-20230321023759-10a507213a29 // indirect
 	golang.org/x/mod v0.13.0 // indirect
 	golang.org/x/oauth2 v0.10.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
