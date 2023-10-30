@@ -94,6 +94,10 @@ export default function() {
 		headers: {{ $headers }}{{ end }}
 	});
 	console.log("Response received from {{.Request.Url}}, status", response.status);
+	if(.LogResponse) {
+		const body = response.body || ''
+		console.log("Response body received from {{.Request.Url}}:", body.slice(0, 1000));
+	}
 	if(response.error) {
 		console.error("Request error:" + url.toString() + ": " + response.error)
 	}
