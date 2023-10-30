@@ -462,9 +462,10 @@ message MultiHttpSettings {
 
 // MultiHttpEntry represents a single entry in a MultiHttp check.
 message MultiHttpEntry {
-  MultiHttpEntryRequest            request    = 1 [(gogoproto.jsontag) = "request,omitempty"];    // The request parameters.
-  repeated MultiHttpEntryAssertion assertions = 2 [(gogoproto.jsontag) = "checks,omitempty"];     // Zero or more assertions to be made on the response.
-  repeated MultiHttpEntryVariable  variables  = 3 [(gogoproto.jsontag) = "variables,omitempty"];  // Zero or more variables to be used in the request.
+  MultiHttpEntryRequest            request     = 1 [(gogoproto.jsontag) = "request,omitempty"];    // The request parameters.
+  repeated MultiHttpEntryAssertion assertions  = 2 [(gogoproto.jsontag) = "checks,omitempty"];     // Zero or more assertions to be made on the response.
+  repeated MultiHttpEntryVariable  variables   = 3 [(gogoproto.jsontag) = "variables,omitempty"];  // Zero or more variables to be used in the request.
+  bool                             logResponse = 4 [(gogoproto.jsontag) = "logResponse,omitempty"];  // Whether to log the response body in the output.
 }
 
 // HttpHeader represents a single HTTP header key-value pair.
