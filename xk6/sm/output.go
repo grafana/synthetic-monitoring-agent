@@ -15,7 +15,10 @@ import (
 	"go.k6.io/k6/output"
 )
 
-const ExtensionName = "sm"
+const (
+	ExtensionName = "sm"
+	RawURLTagName = "__raw_url__"
+)
 
 func init() {
 	output.RegisterExtension(ExtensionName, New)
@@ -209,6 +212,7 @@ type targetId struct {
 	method   string
 	scenario string
 	group    string
+	name     string
 }
 
 type targetMetrics struct {
@@ -243,10 +247,11 @@ func newTargetMetricsCollection() targetMetricsCollection {
 
 func (collection targetMetricsCollection) Update(sample metrics.Sample, scenario, group string, tags map[string]string) {
 	key := targetId{
-		url:      tags["url"],
+		url:      getURL(tags),
 		method:   tags["method"],
 		scenario: scenario,
 		group:    group,
+		name:     tags["name"],
 	}
 
 	// the metrics for this target
@@ -281,16 +286,12 @@ func (collection targetMetricsCollection) Update(sample metrics.Sample, scenario
 
 	// Remove elements from tags because the following are stored in dedicated fields.
 
-	// TODO(mem): If the name tag is not providing new infomration, delete it. This probably needs
-	// rethinking.
-	if tags["name"] == tags["url"] {
-		delete(tags, "name")
-	}
-
 	delete(tags, "url")
+	delete(tags, RawURLTagName)
 	delete(tags, "method")
 	delete(tags, "scenario")
 	delete(tags, "group")
+	delete(tags, "name")
 
 	delete(tags, "proto")
 	delete(tags, "tls_version")
@@ -304,11 +305,14 @@ func (collection targetMetricsCollection) Update(sample metrics.Sample, scenario
 func (c targetMetricsCollection) Write(w io.Writer) {
 	for key, ti := range c {
 		out := newBufferedMetricTextOutput(w, "url", key.url, "method", key.method)
-		if ti.scenario != "" {
-			out.Tags("scenario", ti.scenario)
+		if key.scenario != "" {
+			out.Tags("scenario", key.scenario)
 		}
-		if ti.group != "" {
-			out.Tags("group", ti.group)
+		if key.group != "" {
+			out.Tags("group", key.group)
+		}
+		if key.name != "" {
+			out.Tags("name", key.name)
 		}
 
 		// Remove expected_reponse from tags and write it as a separate
@@ -726,4 +730,12 @@ func sanitizeLabelName(s string) string {
 	}
 
 	return builder.String()
+}
+
+func getURL(m map[string]string) string {
+	if u := m[RawURLTagName]; u != "" {
+		return u
+	}
+
+	return m["url"]
 }
