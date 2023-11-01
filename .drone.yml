@@ -22,12 +22,6 @@ steps:
   image: us.gcr.io/kubernetes-dev/go-tools:2023-10-10-v384623-f09f9eb30
   name: lint
 - commands:
-  - make test
-  depends_on:
-  - lint
-  image: golang:1.21.3
-  name: test
-- commands:
   - git fetch origin --tags
   - git status --porcelain --untracked-files=no
   - git diff --no-ext-diff --quiet
@@ -38,6 +32,13 @@ steps:
   - deps
   image: us.gcr.io/kubernetes-dev/go-tools:2023-10-10-v384623-f09f9eb30
   name: build
+- commands:
+  - make test
+  depends_on:
+  - lint
+  - build
+  image: golang:1.21.3
+  name: test
 - commands: []
   depends_on:
   - build
@@ -327,6 +328,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 54c785c8e8fd11b62163bd704f1e56dbc7dcd9c3ebc4eac0d0e08aa0905bf13e
+hmac: 72eecfea65c577c29507054abf62f65c0ac112f188c72e6487eed4c298fd42c6
 
 ...

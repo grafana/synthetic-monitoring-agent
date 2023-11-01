@@ -10,8 +10,8 @@ local pipeline(name, steps=[]) = {
   kind: 'pipeline',
   type: 'docker',
   name: name,
-  image_pull_secrets: ['docker_config_json'],
-  steps: [step('runner identification', ['echo $DRONE_RUNNER_NAME'], 'alpine')] + steps,
+  image_pull_secrets: [ 'docker_config_json' ],
+  steps: [ step('runner identification', [ 'echo $DRONE_RUNNER_NAME' ], 'alpine') ] + steps,
   trigger+: {
     ref+: [
       'refs/heads/main',
@@ -34,7 +34,7 @@ local releaseOnly = {
 };
 
 local prOnly = {
-  when: { event: ['pull_request'] },
+  when: { event: [ 'pull_request' ] },
 };
 
 local devOnly = {
@@ -78,7 +78,7 @@ local vault_secret(name, vault_path, key) = {
 local docker_step(tag, os, arch, version='') =
   // We can't use 'make docker' without making this repo priveleged in drone
   // so we will use the native docker plugin instead for security.
-  local platform = std.join('/', [os, arch, if std.length(version) > 0 then version]);
+  local platform = std.join('/', [ os, arch, if std.length(version) > 0 then version ]);
   step(tag + ' (' + platform + ')', [], 'plugins/docker')
   + {
     environment: {
@@ -99,12 +99,12 @@ local docker_step(tag, os, arch, version='') =
 
 local docker_build(os, arch, version='') =
   docker_step('docker build', os, arch, version)
-  + dependsOn(['build']);
+  + dependsOn([ 'build' ]);
 
 local docker_publish(repo, auth, tag, os, arch, version='') =
   docker_step('docker publish to ' + tag, os, arch, version)
   + { settings: { repo: repo, dry_run: 'false' } + auth }
-  + dependsOn(['test', 'docker build']);
+  + dependsOn([ 'test', 'docker build' ]);
 
 [
   pipeline('build', [
@@ -112,17 +112,14 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
       'make deps',
       './scripts/enforce-clean',
     ])
-    + dependsOn(['runner identification']),
+    + dependsOn([ 'runner identification' ]),
 
     step(
       'lint',
-      ['make lint'],
+      [ 'make lint' ],
       go_tools_image,
     )
-    + dependsOn(['deps']),
-
-    step('test', ['make test'])
-    + dependsOn(['lint']),
+    + dependsOn([ 'deps' ]),
 
     step(
       'build',
@@ -136,13 +133,16 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
       ],
       go_tools_image,
     )
-    + dependsOn(['deps']),
+    + dependsOn([ 'deps' ]),
+
+    step('test', [ 'make test' ])
+    + dependsOn([ 'lint', 'build' ]),
 
     docker_build('linux', 'amd64'),
     docker_build('linux', 'arm', 'v7'),
     docker_build('linux', 'arm64', 'v8'),
 
-    step('docker build', ['true'], 'alpine')
+    step('docker build', [ 'true' ], 'alpine')
     + dependsOn([
       'docker build (linux/amd64)',
       'docker build (linux/arm/v7)',
@@ -157,7 +157,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
     // docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm', 'v7') + releaseOnly,
     // docker_publish(docker_repo, docker_auth, 'docker', 'linux', 'arm64', 'v8') + releaseOnly,
 
-    step('docker publish (dev)', ['true'], 'alpine')
+    step('docker publish (dev)', [ 'true' ], 'alpine')
     + dependsOn([
       'docker publish to gcr.io (linux/amd64)',
       // 'docker publish to gcr.io (linux/arm/v7)',
@@ -165,7 +165,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
     ])
     + devAndRelease,
 
-    step('docker publish (release)', ['true'], 'alpine')
+    step('docker publish (release)', [ 'true' ], 'alpine')
     + dependsOn([
       'docker publish to gcr.io (linux/amd64)',
       // 'docker publish to gcr.io (linux/arm/v7)',
@@ -194,7 +194,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
       },
       image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli',
     }
-    + dependsOn(['docker publish (dev)'])
+    + dependsOn([ 'docker publish (dev)' ])
     + devOnly,
 
     step('trigger argo workflow (release)', [])
@@ -215,16 +215,16 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
       },
       image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli',
     }
-    + dependsOn(['docker publish (release)'])
+    + dependsOn([ 'docker publish (release)' ])
     + releaseOnly,
 
   ]),
 
   // Build and release packages
   // Tested in PRs by installing the packages on a systemd container
-  pipeline('release') {
+  pipeline('release') + {
     trigger: {
-      event: ['tag', 'pull_request'],
+      event: [ 'tag', 'pull_request' ],
     },
     volumes+: [
       {
@@ -266,20 +266,20 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
       },
     ],
     steps+: [
-      step('fetch', ['git fetch --tags'], image='docker:git'),
-      step('write-key', ['printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE']) {
+      step('fetch', [ 'git fetch --tags' ], image='docker:git'),
+      step('write-key', [ 'printf "%s" "$NFPM_SIGNING_KEY" > $NFPM_SIGNING_KEY_FILE' ]) + {
         environment: {
           NFPM_SIGNING_KEY: { from_secret: 'gpg_private_key' },
           NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
         },
       },
-      step('test release', ['make release-snapshot']) + devAndRelease + {
+      step('test release', [ 'make release-snapshot' ]) + devAndRelease + {
         environment: {
           NFPM_DEFAULT_PASSPHRASE: { from_secret: 'gpg_passphrase' },
           NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
         },
       },
-      step('test deb package', ['./scripts/package/verify-deb-install.sh'], image='docker') + devAndRelease + {
+      step('test deb package', [ './scripts/package/verify-deb-install.sh' ], image='docker') + devAndRelease + {
         volumes: [
           {
             name: 'docker',
@@ -288,7 +288,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
         ],
         privileged: true,
       },
-      step('test rpm package', ['./scripts/package/verify-rpm-install.sh'], image='docker') + devAndRelease + {
+      step('test rpm package', [ './scripts/package/verify-rpm-install.sh' ], image='docker') + devAndRelease + {
         volumes: [
           {
             name: 'docker',
@@ -297,7 +297,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
         ],
         privileged: true,
       },
-      step('release', ['make release']) + releaseOnly {
+      step('release', [ 'make release' ]) + releaseOnly + {
         environment: {
           GITHUB_TOKEN: { from_secret: 'gh_token' },
           NFPM_DEFAULT_PASSPHRASE: { from_secret: 'gpg_passphrase' },
@@ -311,7 +311,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
         'refs/pull/**',
         'refs/tags/v*.*.*',
       ],  // Only on tags and PRs
-      repo: ['grafana/*'],  // Only trigger this pipeline for the Grafana org (no forks)
+      repo: [ 'grafana/*' ],  // Only trigger this pipeline for the Grafana org (no forks)
     },
   },
 

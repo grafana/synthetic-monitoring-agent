@@ -9,7 +9,6 @@ ifeq ($(origin XK6),undefined)
 XK6 ?= docker run \
 	      --rm \
 	      -i \
-	      -t \
 	      -u "$(shell id -u):$(shell id -g)" \
 	      -e GOOS=$(GOOS) \
 	      -e GOARCH=$(GOARCH) \
@@ -27,7 +26,7 @@ BUILD_XK6_TARGETS += build-xk6-$(1)-$(2)
 
 build-xk6-$(1)-$(2) : GOOS := $(1)
 build-xk6-$(1)-$(2) : GOARCH := $(2)
-build-xk6-$(1)-$(2) : DIST_FILENAME := $(firstword $(OUTPUT_FILE) $(DISTDIR)/$(1)-$(2)/k6)
+build-xk6-$(1)-$(2) : DIST_FILENAME := $(dir $(firstword $(OUTPUT_FILE) $(DISTDIR)/$(1)-$(2)/))k6
 $(DISTDIR)/$(1)-$(2)/k6) : $(wildcard $(ROOTDIR)/xk6/sm/*.go $(ROOTDIR)/xk6/sm/go.mod)
 
 endef
@@ -37,13 +36,13 @@ BUILD_DUMMY_XK6_TARGETS += build-dummy-xk6-$(1)-$(2)
 
 build-dummy-xk6-$(1)-$(2) : GOOS := $(1)
 build-dummy-xk6-$(1)-$(2) : GOARCH := $(2)
-build-dummy-xk6-$(1)-$(2) : DIST_FILENAME := $(firstword $(OUTPUT_FILE) $(DISTDIR)/$(1)-$(2)/k6)
+build-dummy-xk6-$(1)-$(2) : DIST_FILENAME := $(dir $(firstword $(OUTPUT_FILE) $(DISTDIR)/$(1)-$(2)/))k6
 $(DISTDIR)/$(1)-$(2)/k6) :
 
 endef
 
 # TODO(mem): xk6 does not build on linux/arm yet
-DUMMY_XK6_PLATFORMS := linux/arm
+DUMMY_XK6_PLATFORMS := $(filter linux/arm,$(PLATFORMS))
 
 XK6_PLATFORMS := $(filter-out $(DUMMY_XK6_PLATFORMS),$(PLATFORMS))
 
@@ -54,10 +53,6 @@ $(foreach BUILD_PLATFORM,$(DUMMY_XK6_PLATFORMS), \
 	$(eval $(call build_dummy_xk6_template,$(word 1,$(subst /, ,$(BUILD_PLATFORM))),$(word 2,$(subst /, ,$(BUILD_PLATFORM))))))
 
 BUILD_XK6_NATIVE_TARGETS := $(filter build-xk6-$(HOST_OS)-$(HOST_ARCH), $(BUILD_XK6_TARGETS))
-
-.PHONY: $(BUILD_XK6_TARGETS)
-$(BUILD_XK6_TARGETS) : build-xk6-% :
-	$(call build_xk6_command)
 
 define build_xk6_command
 	$(S) echo 'Building $(notdir $(DIST_FILENAME)) ($(GOOS)-$(GOARCH))'
@@ -71,11 +66,13 @@ define build_xk6_command
 		true
 endef
 
-build: $(BUILD_XK6_TARGETS)
+ifneq ($(strip $(BUILD_XK6_TARGETS)),)
+.PHONY: $(BUILD_XK6_TARGETS)
+$(BUILD_XK6_TARGETS) : build-xk6-% :
+	$(call build_xk6_command)
 
-.PHONY: $(BUILD_DUMMY_XK6_TARGETS)
-$(BUILD_DUMMY_XK6_TARGETS) : build-dummy-xk6-% :
-	$(call build_dummy_xk6_command)
+build: $(BUILD_XK6_TARGETS)
+endif
 
 define build_dummy_xk6_command
 	$(S) echo 'Building $(notdir $(DIST_FILENAME)) ($(GOOS)-$(GOARCH))'
@@ -86,7 +83,13 @@ define build_dummy_xk6_command
 		true
 endef
 
+ifneq ($(strip $(BUILD_DUMMY_XK6_TARGETS)),)
+.PHONY: $(BUILD_DUMMY_XK6_TARGETS)
+$(BUILD_DUMMY_XK6_TARGETS) : build-dummy-xk6-% :
+	$(call build_dummy_xk6_command)
+
 build: $(BUILD_DUMMY_XK6_TARGETS)
+endif
 
 .PHONY: native-k6
 native-k6: build-xk6-$(HOST_OS)-$(HOST_ARCH)

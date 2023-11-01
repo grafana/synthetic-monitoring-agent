@@ -18,14 +18,17 @@ builds:
       - goos: darwin
         goarch: arm
     gobinary: scripts/package/goreleaser-build
+#sboms:
+# - artifacts: archive
 archives:
   - format: zip
-    replacements:
-      darwin: Darwin
-      linux: Linux
-      windows: Windows
-      386: i386
-      amd64: x86_64
+    files:
+      - "CHANGELOG.md"
+      - "LICENSE"
+      - "README.md"
+      - src: "{{dir .ArtifactPath}}/k6"
+        dst: sm-k6
+        strip_parent: true
 checksum:
   name_template: 'checksums.txt'
 snapshot:
@@ -54,6 +57,10 @@ nfpms:
         type: 'config|noreplace'
       - src: ./scripts/package/config/systemd/synthetic-monitoring-agent.service
         dst: /etc/systemd/system/synthetic-monitoring-agent.service
+
+      # Copy k6 as sm-k6 to prevent clashing with k6 if it's installed.
+      - src: ./dist/synthetic-monitoring-agent_{{.Os}}_{{.Arch}}/k6
+        dst: /usr/bin/sm-k6
     rpm:
       signature:
         # Also set ${NFPM_DEFAULT_PASSPHRASE}
