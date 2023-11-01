@@ -49,7 +49,7 @@ case "$1" in
 	build)
 		make build \
 			"PLATFORMS=${GOOS}/${GOARCH}" \
-			"COMMANDS=github.com/grafana/synthetic-monitoring-agent/cmd/synthetic-monitoring-agent" \
+			"COMMANDS=github.com/grafana/synthetic-monitoring-agent/$2" \
 			"OUTPUT_FILE=${OUTPUT}"
 		;;
 
