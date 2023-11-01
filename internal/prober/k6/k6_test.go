@@ -73,7 +73,7 @@ func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 	return r
 }
 
-func (noopRunner) Run(ctx context.Context, script []byte) (*k6runner.RunResponse, error) {
+func (noopRunner) Run(ctx context.Context, script []byte, timeout time.Duration) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
 }
 

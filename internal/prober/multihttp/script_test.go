@@ -796,8 +796,9 @@ func TestSettingsToScript(t *testing.T) {
 	require.NotEmpty(t, actual)
 
 	check := sm.Check{
-		Target: settings.Entries[0].Request.Url,
-		Job:    "test",
+		Target:  settings.Entries[0].Request.Url,
+		Job:     "test",
+		Timeout: 10000,
 		Settings: sm.CheckSettings{
 			Multihttp: settings,
 		},

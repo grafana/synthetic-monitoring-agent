@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
@@ -35,7 +36,7 @@ func TestNew(t *testing.T) {
 func TestNewScript(t *testing.T) {
 	runner := New("k6")
 	src := []byte("test")
-	script, err := NewScript(src, runner)
+	script, err := NewScript(src, runner, 10*time.Second)
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.Equal(t, src, script.script)
@@ -48,7 +49,7 @@ func TestScriptRun(t *testing.T) {
 		logs:    testhelper.MustReadFile(t, "testdata/test.log"),
 	}
 
-	script, err := NewScript(testhelper.MustReadFile(t, "testdata/test.js"), &runner)
+	script, err := NewScript(testhelper.MustReadFile(t, "testdata/test.js"), &runner, 10*time.Second)
 	require.NoError(t, err)
 	require.NotNil(t, script)
 
@@ -105,7 +106,7 @@ func TestHttpRunnerRun(t *testing.T) {
 	ctx, cancel := testhelper.Context(context.Background(), t)
 	t.Cleanup(cancel)
 
-	_, err := runner.Run(ctx, scriptSrc)
+	_, err := runner.Run(ctx, scriptSrc, 10*time.Second)
 	require.NoError(t, err)
 }
 
@@ -140,7 +141,7 @@ func TestHttpRunnerRunError(t *testing.T) {
 	ctx, cancel := testhelper.Context(context.Background(), t)
 	t.Cleanup(cancel)
 
-	_, err := runner.Run(ctx, scriptSrc)
+	_, err := runner.Run(ctx, scriptSrc, 10*time.Second)
 	require.Error(t, err)
 }
 
@@ -151,7 +152,7 @@ type testRunner struct {
 
 var _ Runner = &testRunner{}
 
-func (r *testRunner) Run(ctx context.Context, script []byte) (*RunResponse, error) {
+func (r *testRunner) Run(ctx context.Context, script []byte, timeout time.Duration) (*RunResponse, error) {
 	return &RunResponse{
 		Metrics: r.metrics,
 		Logs:    r.logs,

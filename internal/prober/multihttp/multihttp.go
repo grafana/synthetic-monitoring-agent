@@ -39,14 +39,15 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 	}
 
 	p.config = settingsToModule(check.Settings.Multihttp)
-	p.config.Timeout = time.Duration(check.Timeout) * time.Millisecond
+	timeout := time.Duration(check.Timeout) * time.Millisecond
+	p.config.Timeout = timeout
 
 	script, err := settingsToScript(check.Settings.Multihttp)
 	if err != nil {
 		return p, err
 	}
 
-	k6Script, err := k6runner.NewScript(script, runner)
+	k6Script, err := k6runner.NewScript(script, runner, timeout)
 	if err != nil {
 		return p, err
 	}
