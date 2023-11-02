@@ -75,8 +75,8 @@ export default function() {
 	const logResponse = {{ .LogResponses }}
 	const vars = {};
 
- {{ range .Entries }}
-	console.log("Starting request to {{ .Request.Url }}...");
+ {{ range $idx, $entry := .Entries }}
+	console.log("Starting request to {{.Request.Url}}...");
 	try {
 		url = new URL({{ buildUrl .Request.Url }});
 	} catch(e) {
@@ -91,6 +91,10 @@ export default function() {
 	{{- $headers := buildHeaders .Request.Headers .Request.Body }}
 	response = http.request('{{ $method }}', url.toString(), {{ $body }}, {
 		// TODO(mem): build params out of options for the check
+		tags: {
+		  name: '{{ $idx }}', // TODO(mem): give the user some control over this?
+		  __raw_url__: url.toString(),
+		},
 		redirects: 0{{ if gt (len $headers) 0 }},
 		headers: {{ $headers }}{{ end }}
 	});
