@@ -270,7 +270,8 @@ func (r requestError) Error() string {
 }
 
 type RunRequest struct {
-	Script []byte `json:"script"`
+	Script  []byte `json:"script"`
+	Timeout int64  `json:"timeout"`
 }
 
 type RunResponse struct {
@@ -287,7 +288,8 @@ func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
 
 func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error) {
 	req, err := json.Marshal(&RunRequest{
-		Script: script,
+		Script:  script,
+		Timeout: getTimeout(ctx).Milliseconds(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("running script: %w", err)
@@ -381,9 +383,7 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 		return nil, fmt.Errorf("cannot find k6 executable: %w", err)
 	}
 
-	timeout := 10 * time.Second // TODO(mem): make this configurable
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	timeout := getTimeout(ctx)
 
 	// #nosec G204 -- the variables are not user-controlled
 	cmd := exec.CommandContext(
@@ -462,4 +462,13 @@ func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
 		return "", fmt.Errorf("cannot close temporary file: %w", err)
 	}
 	return f.Name(), nil
+}
+
+func getTimeout(ctx context.Context) time.Duration {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return 10 * time.Second
+	}
+
+	return time.Until(deadline)
 }
