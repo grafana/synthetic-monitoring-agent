@@ -47,9 +47,8 @@ func New(uri string) Runner {
 }
 
 type Script struct {
-	runner  Runner
-	script  []byte
-	timeout time.Duration
+	runner Runner
+	script []byte
 }
 
 func NewScript(script []byte, k6runner Runner) (*Script, error) {
