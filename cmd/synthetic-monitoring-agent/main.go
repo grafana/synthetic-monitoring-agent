@@ -32,6 +32,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/tenants"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	_ "golang.org/x/crypto/x509roots/fallback"
 )
 
 const exitFail = 1
