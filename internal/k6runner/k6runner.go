@@ -23,7 +23,7 @@ import (
 
 type Runner interface {
 	WithLogger(logger *zerolog.Logger) Runner
-	Run(ctx context.Context, script []byte, timeout time.Duration) (*RunResponse, error)
+	Run(ctx context.Context, script []byte) (*RunResponse, error)
 }
 
 func New(uri string) Runner {
@@ -52,11 +52,10 @@ type Script struct {
 	timeout time.Duration
 }
 
-func NewScript(script []byte, k6runner Runner, timeout time.Duration) (*Script, error) {
+func NewScript(script []byte, k6runner Runner) (*Script, error) {
 	r := Script{
-		runner:  k6runner,
-		script:  script,
-		timeout: timeout,
+		runner: k6runner,
+		script: script,
 	}
 
 	return &r, nil
@@ -65,7 +64,7 @@ func NewScript(script []byte, k6runner Runner, timeout time.Duration) (*Script, 
 func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) (bool, error) {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
-	result, err := k6runner.Run(ctx, r.script, r.timeout)
+	result, err := k6runner.Run(ctx, r.script)
 	if err != nil {
 		internalLogger.Debug().
 			Err(err).
@@ -272,8 +271,8 @@ func (r requestError) Error() string {
 }
 
 type RunRequest struct {
-	Script  []byte        `json:"script"`
-	Timeout time.Duration `json:"timeout"`
+	Script  []byte `json:"script"`
+	Timeout int64  `json:"timeout"`
 }
 
 type RunResponse struct {
@@ -288,10 +287,10 @@ func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
 	}
 }
 
-func (r HttpRunner) Run(ctx context.Context, script []byte, timeout time.Duration) (*RunResponse, error) {
+func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error) {
 	req, err := json.Marshal(&RunRequest{
 		Script:  script,
-		Timeout: timeout,
+		Timeout: getTimeout(ctx).Milliseconds(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("running script: %w", err)
@@ -347,7 +346,7 @@ func (r LocalRunner) WithLogger(logger *zerolog.Logger) Runner {
 	}
 }
 
-func (r LocalRunner) Run(ctx context.Context, script []byte, timeout time.Duration) (*RunResponse, error) {
+func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, error) {
 	afs := afero.Afero{Fs: r.fs}
 
 	workdir, err := afs.TempDir("", "k6-runner")
@@ -385,8 +384,7 @@ func (r LocalRunner) Run(ctx context.Context, script []byte, timeout time.Durati
 		return nil, fmt.Errorf("cannot find k6 executable: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	timeout := getTimeout(ctx)
 
 	// #nosec G204 -- the variables are not user-controlled
 	cmd := exec.CommandContext(
@@ -465,4 +463,13 @@ func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
 		return "", fmt.Errorf("cannot close temporary file: %w", err)
 	}
 	return f.Name(), nil
+}
+
+func getTimeout(ctx context.Context) time.Duration {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return 10 * time.Second
+	}
+
+	return time.Until(deadline)
 }

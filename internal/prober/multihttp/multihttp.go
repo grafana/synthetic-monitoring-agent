@@ -47,7 +47,7 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 		return p, err
 	}
 
-	k6Script, err := k6runner.NewScript(script, runner, timeout)
+	k6Script, err := k6runner.NewScript(script, runner)
 	if err != nil {
 		return p, err
 	}

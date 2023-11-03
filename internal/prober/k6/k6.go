@@ -39,7 +39,7 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 	timeout := time.Duration(check.Timeout) * time.Millisecond
 	p.config.Timeout = timeout
 
-	script, err := k6runner.NewScript(check.Settings.K6.Script, runner, timeout)
+	script, err := k6runner.NewScript(check.Settings.K6.Script, runner)
 	if err != nil {
 		return p, err
 	}
