@@ -269,9 +269,13 @@ func (r requestError) Error() string {
 	return fmt.Sprintf("%s: %s", r.Err, r.Message)
 }
 
+type Settings struct {
+	Timeout int64 `json:"timeout"`
+}
+
 type RunRequest struct {
-	Script  []byte `json:"script"`
-	Timeout int64  `json:"timeout"`
+	Script   []byte   `json:"script"`
+	Settings Settings `json:"settings"`
 }
 
 type RunResponse struct {
@@ -288,8 +292,10 @@ func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
 
 func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error) {
 	req, err := json.Marshal(&RunRequest{
-		Script:  script,
-		Timeout: getTimeout(ctx).Milliseconds(),
+		Script: script,
+		Settings: Settings{
+			Timeout: getTimeout(ctx).Milliseconds(),
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("running script: %w", err)
