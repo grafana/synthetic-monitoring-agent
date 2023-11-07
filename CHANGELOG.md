@@ -2,8 +2,19 @@
 ## [Unreleased]
 
 
+<a name="v0.19.0"></a>
+## [v0.19.0] - 2023-11-07
+### Feature
+- add k6 to docker image
+
+### Fix
+- make the k6 runner timeout configurable ([#554](https://github.com/grafana/synthetic-monitoring-agent/issues/554))
+- add a `name` label to metrics
+- add k6 binary to release files
+
+
 <a name="v0.18.3"></a>
-## [v0.18.3] - 2023-10-26
+## [v0.18.3] - 2023-10-27
 ### Fix
 - make sure the String() methods match the proto defintion
 
@@ -498,7 +509,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.3...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.0...HEAD
+[v0.19.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.3...v0.19.0
 [v0.18.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.2...v0.18.3
 [v0.18.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.1...v0.18.2
 [v0.18.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.0...v0.18.1
