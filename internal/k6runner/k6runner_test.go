@@ -91,8 +91,8 @@ func TestHttpRunnerRun(t *testing.T) {
 		// the context is created. Check that the actual timeout is not
 		// greater than the expected value and that it's within 1% of
 		// the expected value.
-		require.LessOrEqual(t, req.Timeout, timeout.Milliseconds())
-		require.InEpsilon(t, timeout.Milliseconds(), req.Timeout, 0.01)
+		require.LessOrEqual(t, req.Settings.Timeout, timeout.Milliseconds())
+		require.InEpsilon(t, timeout.Milliseconds(), req.Settings.Timeout, 0.01)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
