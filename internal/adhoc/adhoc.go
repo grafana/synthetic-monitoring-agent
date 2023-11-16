@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -124,12 +125,12 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 
 	opsCounter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "sm",
+			Namespace: "sm_agent",
 			Subsystem: "adhoc",
-			Name:      "ops_total",
-			Help:      "Total number of adhoc operations",
+			Name:      "operations_total",
+			Help:      "Total number of adhoc operations by type and region",
 		},
-		[]string{"type"},
+		[]string{"type", "regionID"},
 	)
 
 	if err := opts.PromRegisterer.Register(opsCounter); err != nil {
@@ -356,7 +357,12 @@ func (h *Handler) processAdHocChecks(ctx context.Context, client sm.AdHocChecks_
 func (h *Handler) handleAdHocCheck(ctx context.Context, ahReq *sm.AdHocRequest) error {
 	h.logger.Debug().Interface("request", ahReq).Msg("got ad-hoc check request")
 
-	h.metrics.opsCounter.WithLabelValues(ahReq.AdHocCheck.Type().String()).Inc()
+	_, regionId := model.GetLocalAndRegionIDs(model.GlobalID(ahReq.AdHocCheck.TenantId))
+
+	h.metrics.opsCounter.WithLabelValues(
+		ahReq.AdHocCheck.Type().String(),
+		strconv.Itoa(regionId),
+	).Inc()
 
 	runner, err := h.runnerFactory(ctx, ahReq)
 	if err != nil {
