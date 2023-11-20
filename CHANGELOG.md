@@ -2,6 +2,9 @@
 ## [Unreleased]
 
 
+<a name="v0.19.1"></a>
+## [v0.19.1] - 2023-11-20
+
 <a name="v0.19.0"></a>
 ## [v0.19.0] - 2023-11-07
 ### Feature
@@ -509,7 +512,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.1...HEAD
+[v0.19.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.0...v0.19.1
 [v0.19.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.3...v0.19.0
 [v0.18.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.2...v0.18.3
 [v0.18.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.18.1...v0.18.2
