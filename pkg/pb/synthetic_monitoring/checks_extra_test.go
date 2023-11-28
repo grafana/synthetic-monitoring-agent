@@ -101,6 +101,18 @@ var validCheckCases = map[CheckType]Check{
 			Multihttp: &MultiHttpSettings{},
 		},
 	},
+	CheckTypeGrpc: {
+		Id:        1,
+		TenantId:  1,
+		Target:    "127.0.0.1:9000",
+		Job:       "job",
+		Frequency: 60000,
+		Timeout:   10000,
+		Probes:    []int64{1},
+		Settings: CheckSettings{
+			Grpc: &GrpcSettings{},
+		},
+	},
 }
 
 func TestCheckValidate(t *testing.T) {
@@ -498,6 +510,10 @@ func TestCheckClass(t *testing.T) {
 			input:    validCheckCases[CheckTypeMultiHttp],
 			expected: CheckClassScripted,
 		},
+		CheckTypeGrpc.String(): {
+			input:    validCheckCases[CheckTypeGrpc],
+			expected: CheckClassProtocol,
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -594,6 +610,10 @@ func TestCheckTypeClass(t *testing.T) {
 		CheckTypeMultiHttp.String(): {
 			input:    CheckTypeMultiHttp,
 			expected: CheckClassScripted,
+		},
+		CheckTypeGrpc.String(): {
+			input:    CheckTypeGrpc,
+			expected: CheckClassProtocol,
 		},
 	}
 

@@ -7,6 +7,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/k6"
@@ -85,6 +86,10 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
 		}
+
+	case sm.CheckTypeGrpc:
+		p, err = grpc.NewProber(ctx, check.Check, logger)
+		target = check.Target
 
 	default:
 		return nil, "", fmt.Errorf("unsupported check type")
