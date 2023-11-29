@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	dnsProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
+	grpcProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/k6"
@@ -46,6 +47,9 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	grpchealth "google.golang.org/grpc/health/grpc_health_v1"
 	"kernel.org/pub/linux/libs/security/libcap/cap"
 )
 
@@ -344,6 +348,58 @@ func TestValidateMetrics(t *testing.T) {
 				return prober, check, httpSrv.Close
 			},
 		},
+
+		"grpc": {
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+				srv, clean := setupGRPCServer(t)
+				check := sm.Check{
+					Target:  srv,
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						Grpc: &sm.GrpcSettings{
+							IpVersion: sm.IpVersion_V4,
+						},
+					},
+				}
+				prober, err := grpcProber.NewProber(
+					ctx,
+					check,
+					zerolog.New(io.Discard))
+				if err != nil {
+					clean()
+					t.Fatalf("cannot create gRPC prober: %s", err)
+				}
+				return prober, check, clean
+			},
+		},
+
+		"grpc_ssl": {
+			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+				srv, clean := setupGRPCServerWithSSL(t)
+				check := sm.Check{
+					Target:  srv,
+					Timeout: 2000,
+					Settings: sm.CheckSettings{
+						Grpc: &sm.GrpcSettings{
+							IpVersion: sm.IpVersion_V4,
+							Tls:       true,
+							TlsConfig: &sm.TLSConfig{
+								InsecureSkipVerify: true,
+							},
+						},
+					},
+				}
+				prober, err := grpcProber.NewProber(
+					ctx,
+					check,
+					zerolog.New(io.Discard))
+				if err != nil {
+					clean()
+					t.Fatalf("cannot create gRPC prober: %s", err)
+				}
+				return prober, check, clean
+			},
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -627,6 +683,68 @@ func setupTCPServerWithSSL(t *testing.T) (string, func()) {
 	return ln.Addr().String(), func() {
 		<-done
 		ln.Close()
+	}
+}
+
+type gRPCSrv struct {
+	grpchealth.HealthServer
+}
+
+func (s *gRPCSrv) Check(
+	context.Context, *grpchealth.HealthCheckRequest,
+) (*grpchealth.HealthCheckResponse, error) {
+	return &grpchealth.HealthCheckResponse{
+		Status: grpchealth.HealthCheckResponse_SERVING,
+	}, nil
+}
+
+func setupGRPCServer(t *testing.T) (string, func()) {
+	lis, err := net.Listen("tcp4", ":0")
+	if err != nil {
+		t.Fatalf("Error listening on socket: %v", err)
+	}
+
+	srv := grpc.NewServer()
+	grpchealth.RegisterHealthServer(srv, &gRPCSrv{})
+
+	go func() {
+		_ = srv.Serve(lis)
+	}()
+
+	return lis.Addr().String(), func() {
+		srv.Stop()
+		lis.Close()
+	}
+}
+
+func setupGRPCServerWithSSL(t *testing.T) (string, func()) {
+	lis, err := net.Listen("tcp4", ":0")
+	if err != nil {
+		t.Fatalf("Error listening on socket: %v", err)
+	}
+
+	cert, err := tls.X509KeyPair(localhostCert, localhostKey)
+	if err != nil {
+		t.Fatalf("Error creating X509 key pair: %v", err)
+	}
+
+	tlsCfg := tls.Config{
+		Certificates: []tls.Certificate{cert},
+		NextProtos:   []string{"foo"},
+	}
+
+	srv := grpc.NewServer(
+		grpc.Creds(credentials.NewTLS(&tlsCfg)),
+	)
+	grpchealth.RegisterHealthServer(srv, &gRPCSrv{})
+
+	go func() {
+		_ = srv.Serve(lis)
+	}()
+
+	return lis.Addr().String(), func() {
+		srv.Stop()
+		lis.Close()
 	}
 }
 
@@ -1403,8 +1521,7 @@ func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check 
 	return f.builder(), check.Target, nil
 }
 
-type testPublisher struct {
-}
+type testPublisher struct{}
 
 func (testPublisher) Publish(pusher.Payload) {
 }

@@ -4,6 +4,10 @@ package accounting
 var activeSeriesByCheckType = map[string]int{
 	"dns":              85,
 	"dns_basic":        29,
+	"grpc":             73,
+	"grpc_basic":       31,
+	"grpc_ssl":         75,
+	"grpc_ssl_basic":   33,
 	"http":             118,
 	"http_basic":       34,
 	"http_ssl":         122,
