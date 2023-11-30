@@ -10,16 +10,23 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
-	"time"
 
+	"github.com/felixge/httpsnoop"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 )
 
 type Mux struct {
-	router         *http.ServeMux
-	requestCounter *prometheus.SummaryVec
+	logger  zerolog.Logger
+	router  *http.ServeMux
+	metrics metrics
+}
+
+type metrics struct {
+	inFlightRequests       prometheus.Gauge
+	requestDurationVec     *prometheus.SummaryVec
+	requestWrittenBytesVec *prometheus.SummaryVec
 }
 
 type MuxOpts struct {
@@ -70,7 +77,7 @@ func NewMux(opts MuxOpts) *Mux {
 		router.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	}
 
-	requestCounter := prometheus.NewSummaryVec(prometheus.SummaryOpts{
+	requestDurationVec := prometheus.NewSummaryVec(prometheus.SummaryOpts{
 		Namespace: "http",
 		Subsystem: "requests",
 		Name:      "duration_seconds",
@@ -80,47 +87,80 @@ func NewMux(opts MuxOpts) *Mux {
 		"method",
 	})
 
-	if err := opts.PromRegisterer.Register(requestCounter); err != nil {
+	if err := opts.PromRegisterer.Register(requestDurationVec); err != nil {
+		return nil
+	}
+
+	requestWrittenBytesVec := prometheus.NewSummaryVec(prometheus.SummaryOpts{
+		Namespace: "http",
+		Subsystem: "requests",
+		Name:      "written_bytes",
+		Help:      "total number of bytes written by code and method",
+	}, []string{
+		"code",
+		"method",
+	})
+
+	if err := opts.PromRegisterer.Register(requestWrittenBytesVec); err != nil {
+		return nil
+	}
+
+	inFlightRequests := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "http",
+		Subsystem: "requests",
+		Name:      "in_flight",
+		Help:      "number of requests in flight",
+	})
+
+	if err := opts.PromRegisterer.Register(inFlightRequests); err != nil {
 		return nil
 	}
 
 	return &Mux{
-		router:         router,
-		requestCounter: requestCounter,
-	}
-}
-
-type codeInterceptor struct {
-	http.ResponseWriter
-	code int
-}
-
-func (i *codeInterceptor) WriteHeader(statusCode int) {
-	i.code = statusCode
-	i.ResponseWriter.WriteHeader(statusCode)
-}
-
-func (i *codeInterceptor) Code() string {
-	switch i.code {
-	case 0:
-		return "200"
-
-	default:
-		return strconv.Itoa(i.code)
+		logger: opts.Logger,
+		router: router,
+		metrics: metrics{
+			inFlightRequests:       inFlightRequests,
+			requestDurationVec:     requestDurationVec,
+			requestWrittenBytesVec: requestWrittenBytesVec,
+		},
 	}
 }
 
 func (mux *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	i := &codeInterceptor{ResponseWriter: w}
+	mux.metrics.inFlightRequests.Inc()
+	m := httpsnoop.CaptureMetrics(mux.router, w, r)
+	mux.metrics.inFlightRequests.Dec()
 
-	start := time.Now()
-	mux.router.ServeHTTP(i, r)
-	duration := time.Since(start).Seconds()
-
-	mux.requestCounter.With(prometheus.Labels{
-		"code":   i.Code(),
+	mux.metrics.requestDurationVec.With(prometheus.Labels{
+		"code":   strconv.Itoa(m.Code),
 		"method": r.Method,
-	}).Observe(duration)
+	}).Observe(m.Duration.Seconds())
+
+	mux.metrics.requestWrittenBytesVec.With(prometheus.Labels{
+		"code":   strconv.Itoa(m.Code),
+		"method": r.Method,
+	}).Observe(float64(m.Written))
+
+	var level zerolog.Level
+	switch m.Code / 100 {
+	case 1, 2, 3:
+		level = zerolog.InfoLevel
+	case 4:
+		level = zerolog.WarnLevel
+	case 5:
+		level = zerolog.ErrorLevel
+	default:
+		level = zerolog.WarnLevel
+	}
+
+	mux.logger.WithLevel(level).
+		Str("method", r.Method).
+		Stringer("url", r.URL).
+		Int("code", m.Code).
+		Dur("duration", m.Duration).
+		Int64("bytes_written", m.Written).
+		Msg("handled request")
 }
 
 func defaultHandler() http.Handler {
