@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/felixge/httpsnoop"
 	"github.com/rs/zerolog"
 )
 
@@ -19,31 +18,10 @@ type server struct {
 func NewServer(ctx context.Context, handler http.Handler, cfg Config) *server {
 	stdlog := log.New(cfg.Logger, "", 0)
 
-	wrapper := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		m := httpsnoop.CaptureMetrics(handler, w, r)
-		var level zerolog.Level
-		switch m.Code / 100 {
-		case 1, 2, 3:
-			level = zerolog.InfoLevel
-		case 4:
-			level = zerolog.WarnLevel
-		case 5:
-			level = zerolog.ErrorLevel
-		default:
-			level = zerolog.WarnLevel
-		}
-		cfg.Logger.WithLevel(level).
-			Str("method", r.Method).
-			Stringer("url", r.URL).
-			Int("code", m.Code).
-			Dur("duration", m.Duration).
-			Msg("handled request")
-	})
-
 	return &server{
 		srv: &http.Server{
 			Addr:         cfg.ListenAddr,
-			Handler:      wrapper,
+			Handler:      handler,
 			ErrorLog:     stdlog,
 			ReadTimeout:  cfg.ReadTimeout,
 			WriteTimeout: cfg.WriteTimeout,
