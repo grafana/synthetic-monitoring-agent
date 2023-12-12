@@ -9,6 +9,7 @@ import (
 const (
 	LabelValueMetrics        = "metrics"
 	LabelValueLogs           = "logs"
+	LabelValueAccounting     = "accounting"
 	LabelValueClient         = "client"
 	LabelValueRetryExhausted = "retry_exhausted"
 	LabelValueTenant         = "tenant"

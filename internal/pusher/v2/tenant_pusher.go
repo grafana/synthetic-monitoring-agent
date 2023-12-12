@@ -24,6 +24,7 @@ type tenantPusher struct {
 	tenantID       model.GlobalID
 	pushCounter    uint64 // FIXME(mem)
 	logs, metrics  queue
+	accounting     queue
 	tenantProvider pusher.TenantProvider
 	options        pusherOptions
 }
@@ -33,12 +34,15 @@ var _ payloadHandler = &tenantPusher{}
 func newTenantPusher(tenantID model.GlobalID, tenantProvider pusher.TenantProvider, options pusherOptions) *tenantPusher {
 	mOptions := options.withType(pusher.LabelValueMetrics)
 	eOptions := options.withType(pusher.LabelValueLogs)
+	// TODO: review if these options are appropriate here
+	aOptions := options.withType(pusher.LabelValueAccounting)
 	tp := &tenantPusher{
 		tenantID:       tenantID,
 		tenantProvider: tenantProvider,
 		options:        options,
 		logs:           newQueue(&eOptions),
 		metrics:        newQueue(&mOptions),
+		accounting:     newQueue(&aOptions),
 	}
 	return tp
 }
@@ -59,34 +63,38 @@ func (p *tenantPusher) run(ctx context.Context) payloadHandler {
 		return nil
 	}
 
-	switch pErr.kind {
+	return handlePushError(pErr, p.options, p)
+}
+
+func handlePushError(err pushError, options pusherOptions, next payloadHandler) payloadHandler {
+	switch err.kind {
 	case errKindWait:
 		// Some failure forces us to stop pushing for a while, but keep accumulating metrics meanwhile.
-		p.options.logger.Info().Dur("delay", p.options.waitPeriod).Msg("delaying metrics publishing")
+		options.logger.Info().Dur("delay", options.waitPeriod).Msg("delaying metrics publishing")
 		return &delayPusher{
-			next:  p,
-			delay: p.options.waitPeriod,
+			next:  next,
+			delay: options.waitPeriod,
 		}
 
 	case errKindTenant:
-		p.options.logger.Debug().Msg("refreshing tenant")
+		options.logger.Debug().Msg("refreshing tenant")
 		// The tenant could be stale. Let's just restart the pusher with a minimal delay.
 		return &delayPusher{
-			next:  p,
-			delay: p.options.tenantDelay,
+			next:  next,
+			delay: options.tenantDelay,
 		}
 
 	case errKindFatal:
 		// Possibly a situation where we can't push metrics and won't be able to push them
 		// in the future. Discard metrics for this tenant for an extended period of time.
-		p.options.logger.Warn().Dur("duration", p.options.discardPeriod).Msg("discarding metrics")
+		options.logger.Warn().Dur("duration", options.discardPeriod).Msg("discarding metrics")
 		return &discardPusher{
-			duration: p.options.discardPeriod,
-			options:  p.options,
+			duration: options.discardPeriod,
+			options:  options,
 		}
 
 	default:
-		p.options.logger.Warn().Err(err).Msg("unexpected error, clearing slot")
+		options.logger.Warn().Err(err).Msg("unexpected error, clearing slot")
 		return nil
 	}
 }
@@ -99,6 +107,7 @@ func (p *tenantPusher) runPushers(ctx context.Context) error {
 	if err != nil {
 		p.options.metrics.FailedCounter.With(prometheus.Labels{"type": pusher.LabelValueMetrics, "reason": pusher.LabelValueTenant}).Inc()
 		p.options.metrics.FailedCounter.With(prometheus.Labels{"type": pusher.LabelValueLogs, "reason": pusher.LabelValueTenant}).Inc()
+		p.options.metrics.FailedCounter.With(prometheus.Labels{"type": pusher.LabelValueAccounting, "reason": pusher.LabelValueTenant}).Inc()
 		return pushError{
 			kind:  errKindFatal,
 			inner: err,
@@ -113,6 +122,10 @@ func (p *tenantPusher) runPushers(ctx context.Context) error {
 
 	g.Go(func() error {
 		return p.logs.push(gCtx, tenant.EventsRemote)
+	})
+
+	g.Go(func() error {
+		return p.accounting.push(gCtx, tenant.AccountingRemote)
 	})
 
 	// Optionally perform some validations.
@@ -177,12 +190,16 @@ func maxLifetimeChecker(ctx context.Context, maxLifetime time.Duration) func() e
 func (p *tenantPusher) publish(payload pusher.Payload) {
 	atomic.AddUint64(&p.pushCounter, 1)
 
-	if len(payload.Metrics()) > 0 {
-		p.metrics.insert(toRequest(&prompb.WriteRequest{Timeseries: payload.Metrics()}, p.options.pool))
-	}
+	if payload.IsAccounting() {
+		p.accounting.insert(toRequest(&prompb.WriteRequest{Timeseries: payload.Metrics()}, p.options.pool))
+	} else {
+		if len(payload.Metrics()) > 0 {
+			p.metrics.insert(toRequest(&prompb.WriteRequest{Timeseries: payload.Metrics()}, p.options.pool))
+		}
 
-	if len(payload.Streams()) > 0 {
-		p.logs.insert(toRequest(&logproto.PushRequest{Streams: payload.Streams()}, p.options.pool))
+		if len(payload.Streams()) > 0 {
+			p.logs.insert(toRequest(&logproto.PushRequest{Streams: payload.Streams()}, p.options.pool))
+		}
 	}
 }
 
@@ -233,10 +250,16 @@ func (p discardPusher) run(ctx context.Context) payloadHandler {
 }
 
 func (p discardPusher) publish(payloads pusher.Payload) {
-	if len(payloads.Metrics()) > 0 {
-		p.options.metrics.DroppedCounter.WithLabelValues(pusher.LabelValueMetrics).Inc()
-	}
-	if len(payloads.Streams()) > 0 {
-		p.options.metrics.DroppedCounter.WithLabelValues(pusher.LabelValueLogs).Inc()
+	if payloads.IsAccounting() {
+		if len(payloads.Metrics()) > 0 {
+			p.options.metrics.DroppedCounter.WithLabelValues(pusher.LabelValueAccounting).Inc()
+		}
+	} else {
+		if len(payloads.Metrics()) > 0 {
+			p.options.metrics.DroppedCounter.WithLabelValues(pusher.LabelValueMetrics).Inc()
+		}
+		if len(payloads.Streams()) > 0 {
+			p.options.metrics.DroppedCounter.WithLabelValues(pusher.LabelValueLogs).Inc()
+		}
 	}
 }

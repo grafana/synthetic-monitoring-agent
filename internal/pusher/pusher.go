@@ -16,6 +16,7 @@ type Payload interface {
 	Tenant() model.GlobalID
 	Metrics() []prompb.TimeSeries
 	Streams() []logproto.Stream
+	IsAccounting() bool
 }
 
 type Publisher interface {

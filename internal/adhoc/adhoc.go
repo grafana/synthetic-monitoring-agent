@@ -549,3 +549,7 @@ func (d adhocData) Streams() Streams {
 func (d adhocData) Tenant() model.GlobalID {
 	return d.tenantId
 }
+
+func (d adhocData) IsAccounting() bool {
+	return false
+}

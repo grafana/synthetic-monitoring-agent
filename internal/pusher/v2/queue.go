@@ -28,6 +28,11 @@ func newQueue(options *pusherOptions) queue {
 }
 
 func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
+	// TODO: if remote is nil (it's possible), we should enter a discard loop.
+	if remote == nil {
+		return q.discard(ctx)
+	}
+
 	cfg, err := pusher.ClientFromRemoteInfo(remote)
 	if err != nil {
 		return err
@@ -122,6 +127,24 @@ func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
 				// What kind of error is this?
 				panic(pushErr)
 			}
+		}
+	}
+}
+
+func (q *queue) discard(ctx context.Context) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+
+		case <-q.WaitC():
+			records := q.get()
+			if len(records) == 0 {
+				continue
+			}
+
+			numRecords := float64(len(records))
+			q.options.metrics.DroppedCounter.WithLabelValues().Add(numRecords)
 		}
 	}
 }

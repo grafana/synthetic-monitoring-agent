@@ -98,6 +98,10 @@ func (d *probeData) Tenant() model.GlobalID {
 	return d.tenantId
 }
 
+func (d *probeData) IsAccounting() bool {
+	return false
+}
+
 func New(ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger, scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,

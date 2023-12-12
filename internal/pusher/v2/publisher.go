@@ -48,6 +48,7 @@ var _ pusher.Publisher = &publisherImpl{}
 
 func (p *publisherImpl) Publish(payload pusher.Payload) {
 	tenantID := payload.Tenant()
+
 	handler, found := p.getHandler(tenantID)
 	if !found {
 		var swapped bool

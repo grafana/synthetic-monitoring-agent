@@ -59,7 +59,11 @@ func NewPublisher(ctx context.Context, tm pusher.TenantProvider, logger zerolog.
 }
 
 func (p *publisherImpl) Publish(payload pusher.Payload) {
-	go p.publish(p.ctx, payload)
+	if payload.IsAccounting() {
+		go p.publishAccountingData(p.ctx, payload)
+	} else {
+		go p.publish(p.ctx, payload)
+	}
 }
 
 func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
@@ -141,6 +145,9 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 		p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics, pusher.LabelValueRetryExhausted).Inc()
 	}
 	logger.Warn().Msg("failed to push payload")
+}
+
+func (p *publisherImpl) publishAccountingData(ctx context.Context, payload pusher.Payload) {
 }
 
 func (p *publisherImpl) pushEvents(ctx context.Context, client *prom.Client, streams []logproto.Stream) (int, error) {
