@@ -158,6 +158,7 @@ const (
 	CheckTypeTraceroute CheckType = 4
 	CheckTypeK6         CheckType = 5
 	CheckTypeMultiHttp  CheckType = 6
+	CheckTypeGrpc       CheckType = 7
 )
 
 type CheckClass int32
@@ -199,6 +200,9 @@ func (c Check) Type() CheckType {
 	case c.Settings.Multihttp != nil:
 		return CheckTypeMultiHttp
 
+	case c.Settings.Grpc != nil:
+		return CheckTypeGrpc
+
 	default:
 		panic("unhandled check type")
 	}
@@ -210,7 +214,7 @@ func (c Check) Class() CheckClass {
 
 func (c CheckType) Class() CheckClass {
 	switch c {
-	case CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute:
+	case CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute, CheckTypeGrpc:
 		return CheckClassProtocol
 
 	case CheckTypeK6, CheckTypeMultiHttp:
@@ -289,6 +293,10 @@ func (c Check) validateTarget() error {
 		// not true that the target must be a valid URL.
 		// validation of URLs is the responsibility of the MultihttpEntryRequest
 		return nil
+
+	case CheckTypeGrpc:
+		return validateHostPort(c.Target)
+
 	default:
 		panic("unhandled check type")
 	}
@@ -400,6 +408,9 @@ func (c AdHocCheck) Type() CheckType {
 	case c.Settings.Multihttp != nil:
 		return CheckTypeMultiHttp
 
+	case c.Settings.Grpc != nil:
+		return CheckTypeGrpc
+
 	default:
 		panic("unhandled check type")
 	}
@@ -486,6 +497,9 @@ func (c AdHocCheck) validateTarget() error {
 	case CheckTypeMultiHttp:
 		return nil
 
+	case CheckTypeGrpc:
+		return validateHostPort(c.Target)
+
 	default:
 		panic("unhandled check type")
 	}
@@ -531,6 +545,11 @@ func (s CheckSettings) Validate() error {
 	if s.Multihttp != nil {
 		settingsCount++
 		validateFn = s.Multihttp.Validate
+	}
+
+	if s.Grpc != nil {
+		settingsCount++
+		validateFn = s.Grpc.Validate
 	}
 
 	if settingsCount != 1 {
@@ -648,6 +667,10 @@ func (s *MultiHttpSettings) Validate() error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *GrpcSettings) Validate() error {
 	return nil
 }
 

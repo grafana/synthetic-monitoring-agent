@@ -229,6 +229,48 @@ func getTestCases() map[string]struct {
 			},
 			class: "multihttp_basic",
 		},
+		"grpc": {
+			input: synthetic_monitoring.Check{
+				Target: "127.0.0.1:9000",
+				Settings: synthetic_monitoring.CheckSettings{
+					Grpc: &synthetic_monitoring.GrpcSettings{},
+				},
+			},
+			class: "grpc",
+		},
+		"grpc_ssl": {
+			input: synthetic_monitoring.Check{
+				Target: "127.0.0.1:9000",
+				Settings: synthetic_monitoring.CheckSettings{
+					Grpc: &synthetic_monitoring.GrpcSettings{
+						Tls: true,
+					},
+				},
+			},
+			class: "grpc_ssl",
+		},
+		"grpc_basic": {
+			input: synthetic_monitoring.Check{
+				Target:           "127.0.0.1:9000",
+				BasicMetricsOnly: true,
+				Settings: synthetic_monitoring.CheckSettings{
+					Grpc: &synthetic_monitoring.GrpcSettings{},
+				},
+			},
+			class: "grpc_basic",
+		},
+		"grpc_ssl_basic": {
+			input: synthetic_monitoring.Check{
+				Target:           "127.0.0.1:9000",
+				BasicMetricsOnly: true,
+				Settings: synthetic_monitoring.CheckSettings{
+					Grpc: &synthetic_monitoring.GrpcSettings{
+						Tls: true,
+					},
+				},
+			},
+			class: "grpc_ssl_basic",
+		},
 	}
 }
 
