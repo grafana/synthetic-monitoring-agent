@@ -213,10 +213,6 @@ steps:
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
   image: ghcr.io/grafana/grafana-build-tools:v0.4.0
   name: test release
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
 - commands:
   - ./scripts/package/verify-deb-install.sh
   image: docker
@@ -225,10 +221,6 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
 - commands:
   - ./scripts/package/verify-rpm-install.sh
   image: docker
@@ -237,10 +229,6 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
 - commands:
   - make release
   environment:
@@ -312,6 +300,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: f3e837fc29e4096762e3d698581dce4b67160fa79766910e8898efadf99a6010
+hmac: 5fb7efe6e79672a68aadbece06cb2ab9a879000265c58781d68d0998967ca9bb
 
 ...

@@ -12,7 +12,6 @@ builds:
       - darwin
     goarch:
       - amd64
-      - arm
       - arm64
     ignore:
       - goos: darwin
@@ -59,7 +58,7 @@ nfpms:
         dst: /etc/systemd/system/synthetic-monitoring-agent.service
 
       # Copy k6 as sm-k6 to prevent clashing with k6 if it's installed.
-      - src: ./dist/synthetic-monitoring-agent_{{.Os}}_{{.Arch}}/k6
+      - src: ./dist/synthetic-monitoring-agent_{{.Os}}_{{.Arch}}{{ with .Amd64 }}_{{ . }}{{ end}}/k6
         dst: /usr/bin/sm-k6
     rpm:
       signature:

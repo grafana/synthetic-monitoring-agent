@@ -271,13 +271,13 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
           NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
         },
       },
-      step('test release', [ 'make release-snapshot' ]) + devAndRelease + {
+      step('test release', [ 'make release-snapshot' ]) + {
         environment: {
           NFPM_DEFAULT_PASSPHRASE: { from_secret: 'gpg_passphrase' },
           NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
         },
       },
-      step('test deb package', [ './scripts/package/verify-deb-install.sh' ], image='docker') + devAndRelease + {
+      step('test deb package', [ './scripts/package/verify-deb-install.sh' ], image='docker') + {
         volumes: [
           {
             name: 'docker',
@@ -286,7 +286,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
         ],
         privileged: true,
       },
-      step('test rpm package', [ './scripts/package/verify-rpm-install.sh' ], image='docker') + devAndRelease + {
+      step('test rpm package', [ './scripts/package/verify-rpm-install.sh' ], image='docker') + {
         volumes: [
           {
             name: 'docker',
