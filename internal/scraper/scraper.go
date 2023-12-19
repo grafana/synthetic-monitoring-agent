@@ -357,15 +357,24 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
-	target := s.target
+	var (
+		target = s.target
+		// These are the labels defined by the user.
+		userLabels = s.buildUserLabels()
+		// These labels are applied to the sm_check_info metric.
+		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
+	)
 
-	// These are the labels defined by the user.
-	userLabels := s.buildUserLabels()
+	maxMetricLabels, err := s.labelsLimiter.MetricLabels(ctx, s.check.TenantId)
+	if err != nil {
+		return nil, fmt.Errorf("retrieving tenant metric labels limit: %w", err)
+	}
+	maxLogLabels, err := s.labelsLimiter.LogLabels(ctx, s.check.TenantId)
+	if err != nil {
+		return nil, fmt.Errorf("retrieving tenant log labels limit: %w", err)
+	}
 
-	// These labels are applied to the sm_check_info metric.
-	checkInfoLabels := s.buildCheckInfoLabels(userLabels)
-
-	if len(checkInfoLabels) > sm.MaxMetricLabels {
+	if len(checkInfoLabels) > maxMetricLabels {
 		// This should never happen.
 		return nil, fmt.Errorf("invalid configuration, too many labels: %d", len(checkInfoLabels))
 	}
@@ -427,8 +436,8 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		successValue = "0"
 	}
 
-	if len(logLabels) >= sm.MaxLogLabels {
-		logLabels = logLabels[:sm.MaxLogLabels-1]
+	if len(logLabels) >= maxLogLabels {
+		logLabels = logLabels[:maxLogLabels-1]
 	}
 	logLabels = append(logLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
 
