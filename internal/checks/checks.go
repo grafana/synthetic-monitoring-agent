@@ -76,7 +76,7 @@ type Updater struct {
 	scrapers       map[model.GlobalID]*scraper.Scraper
 	metrics        metrics
 	k6Runner       k6runner.Runner
-	scraperFactory func(context.Context, model.Check, pusher.Publisher, sm.Probe, zerolog.Logger, scraper.Incrementer, scraper.IncrementerVec, k6runner.Runner, scraper.LabelsLimiter) (*scraper.Scraper, error)
+	scraperFactory scraper.Factory
 	tenantLimits   *limits.TenantLimits
 }
 
@@ -109,7 +109,7 @@ type UpdaterOptions struct {
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
 	K6Runner       k6runner.Runner
-	ScraperFactory func(context.Context, model.Check, pusher.Publisher, sm.Probe, zerolog.Logger, scraper.Incrementer, scraper.IncrementerVec, k6runner.Runner, scraper.LabelsLimiter) (*scraper.Scraper, error)
+	ScraperFactory scraper.Factory
 	TenantLimits   *limits.TenantLimits
 }
 

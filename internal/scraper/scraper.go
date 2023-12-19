@@ -83,6 +83,11 @@ type Scraper struct {
 	histograms    map[uint64]prometheus.Histogram
 }
 
+type Factory func(
+	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger,
+	scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner, labelsLimiter LabelsLimiter,
+) (*Scraper, error)
+
 type (
 	TimeSeries = []prompb.TimeSeries
 	Streams    = []logproto.Stream
