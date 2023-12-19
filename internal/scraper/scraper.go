@@ -61,6 +61,11 @@ func NewIncrementerFromCounterVec(c *prometheus.CounterVec) IncrementerVec {
 	return &counterVecWrapper{c: c}
 }
 
+type LabelsLimiter interface {
+	MetricLabels(ctx context.Context, tenantID int64) (int, error)
+	LogLabels(ctx context.Context, tenantID int64) (int, error)
+}
+
 type Scraper struct {
 	publisher     pusher.Publisher
 	cancel        context.CancelFunc
@@ -70,6 +75,7 @@ type Scraper struct {
 	check         model.Check
 	probe         sm.Probe
 	prober        prober.Prober
+	labelsLimiter LabelsLimiter
 	stop          chan struct{}
 	scrapeCounter Incrementer
 	errorCounter  IncrementerVec
@@ -77,8 +83,10 @@ type Scraper struct {
 	histograms    map[uint64]prometheus.Histogram
 }
 
-type TimeSeries = []prompb.TimeSeries
-type Streams = []logproto.Stream
+type (
+	TimeSeries = []prompb.TimeSeries
+	Streams    = []logproto.Stream
+)
 
 type probeData struct {
 	tenantId model.GlobalID
@@ -98,7 +106,9 @@ func (d *probeData) Tenant() model.GlobalID {
 	return d.tenantId
 }
 
-func New(ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger, scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner) (*Scraper, error) {
+func New(ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger,
+	scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner, labelsLimiter LabelsLimiter,
+) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
 		Publisher:     publisher,
@@ -106,6 +116,7 @@ func New(ctx context.Context, check model.Check, publisher pusher.Publisher, pro
 		ScrapeCounter: scrapeCounter,
 		ErrorCounter:  errorCounter,
 		ProbeFactory:  prober.NewProberFactory(k6runner),
+		LabelsLimiter: labelsLimiter,
 	})
 }
 
@@ -116,6 +127,7 @@ type ScraperOpts struct {
 	ScrapeCounter Incrementer
 	ErrorCounter  IncrementerVec
 	ProbeFactory  prober.ProberFactory
+	LabelsLimiter LabelsLimiter
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
@@ -147,6 +159,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		check:         check,
 		probe:         opts.Probe,
 		prober:        smProber,
+		labelsLimiter: opts.LabelsLimiter,
 		stop:          make(chan struct{}),
 		scrapeCounter: opts.ScrapeCounter,
 		errorCounter:  opts.ErrorCounter,

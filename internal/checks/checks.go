@@ -23,6 +23,7 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -75,7 +76,8 @@ type Updater struct {
 	scrapers       map[model.GlobalID]*scraper.Scraper
 	metrics        metrics
 	k6Runner       k6runner.Runner
-	scraperFactory func(context.Context, model.Check, pusher.Publisher, sm.Probe, zerolog.Logger, scraper.Incrementer, scraper.IncrementerVec, k6runner.Runner) (*scraper.Scraper, error)
+	scraperFactory func(context.Context, model.Check, pusher.Publisher, sm.Probe, zerolog.Logger, scraper.Incrementer, scraper.IncrementerVec, k6runner.Runner, scraper.LabelsLimiter) (*scraper.Scraper, error)
+	tenantLimits   *limits.TenantLimits
 }
 
 type apiInfo struct {
@@ -92,8 +94,10 @@ type metrics struct {
 	scrapesCounter      *prometheus.CounterVec
 }
 
-type TimeSeries = []prompb.TimeSeries
-type Streams = []logproto.Stream
+type (
+	TimeSeries = []prompb.TimeSeries
+	Streams    = []logproto.Stream
+)
 
 type UpdaterOptions struct {
 	Conn           *grpc.ClientConn
@@ -105,7 +109,8 @@ type UpdaterOptions struct {
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
 	K6Runner       k6runner.Runner
-	ScraperFactory func(context.Context, model.Check, pusher.Publisher, sm.Probe, zerolog.Logger, scraper.Incrementer, scraper.IncrementerVec, k6runner.Runner) (*scraper.Scraper, error)
+	ScraperFactory func(context.Context, model.Check, pusher.Publisher, sm.Probe, zerolog.Logger, scraper.Incrementer, scraper.IncrementerVec, k6runner.Runner, scraper.LabelsLimiter) (*scraper.Scraper, error)
+	TenantLimits   *limits.TenantLimits
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -226,6 +231,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		scrapers:       make(map[model.GlobalID]*scraper.Scraper),
 		k6Runner:       opts.K6Runner,
 		scraperFactory: scraperFactory,
+		tenantLimits:   opts.TenantLimits,
 		metrics: metrics{
 			changeErrorsCounter: changeErrorsCounter,
 			changesCounter:      changesCounter,
@@ -857,7 +863,8 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		return err
 	}
 
-	scraper, err := c.scraperFactory(ctx, check, c.publisher, *c.probe, c.logger, scrapeCounter, scraper.NewIncrementerFromCounterVec(scrapeErrorCounter), c.k6Runner)
+	scraper, err := c.scraperFactory(ctx, check, c.publisher, *c.probe, c.logger, scrapeCounter,
+		scraper.NewIncrementerFromCounterVec(scrapeErrorCounter), c.k6Runner, c.tenantLimits)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}
