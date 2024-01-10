@@ -379,8 +379,6 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		return nil, fmt.Errorf("invalid configuration, too many labels: %d", len(checkInfoLabels))
 	}
 
-	// GrafanaCloud loki limits log entries to 15 labels.
-	// 7 labels are needed here, leaving 8 labels for users to split between to checks and probes.
 	logLabels := []labelPair{
 		{name: "probe", value: s.probe.Name},
 		{name: "region", value: s.probe.Region},
