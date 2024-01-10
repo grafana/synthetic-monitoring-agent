@@ -133,6 +133,30 @@ const (
 	MaxMultiHttpVariables  = 5   // Max variables per multi-http target.
 )
 
+const (
+	// These constants specify the maximum number of labels set by the agent
+	// for any metric and log stream for all supported probes.
+	// These are constant per agent version but might vary between versions.
+	// They can be queried through MaxAgentMetricLabels() and MaxAgentLogLabels()
+	// exported functions. These are required in order to calculate how many
+	// check labels can be set without exceeding specific tenant limits.
+
+	maxAgentMetricLabels = 10 // Max metric labels set by the agent for any check type
+	maxAgentLogLabels    = 7  // Max log labels set by the agent for any check type
+)
+
+// MaxAgentMetricLabels returns the maximum number of labels set by the agent
+// to any metric.
+func MaxAgentMetricLabels() int {
+	return maxAgentMetricLabels
+}
+
+// MaxAgentLogLabels returns the maximum number of labels set by the agent
+// to any log stream.
+func MaxAgentLogLabels() int {
+	return maxAgentLogLabels
+}
+
 type validatable interface {
 	Validate() error
 }
