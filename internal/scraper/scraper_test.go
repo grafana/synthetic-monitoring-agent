@@ -760,6 +760,126 @@ func setupGRPCServerWithSSL(t *testing.T) (string, func()) {
 	}
 }
 
+// TestValidateLabels validates that no probe generates more metric or log
+// labels than the exported constants that specify these maximums.
+// This test is required to be aware if any modification extends these
+// maximums. These maximums are useful to calculate how many check labels can
+// be set without exceeding the Mimir and Loki limits.
+func TestValidateLabels(t *testing.T) {
+	testCases := map[string]struct {
+		setup func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func())
+	}{
+		"ping": {
+			setup: setupPingProbe,
+		},
+		"http": {
+			setup: setupHTTPProbe,
+		},
+		"http_ssl": {
+			setup: setupHTTPSSLProbe,
+		},
+		"dns": {
+			setup: setupDNSProbe,
+		},
+		"tcp": {
+			setup: setupTCPProbe,
+		},
+		"tcp_ssl": {
+			setup: setupTCPSSLProbe,
+		},
+		"traceroute": {
+			setup: setupTracerouteProbe,
+		},
+		"k6": {
+			setup: setupK6Probe,
+		},
+		"multihttp": {
+			setup: setupMultiHTTPProbe,
+		},
+		"grpc": {
+			setup: setupGRPCProbe,
+		},
+		"grpc_ssl": {
+			setup: setupGRPCSSLProbe,
+		},
+	}
+
+	// maxProbeMetricLabels returns the maximum number of labels for any
+	// timeseries from probeData
+	maxProbeMetricLabels := func(t *testing.T, tss TimeSeries) int {
+		max := 0
+		for _, ts := range tss {
+			nLabels := len(ts.GetLabels())
+			if nLabels > max {
+				max = nLabels
+			}
+		}
+		return max
+	}
+
+	// maxProbeLogLabels returns the maximum number of labels for any
+	// log stream from probeData
+	maxProbeLogLabels := func(t *testing.T, ss Streams) int {
+		max := 0
+		for _, s := range ss {
+			labels, err := parser.ParseMetric(s.Labels)
+			require.NoError(t, err)
+
+			nLabels := len(labels)
+			if nLabels > max {
+				max = nLabels
+			}
+		}
+		return max
+	}
+
+	timeout := 10 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	for name, tc := range testCases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			prober, check, stop := tc.setup(ctx, t)
+			defer stop()
+
+			s := Scraper{
+				checkName: "check name",
+				target:    check.Target,
+				logger:    zerolog.Nop(),
+				prober:    prober,
+				labelsLimiter: testLabelsLimiter{
+					maxMetricLabels: 100,
+					maxLogLabels:    100,
+				},
+				summaries:  make(map[uint64]prometheus.Summary),
+				histograms: make(map[uint64]prometheus.Histogram),
+				check: model.Check{
+					Check: check,
+				},
+				probe: sm.Probe{
+					Id:        100,
+					TenantId:  200,
+					Name:      "probe name",
+					Latitude:  -1,
+					Longitude: -2,
+					Region:    "region",
+				},
+			}
+
+			data, err := s.collectData(context.Background(), time.Unix(int64(3141000)/1000, 0))
+			require.NoError(t, err)
+			require.NotNil(t, data)
+
+			metricLabels := maxProbeMetricLabels(t, data.Metrics())
+			logLabels := maxProbeLogLabels(t, data.Streams())
+
+			require.GreaterOrEqual(t, sm.MaxAgentMetricLabels(), metricLabels)
+			require.GreaterOrEqual(t, sm.MaxAgentLogLabels(), logLabels)
+		})
+	}
+}
+
 func TestMakeTimeseries(t *testing.T) {
 	testTime := time.Now()
 	testValue := 42.0
