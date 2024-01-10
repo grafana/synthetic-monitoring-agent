@@ -71,338 +71,37 @@ func TestValidateMetrics(t *testing.T) {
 		setup func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func())
 	}{
 		"ping": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				check := sm.Check{
-					Target:  "127.0.0.1",
-					Timeout: 2000,
-					Settings: sm.CheckSettings{
-						Ping: &sm.PingSettings{
-							IpVersion: sm.IpVersion_V4,
-						},
-					},
-				}
-
-				prober, err := icmp.NewProber(check)
-				if err != nil {
-					t.Fatalf("cannot create ICMP prober: %s", err)
-				}
-
-				return prober, check, func() {}
-			},
+			setup: setupPingProbe,
 		},
-
 		"http": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					w.WriteHeader(http.StatusOK)
-				}))
-				httpSrv.Start()
-
-				check := sm.Check{
-					Target:  httpSrv.URL,
-					Timeout: 2000,
-					Settings: sm.CheckSettings{
-						Http: &sm.HttpSettings{
-							IpVersion: sm.IpVersion_V4,
-						},
-					},
-				}
-
-				prober, err := httpProber.NewProber(
-					ctx,
-					check,
-					zerolog.New(io.Discard),
-					http.Header{},
-				)
-				if err != nil {
-					t.Fatalf("cannot create HTTP prober: %s", err)
-				}
-
-				return prober, check, httpSrv.Close
-			},
+			setup: setupHTTPProbe,
 		},
-
 		"http_ssl": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					w.WriteHeader(http.StatusOK)
-				}))
-				httpSrv.StartTLS()
-
-				check := sm.Check{
-					Target:  httpSrv.URL,
-					Timeout: 2000,
-					Settings: sm.CheckSettings{
-						Http: &sm.HttpSettings{
-							IpVersion: sm.IpVersion_V4,
-							TlsConfig: &sm.TLSConfig{
-								InsecureSkipVerify: true,
-							},
-						},
-					},
-				}
-
-				prober, err := httpProber.NewProber(
-					ctx,
-					check,
-					zerolog.New(io.Discard),
-					http.Header{},
-				)
-				if err != nil {
-					t.Fatalf("cannot create HTTP prober: %s", err)
-				}
-
-				return prober, check, httpSrv.Close
-			},
+			setup: setupHTTPSSLProbe,
 		},
-
 		"dns": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				srv, clean := setupDNSServer(t)
-				check := sm.Check{
-					Target:  "example.org",
-					Timeout: 2000,
-					Settings: sm.CheckSettings{
-						// target is "example.com"
-						Dns: &sm.DnsSettings{
-							Server:    srv,
-							IpVersion: sm.IpVersion_V4,
-							Protocol:  sm.DnsProtocol_UDP,
-						},
-					},
-				}
-				prober, err := dnsProber.NewProber(check)
-				if err != nil {
-					clean()
-					t.Fatalf("cannot create DNS prober: %s", err)
-				}
-				return prober, check, clean
-			},
+			setup: setupDNSProbe,
 		},
-
 		"tcp": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				srv, clean := setupTCPServer(t)
-				check := sm.Check{
-					Target:  srv,
-					Timeout: 2000,
-					Settings: sm.CheckSettings{
-						Tcp: &sm.TcpSettings{
-							IpVersion: sm.IpVersion_V4,
-						},
-					},
-				}
-				prober, err := tcp.NewProber(
-					ctx,
-					check,
-					zerolog.New(io.Discard))
-				if err != nil {
-					clean()
-					t.Fatalf("cannot create TCP prober: %s", err)
-				}
-				return prober, check, clean
-			},
+			setup: setupTCPProbe,
 		},
-
 		"tcp_ssl": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				srv, clean := setupTCPServerWithSSL(t)
-				check := sm.Check{
-					Target:  srv,
-					Timeout: 2000,
-					Settings: sm.CheckSettings{
-						Tcp: &sm.TcpSettings{
-							IpVersion: sm.IpVersion_V4,
-							Tls:       true,
-							TlsConfig: &sm.TLSConfig{
-								InsecureSkipVerify: true,
-							},
-						},
-					},
-				}
-				prober, err := tcp.NewProber(
-					ctx,
-					check,
-					zerolog.New(io.Discard))
-				if err != nil {
-					clean()
-					t.Fatalf("cannot create TCP prober: %s", err)
-				}
-				return prober, check, clean
-			},
+			setup: setupTCPSSLProbe,
 		},
-
 		"traceroute": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				checkCap := func(set *cap.Set, v cap.Value) {
-					if permitted, err := set.GetFlag(cap.Permitted, v); err != nil {
-						t.Fatalf("cannot get %s flag: %s", v, err)
-					} else if !permitted {
-						t.Skipf("traceroute cannot run, process doesn't have %s capability", v)
-					}
-				}
-				c := cap.GetProc()
-				checkCap(c, cap.NET_ADMIN)
-				checkCap(c, cap.NET_RAW)
-
-				check := sm.Check{
-					Target: "127.0.0.1",
-					Settings: sm.CheckSettings{
-						Traceroute: &sm.TracerouteSettings{},
-					},
-				}
-
-				p, err := traceroute.NewProber(check, zerolog.New(io.Discard))
-				if err != nil {
-					t.Fatalf("cannot create traceroute prober %s", err)
-				}
-
-				return p, check, func() {}
-			},
+			setup: setupTracerouteProbe,
 		},
-
 		"scripted": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					w.WriteHeader(http.StatusOK)
-				}))
-				httpSrv.Start()
-
-				check := sm.Check{
-					Target:  httpSrv.URL,
-					Timeout: 2000,
-					Settings: sm.CheckSettings{
-						Scripted: &sm.ScriptedSettings{
-							Script: []byte(`export default function() {}`),
-						},
-					},
-				}
-
-				var runner k6runner.Runner
-
-				if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
-					runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
-				} else {
-					runner = &testRunner{
-						metrics: testhelper.MustReadFile(t, "testdata/k6.dat"),
-						logs:    nil,
-					}
-				}
-
-				prober, err := scripted.NewProber(
-					ctx,
-					check,
-					zerolog.New(zerolog.NewTestWriter(t)),
-					runner,
-				)
-				if err != nil {
-					t.Fatalf("cannot create scripted prober: %s", err)
-				}
-
-				return prober, check, httpSrv.Close
-			},
+			setup: setupScriptedProbe,
 		},
-
 		"multihttp": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					w.WriteHeader(http.StatusOK)
-				}))
-				httpSrv.Start()
-
-				check := sm.Check{
-					Target:  httpSrv.URL,
-					Timeout: 2000,
-					Settings: sm.CheckSettings{
-						Multihttp: &sm.MultiHttpSettings{
-							Entries: []*sm.MultiHttpEntry{
-								{
-									Request: &sm.MultiHttpEntryRequest{
-										Method: sm.HttpMethod_GET,
-										Url:    httpSrv.URL,
-									},
-								},
-							},
-						},
-					},
-				}
-
-				var runner k6runner.Runner
-
-				if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
-					runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
-				} else {
-					runner = &testRunner{
-						metrics: testhelper.MustReadFile(t, "testdata/multihttp.dat"),
-						logs:    nil,
-					}
-				}
-
-				prober, err := multihttp.NewProber(
-					ctx,
-					check,
-					zerolog.New(zerolog.NewTestWriter(t)),
-					runner,
-					http.Header{},
-				)
-				if err != nil {
-					t.Fatalf("cannot create MultiHTTP prober: %s", err)
-				}
-
-				return prober, check, httpSrv.Close
-			},
+			setup: setupMultiHTTPProbe,
 		},
-
 		"grpc": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				srv, clean := setupGRPCServer(t)
-				check := sm.Check{
-					Target:  srv,
-					Timeout: 2000,
-					Settings: sm.CheckSettings{
-						Grpc: &sm.GrpcSettings{
-							IpVersion: sm.IpVersion_V4,
-						},
-					},
-				}
-				prober, err := grpcProber.NewProber(
-					ctx,
-					check,
-					zerolog.New(io.Discard))
-				if err != nil {
-					clean()
-					t.Fatalf("cannot create gRPC prober: %s", err)
-				}
-				return prober, check, clean
-			},
+			setup: setupGRPCProbe,
 		},
-
 		"grpc_ssl": {
-			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-				srv, clean := setupGRPCServerWithSSL(t)
-				check := sm.Check{
-					Target:  srv,
-					Timeout: 2000,
-					Settings: sm.CheckSettings{
-						Grpc: &sm.GrpcSettings{
-							IpVersion: sm.IpVersion_V4,
-							Tls:       true,
-							TlsConfig: &sm.TLSConfig{
-								InsecureSkipVerify: true,
-							},
-						},
-					},
-				}
-				prober, err := grpcProber.NewProber(
-					ctx,
-					check,
-					zerolog.New(io.Discard))
-				if err != nil {
-					clean()
-					t.Fatalf("cannot create gRPC prober: %s", err)
-				}
-				return prober, check, clean
-			},
+			setup: setupGRPCSSLProbe,
 		},
 	}
 
@@ -532,6 +231,319 @@ func readGoldenFile(fn string) (map[string]struct{}, error) {
 
 		addMetricToIndex(&mf, metrics)
 	}
+}
+
+func setupPingProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	check := sm.Check{
+		Target:  "127.0.0.1",
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			Ping: &sm.PingSettings{
+				IpVersion: sm.IpVersion_V4,
+			},
+		},
+	}
+
+	prober, err := icmp.NewProber(check)
+	if err != nil {
+		t.Fatalf("cannot create ICMP prober: %s", err)
+	}
+
+	return prober, check, func() {}
+}
+
+func setupHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	httpSrv.Start()
+
+	check := sm.Check{
+		Target:  httpSrv.URL,
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			Http: &sm.HttpSettings{
+				IpVersion: sm.IpVersion_V4,
+			},
+		},
+	}
+
+	prober, err := httpProber.NewProber(
+		ctx,
+		check,
+		zerolog.New(io.Discard),
+		http.Header{},
+	)
+	if err != nil {
+		t.Fatalf("cannot create HTTP prober: %s", err)
+	}
+
+	return prober, check, httpSrv.Close
+}
+
+func setupHTTPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	httpSrv.StartTLS()
+
+	check := sm.Check{
+		Target:  httpSrv.URL,
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			Http: &sm.HttpSettings{
+				IpVersion: sm.IpVersion_V4,
+				TlsConfig: &sm.TLSConfig{
+					InsecureSkipVerify: true,
+				},
+			},
+		},
+	}
+
+	prober, err := httpProber.NewProber(
+		ctx,
+		check,
+		zerolog.New(io.Discard),
+		http.Header{},
+	)
+	if err != nil {
+		t.Fatalf("cannot create HTTP prober: %s", err)
+	}
+
+	return prober, check, httpSrv.Close
+}
+
+func setupDNSProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	srv, clean := setupDNSServer(t)
+	check := sm.Check{
+		Target:  "example.org",
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			// target is "example.com"
+			Dns: &sm.DnsSettings{
+				Server:    srv,
+				IpVersion: sm.IpVersion_V4,
+				Protocol:  sm.DnsProtocol_UDP,
+			},
+		},
+	}
+	prober, err := dnsProber.NewProber(check)
+	if err != nil {
+		clean()
+		t.Fatalf("cannot create DNS prober: %s", err)
+	}
+	return prober, check, clean
+}
+
+func setupTCPProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	srv, clean := setupTCPServer(t)
+	check := sm.Check{
+		Target:  srv,
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			Tcp: &sm.TcpSettings{
+				IpVersion: sm.IpVersion_V4,
+			},
+		},
+	}
+	prober, err := tcp.NewProber(
+		ctx,
+		check,
+		zerolog.New(io.Discard))
+	if err != nil {
+		clean()
+		t.Fatalf("cannot create TCP prober: %s", err)
+	}
+	return prober, check, clean
+}
+
+func setupTCPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	srv, clean := setupTCPServerWithSSL(t)
+	check := sm.Check{
+		Target:  srv,
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			Tcp: &sm.TcpSettings{
+				IpVersion: sm.IpVersion_V4,
+				Tls:       true,
+				TlsConfig: &sm.TLSConfig{
+					InsecureSkipVerify: true,
+				},
+			},
+		},
+	}
+	prober, err := tcp.NewProber(
+		ctx,
+		check,
+		zerolog.New(io.Discard))
+	if err != nil {
+		clean()
+		t.Fatalf("cannot create TCP prober: %s", err)
+	}
+	return prober, check, clean
+}
+
+func setupTracerouteProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	checkCap := func(set *cap.Set, v cap.Value) {
+		if permitted, err := set.GetFlag(cap.Permitted, v); err != nil {
+			t.Fatalf("cannot get %s flag: %s", v, err)
+		} else if !permitted {
+			t.Skipf("traceroute cannot run, process doesn't have %s capability", v)
+		}
+	}
+	c := cap.GetProc()
+	checkCap(c, cap.NET_ADMIN)
+	checkCap(c, cap.NET_RAW)
+
+	check := sm.Check{
+		Target: "127.0.0.1",
+		Settings: sm.CheckSettings{
+			Traceroute: &sm.TracerouteSettings{},
+		},
+	}
+
+	p, err := traceroute.NewProber(check, zerolog.New(io.Discard))
+	if err != nil {
+		t.Fatalf("cannot create traceroute prober %s", err)
+	}
+
+	return p, check, func() {}
+}
+
+func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	httpSrv.Start()
+
+	check := sm.Check{
+		Target:  httpSrv.URL,
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			Scripted: &sm.ScriptedSettings{
+				Script: []byte(`export default function() {}`),
+			},
+		},
+	}
+
+	var runner k6runner.Runner
+
+	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
+		runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
+	} else {
+		runner = &testRunner{
+			metrics: testhelper.MustReadFile(t, "testdata/k6.dat"),
+			logs:    nil,
+		}
+	}
+
+	prober, err := scripted.NewProber(
+		ctx,
+		check,
+		zerolog.New(zerolog.NewTestWriter(t)),
+		runner,
+	)
+	if err != nil {
+		t.Fatalf("cannot create scripted prober: %s", err)
+	}
+
+	return prober, check, httpSrv.Close
+}
+
+func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	httpSrv.Start()
+
+	check := sm.Check{
+		Target:  httpSrv.URL,
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			Multihttp: &sm.MultiHttpSettings{
+				Entries: []*sm.MultiHttpEntry{
+					{
+						Request: &sm.MultiHttpEntryRequest{
+							Method: sm.HttpMethod_GET,
+							Url:    httpSrv.URL,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var runner k6runner.Runner
+
+	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
+		runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
+	} else {
+		runner = &testRunner{
+			metrics: testhelper.MustReadFile(t, "testdata/multihttp.dat"),
+			logs:    nil,
+		}
+	}
+
+	prober, err := multihttp.NewProber(
+		ctx,
+		check,
+		zerolog.New(zerolog.NewTestWriter(t)),
+		runner,
+		http.Header{},
+	)
+	if err != nil {
+		t.Fatalf("cannot create MultiHTTP prober: %s", err)
+	}
+
+	return prober, check, httpSrv.Close
+}
+
+func setupGRPCProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	srv, clean := setupGRPCServer(t)
+	check := sm.Check{
+		Target:  srv,
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			Grpc: &sm.GrpcSettings{
+				IpVersion: sm.IpVersion_V4,
+			},
+		},
+	}
+	prober, err := grpcProber.NewProber(
+		ctx,
+		check,
+		zerolog.New(io.Discard))
+	if err != nil {
+		clean()
+		t.Fatalf("cannot create gRPC prober: %s", err)
+	}
+	return prober, check, clean
+}
+
+func setupGRPCSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	srv, clean := setupGRPCServerWithSSL(t)
+	check := sm.Check{
+		Target:  srv,
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			Grpc: &sm.GrpcSettings{
+				IpVersion: sm.IpVersion_V4,
+				Tls:       true,
+				TlsConfig: &sm.TLSConfig{
+					InsecureSkipVerify: true,
+				},
+			},
+		},
+	}
+	prober, err := grpcProber.NewProber(
+		ctx,
+		check,
+		zerolog.New(io.Discard))
+	if err != nil {
+		clean()
+		t.Fatalf("cannot create gRPC prober: %s", err)
+	}
+	return prober, check, clean
 }
 
 func setupDNSServer(t *testing.T) (string, func()) {
@@ -1676,7 +1688,8 @@ func TestTickWithOffset(t *testing.T) {
 				IDLE, // 800
 				IDLE, // 900
 				WORK, // 1000
-				CLEANUP},
+				CLEANUP,
+			},
 		},
 		"An idle worker trying to run within gap duration of regular runs.": {
 			timeout: 1050 * time.Millisecond,
@@ -1692,7 +1705,8 @@ func TestTickWithOffset(t *testing.T) {
 				IDLE, // 700, there's no idle at 600 because it's too close to the previous run
 				IDLE, // 800
 				WORK, // 1000, there's no idle at 900 because it's too close to the next run
-				CLEANUP},
+				CLEANUP,
+			},
 		},
 		"A zero offset and a scraper that has already been cancelled.": {
 			timeout:  0, // this asks for immediate cancellation
