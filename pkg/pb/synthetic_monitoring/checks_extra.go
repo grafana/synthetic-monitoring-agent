@@ -286,7 +286,7 @@ func (c Check) validateTarget() error {
 		}
 
 	case CheckTypeK6:
-		return validateHttpUrl(c.Target)
+		return nil
 
 	case CheckTypeMultiHttp:
 		// TODO(mem): checks MUST have a target, but in this case it's
