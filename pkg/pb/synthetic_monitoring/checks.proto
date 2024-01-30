@@ -42,6 +42,9 @@ service Checks {
   // Ping sends a ping to the server and receives an
   // acknowledgement back.
   rpc Ping(PingRequest) returns (PongResponse) {};
+
+  // SendStats sends information about the check executions.
+  rpc SendStats(CheckStats) returns (StatsResponse) {};
 }
 
 service AdHocChecks {
@@ -574,4 +577,19 @@ message GrpcSettings {
   string service = 2 [(gogoproto.jsontag) = "service,omitempty"];
   bool                      tls             = 3 [(gogoproto.jsontag) = "tls,omitempty"];
   TLSConfig       tlsConfig           = 4 [(gogoproto.jsontag) = "tlsConfig,omitempty"];
+}
+
+// CheckStats provides information about the executed checks.
+message CheckStats {
+  string                      instance           = 1 [(gogoproto.jsontag) = "instance"];
+  int32                       regionId           = 2 [(gogoproto.jsontag) = "region_id"];
+  repeated CheckStatsByTenant checkStatsByTenant = 3 [(gogoproto.jsontag) = "check_stats_by_tenant"];
+}
+
+// CheckStatsByTenant provides stats for a specific tenant and a specific check class.
+message CheckStatsByTenant {
+  int64   tenantId             = 1  [(gogoproto.jsontag) = "tenant_id"];
+  int32   checkClass           = 2  [(gogoproto.jsontag) = "check_class"];
+  int64   executionsTotalCount = 3  [(gogoproto.jsontag) = "executions_total_count"];
+  float64 durationTotalSeconds = 4  [(gogoproto.jsontag) = "duration_total_seconds"];
 }
