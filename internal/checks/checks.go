@@ -612,7 +612,7 @@ func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check model.Che
 
 	scraper, found := c.scrapers[cid]
 	if !found {
-		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("update request for an unknown check")
+		c.logger.Warn().Int64("checkId", check.Id).Int("regionId", check.RegionId).Msg("update request for an unknown check")
 		return c.addAndStartScraperWithLock(ctx, check)
 	}
 
@@ -638,7 +638,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) erro
 
 	scraper, found := c.scrapers[cid]
 	if !found {
-		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("delete request for an unknown check")
+		c.logger.Warn().Int64("checkId", check.Id).Int("regionId", check.RegionId).Msg("delete request for an unknown check")
 		return errors.New("check not found")
 	}
 
@@ -687,7 +687,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 
 			if err := c.handleInitialChangeAddWithLock(ctx, check); err != nil {
 				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
-				c.logger.Error().Err(err).Int64("check_id", check.Id).Int("region_id", check.RegionId).
+				c.logger.Error().Err(err).Int64("checkId", check.Id).Int("regionId", check.RegionId).
 					Msg("adding check failed, dropping check")
 				continue
 			}
@@ -715,8 +715,8 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 
 		cid, rid := model.GetLocalAndRegionIDs(id)
 		c.logger.Debug().
-			Int64("check_id", cid).
-			Int("region_id", rid).
+			Int64("checkId", cid).
+			Int("regionId", rid).
 			Msg("stopping scraper during first batch handling")
 
 		checkType := scraper.CheckType().String()

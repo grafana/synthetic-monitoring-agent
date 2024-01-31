@@ -122,9 +122,9 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 	checkName := check.Type().String()
 
 	logger := opts.Logger.With().
-		Int("region_id", check.RegionId).
+		Int("regionId", check.RegionId).
 		Int64("tenantId", check.TenantId).
-		Int64("check_id", check.Id).
+		Int64("checkId", check.Id).
 		Str("probe", opts.Probe.Name).
 		Str("target", check.Target).
 		Str("job", check.Job).

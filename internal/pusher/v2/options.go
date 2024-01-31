@@ -96,7 +96,7 @@ type pusherOptions struct {
 
 func (o pusherOptions) withTenant(id model.GlobalID) pusherOptions {
 	localID, regionID := model.GetLocalAndRegionIDs(id)
-	o.logger = o.logger.With().Int("region", regionID).Int64("tenant", localID).Logger()
+	o.logger = o.logger.With().Int("regionId", regionID).Int64("tenantId", localID).Logger()
 	o.metrics = o.metrics.WithTenant(localID, regionID)
 	return o
 }
