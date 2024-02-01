@@ -568,35 +568,35 @@ func TestCheckClass(t *testing.T) {
 	}{
 		CheckTypeDns.String(): {
 			input:    validCheckCases[CheckTypeDns],
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeHttp.String(): {
 			input:    validCheckCases[CheckTypeHttp],
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypePing.String(): {
 			input:    validCheckCases[CheckTypePing],
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeTcp.String(): {
 			input:    validCheckCases[CheckTypeTcp],
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeTraceroute.String(): {
 			input:    validCheckCases[CheckTypeTraceroute],
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeScripted.String(): {
 			input:    validCheckCases[CheckTypeScripted],
-			expected: CheckClassScripted,
+			expected: CheckClass_SCRIPTED,
 		},
 		CheckTypeMultiHttp.String(): {
 			input:    validCheckCases[CheckTypeMultiHttp],
-			expected: CheckClassScripted,
+			expected: CheckClass_SCRIPTED,
 		},
 		CheckTypeGrpc.String(): {
 			input:    validCheckCases[CheckTypeGrpc],
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 	}
 
@@ -669,35 +669,35 @@ func TestCheckTypeClass(t *testing.T) {
 	}{
 		CheckTypeDns.String(): {
 			input:    CheckTypeDns,
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeHttp.String(): {
 			input:    CheckTypeHttp,
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypePing.String(): {
 			input:    CheckTypePing,
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeTcp.String(): {
 			input:    CheckTypeTcp,
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeTraceroute.String(): {
 			input:    CheckTypeTraceroute,
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeScripted.String(): {
 			input:    CheckTypeScripted,
-			expected: CheckClassScripted,
+			expected: CheckClass_SCRIPTED,
 		},
 		CheckTypeMultiHttp.String(): {
 			input:    CheckTypeMultiHttp,
-			expected: CheckClassScripted,
+			expected: CheckClass_SCRIPTED,
 		},
 		CheckTypeGrpc.String(): {
 			input:    CheckTypeGrpc,
-			expected: CheckClassProtocol,
+			expected: CheckClass_PROTOCOL,
 		},
 	}
 
