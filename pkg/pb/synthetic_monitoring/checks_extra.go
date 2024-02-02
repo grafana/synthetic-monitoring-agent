@@ -494,6 +494,9 @@ func (c AdHocCheck) validateTarget() error {
 			return ErrInvalidTracerouteHostname
 		}
 
+	case CheckTypeK6:
+		return nil
+
 	case CheckTypeMultiHttp:
 		return nil
 
