@@ -45,6 +45,7 @@ var (
 	ErrInvalidLabelName       = errors.New("invalid label name")
 	ErrInvalidLabelValue      = errors.New("invalid label value")
 	ErrDuplicateLabelName     = errors.New("duplicate label name")
+	ErrInvalidTargetValue     = errors.New("invalid target value")
 
 	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
@@ -263,6 +264,11 @@ func (c Check) Validate() error {
 }
 
 func (c Check) validateTarget() error {
+	// All targets must be valid label values.
+	if err := validateLabelValue(c.Target); err != nil {
+		return ErrInvalidTargetValue
+	}
+
 	switch c.Type() {
 	case CheckTypeDns:
 		if err := validateDnsTarget(c.Target); err != nil {
@@ -970,7 +976,7 @@ func (p *Probe) Validate() error {
 }
 
 func (l Label) Validate() error {
-	if len(l.Name) == 0 || len(l.Name) > MaxLabelValueLength {
+	if err := validateLabelValue(l.Name); err != nil {
 		return ErrInvalidLabelName
 	}
 
@@ -984,7 +990,11 @@ func (l Label) Validate() error {
 		}
 	}
 
-	if len(l.Value) == 0 || len(l.Value) > MaxLabelValueLength {
+	return validateLabelValue(l.Value)
+}
+
+func validateLabelValue(v string) error {
+	if len(v) == 0 || len(v) > MaxLabelValueLength {
 		return ErrInvalidLabelValue
 	}
 	return nil
