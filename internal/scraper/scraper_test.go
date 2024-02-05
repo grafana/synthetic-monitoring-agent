@@ -1045,6 +1045,7 @@ func (p testProber) Probe(ctx context.Context, target string, registry *promethe
 //nolint:gocyclo
 func TestScraperCollectData(t *testing.T) {
 	const (
+		checkId       = 1
 		checkName     = "check name"
 		checkTarget   = "target name"
 		frequency     = 2000
@@ -1067,6 +1068,7 @@ func TestScraperCollectData(t *testing.T) {
 		}
 		baseExpectedInfoLabels = map[string]string{
 			"check_name": checkName,
+			"check_id":   strconv.Itoa(checkId),
 			"frequency":  strconv.Itoa(frequency),
 			"geohash":    geohash.Encode(probeLatitude, probeLongitde),
 			"region":     region,

@@ -647,6 +647,7 @@ func (s Scraper) buildCheckInfoLabels(userLabels []labelPair) map[string]string 
 		"region":     s.probe.Region,
 		"frequency":  strconv.FormatInt(s.check.Frequency, 10),
 		"geohash":    geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude)),
+		"check_id":   fmt.Sprint(s.check.Id),
 	}
 	if s.check.AlertSensitivity != "" && s.check.AlertSensitivity != "none" {
 		labels["alert_sensitivity"] = s.check.AlertSensitivity
