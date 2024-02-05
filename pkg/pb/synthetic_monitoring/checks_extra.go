@@ -40,7 +40,6 @@ var (
 	ErrInvalidCheckFrequency  = errors.New("invalid check frequency")
 	ErrInvalidCheckTimeout    = errors.New("invalid check timeout")
 	ErrInvalidCheckLabelName  = errors.New("invalid check label name")
-	ErrTooManyCheckLabels     = errors.New("too many check labels")
 	ErrInvalidCheckLabelValue = errors.New("invalid check label value")
 	ErrInvalidLabelName       = errors.New("invalid label name")
 	ErrInvalidLabelValue      = errors.New("invalid label value")
@@ -124,7 +123,6 @@ const (
 const (
 	MaxMetricLabels        = 20  // Prometheus allows for 32 labels, but limit to 20.
 	MaxLogLabels           = 15  // Loki allows a maximum of 15 labels.
-	MaxCheckLabels         = 10  // Allow 10 user labels for checks,
 	MaxProbeLabels         = 3   // 3 for probes, leaving 7 for internal use.
 	MaxLabelValueLength    = 128 // Keep this number low so that the UI remains usable.
 	MaxPingPackets         = 10  // Allow 10 packets per ping.
@@ -132,6 +130,30 @@ const (
 	MaxMultiHttpAssertions = 5   // Max assertions per multi-http target.
 	MaxMultiHttpVariables  = 5   // Max variables per multi-http target.
 )
+
+const (
+	// These constants specify the maximum number of labels set by the agent
+	// for any metric and log stream for all supported probes.
+	// These are constant per agent version but might vary between versions.
+	// They can be queried through MaxAgentMetricLabels() and MaxAgentLogLabels()
+	// exported functions. These are required in order to calculate how many
+	// check labels can be set without exceeding specific tenant limits.
+
+	maxAgentMetricLabels = 10 // Max metric labels set by the agent for any check type
+	maxAgentLogLabels    = 7  // Max log labels set by the agent for any check type
+)
+
+// MaxAgentMetricLabels returns the maximum number of labels set by the agent
+// to any metric.
+func MaxAgentMetricLabels() int {
+	return maxAgentMetricLabels
+}
+
+// MaxAgentLogLabels returns the maximum number of labels set by the agent
+// to any log stream.
+func MaxAgentLogLabels() int {
+	return maxAgentLogLabels
+}
 
 type validatable interface {
 	Validate() error
@@ -360,10 +382,6 @@ func (c Check) validateTimeout() error {
 }
 
 func validateLabels(labels []Label) error {
-	if len(labels) > MaxCheckLabels {
-		return ErrTooManyCheckLabels
-	}
-
 	seenLabels := make(map[string]struct{})
 
 	for _, label := range labels {
