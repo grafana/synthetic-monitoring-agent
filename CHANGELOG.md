@@ -2,8 +2,14 @@
 ## [Unreleased]
 
 
+<a name="v0.19.6"></a>
+## [v0.19.6] - 2024-02-06
+### Fix
+- increase max target length
+
+
 <a name="v0.19.5"></a>
-## [v0.19.5] - 2024-02-02
+## [v0.19.5] - 2024-02-05
 ### Fix
 - check targets must be valid label values
 
@@ -533,7 +539,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.5...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...HEAD
+[v0.19.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.5...v0.19.6
 [v0.19.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.4...v0.19.5
 [v0.19.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.3...v0.19.4
 [v0.19.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.2...v0.19.3
