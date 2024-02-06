@@ -123,15 +123,16 @@ const (
 )
 
 const (
-	MaxMetricLabels        = 20  // Prometheus allows for 32 labels, but limit to 20.
-	MaxLogLabels           = 15  // Loki allows a maximum of 15 labels.
-	MaxCheckLabels         = 10  // Allow 10 user labels for checks,
-	MaxProbeLabels         = 3   // 3 for probes, leaving 7 for internal use.
-	MaxLabelValueLength    = 128 // Keep this number low so that the UI remains usable.
-	MaxPingPackets         = 10  // Allow 10 packets per ping.
-	MaxMultiHttpTargets    = 10  // Max targets per multi-http check.
-	MaxMultiHttpAssertions = 5   // Max assertions per multi-http target.
-	MaxMultiHttpVariables  = 5   // Max variables per multi-http target.
+	MaxMetricLabels          = 20   // Prometheus allows for 32 labels, but limit to 20.
+	MaxLogLabels             = 15   // Loki allows a maximum of 15 labels.
+	MaxCheckLabels           = 10   // Allow 10 user labels for checks,
+	MaxProbeLabels           = 3    // 3 for probes, leaving 7 for internal use.
+	maxValidLabelValueLength = 2048 // This is the actual max label value length.
+	MaxLabelValueLength      = 128  // Keep this number low so that the UI remains usable.
+	MaxPingPackets           = 10   // Allow 10 packets per ping.
+	MaxMultiHttpTargets      = 10   // Max targets per multi-http check.
+	MaxMultiHttpAssertions   = 5    // Max assertions per multi-http target.
+	MaxMultiHttpVariables    = 5    // Max variables per multi-http target.
 )
 
 type validatable interface {
@@ -265,7 +266,7 @@ func (c Check) Validate() error {
 
 func (c Check) validateTarget() error {
 	// All targets must be valid label values.
-	if err := validateLabelValue(c.Target); err != nil {
+	if len(c.Target) > maxValidLabelValueLength {
 		return ErrInvalidTargetValue
 	}
 
