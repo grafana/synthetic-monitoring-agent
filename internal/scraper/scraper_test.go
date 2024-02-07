@@ -35,6 +35,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/miekg/dns"
@@ -1572,6 +1573,15 @@ type testPublisher struct{}
 func (testPublisher) Publish(pusher.Payload) {
 }
 
+type testTelemeter struct {
+	execCount int32
+	ee        []telemetry.Execution
+}
+
+func (t *testTelemeter) AddExecution(e telemetry.Execution) {
+	t.execCount++
+}
+
 // TestScraperRun will set up a scraper in such a way that it runs 5 times, and fails 2 out of those 5.
 //
 // This checks that the probe gets run, and that the metrics are correctly collected.
@@ -1598,6 +1608,7 @@ func TestScraperRun(t *testing.T) {
 	errCounter := testCounterVec{counters: make(map[string]Incrementer), t: t}
 
 	testProber := &testProberB{wantedFailures: 2}
+	testTelemeter := &testTelemeter{}
 
 	s, err := NewWithOpts(ctx, check, ScraperOpts{
 		ScrapeCounter: &counter,
@@ -1609,6 +1620,7 @@ func TestScraperRun(t *testing.T) {
 			maxMetricLabels: 20,
 			maxLogLabels:    15,
 		},
+		Telemeter: testTelemeter,
 	})
 
 	require.NoError(t, err)
@@ -1621,4 +1633,12 @@ func TestScraperRun(t *testing.T) {
 	checkErrCounter, found := errCounter.counters["check"]
 	require.True(t, found)
 	require.Equal(t, testProber.failureCount, checkErrCounter.(*testCounter).count.Load())
+
+	// Verify telemetry
+	require.Equal(t, counter.count.Load(), testTelemeter.execCount)
+	for _, e := range testTelemeter.ee {
+		require.Equal(t, 1000, e.LocalTenantID)
+		require.Equal(t, check.Class(), e.CheckClass)
+		require.Greater(t, 0, e.Duration)
+	}
 }

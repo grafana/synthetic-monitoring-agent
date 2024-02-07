@@ -241,7 +241,16 @@ func (s *Scraper) Run(ctx context.Context) {
 		s.scrapeCounter.Inc()
 
 		var err error
+		start := time.Now()
 		payload, err = s.collectData(ctx, t)
+		end := time.Now()
+
+		s.telemeter.AddExecution(telemetry.Execution{
+			LocalTenantID: s.check.TenantId,
+			RegionID:      int32(s.check.RegionId),
+			CheckClass:    s.check.Class(),
+			Duration:      end.Sub(start),
+		})
 
 		switch {
 		case errors.Is(err, errCheckFailed):
