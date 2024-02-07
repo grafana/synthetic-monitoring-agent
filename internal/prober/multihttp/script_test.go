@@ -653,6 +653,7 @@ func TestSettingsToScript(t *testing.T) {
 	t.Cleanup(testServer.Close)
 
 	settings := &sm.MultiHttpSettings{
+		LogResponses: true,
 		Entries: []*sm.MultiHttpEntry{
 			{
 				Request: &sm.MultiHttpEntryRequest{

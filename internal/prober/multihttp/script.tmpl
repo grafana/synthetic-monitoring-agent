@@ -72,6 +72,7 @@ export default function() {
 	let url;
 	let currentCheck;
 	let match;
+	const logResponse = {{ .LogResponses }}
 	const vars = {};
 
  {{ range $idx, $entry := .Entries }}
@@ -97,7 +98,11 @@ export default function() {
 		redirects: 0{{ if gt (len $headers) 0 }},
 		headers: {{ $headers }}{{ end }}
 	});
-	console.log("Response received from {{.Request.Url}}, status", response.status);
+	console.log("Response received from {{ .Request.Url }}, status", response.status);
+	if(logResponse) {
+		const body = response.body || ''
+		console.log("Response body received from {{ .Request.Url }}:", body.slice(0, 1000));
+	}
 	if(response.error) {
 		console.error("Request error:" + url.toString() + ": " + response.error)
 	}

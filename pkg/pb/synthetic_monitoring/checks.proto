@@ -458,14 +458,15 @@ message K6Settings {
 
 // MultiHttpSettings represents the settings for the MultiHttp check type.
 message MultiHttpSettings {
-  repeated MultiHttpEntry entries = 1 [(gogoproto.jsontag) = "entries"];  // One or more entries in the MultiHttp check
+  repeated MultiHttpEntry entries      = 1 [(gogoproto.jsontag) = "entries"];  // One or more entries in the MultiHttp check
+  bool                    logResponses = 2 [(gogoproto.jsontag) = "logResponseBodies,omitempty"];  // Whether to log the response bodies in the output.
 }
 
 // MultiHttpEntry represents a single entry in a MultiHttp check.
 message MultiHttpEntry {
-  MultiHttpEntryRequest            request    = 1 [(gogoproto.jsontag) = "request,omitempty"];    // The request parameters.
-  repeated MultiHttpEntryAssertion assertions = 2 [(gogoproto.jsontag) = "checks,omitempty"];     // Zero or more assertions to be made on the response.
-  repeated MultiHttpEntryVariable  variables  = 3 [(gogoproto.jsontag) = "variables,omitempty"];  // Zero or more variables to be used in the request.
+  MultiHttpEntryRequest            request     = 1 [(gogoproto.jsontag) = "request,omitempty"];    // The request parameters.
+  repeated MultiHttpEntryAssertion assertions  = 2 [(gogoproto.jsontag) = "checks,omitempty"];     // Zero or more assertions to be made on the response.
+  repeated MultiHttpEntryVariable  variables   = 3 [(gogoproto.jsontag) = "variables,omitempty"];  // Zero or more variables to be used in the request.
 }
 
 // HttpHeader represents a single HTTP header key-value pair.

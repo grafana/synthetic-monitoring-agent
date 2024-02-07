@@ -7,15 +7,14 @@ import (
 	context "context"
 	encoding_binary "encoding/binary"
 	fmt "fmt"
-	io "io"
-	math "math"
-	math_bits "math/bits"
-
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	io "io"
+	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1755,7 +1754,8 @@ var xxx_messageInfo_K6Settings proto.InternalMessageInfo
 
 // MultiHttpSettings represents the settings for the MultiHttp check type.
 type MultiHttpSettings struct {
-	Entries []*MultiHttpEntry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries"`
+	Entries      []*MultiHttpEntry `protobuf:"bytes,1,rep,name=entries,proto3" json:"entries"`
+	LogResponses bool              `protobuf:"varint,2,opt,name=logResponses,proto3" json:"logResponseBodies,omitempty"`
 }
 
 func (m *MultiHttpSettings) Reset()         { *m = MultiHttpSettings{} }
@@ -4910,6 +4910,16 @@ func (m *MultiHttpSettings) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	_ = i
 	var l int
 	_ = l
+	if m.LogResponses {
+		i--
+		if m.LogResponses {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x10
+	}
 	if len(m.Entries) > 0 {
 		for iNdEx := len(m.Entries) - 1; iNdEx >= 0; iNdEx-- {
 			{
@@ -6215,6 +6225,9 @@ func (m *MultiHttpSettings) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovChecks(uint64(l))
 		}
+	}
+	if m.LogResponses {
+		n += 2
 	}
 	return n
 }
@@ -12269,6 +12282,26 @@ func (m *MultiHttpSettings) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LogResponses", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowChecks
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.LogResponses = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skipChecks(dAtA[iNdEx:])
