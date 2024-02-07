@@ -1,0 +1,56 @@
+{
+	"tenants": [
+		{
+			"id": 1,
+			"orgId": ...,                             // the org ID of the stack, can be made up
+			"stackId": ...,                           // the stack ID of the instances you are connecting to, can be made up
+			"metricsRemote": {
+				"name": "metrics",
+				"url": "https://.../api/prom",    // URL of instance to push to, not just the base
+				"username": "...",                // username to authenticate to prometheus instance
+				"password": "..."                 // password to authenticate to prometheus instance
+			},
+			"eventsRemote": {
+				"name": "logs",
+				"url": "https://.../loki/api/v1", // URL of instance to push to, not just the base
+				"username": "...",                // username to authenticate to loki instance
+				"password": "..."                 // username to authenticate to loki instance
+			}
+		}
+	],
+	"probes": [
+		{
+			"id": 1,
+			"tenantId": 1,
+			"name": "test-probe"
+		}
+	],
+	"probeTokens": {
+		"1": "..."                                        // random token, base-64 encoded
+	},
+	"checks": [
+		{
+			"id": 1,
+			"tenantId": 1,
+			"frequency": 60000,
+			"timeout": 10000,
+			"enabled": true,
+			"basicMetricsOnly": true,
+			"settings": {
+				"multihttp": {
+					"entries": [
+						{
+							"request": {
+								"method": "GET",
+								"url": "https://httpbin.test.k6.io/status/418"
+							}
+						}
+					]
+				}
+			},
+			"probes": [1],
+			"target": "test",
+			"job": "test"
+		}
+	]
+}

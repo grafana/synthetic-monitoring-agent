@@ -261,6 +261,7 @@ message CheckSettings {
   TracerouteSettings traceroute = 5 [(gogoproto.jsontag) = "traceroute,omitempty"];
   K6Settings         k6         = 6 [(gogoproto.jsontag) = "k6,omitempty"];         // experimental
   MultiHttpSettings  multihttp  = 7 [(gogoproto.jsontag) = "multihttp,omitempty"];  // experimental
+  GrpcSettings grpc = 8 [(gogoproto.jsontag) = "grpc,omitempty"];  // experimental
 }
 
 // PingSettings provides the settings for a ping check.
@@ -565,4 +566,12 @@ message MultiHttpEntryVariable {
   string                     name       = 2 [(gogoproto.jsontag) = "name,omitempty"];
   string                     expression = 3 [(gogoproto.jsontag) = "expression,omitempty"];
   string                     attribute  = 4 [(gogoproto.jsontag) = "attribute,omitempty"];
+}
+
+// GrpcSettings provides the settings for a gRPC check.
+message GrpcSettings {
+  IpVersion       ipVersion         = 1 [(gogoproto.jsontag) = "ipVersion"];
+  string service = 2 [(gogoproto.jsontag) = "service,omitempty"];
+  bool                      tls             = 3 [(gogoproto.jsontag) = "tls,omitempty"];
+  TLSConfig       tlsConfig           = 4 [(gogoproto.jsontag) = "tlsConfig,omitempty"];
 }

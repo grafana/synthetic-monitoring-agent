@@ -101,6 +101,18 @@ var validCheckCases = map[CheckType]Check{
 			Multihttp: &MultiHttpSettings{},
 		},
 	},
+	CheckTypeGrpc: {
+		Id:        1,
+		TenantId:  1,
+		Target:    "127.0.0.1:9000",
+		Job:       "job",
+		Frequency: 60000,
+		Timeout:   10000,
+		Probes:    []int64{1},
+		Settings: CheckSettings{
+			Grpc: &GrpcSettings{},
+		},
+	},
 }
 
 func TestCheckValidate(t *testing.T) {
@@ -296,6 +308,29 @@ func TestCheckValidate(t *testing.T) {
 			},
 			expectError: true,
 		},
+		"valid multihttp check": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "https://example.org/",
+				Job:       "job",
+				Frequency: 60000,
+				Timeout:   10000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Multihttp: &MultiHttpSettings{
+						Entries: []*MultiHttpEntry{
+							{
+								Request: &MultiHttpEntryRequest{
+									Url: "https://example.org/",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
 		"valid multihttp variable": {
 			input: Check{
 				Id:        1,
@@ -347,11 +382,11 @@ func TestCheckValidate(t *testing.T) {
 			},
 			expectError: false,
 		},
-		"invalid multihttp target": {
+		"empty multihttp check": {
 			input: Check{
 				Id:        1,
 				TenantId:  1,
-				Target:    "example.com",
+				Target:    "",
 				Job:       "job",
 				Frequency: 60000,
 				Timeout:   10000,
@@ -361,7 +396,7 @@ func TestCheckValidate(t *testing.T) {
 						Entries: []*MultiHttpEntry{
 							{
 								Request: &MultiHttpEntryRequest{
-									Url: "example.com",
+									Url: "https://example.org/",
 								},
 							},
 						},
@@ -369,6 +404,52 @@ func TestCheckValidate(t *testing.T) {
 				},
 			},
 			expectError: true,
+		},
+		"invalid multihttp URL": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "example.com", // this is fine
+				Job:       "job",
+				Frequency: 60000,
+				Timeout:   10000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Multihttp: &MultiHttpSettings{
+						Entries: []*MultiHttpEntry{
+							{
+								Request: &MultiHttpEntryRequest{
+									Url: "example.com", // this is the problem
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		"multihttp target must not be an URL": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "example.com", // this is fine
+				Job:       "job",
+				Frequency: 60000,
+				Timeout:   10000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Multihttp: &MultiHttpSettings{
+						Entries: []*MultiHttpEntry{
+							{
+								Request: &MultiHttpEntryRequest{
+									Url: "http://example.com",
+								},
+							},
+						},
+					},
+				},
+			},
+			expectError: false,
 		},
 		"invalid multihttp second target": {
 			input: Check{
@@ -498,6 +579,10 @@ func TestCheckClass(t *testing.T) {
 			input:    validCheckCases[CheckTypeMultiHttp],
 			expected: CheckClassScripted,
 		},
+		CheckTypeGrpc.String(): {
+			input:    validCheckCases[CheckTypeGrpc],
+			expected: CheckClassProtocol,
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -594,6 +679,10 @@ func TestCheckTypeClass(t *testing.T) {
 		CheckTypeMultiHttp.String(): {
 			input:    CheckTypeMultiHttp,
 			expected: CheckClassScripted,
+		},
+		CheckTypeGrpc.String(): {
+			input:    CheckTypeGrpc,
+			expected: CheckClassProtocol,
 		},
 	}
 

@@ -1,6 +1,6 @@
-local go_tools_image = 'us.gcr.io/kubernetes-dev/go-tools:2023-10-10-v384623-f09f9eb30';
+local go_tools_image = 'ghcr.io/grafana/grafana-build-tools:v0.4.0';
 
-local step(name, commands, image='golang:1.21.3') = {
+local step(name, commands, image=go_tools_image) = {
   name: name,
   commands: commands,
   image: image,
@@ -139,13 +139,11 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
     + dependsOn([ 'lint', 'build' ]),
 
     docker_build('linux', 'amd64'),
-    docker_build('linux', 'arm', 'v7'),
     docker_build('linux', 'arm64', 'v8'),
 
     step('docker build', [ 'true' ], 'alpine')
     + dependsOn([
       'docker build (linux/amd64)',
-      'docker build (linux/arm/v7)',
       'docker build (linux/arm64/v8)',
     ]),
 
@@ -273,13 +271,13 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
           NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
         },
       },
-      step('test release', [ 'make release-snapshot' ]) + devAndRelease + {
+      step('test release', [ 'make release-snapshot' ]) + {
         environment: {
           NFPM_DEFAULT_PASSPHRASE: { from_secret: 'gpg_passphrase' },
           NFPM_SIGNING_KEY_FILE: '/drone/src/release-private-key.key',
         },
       },
-      step('test deb package', [ './scripts/package/verify-deb-install.sh' ], image='docker') + devAndRelease + {
+      step('test deb package', [ './scripts/package/verify-deb-install.sh' ], image='docker') + {
         volumes: [
           {
             name: 'docker',
@@ -288,7 +286,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
         ],
         privileged: true,
       },
-      step('test rpm package', [ './scripts/package/verify-rpm-install.sh' ], image='docker') + devAndRelease + {
+      step('test rpm package', [ './scripts/package/verify-rpm-install.sh' ], image='docker') + {
         volumes: [
           {
             name: 'docker',

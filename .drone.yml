@@ -13,13 +13,13 @@ steps:
   - ./scripts/enforce-clean
   depends_on:
   - runner identification
-  image: golang:1.21.3
+  image: ghcr.io/grafana/grafana-build-tools:v0.4.0
   name: deps
 - commands:
   - make lint
   depends_on:
   - deps
-  image: us.gcr.io/kubernetes-dev/go-tools:2023-10-10-v384623-f09f9eb30
+  image: ghcr.io/grafana/grafana-build-tools:v0.4.0
   name: lint
 - commands:
   - git fetch origin --tags
@@ -30,14 +30,14 @@ steps:
   - make build
   depends_on:
   - deps
-  image: us.gcr.io/kubernetes-dev/go-tools:2023-10-10-v384623-f09f9eb30
+  image: ghcr.io/grafana/grafana-build-tools:v0.4.0
   name: build
 - commands:
   - make test
   depends_on:
   - lint
   - build
-  image: golang:1.21.3
+  image: ghcr.io/grafana/grafana-build-tools:v0.4.0
   name: test
 - commands: []
   depends_on:
@@ -59,21 +59,6 @@ steps:
   environment:
     DOCKER_BUILDKIT: "1"
   image: plugins/docker
-  name: docker build (linux/arm/v7)
-  settings:
-    build_args:
-    - TARGETPLATFORM=linux/arm/v7
-    - TARGETOS=linux
-    - TARGETARCH=arm
-    - TARGETVARIANT=v7
-    dry_run: "true"
-    repo: grafana/synthetic-monitoring-agent
-- commands: []
-  depends_on:
-  - build
-  environment:
-    DOCKER_BUILDKIT: "1"
-  image: plugins/docker
   name: docker build (linux/arm64/v8)
   settings:
     build_args:
@@ -87,7 +72,6 @@ steps:
   - "true"
   depends_on:
   - docker build (linux/amd64)
-  - docker build (linux/arm/v7)
   - docker build (linux/arm64/v8)
   image: alpine
   name: docker build
@@ -219,7 +203,7 @@ steps:
     NFPM_SIGNING_KEY:
       from_secret: gpg_private_key
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: golang:1.21.3
+  image: ghcr.io/grafana/grafana-build-tools:v0.4.0
   name: write-key
 - commands:
   - make release-snapshot
@@ -227,12 +211,8 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: golang:1.21.3
+  image: ghcr.io/grafana/grafana-build-tools:v0.4.0
   name: test release
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
 - commands:
   - ./scripts/package/verify-deb-install.sh
   image: docker
@@ -241,10 +221,6 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
 - commands:
   - ./scripts/package/verify-rpm-install.sh
   image: docker
@@ -253,10 +229,6 @@ steps:
   volumes:
   - name: docker
     path: /var/run/docker.sock
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
 - commands:
   - make release
   environment:
@@ -265,7 +237,7 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: golang:1.21.3
+  image: ghcr.io/grafana/grafana-build-tools:v0.4.0
   name: release
   when:
     ref:
@@ -328,6 +300,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 72eecfea65c577c29507054abf62f65c0ac112f188c72e6487eed4c298fd42c6
+hmac: 5fb7efe6e79672a68aadbece06cb2ab9a879000265c58781d68d0998967ca9bb
 
 ...

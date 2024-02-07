@@ -45,6 +45,7 @@ var (
 	ErrInvalidLabelName       = errors.New("invalid label name")
 	ErrInvalidLabelValue      = errors.New("invalid label value")
 	ErrDuplicateLabelName     = errors.New("duplicate label name")
+	ErrInvalidTargetValue     = errors.New("invalid target value")
 
 	ErrInvalidCheckSettings = errors.New("invalid check settings")
 
@@ -122,15 +123,16 @@ const (
 )
 
 const (
-	MaxMetricLabels        = 20  // Prometheus allows for 32 labels, but limit to 20.
-	MaxLogLabels           = 15  // Loki allows a maximum of 15 labels.
-	MaxCheckLabels         = 10  // Allow 10 user labels for checks,
-	MaxProbeLabels         = 3   // 3 for probes, leaving 7 for internal use.
-	MaxLabelValueLength    = 128 // Keep this number low so that the UI remains usable.
-	MaxPingPackets         = 10  // Allow 10 packets per ping.
-	MaxMultiHttpTargets    = 10  // Max targets per multi-http check.
-	MaxMultiHttpAssertions = 5   // Max assertions per multi-http target.
-	MaxMultiHttpVariables  = 5   // Max variables per multi-http target.
+	MaxMetricLabels          = 20   // Prometheus allows for 32 labels, but limit to 20.
+	MaxLogLabels             = 15   // Loki allows a maximum of 15 labels.
+	MaxCheckLabels           = 10   // Allow 10 user labels for checks,
+	MaxProbeLabels           = 3    // 3 for probes, leaving 7 for internal use.
+	maxValidLabelValueLength = 2048 // This is the actual max label value length.
+	MaxLabelValueLength      = 128  // Keep this number low so that the UI remains usable.
+	MaxPingPackets           = 10   // Allow 10 packets per ping.
+	MaxMultiHttpTargets      = 10   // Max targets per multi-http check.
+	MaxMultiHttpAssertions   = 5    // Max assertions per multi-http target.
+	MaxMultiHttpVariables    = 5    // Max variables per multi-http target.
 )
 
 type validatable interface {
@@ -158,6 +160,7 @@ const (
 	CheckTypeTraceroute CheckType = 4
 	CheckTypeK6         CheckType = 5
 	CheckTypeMultiHttp  CheckType = 6
+	CheckTypeGrpc       CheckType = 7
 )
 
 type CheckClass int32
@@ -199,6 +202,9 @@ func (c Check) Type() CheckType {
 	case c.Settings.Multihttp != nil:
 		return CheckTypeMultiHttp
 
+	case c.Settings.Grpc != nil:
+		return CheckTypeGrpc
+
 	default:
 		panic("unhandled check type")
 	}
@@ -210,7 +216,7 @@ func (c Check) Class() CheckClass {
 
 func (c CheckType) Class() CheckClass {
 	switch c {
-	case CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute:
+	case CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute, CheckTypeGrpc:
 		return CheckClassProtocol
 
 	case CheckTypeK6, CheckTypeMultiHttp:
@@ -259,6 +265,11 @@ func (c Check) Validate() error {
 }
 
 func (c Check) validateTarget() error {
+	// All targets must be valid label values.
+	if len(c.Target) > maxValidLabelValueLength {
+		return ErrInvalidTargetValue
+	}
+
 	switch c.Type() {
 	case CheckTypeDns:
 		if err := validateDnsTarget(c.Target); err != nil {
@@ -282,13 +293,17 @@ func (c Check) validateTarget() error {
 		}
 
 	case CheckTypeK6:
-		return validateHttpUrl(c.Target)
+		return nil
 
 	case CheckTypeMultiHttp:
 		// TODO(mem): checks MUST have a target, but in this case it's
 		// not true that the target must be a valid URL.
 		// validation of URLs is the responsibility of the MultihttpEntryRequest
 		return nil
+
+	case CheckTypeGrpc:
+		return validateHostPort(c.Target)
+
 	default:
 		panic("unhandled check type")
 	}
@@ -400,6 +415,9 @@ func (c AdHocCheck) Type() CheckType {
 	case c.Settings.Multihttp != nil:
 		return CheckTypeMultiHttp
 
+	case c.Settings.Grpc != nil:
+		return CheckTypeGrpc
+
 	default:
 		panic("unhandled check type")
 	}
@@ -483,8 +501,14 @@ func (c AdHocCheck) validateTarget() error {
 			return ErrInvalidTracerouteHostname
 		}
 
+	case CheckTypeK6:
+		return nil
+
 	case CheckTypeMultiHttp:
 		return nil
+
+	case CheckTypeGrpc:
+		return validateHostPort(c.Target)
 
 	default:
 		panic("unhandled check type")
@@ -531,6 +555,11 @@ func (s CheckSettings) Validate() error {
 	if s.Multihttp != nil {
 		settingsCount++
 		validateFn = s.Multihttp.Validate
+	}
+
+	if s.Grpc != nil {
+		settingsCount++
+		validateFn = s.Grpc.Validate
 	}
 
 	if settingsCount != 1 {
@@ -648,6 +677,10 @@ func (s *MultiHttpSettings) Validate() error {
 		return err
 	}
 
+	return nil
+}
+
+func (s *GrpcSettings) Validate() error {
 	return nil
 }
 
@@ -944,7 +977,7 @@ func (p *Probe) Validate() error {
 }
 
 func (l Label) Validate() error {
-	if len(l.Name) == 0 || len(l.Name) > MaxLabelValueLength {
+	if err := validateLabelValue(l.Name); err != nil {
 		return ErrInvalidLabelName
 	}
 
@@ -958,7 +991,11 @@ func (l Label) Validate() error {
 		}
 	}
 
-	if len(l.Value) == 0 || len(l.Value) > MaxLabelValueLength {
+	return validateLabelValue(l.Value)
+}
+
+func validateLabelValue(v string) error {
+	if len(v) == 0 || len(v) > MaxLabelValueLength {
 		return ErrInvalidLabelValue
 	}
 	return nil

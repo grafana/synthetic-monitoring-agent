@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
@@ -72,6 +73,7 @@ func TestScriptRun(t *testing.T) {
 
 func TestHttpRunnerRun(t *testing.T) {
 	scriptSrc := testhelper.MustReadFile(t, "testdata/test.js")
+	timeout := 1 * time.Second
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +84,15 @@ func TestHttpRunnerRun(t *testing.T) {
 		err := json.NewDecoder(r.Body).Decode(&req)
 		require.NoError(t, err)
 		require.Equal(t, scriptSrc, req.Script)
+		// The timeout in the request is not going to be exactly the
+		// original timeout because computers need some time to process
+		// data, and the timeout is set based on the remaining time
+		// until the deadline and the clock starts ticking as soon as
+		// the context is created. Check that the actual timeout is not
+		// greater than the expected value and that it's within 1% of
+		// the expected value.
+		require.LessOrEqual(t, req.Settings.Timeout, timeout.Milliseconds())
+		require.InEpsilon(t, timeout.Milliseconds(), req.Settings.Timeout, 0.01)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -102,7 +113,14 @@ func TestHttpRunnerRun(t *testing.T) {
 	runner := New(srv.URL + "/run")
 	require.IsType(t, &HttpRunner{}, runner)
 
-	ctx, cancel := testhelper.Context(context.Background(), t)
+	ctx := context.Background()
+	ctx, cancel := testhelper.Context(ctx, t)
+	t.Cleanup(cancel)
+
+	// By adding a timeout to the context passed to Run, the expectation is
+	// that the runner extracts the timeout from it and sets the
+	// corresponding field accordingly.
+	ctx, cancel = context.WithTimeout(ctx, timeout)
 	t.Cleanup(cancel)
 
 	_, err := runner.Run(ctx, scriptSrc)

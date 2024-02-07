@@ -61,6 +61,11 @@ func GetCheckAccountingClass(check synthetic_monitoring.Check) (string, error) {
 
 	case synthetic_monitoring.CheckTypeTraceroute:
 
+	case synthetic_monitoring.CheckTypeGrpc:
+		if check.Settings.Grpc.Tls {
+			key += "_ssl"
+		}
+
 	default:
 		return "", ErrUnhandledCheck
 	}
