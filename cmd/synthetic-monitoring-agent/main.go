@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
@@ -30,12 +31,16 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
+	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tenants"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
-const exitFail = 1
+const (
+	exitFail             = 1
+	defTelemetryTimeSpan = 5 // min
+)
 
 func run(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet(filepath.Base(args[0]), flag.ExitOnError)
@@ -55,6 +60,7 @@ func run(args []string, stdout io.Writer) error {
 		httpListenAddr       = flags.String("listen-address", "localhost:4050", "listen address")
 		k6URI                = flags.String("k6-uri", "k6", "how to run k6 (path or URL)")
 		selectedPublisher    = flags.String("publisher", pusherV1.Name, "publisher type (EXPERIMENTAL)")
+		telemetryTimeSpan    = flags.Int("telemetry-time-span", defTelemetryTimeSpan, "time span between telemetry push executions per tenant")
 	)
 
 	flags.Var(&features, "features", "optional feature flags")
@@ -226,6 +232,12 @@ func run(args []string, stdout io.Writer) error {
 	publisher := publisherFactory(ctx, tm, zl.With().Str("subsystem", "publisher").Str("version", *selectedPublisher).Logger(), promRegisterer)
 	limits := limits.NewTenantLimits(tm)
 
+	telemetry := telemetry.NewTelemeter(
+		ctx, uuid.New().String(), time.Duration(*telemetryTimeSpan)*time.Minute,
+		synthetic_monitoring.NewTelemetryClient(conn),
+		zl.With().Str("subsystem", "telemetry").Logger(),
+	)
+
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:           conn,
 		Logger:         zl.With().Str("subsystem", "updater").Logger(),
@@ -237,6 +249,7 @@ func run(args []string, stdout io.Writer) error {
 		Features:       features,
 		K6Runner:       k6Runner,
 		TenantLimits:   limits,
+		Telemeter:      telemetry,
 	})
 	if err != nil {
 		return fmt.Errorf("Cannot create checks updater: %w", err)

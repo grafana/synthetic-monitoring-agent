@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -66,6 +67,10 @@ type LabelsLimiter interface {
 	LogLabels(ctx context.Context, tenantID model.GlobalID) (int, error)
 }
 
+type Telemeter interface {
+	AddExecution(e telemetry.Execution)
+}
+
 type Scraper struct {
 	publisher     pusher.Publisher
 	cancel        context.CancelFunc
@@ -81,11 +86,13 @@ type Scraper struct {
 	errorCounter  IncrementerVec
 	summaries     map[uint64]prometheus.Summary
 	histograms    map[uint64]prometheus.Histogram
+	telemeter     Telemeter
 }
 
 type Factory func(
 	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger,
 	scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner, labelsLimiter LabelsLimiter,
+	telemeter *telemetry.Telemeter,
 ) (*Scraper, error)
 
 type (
@@ -111,8 +118,10 @@ func (d *probeData) Tenant() model.GlobalID {
 	return d.tenantId
 }
 
-func New(ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger,
-	scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner, labelsLimiter LabelsLimiter,
+func New(
+	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe,
+	logger zerolog.Logger, scrapeCounter Incrementer, errorCounter IncrementerVec,
+	k6runner k6runner.Runner, labelsLimiter LabelsLimiter, telemeter *telemetry.Telemeter,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
@@ -122,6 +131,7 @@ func New(ctx context.Context, check model.Check, publisher pusher.Publisher, pro
 		ErrorCounter:  errorCounter,
 		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id),
 		LabelsLimiter: labelsLimiter,
+		Telemeter:     telemeter,
 	})
 }
 
@@ -133,6 +143,7 @@ type ScraperOpts struct {
 	ErrorCounter  IncrementerVec
 	ProbeFactory  prober.ProberFactory
 	LabelsLimiter LabelsLimiter
+	Telemeter     Telemeter
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
@@ -170,6 +181,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		errorCounter:  opts.ErrorCounter,
 		summaries:     make(map[uint64]prometheus.Summary),
 		histograms:    make(map[uint64]prometheus.Histogram),
+		telemeter:     opts.Telemeter,
 	}, nil
 }
 
