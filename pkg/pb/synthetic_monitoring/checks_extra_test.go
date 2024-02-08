@@ -308,6 +308,21 @@ func TestCheckValidate(t *testing.T) {
 			},
 			expectError: true,
 		},
+		"valid HTTP check with long URL": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "http://example.org/" + strings.Repeat("x", maxValidLabelValueLength-len("http://example.org/")),
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{},
+				},
+			},
+			expectError: false,
+		},
 		"valid multihttp check": {
 			input: Check{
 				Id:        1,
