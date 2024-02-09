@@ -1642,3 +1642,101 @@ func TestScraperRun(t *testing.T) {
 		require.Greater(t, 0, e.Duration)
 	}
 }
+
+func TestTickWithOffset(t *testing.T) {
+	const (
+		WORK    = 1
+		IDLE    = 2
+		CLEANUP = 3
+	)
+
+	testcases := map[string]struct {
+		timeout  time.Duration
+		period   time.Duration
+		offset   time.Duration
+		maxIdle  time.Duration
+		minGap   time.Duration
+		expected []int
+	}{
+		"An idle worker running between regular runs": {
+			timeout: 1050 * time.Millisecond,
+			period:  500 * time.Millisecond,
+			offset:  1,
+			maxIdle: 100 * time.Millisecond,
+			minGap:  50 * time.Millisecond,
+			expected: []int{
+				WORK, // 0
+				IDLE, // 100
+				IDLE, // 200
+				IDLE, // 300
+				IDLE, // 400
+				WORK, // 500
+				IDLE, // 600
+				IDLE, // 700
+				IDLE, // 800
+				IDLE, // 900
+				WORK, // 1000
+				CLEANUP},
+		},
+		"An idle worker trying to run within gap duration of regular runs.": {
+			timeout: 1050 * time.Millisecond,
+			period:  500 * time.Millisecond,
+			offset:  1,
+			maxIdle: 100 * time.Millisecond,
+			minGap:  150 * time.Millisecond,
+			expected: []int{
+				WORK, // 0
+				IDLE, // 200, there's no idle at 100 because it's too close to the previous run
+				IDLE, // 300
+				WORK, // 500, there's no idle at 400 because it's too close to the next run
+				IDLE, // 700, there's no idle at 600 because it's too close to the previous run
+				IDLE, // 800
+				WORK, // 1000, there's no idle at 900 because it's too close to the next run
+				CLEANUP},
+		},
+		"A zero offset and a scraper that has already been cancelled.": {
+			timeout:  0, // this asks for immediate cancellation
+			period:   500 * time.Millisecond,
+			offset:   0,
+			maxIdle:  100 * time.Millisecond,
+			minGap:   150 * time.Millisecond,
+			expected: nil,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := testhelper.Context(context.Background(), t)
+			t.Cleanup(cancel)
+
+			// Append a particular marker to the results slice
+			// depending on which function was called by
+			// TestTickWithOffset. This allows us to test that the
+			// correct function is being called in the correct
+			// order.
+			var results []int
+
+			work := func(context.Context, time.Time) { results = append(results, WORK) }
+			idle := func(context.Context, time.Time) { results = append(results, IDLE) }
+			cleanup := func(context.Context, time.Time) { results = append(results, CLEANUP) }
+
+			stop := make(chan struct{})
+
+			if tc.timeout > 0 {
+				go func() {
+					time.Sleep(1050 * time.Millisecond)
+					close(stop)
+				}()
+			} else {
+				// why not in the goroutine? Because we need to
+				// make sure the channel is closed *before*
+				// calling tickWithOffset
+				close(stop)
+			}
+
+			tickWithOffset(ctx, stop, work, idle, cleanup, tc.period, tc.offset, tc.maxIdle, tc.minGap)
+
+			require.Equal(t, tc.expected, results)
+		})
+	}
+}
