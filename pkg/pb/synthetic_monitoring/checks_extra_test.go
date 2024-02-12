@@ -1715,6 +1715,59 @@ func TestMultiHttpEntryAssertionValidate(t *testing.T) {
 	})
 }
 
+func TestHttpRegexFields(t *testing.T) {
+	testValidate(t, TestCases[*HttpSettings]{
+		"body matches regexp parses": {
+			input: &HttpSettings{
+				FailIfBodyMatchesRegexp: []string{".*good stuff.*"},
+			},
+			expectError: false,
+		},
+		"body matches invalid regexp errors": {
+			input: &HttpSettings{
+				FailIfBodyMatchesRegexp: []string{"*good stuff*"},
+			},
+			expectError: true,
+		},
+		"body not matches regexp parses": {
+			input: &HttpSettings{
+				FailIfBodyNotMatchesRegexp: []string{".*good stuff.*"},
+			},
+			expectError: false,
+		},
+		"body not matches invalid regexp errors": {
+			input: &HttpSettings{
+				FailIfBodyNotMatchesRegexp: []string{"*good stuff*"},
+			},
+			expectError: true,
+		},
+		"header matches regexp parses": {
+			input: &HttpSettings{
+				FailIfHeaderMatchesRegexp: []HeaderMatch{{Regexp: ".*good stuff.*"}},
+			},
+			expectError: false,
+		},
+		"header matches invalid regexp errors": {
+			input: &HttpSettings{
+				FailIfHeaderMatchesRegexp: []HeaderMatch{{Regexp: "*good stuff*"}},
+			},
+			expectError: true,
+		},
+		"header not matches regexp parses": {
+			input: &HttpSettings{
+				FailIfHeaderNotMatchesRegexp: []HeaderMatch{{Regexp: ".*good stuff.*"}},
+			},
+			expectError: false,
+		},
+		"header not matches invalid regexp errors": {
+			input: &HttpSettings{
+				FailIfHeaderNotMatchesRegexp: []HeaderMatch{{Regexp: "*good stuff*"}},
+			},
+			expectError: true,
+		},
+	})
+}
+
 func TestMultiHttpEntryVariableValidate(t *testing.T) {
 	testValidate(t, TestCases[*MultiHttpEntryVariable]{
 		"zero value": {
