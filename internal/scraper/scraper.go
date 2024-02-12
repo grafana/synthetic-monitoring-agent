@@ -62,8 +62,8 @@ func NewIncrementerFromCounterVec(c *prometheus.CounterVec) IncrementerVec {
 }
 
 type LabelsLimiter interface {
-	MetricLabels(ctx context.Context, tenantID int64) (int, error)
-	LogLabels(ctx context.Context, tenantID int64) (int, error)
+	MetricLabels(ctx context.Context, tenantID model.GlobalID) (int, error)
+	LogLabels(ctx context.Context, tenantID model.GlobalID) (int, error)
 }
 
 type Scraper struct {
@@ -365,11 +365,11 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
 	)
 
-	maxMetricLabels, err := s.labelsLimiter.MetricLabels(ctx, s.check.TenantId)
+	maxMetricLabels, err := s.labelsLimiter.MetricLabels(ctx, s.check.GlobalTenantID())
 	if err != nil {
 		return nil, fmt.Errorf("retrieving tenant metric labels limit: %w", err)
 	}
-	maxLogLabels, err := s.labelsLimiter.LogLabels(ctx, s.check.TenantId)
+	maxLogLabels, err := s.labelsLimiter.LogLabels(ctx, s.check.GlobalTenantID())
 	if err != nil {
 		return nil, fmt.Errorf("retrieving tenant log labels limit: %w", err)
 	}

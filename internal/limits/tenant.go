@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -36,9 +37,9 @@ func NewTenantLimits(tp TenantProvider) *TenantLimits {
 }
 
 // MetricLabels returns the metric labels limit for the specified tenant.
-func (tl *TenantLimits) MetricLabels(ctx context.Context, tenantID int64) (int, error) {
+func (tl *TenantLimits) MetricLabels(ctx context.Context, tenantID model.GlobalID) (int, error) {
 	tenant, err := tl.tp.GetTenant(ctx, &sm.TenantInfo{
-		Id: tenantID,
+		Id: int64(tenantID),
 	})
 	if err != nil {
 		return 0, err
@@ -53,9 +54,9 @@ func (tl *TenantLimits) MetricLabels(ctx context.Context, tenantID int64) (int, 
 }
 
 // LogLabels returns the log labels limit for the specified tenant.
-func (tl *TenantLimits) LogLabels(ctx context.Context, tenantID int64) (int, error) {
+func (tl *TenantLimits) LogLabels(ctx context.Context, tenantID model.GlobalID) (int, error) {
 	tenant, err := tl.tp.GetTenant(ctx, &sm.TenantInfo{
-		Id: tenantID,
+		Id: int64(tenantID),
 	})
 	if err != nil {
 		return 0, err
@@ -70,7 +71,7 @@ func (tl *TenantLimits) LogLabels(ctx context.Context, tenantID int64) (int, err
 }
 
 // ValidateMetricLabels validates the given number of metric labels against the specific tenant limits.
-func (tl *TenantLimits) ValidateMetricLabels(ctx context.Context, tenantID int64, n int) error {
+func (tl *TenantLimits) ValidateMetricLabels(ctx context.Context, tenantID model.GlobalID, n int) error {
 	max, err := tl.MetricLabels(ctx, tenantID)
 	if err != nil {
 		return err
@@ -84,7 +85,7 @@ func (tl *TenantLimits) ValidateMetricLabels(ctx context.Context, tenantID int64
 }
 
 // ValidateLogLabels validates the given number of log labels against the specific tenant limits.
-func (tl *TenantLimits) ValidateLogLabels(ctx context.Context, tenantID int64, n int) error {
+func (tl *TenantLimits) ValidateLogLabels(ctx context.Context, tenantID model.GlobalID, n int) error {
 	max, err := tl.LogLabels(ctx, tenantID)
 	if err != nil {
 		return err
