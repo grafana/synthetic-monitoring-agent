@@ -117,11 +117,6 @@ type HandlerOpts struct {
 
 // NewHandler creates a new Handler using the specified options.
 func NewHandler(opts HandlerOpts) (*Handler, error) {
-	// We should never hit this, but just in case.
-	if !opts.Features.IsSet(feature.AdHoc) {
-		return nil, fmt.Errorf("AdHoc feature is not enabled")
-	}
-
 	opsCounter := prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: "sm",
