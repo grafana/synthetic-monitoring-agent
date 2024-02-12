@@ -1,15 +1,28 @@
 #!/bin/sh
 
-for req in git git-chglog ; do
-	if ! command -v "${req}" > /dev/null 2>&1 ; then
-		echo "E: '${req}' is needed to run this script. Abort."
+set -e
+
+must_find_cmd() {
+	cmd=$1
+
+	if command -v "${cmd}" > /dev/null 2>&1 ; then
+		echo "${cmd}"
+		return
+	elif [ -x "$PWD/scripts/go/bin/${cmd}" ] ; then
+		echo "$PWD/scripts/go/bin/${cmd}"
+		return
+	else
+		echo "E: '${cmd}' is needed to run this script. Abort." >&2
 		exit 1
 	fi
-done
+}
+
+git=$(must_find_cmd git)
+git_chglog=$(must_find_cmd git-chglog)
 
 next_version=$1
 
-cd "$(git rev-parse --show-toplevel)" || exit 2
+cd "$("${git}" rev-parse --show-toplevel)" || exit 2
 
 if test ! -e CHANGELOG.md ; then
 	echo "E: Expecting a CHANGELOG.md file in $PWD, none found. Abort."
@@ -17,7 +30,7 @@ if test ! -e CHANGELOG.md ; then
 fi
 
 current_version() {
-	git describe --tags HEAD | cut -d- -f1 | tr -d v
+	"${git}" describe --tags HEAD | cut -d- -f1 | tr -d v
 }
 
 next_version_patch() {
@@ -56,7 +69,7 @@ if test -z "${next_version}" ; then
 
 	EOT
 
-	git --no-pager log --pretty=tformat:'    %C(auto)%h %d %s' "v${cv}...HEAD"
+	"${git}" --no-pager log --pretty=tformat:'    %C(auto)%h %d %s' "v${cv}...HEAD"
 
 	cat <<-EOT
 
@@ -73,25 +86,25 @@ cleanup() {
 
 trap cleanup EXIT
 
-last_subject=$(git log --format=%s --max-count=1 | grep -E "^Release ${next_version}( \(#[0-9]+\))?\$")
+last_subject=$(git log --format=%s --max-count=1 | grep -E "^Release ${next_version}( \(#[0-9]+\))?\$" || true)
 
 if test -z "${last_subject}" ; then
 	# Need to create release notes.
-	cur_version=$(git describe --tags | cut -d- -f1)
+	cur_version=$("${git}" describe --tags | cut -d- -f1)
 
-	git chglog --next-tag "${next_version}" > CHANGELOG.md
+	"${git_chglog}" --next-tag "${next_version}" > CHANGELOG.md
 
-	git add CHANGELOG.md
+	"${git}" add CHANGELOG.md
 
-	git switch --create "release-${next_version}"
+	"${git}" switch --create "release-${next_version}"
 
 	cat > "${commit_msg}" <<-EOT
 	Release ${next_version}
 
-	$(git log --oneline --reverse "${cur_version}".. | cut -d' ' -f2- | sed -e 's,^,* ,')
+	$("${git}" log --oneline --reverse "${cur_version}".. | cut -d' ' -f2- | sed -e 's,^,* ,')
 	EOT
 
-	git commit --signoff --file="${commit_msg}"
+	"${git}" commit --signoff --file="${commit_msg}"
 
 	cat <<-EOT
 
@@ -103,9 +116,9 @@ if test -z "${last_subject}" ; then
 	EOT
 else
 	# Need to create tag.
-	git show --pretty=format:"%B" --no-patch > "${commit_msg}"
+	"${git}" show --pretty=format:"%B" --no-patch > "${commit_msg}"
 
-	git tag --annotate --file="${commit_msg}" "${next_version}"
+	"${git}" tag --annotate --file="${commit_msg}" "${next_version}"
 
 	cat <<-EOT
 	An annotated tag has been created for version ${next_version}.
