@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.20.0"></a>
+## [v0.20.0] - 2024-02-12
+### Fix
+- add test for HTTP check with a long URL
+
+
 <a name="v0.19.6"></a>
 ## [v0.19.6] - 2024-02-06
 ### Fix
@@ -539,7 +545,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.0...HEAD
+[v0.20.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.20.0
 [v0.19.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.5...v0.19.6
 [v0.19.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.4...v0.19.5
 [v0.19.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.3...v0.19.4
