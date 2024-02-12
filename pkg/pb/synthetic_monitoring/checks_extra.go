@@ -586,6 +586,7 @@ func (s *PingSettings) Validate() error {
 	return nil
 }
 
+//nolint:gocyclo
 func (s *HttpSettings) Validate() error {
 	for _, h := range s.Headers {
 		fields := strings.SplitN(h, ":", 2)
