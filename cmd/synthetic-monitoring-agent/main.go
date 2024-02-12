@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
@@ -221,6 +222,7 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	publisher := publisherFactory(ctx, tm, zl.With().Str("subsystem", "publisher").Str("version", *selectedPublisher).Logger(), promRegisterer)
+	limits := limits.NewTenantLimits(tm)
 
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:           conn,
@@ -232,6 +234,7 @@ func run(args []string, stdout io.Writer) error {
 		PromRegisterer: promRegisterer,
 		Features:       features,
 		K6Runner:       k6Runner,
+		TenantLimits:   limits,
 	})
 	if err != nil {
 		return fmt.Errorf("Cannot create checks updater: %w", err)

@@ -1042,6 +1042,19 @@ func (p testProber) Probe(ctx context.Context, target string, registry *promethe
 	return true
 }
 
+type testLabelsLimiter struct {
+	maxMetricLabels int
+	maxLogLabels    int
+}
+
+func (l testLabelsLimiter) MetricLabels(ctx context.Context, tenantID int64) (int, error) {
+	return l.maxMetricLabels, nil
+}
+
+func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID int64) (int, error) {
+	return l.maxLogLabels, nil
+}
+
 //nolint:gocyclo
 func TestScraperCollectData(t *testing.T) {
 	const (
@@ -1104,6 +1117,8 @@ func TestScraperCollectData(t *testing.T) {
 	}
 
 	type testcase struct {
+		maxMetricLabels      int
+		maxLogLabels         int
 		checkLabels          []sm.Label
 		probeLabels          []sm.Label
 		expectedMetricLabels map[string]string
@@ -1112,14 +1127,23 @@ func TestScraperCollectData(t *testing.T) {
 		expectedLogEntries   map[string]string
 	}
 
+	const (
+		defMaxMetricLabels = 20
+		defMaxLogLabels    = 15
+	)
+
 	testcases := map[string]testcase{
 		"trivial": {
+			maxMetricLabels:      defMaxMetricLabels,
+			maxLogLabels:         defMaxLogLabels,
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
 			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels),
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels),
 		},
 		"probe labels": {
+			maxMetricLabels:      defMaxMetricLabels,
+			maxLogLabels:         defMaxLogLabels,
 			probeLabels:          generateLabels(1, 3, "p"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
 			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(1, 3, "p")),
@@ -1127,6 +1151,8 @@ func TestScraperCollectData(t *testing.T) {
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "p")),
 		},
 		"check labels": {
+			maxMetricLabels:      defMaxMetricLabels,
+			maxLogLabels:         defMaxLogLabels,
 			checkLabels:          generateLabels(1, 3, "c"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
 			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(1, 3, "c")),
@@ -1134,6 +1160,8 @@ func TestScraperCollectData(t *testing.T) {
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c")),
 		},
 		"check and probe labels": {
+			maxMetricLabels:      defMaxMetricLabels,
+			maxLogLabels:         defMaxLogLabels,
 			checkLabels:          generateLabels(1, 2, "c"),
 			probeLabels:          generateLabels(3, 1, "p"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
@@ -1142,6 +1170,8 @@ func TestScraperCollectData(t *testing.T) {
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
 		},
 		"check and probe labels overlapping": {
+			maxMetricLabels:      defMaxMetricLabels,
+			maxLogLabels:         defMaxLogLabels,
 			checkLabels:          generateLabels(1, 2, "c"),
 			probeLabels:          generateLabels(2, 2, "p"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
@@ -1149,16 +1179,25 @@ func TestScraperCollectData(t *testing.T) {
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
 		},
-		"max labels": {
+		"max labels truncate": {
+			maxMetricLabels:      defMaxMetricLabels,
+			maxLogLabels:         defMaxLogLabels,
 			checkLabels:          generateLabels(0, 10, "c"),
 			probeLabels:          generateLabels(10, 3, "p"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
 			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 3, "p")),
-			// Since Loki allows for 15 labels, so anything
-			// after 15 will be dropped from the _labels_,
-			// not from the entry.
-			expectedLogLabels:  mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 5, "c"), generateLabelSet(10, 3, "p")),
-			expectedLogEntries: mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 3, "p")),
+			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 5, "c"), generateLabelSet(10, 3, "p")),
+			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 3, "p")),
+		},
+		"max labels override": {
+			maxMetricLabels:      21,
+			maxLogLabels:         21,
+			checkLabels:          generateLabels(0, 10, "c"),
+			probeLabels:          generateLabels(10, 4, "p"),
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
+			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
+			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
 		},
 	}
 
@@ -1272,10 +1311,14 @@ func TestScraperCollectData(t *testing.T) {
 		tc := tc
 		t.Run(name, func(t *testing.T) {
 			s := Scraper{
-				checkName:  checkName,
-				target:     "test target",
-				logger:     zerolog.Nop(),
-				prober:     testProber{},
+				checkName: checkName,
+				target:    "test target",
+				logger:    zerolog.Nop(),
+				prober:    testProber{},
+				labelsLimiter: testLabelsLimiter{
+					maxMetricLabels: tc.maxMetricLabels,
+					maxLogLabels:    tc.maxLogLabels,
+				},
 				summaries:  make(map[uint64]prometheus.Summary),
 				histograms: make(map[uint64]prometheus.Histogram),
 				check: model.Check{
@@ -1559,6 +1602,10 @@ func TestScraperRun(t *testing.T) {
 		ProbeFactory:  testProbeFactory{builder: func() prober.Prober { return testProber }},
 		Logger:        zerolog.New(zerolog.NewTestWriter(t)),
 		Publisher:     &testPublisher{},
+		LabelsLimiter: testLabelsLimiter{
+			maxMetricLabels: 20,
+			maxLogLabels:    15,
+		},
 	})
 
 	require.NoError(t, err)

@@ -265,8 +265,7 @@ func TestHandleCheckOp(t *testing.T) {
 	require.False(t, scraperExists())
 }
 
-type testProber struct {
-}
+type testProber struct{}
 
 func (testProber) Name() string {
 	return "test-prober"
@@ -276,14 +275,29 @@ func (testProber) Probe(ctx context.Context, target string, registry *prometheus
 	return false
 }
 
-type testProbeFactory struct {
-}
+type testProbeFactory struct{}
 
 func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check model.Check) (prober.Prober, string, error) {
 	return testProber{}, check.Target, nil
 }
 
-func testScraperFactory(ctx context.Context, check model.Check, publisher pusher.Publisher, _ sm.Probe, logger zerolog.Logger, scrapeCounter scraper.Incrementer, scrapeErrorCounter scraper.IncrementerVec, k6Runner k6runner.Runner) (*scraper.Scraper, error) {
+type testLabelsLimiter struct {
+	metricLabelsLimit int
+	logLabelsLimit    int
+}
+
+func (l testLabelsLimiter) MetricLabels(ctx context.Context, tenantID int64) (int, error) {
+	return l.metricLabelsLimit, nil
+}
+
+func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID int64) (int, error) {
+	return l.logLabelsLimit, nil
+}
+
+func testScraperFactory(ctx context.Context, check model.Check, publisher pusher.Publisher,
+	_ sm.Probe, logger zerolog.Logger, scrapeCounter scraper.Incrementer, scrapeErrorCounter scraper.IncrementerVec,
+	k6Runner k6runner.Runner, labelsLimiter scraper.LabelsLimiter,
+) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
 		check,
@@ -293,6 +307,7 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 			ProbeFactory:  testProbeFactory{},
 			Publisher:     publisher,
 			ScrapeCounter: scrapeCounter,
+			LabelsLimiter: testLabelsLimiter{},
 		},
 	)
 }

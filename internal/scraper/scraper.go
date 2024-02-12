@@ -61,6 +61,11 @@ func NewIncrementerFromCounterVec(c *prometheus.CounterVec) IncrementerVec {
 	return &counterVecWrapper{c: c}
 }
 
+type LabelsLimiter interface {
+	MetricLabels(ctx context.Context, tenantID int64) (int, error)
+	LogLabels(ctx context.Context, tenantID int64) (int, error)
+}
+
 type Scraper struct {
 	publisher     pusher.Publisher
 	cancel        context.CancelFunc
@@ -70,6 +75,7 @@ type Scraper struct {
 	check         model.Check
 	probe         sm.Probe
 	prober        prober.Prober
+	labelsLimiter LabelsLimiter
 	stop          chan struct{}
 	scrapeCounter Incrementer
 	errorCounter  IncrementerVec
@@ -77,8 +83,15 @@ type Scraper struct {
 	histograms    map[uint64]prometheus.Histogram
 }
 
-type TimeSeries = []prompb.TimeSeries
-type Streams = []logproto.Stream
+type Factory func(
+	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger,
+	scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner, labelsLimiter LabelsLimiter,
+) (*Scraper, error)
+
+type (
+	TimeSeries = []prompb.TimeSeries
+	Streams    = []logproto.Stream
+)
 
 type probeData struct {
 	tenantId model.GlobalID
@@ -98,7 +111,9 @@ func (d *probeData) Tenant() model.GlobalID {
 	return d.tenantId
 }
 
-func New(ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger, scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner) (*Scraper, error) {
+func New(ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger,
+	scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner, labelsLimiter LabelsLimiter,
+) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
 		Publisher:     publisher,
@@ -106,6 +121,7 @@ func New(ctx context.Context, check model.Check, publisher pusher.Publisher, pro
 		ScrapeCounter: scrapeCounter,
 		ErrorCounter:  errorCounter,
 		ProbeFactory:  prober.NewProberFactory(k6runner),
+		LabelsLimiter: labelsLimiter,
 	})
 }
 
@@ -116,6 +132,7 @@ type ScraperOpts struct {
 	ScrapeCounter Incrementer
 	ErrorCounter  IncrementerVec
 	ProbeFactory  prober.ProberFactory
+	LabelsLimiter LabelsLimiter
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
@@ -147,6 +164,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		check:         check,
 		probe:         opts.Probe,
 		prober:        smProber,
+		labelsLimiter: opts.LabelsLimiter,
 		stop:          make(chan struct{}),
 		scrapeCounter: opts.ScrapeCounter,
 		errorCounter:  opts.ErrorCounter,
@@ -339,21 +357,28 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
-	target := s.target
+	var (
+		target = s.target
+		// These are the labels defined by the user.
+		userLabels = s.buildUserLabels()
+		// These labels are applied to the sm_check_info metric.
+		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
+	)
 
-	// These are the labels defined by the user.
-	userLabels := s.buildUserLabels()
+	maxMetricLabels, err := s.labelsLimiter.MetricLabels(ctx, s.check.TenantId)
+	if err != nil {
+		return nil, fmt.Errorf("retrieving tenant metric labels limit: %w", err)
+	}
+	maxLogLabels, err := s.labelsLimiter.LogLabels(ctx, s.check.TenantId)
+	if err != nil {
+		return nil, fmt.Errorf("retrieving tenant log labels limit: %w", err)
+	}
 
-	// These labels are applied to the sm_check_info metric.
-	checkInfoLabels := s.buildCheckInfoLabels(userLabels)
-
-	if len(checkInfoLabels) > sm.MaxMetricLabels {
+	if len(checkInfoLabels) > maxMetricLabels {
 		// This should never happen.
 		return nil, fmt.Errorf("invalid configuration, too many labels: %d", len(checkInfoLabels))
 	}
 
-	// GrafanaCloud loki limits log entries to 15 labels.
-	// 7 labels are needed here, leaving 8 labels for users to split between to checks and probes.
 	logLabels := []labelPair{
 		{name: "probe", value: s.probe.Name},
 		{name: "region", value: s.probe.Region},
@@ -409,8 +434,8 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		successValue = "0"
 	}
 
-	if len(logLabels) >= sm.MaxLogLabels {
-		logLabels = logLabels[:sm.MaxLogLabels-1]
+	if len(logLabels) >= maxLogLabels {
+		logLabels = logLabels[:maxLogLabels-1]
 	}
 	logLabels = append(logLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
 
