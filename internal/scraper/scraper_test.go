@@ -1047,11 +1047,11 @@ type testLabelsLimiter struct {
 	maxLogLabels    int
 }
 
-func (l testLabelsLimiter) MetricLabels(ctx context.Context, tenantID int64) (int, error) {
+func (l testLabelsLimiter) MetricLabels(ctx context.Context, tenantID model.GlobalID) (int, error) {
 	return l.maxMetricLabels, nil
 }
 
-func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID int64) (int, error) {
+func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalID) (int, error) {
 	return l.maxLogLabels, nil
 }
 

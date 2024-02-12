@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +46,7 @@ func TestMetricLabels(t *testing.T) {
 
 	testCases := []struct {
 		name      string
-		tenantID  int
+		tenantID  model.GlobalID
 		expLabels int
 		expErr    error
 	}{
@@ -73,7 +74,7 @@ func TestMetricLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ll, err := tl.MetricLabels(ctx, int64(tc.tenantID))
+			ll, err := tl.MetricLabels(ctx, tc.tenantID)
 			if err != nil {
 				require.Equal(t, tc.expErr, err)
 			}
@@ -87,7 +88,7 @@ func TestLogLabels(t *testing.T) {
 
 	testCases := []struct {
 		name      string
-		tenantID  int
+		tenantID  model.GlobalID
 		expLabels int
 		expErr    error
 	}{
@@ -115,7 +116,7 @@ func TestLogLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			ll, err := tl.LogLabels(ctx, int64(tc.tenantID))
+			ll, err := tl.LogLabels(ctx, tc.tenantID)
 			if err != nil {
 				require.Equal(t, tc.expErr, err)
 			}
@@ -129,7 +130,7 @@ func TestValidateMetricLabels(t *testing.T) {
 
 	testCases := []struct {
 		name     string
-		tenantID int
+		tenantID model.GlobalID
 		nLabels  int
 		expErr   error
 	}{
@@ -169,7 +170,7 @@ func TestValidateMetricLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tl.ValidateMetricLabels(ctx, int64(tc.tenantID), tc.nLabels)
+			err := tl.ValidateMetricLabels(ctx, tc.tenantID, tc.nLabels)
 			require.Equal(t, tc.expErr, err)
 		})
 	}
@@ -180,7 +181,7 @@ func TestValidateLogLabels(t *testing.T) {
 
 	testCases := []struct {
 		name     string
-		tenantID int
+		tenantID model.GlobalID
 		nLabels  int
 		expErr   error
 	}{
@@ -220,7 +221,7 @@ func TestValidateLogLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := tl.ValidateLogLabels(ctx, int64(tc.tenantID), tc.nLabels)
+			err := tl.ValidateLogLabels(ctx, tc.tenantID, tc.nLabels)
 			require.Equal(t, tc.expErr, err)
 		})
 	}
