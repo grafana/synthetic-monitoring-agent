@@ -131,6 +131,8 @@ func run(args []string, stdout io.Writer) error {
 		Bool("pprof-enabled", *enablePProf).
 		Msg("starting")
 
+	notifyAboutDeprecatedFeatureFlags(features, zl)
+
 	if features.IsSet(feature.K6) {
 		newUri, err := validateK6URI(*k6URI)
 		if err != nil {
@@ -244,25 +246,23 @@ func run(args []string, stdout io.Writer) error {
 		return checksUpdater.Run(ctx)
 	})
 
-	if features.IsSet(feature.AdHoc) {
-		adhocHandler, err := adhoc.NewHandler(adhoc.HandlerOpts{
-			Conn:           conn,
-			Logger:         zl.With().Str("subsystem", "adhoc").Logger(),
-			Backoff:        newConnectionBackoff(),
-			Publisher:      publisher,
-			TenantCh:       tenantCh,
-			PromRegisterer: promRegisterer,
-			Features:       features,
-			K6Runner:       k6Runner,
-		})
-		if err != nil {
-			return fmt.Errorf("Cannot create ad-hoc checks handler: %w", err)
-		}
-
-		g.Go(func() error {
-			return adhocHandler.Run(ctx)
-		})
+	adhocHandler, err := adhoc.NewHandler(adhoc.HandlerOpts{
+		Conn:           conn,
+		Logger:         zl.With().Str("subsystem", "adhoc").Logger(),
+		Backoff:        newConnectionBackoff(),
+		Publisher:      publisher,
+		TenantCh:       tenantCh,
+		PromRegisterer: promRegisterer,
+		Features:       features,
+		K6Runner:       k6Runner,
+	})
+	if err != nil {
+		return fmt.Errorf("Cannot create ad-hoc checks handler: %w", err)
 	}
+
+	g.Go(func() error {
+		return adhocHandler.Run(ctx)
+	})
 
 	return g.Wait()
 }
@@ -331,4 +331,12 @@ func validateK6URI(uri string) (string, error) {
 	}
 
 	return uri, nil
+}
+
+func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {
+	for _, ff := range []string{feature.AdHoc, feature.Traceroute} {
+		if features.IsSet(ff) {
+			zl.Info().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the --feature flag without loss of functionality", ff)
+		}
+	}
 }
