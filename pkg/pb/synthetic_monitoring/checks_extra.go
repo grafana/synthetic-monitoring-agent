@@ -25,6 +25,7 @@ import (
 	"mime"
 	"net"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -67,16 +68,20 @@ var (
 	ErrInvalidDnsRecordTypeString = errors.New("invalid DNS record type string")
 	ErrInvalidDnsRecordTypeValue  = errors.New("invalid DNS record type value")
 
-	ErrInvalidHttpUrl             = errors.New("invalid HTTP URL")
-	ErrInvalidHttpMethodString    = errors.New("invalid HTTP method string")
-	ErrInvalidHttpMethodValue     = errors.New("invalid HTTP method value")
-	ErrInvalidHttpUrlHost         = errors.New("invalid HTTP URL host")
-	ErrInvalidHttpHeaders         = errors.New("invalid HTTP headers")
-	ErrHttpUrlContainsPassword    = errors.New("HTTP URL contains username and password")
-	ErrHttpUrlContainsUsername    = errors.New("HTTP URL contains username")
-	ErrInvalidProxyConnectHeaders = errors.New("invalid HTTP proxy connect headers")
-	ErrInvalidProxyUrl            = errors.New("invalid proxy URL")
-	ErrInvalidProxySettings       = errors.New("invalid proxy settings")
+	ErrInvalidHttpUrl                          = errors.New("invalid HTTP URL")
+	ErrInvalidHttpMethodString                 = errors.New("invalid HTTP method string")
+	ErrInvalidHttpMethodValue                  = errors.New("invalid HTTP method value")
+	ErrInvalidHttpUrlHost                      = errors.New("invalid HTTP URL host")
+	ErrInvalidHttpHeaders                      = errors.New("invalid HTTP headers")
+	ErrInvalidHttpFailIfBodyMatchesRegexp      = errors.New("invalid HTTP fail if body matches regexp")
+	ErrInvalidHttpFailIfBodyNotMatchesRegexp   = errors.New("invalid HTTP fail if body not matches regexp")
+	ErrInvalidHttpFailIfHeaderMatchesRegexp    = errors.New("invalid HTTP fail if header matches regexp")
+	ErrInvalidHttpFailIfHeaderNotMatchesRegexp = errors.New("invalid HTTP fail if header not matches regexp")
+	ErrHttpUrlContainsPassword                 = errors.New("HTTP URL contains username and password")
+	ErrHttpUrlContainsUsername                 = errors.New("HTTP URL contains username")
+	ErrInvalidProxyConnectHeaders              = errors.New("invalid HTTP proxy connect headers")
+	ErrInvalidProxyUrl                         = errors.New("invalid proxy URL")
+	ErrInvalidProxySettings                    = errors.New("invalid proxy settings")
 
 	ErrInvalidTracerouteHostname = errors.New("invalid traceroute hostname")
 
@@ -581,6 +586,7 @@ func (s *PingSettings) Validate() error {
 	return nil
 }
 
+//nolint:gocyclo
 func (s *HttpSettings) Validate() error {
 	for _, h := range s.Headers {
 		fields := strings.SplitN(h, ":", 2)
@@ -630,6 +636,34 @@ func (s *HttpSettings) Validate() error {
 
 		if !httpguts.ValidHeaderFieldValue(fields[1]) {
 			return ErrInvalidProxyConnectHeaders
+		}
+	}
+
+	for _, reg := range s.FailIfBodyMatchesRegexp {
+		_, err := regexp.Compile(reg)
+		if err != nil {
+			return ErrInvalidHttpFailIfBodyMatchesRegexp
+		}
+	}
+
+	for _, reg := range s.FailIfBodyNotMatchesRegexp {
+		_, err := regexp.Compile(reg)
+		if err != nil {
+			return ErrInvalidHttpFailIfBodyNotMatchesRegexp
+		}
+	}
+
+	for _, match := range s.FailIfHeaderMatchesRegexp {
+		_, err := regexp.Compile(match.Regexp)
+		if err != nil {
+			return ErrInvalidHttpFailIfHeaderMatchesRegexp
+		}
+	}
+
+	for _, match := range s.FailIfHeaderNotMatchesRegexp {
+		_, err := regexp.Compile(match.Regexp)
+		if err != nil {
+			return ErrInvalidHttpFailIfHeaderNotMatchesRegexp
 		}
 	}
 
