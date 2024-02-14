@@ -2,6 +2,15 @@
 ## [Unreleased]
 
 
+<a name="v0.20.2"></a>
+## [v0.20.2] - 2024-02-13
+### Feature
+- promote adhoc to permanent feature ([#615](https://github.com/grafana/synthetic-monitoring-agent/issues/615))
+
+### Fix
+- missing http check regex validations ([#612](https://github.com/grafana/synthetic-monitoring-agent/issues/612))
+
+
 <a name="v0.20.1"></a>
 ## [v0.20.1] - 2024-02-12
 ### Fix
@@ -545,7 +554,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.1...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.2...HEAD
+[v0.20.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.1...v0.20.2
 [v0.20.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.20.1
 [v0.19.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.5...v0.19.6
 [v0.19.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.4...v0.19.5
