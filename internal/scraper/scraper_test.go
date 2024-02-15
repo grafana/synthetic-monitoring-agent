@@ -111,6 +111,7 @@ func TestValidateMetrics(t *testing.T) {
 					ctx,
 					check,
 					zerolog.New(io.Discard),
+					"",
 				)
 				if err != nil {
 					t.Fatalf("cannot create HTTP prober: %s", err)
@@ -144,6 +145,7 @@ func TestValidateMetrics(t *testing.T) {
 					ctx,
 					check,
 					zerolog.New(io.Discard),
+					"",
 				)
 				if err != nil {
 					t.Fatalf("cannot create HTTP prober: %s", err)

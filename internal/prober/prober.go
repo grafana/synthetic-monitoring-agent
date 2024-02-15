@@ -34,12 +34,14 @@ type ProberFactory interface {
 }
 
 type proberFactory struct {
-	runner k6runner.Runner
+	runner               k6runner.Runner
+	checkProbeIdentifier string
 }
 
-func NewProberFactory(runner k6runner.Runner) ProberFactory {
+func NewProberFactory(runner k6runner.Runner, checkProbeIdentifier string) ProberFactory {
 	return proberFactory{
-		runner: runner,
+		runner:               runner,
+		checkProbeIdentifier: checkProbeIdentifier,
 	}
 }
 
@@ -56,7 +58,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		target = check.Target
 
 	case sm.CheckTypeHttp:
-		p, err = http.NewProber(ctx, check.Check, logger)
+		p, err = http.NewProber(ctx, check.Check, logger, f.checkProbeIdentifier)
 		target = check.Target
 
 	case sm.CheckTypeDns:

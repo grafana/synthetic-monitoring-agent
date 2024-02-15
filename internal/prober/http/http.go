@@ -28,9 +28,15 @@ type Prober struct {
 	cacheBustingQueryParamName string
 }
 
-func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger) (Prober, error) {
+func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, checkProbeIdentifier string) (Prober, error) {
 	if check.Settings.Http == nil {
 		return Prober{}, errUnsupportedCheck
+	}
+
+	// x-sm-id header to simplify correlating request to the check it participates in ( for adhoc checks)
+	if checkProbeIdentifier != "" {
+		checkProbeHeader := fmt.Sprintf("x-sm-id:%s", checkProbeIdentifier)
+		augmentHttpHeaders(&check, []string{checkProbeHeader})
 	}
 
 	cfg, err := settingsToModule(ctx, check.Settings.Http, logger)
@@ -250,6 +256,11 @@ func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerol
 		}
 	}
 	return r, nil
+}
+
+func augmentHttpHeaders(check *sm.Check, additionalHeaders []string) {
+	httpHeaders := &check.Settings.Http.Headers
+	*httpHeaders = append(*httpHeaders, additionalHeaders...)
 }
 
 func buildHttpHeaders(headers []string) map[string]string {
