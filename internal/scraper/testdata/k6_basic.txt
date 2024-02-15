@@ -6,7 +6,7 @@ probe_data_received_bytes{scenario="default"} 0
 probe_data_sent_bytes{scenario="default"} 0
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 9.5332e-05
+probe_duration_seconds 1.9822e-05
 # HELP probe_iteration_duration_seconds 
 # TYPE probe_iteration_duration_seconds gauge
 probe_iteration_duration_seconds{scenario="default"} 2.142e-05
@@ -30,7 +30,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 9.5332e-05
+probe_all_duration_seconds_sum 1.9822e-05
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
