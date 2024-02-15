@@ -75,7 +75,7 @@ var validCheckCases = map[CheckType]Check{
 			Traceroute: &TracerouteSettings{},
 		},
 	},
-	CheckTypeK6: {
+	CheckTypeScripted: {
 		Id:        1,
 		TenantId:  1,
 		Target:    "http://www.example.org",
@@ -84,7 +84,7 @@ var validCheckCases = map[CheckType]Check{
 		Timeout:   10000,
 		Probes:    []int64{1},
 		Settings: CheckSettings{
-			K6: &K6Settings{
+			Scripted: &ScriptedSettings{
 				Script: []byte("// test"),
 			},
 		},

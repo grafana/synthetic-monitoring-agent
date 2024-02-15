@@ -170,7 +170,7 @@ func getTestCases() map[string]struct {
 				Target:  "http://127.0.0.1/",
 				Timeout: 2000,
 				Settings: synthetic_monitoring.CheckSettings{
-					K6: &synthetic_monitoring.ScriptedSettings{
+					Scripted: &synthetic_monitoring.ScriptedSettings{
 						Script: []byte(`export default function() {}`),
 					},
 				},
@@ -183,7 +183,7 @@ func getTestCases() map[string]struct {
 				Timeout:          2000,
 				BasicMetricsOnly: true,
 				Settings: synthetic_monitoring.CheckSettings{
-					K6: &synthetic_monitoring.ScriptedSettings{
+					Scripted: &synthetic_monitoring.ScriptedSettings{
 						Script: []byte(`export default function() {}`),
 					},
 				},
