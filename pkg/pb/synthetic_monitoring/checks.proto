@@ -269,8 +269,8 @@ message CheckSettings {
   TcpSettings        tcp        = 4 [(gogoproto.jsontag) = "tcp,omitempty"];
   TracerouteSettings traceroute = 5 [(gogoproto.jsontag) = "traceroute,omitempty"];
   ScriptedSettings   scripted   = 6 [(gogoproto.jsontag) = "scripted,omitempty"];   // experimental
-  MultiHttpSettings  multihttp  = 8 [(gogoproto.jsontag) = "multihttp,omitempty"];  // experimental
-  GrpcSettings grpc = 9 [(gogoproto.jsontag) = "grpc,omitempty"];  // experimental
+  MultiHttpSettings  multihttp  = 7 [(gogoproto.jsontag) = "multihttp,omitempty"];  // experimental
+  GrpcSettings grpc             = 8 [(gogoproto.jsontag) = "grpc,omitempty"];  // experimental
 }
 
 // PingSettings provides the settings for a ping check.
