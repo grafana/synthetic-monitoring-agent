@@ -29,9 +29,9 @@ import (
 	grpcProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/k6"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
+	k6 "github.com/grafana/synthetic-monitoring-agent/internal/prober/scripted"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -269,7 +269,7 @@ func TestValidateMetrics(t *testing.T) {
 					Target:  httpSrv.URL,
 					Timeout: 2000,
 					Settings: sm.CheckSettings{
-						K6: &sm.K6Settings{
+						Scripted: &sm.ScriptedSettings{
 							Script: []byte(`export default function() {}`),
 						},
 					},

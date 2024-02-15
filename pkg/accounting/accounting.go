@@ -48,7 +48,7 @@ func GetCheckAccountingClass(check synthetic_monitoring.Check) (string, error) {
 			key += "_ssl"
 		}
 
-	case synthetic_monitoring.CheckTypeK6:
+	case synthetic_monitoring.CheckTypeScripted:
 
 	case synthetic_monitoring.CheckTypeMultiHttp:
 

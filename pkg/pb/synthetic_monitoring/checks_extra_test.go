@@ -586,8 +586,8 @@ func TestCheckClass(t *testing.T) {
 			input:    validCheckCases[CheckTypeTraceroute],
 			expected: CheckClassProtocol,
 		},
-		CheckTypeK6.String(): {
-			input:    validCheckCases[CheckTypeK6],
+		CheckTypeScripted.String(): {
+			input:    validCheckCases[CheckTypeScripted],
 			expected: CheckClassScripted,
 		},
 		CheckTypeMultiHttp.String(): {
@@ -647,7 +647,7 @@ func TestCheckTypeString(t *testing.T) {
 			expected: "traceroute",
 		},
 		"k6": {
-			input:    CheckTypeK6,
+			input:    CheckTypeScripted,
 			expected: "k6",
 		},
 		"multihttp": {
@@ -687,8 +687,8 @@ func TestCheckTypeClass(t *testing.T) {
 			input:    CheckTypeTraceroute,
 			expected: CheckClassProtocol,
 		},
-		CheckTypeK6.String(): {
-			input:    CheckTypeK6,
+		CheckTypeScripted.String(): {
+			input:    CheckTypeScripted,
 			expected: CheckClassScripted,
 		},
 		CheckTypeMultiHttp.String(): {

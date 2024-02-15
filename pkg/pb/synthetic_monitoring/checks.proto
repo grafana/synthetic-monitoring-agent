@@ -268,9 +268,9 @@ message CheckSettings {
   DnsSettings        dns        = 3 [(gogoproto.jsontag) = "dns,omitempty"];
   TcpSettings        tcp        = 4 [(gogoproto.jsontag) = "tcp,omitempty"];
   TracerouteSettings traceroute = 5 [(gogoproto.jsontag) = "traceroute,omitempty"];
-  K6Settings         k6         = 6 [(gogoproto.jsontag) = "k6,omitempty"];         // experimental
-  MultiHttpSettings  multihttp  = 7 [(gogoproto.jsontag) = "multihttp,omitempty"];  // experimental
-  GrpcSettings grpc = 8 [(gogoproto.jsontag) = "grpc,omitempty"];  // experimental
+  ScriptedSettings   scripted   = 6 [(gogoproto.jsontag) = "scripted,omitempty"];   // experimental
+  MultiHttpSettings  multihttp  = 8 [(gogoproto.jsontag) = "multihttp,omitempty"];  // experimental
+  GrpcSettings grpc = 9 [(gogoproto.jsontag) = "grpc,omitempty"];  // experimental
 }
 
 // PingSettings provides the settings for a ping check.
@@ -461,7 +461,7 @@ message TracerouteSettings {
   int64 hopTimeout     = 4 [(gogoproto.jsontag) = "hopTimeout"];      // Timeout for individual hop pings
 }
 
-message K6Settings {
+message ScriptedSettings {
   bytes script = 1 [(gogoproto.jsontag) = "script"];
 }
 
