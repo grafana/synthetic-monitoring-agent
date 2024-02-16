@@ -263,7 +263,7 @@ func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerol
 // Overrides any user-provided headers with our own augmented values
 // for 'reserved' headers.
 func augmentHttpHeaders(check *sm.Check, additionalHeaders []string) {
-	filteredHeaders := []string{}
+	headers := []string{}
 	for _, header := range check.Settings.Http.Headers {
 		name, _ := strToHeaderNameValue(header)
 
@@ -271,11 +271,12 @@ func augmentHttpHeaders(check *sm.Check, additionalHeaders []string) {
 			continue // users can't override this header with their own value.
 		}
 
-		filteredHeaders = append(filteredHeaders, header)
+		headers = append(headers, header)
 	}
+	headers = append(headers, additionalHeaders...)
 
 	httpHeaders := &check.Settings.Http.Headers
-	*httpHeaders = append(filteredHeaders, additionalHeaders...)
+	*httpHeaders = headers
 }
 
 func buildHttpHeaders(headers []string) map[string]string {
