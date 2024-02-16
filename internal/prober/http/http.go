@@ -21,6 +21,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const checkProbeIdHeader = "x-sm-id"
+
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Prober struct {
@@ -35,7 +37,7 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, check
 
 	// x-sm-id header to simplify correlating request to the check it participates in ( for adhoc checks)
 	if checkProbeIdentifier != "" {
-		checkProbeHeader := fmt.Sprintf("x-sm-id:%s", checkProbeIdentifier)
+		checkProbeHeader := fmt.Sprintf("%s:%s", checkProbeIdHeader, checkProbeIdentifier)
 		augmentHttpHeaders(&check, []string{checkProbeHeader})
 	}
 
@@ -258,9 +260,22 @@ func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerol
 	return r, nil
 }
 
+// Overrides any user-provided headers with our own augmented values
+// for 'reserved' headers.
 func augmentHttpHeaders(check *sm.Check, additionalHeaders []string) {
+	filteredHeaders := []string{}
+	for _, header := range check.Settings.Http.Headers {
+		name, _ := strToHeaderNameValue(header)
+
+		if strings.ToLower(name) == checkProbeIdHeader {
+			continue // users can't override this header with their own value.
+		}
+
+		filteredHeaders = append(filteredHeaders, header)
+	}
+
 	httpHeaders := &check.Settings.Http.Headers
-	*httpHeaders = append(*httpHeaders, additionalHeaders...)
+	*httpHeaders = append(filteredHeaders, additionalHeaders...)
 }
 
 func buildHttpHeaders(headers []string) map[string]string {

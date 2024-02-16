@@ -36,7 +36,11 @@ func TestNewProber(t *testing.T) {
 				Id:     3,
 				Target: "www.grafana.com",
 				Settings: sm.CheckSettings{
-					Http: &sm.HttpSettings{},
+					Http: &sm.HttpSettings{
+						Headers: []string{
+							"X-SM-ID: 9880-98",
+						},
+					},
 				},
 			},
 			expected: Prober{
@@ -66,6 +70,7 @@ func TestNewProber(t *testing.T) {
 						Headers: []string{
 							"uSeR-aGeNt: test-user-agent",
 							"some-header: some-value",
+							"x-SM-iD: 3232-32",
 						},
 					},
 				},
