@@ -219,7 +219,7 @@ func TestProbe(t *testing.T) {
 			zl := zerolog.Logger{}
 			kl := log.NewLogfmtLogger(io.Discard)
 
-			prober, err := NewProber(ctx, check, zl, "1-1")
+			prober, err := NewProber(ctx, check, zl, "")
 			require.NoError(t, err)
 			require.Equal(t, tc.expectFailure, !prober.Probe(ctx, check.Target, registry, kl))
 
