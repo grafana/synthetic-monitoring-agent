@@ -1,4 +1,4 @@
-package k6
+package scripted
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const proberName = "k6"
+const proberName = "scripted"
 
 var errUnsupportedCheck = errors.New("unsupported check")
 

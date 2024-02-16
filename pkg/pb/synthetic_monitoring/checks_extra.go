@@ -164,7 +164,6 @@ const (
 	CheckTypeTcp        CheckType = 3
 	CheckTypeTraceroute CheckType = 4
 	CheckTypeScripted   CheckType = 5
-	CheckTypeK6         CheckType = CheckTypeScripted // backwards compatibility, remove in the future
 	CheckTypeMultiHttp  CheckType = 6
 	CheckTypeGrpc       CheckType = 7
 )
@@ -175,8 +174,6 @@ const (
 	CheckClassProtocol CheckClass = 0
 	CheckClassScripted CheckClass = 1
 )
-
-type K6Settings = ScriptedSettings
 
 func CheckTypeFromString(in string) (CheckType, bool) {
 	ct, err := CheckTypeString(in)

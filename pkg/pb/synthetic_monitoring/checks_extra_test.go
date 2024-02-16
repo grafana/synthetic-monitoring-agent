@@ -646,9 +646,9 @@ func TestCheckTypeString(t *testing.T) {
 			input:    CheckTypeTraceroute,
 			expected: "traceroute",
 		},
-		"k6": {
+		"scripted": {
 			input:    CheckTypeScripted,
-			expected: "k6",
+			expected: "scripted",
 		},
 		"multihttp": {
 			input:    CheckTypeMultiHttp,

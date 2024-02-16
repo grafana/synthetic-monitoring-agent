@@ -1,4 +1,4 @@
-package k6
+package scripted
 
 import (
 	"context"
