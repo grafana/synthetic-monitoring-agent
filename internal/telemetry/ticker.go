@@ -13,6 +13,7 @@ const (
 // can be mocked for more reliable tests.
 type ticker interface {
 	C() <-chan time.Time
+	Stop()
 }
 
 func newStdTicker(d time.Duration) *stdTicker {
@@ -29,6 +30,10 @@ type stdTicker struct {
 
 func (t *stdTicker) C() <-chan time.Time {
 	return t.Ticker.C
+}
+
+func (t *stdTicker) Stop() {
+	t.Ticker.Stop()
 }
 
 // withJitter sums a random jitter of [0, 59)s to the given duration.

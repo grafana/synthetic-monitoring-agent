@@ -148,9 +148,6 @@ func TestTenantPusher(t *testing.T) {
 		timeSpan = 1 * time.Second
 
 		logger = zerolog.Nop()
-		ticker = &testTicker{
-			c: make(chan time.Time),
-		}
 
 		// Because the push happens in a separate goroutine, we use a waitgroup
 		// to wait for the mock push client to finish before verifying the data
@@ -177,7 +174,7 @@ func TestTenantPusher(t *testing.T) {
 
 	// tickAndWait will tick the ticker once, so the push
 	// process starts, and wait for the push client to finish
-	tickAndWait := func() {
+	tickAndWait := func(ticker *testTicker) {
 		wg.Add(1)
 		defer wg.Wait()
 		ticker.c <- time.Now()
@@ -206,7 +203,11 @@ func TestTenantPusher(t *testing.T) {
 			resetTestClient()
 		})
 
+		ticker := &testTicker{
+			c: make(chan time.Time),
+		}
 		var opt withTicker = ticker
+
 		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, opt)
 
 		// Add some executions
@@ -216,7 +217,7 @@ func TestTenantPusher(t *testing.T) {
 		testClient.rr = testPushRespOK
 
 		// Tick
-		tickAndWait()
+		tickAndWait(ticker)
 
 		// Verify sent data
 		testClient.assert(t, []sm.RegionTelemetry{mm[0]})
@@ -230,7 +231,11 @@ func TestTenantPusher(t *testing.T) {
 			resetTestClient()
 		})
 
+		ticker := &testTicker{
+			c: make(chan time.Time),
+		}
 		var opt withTicker = ticker
+
 		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, opt)
 
 		// Add some executions
@@ -240,8 +245,8 @@ func TestTenantPusher(t *testing.T) {
 		testClient.rr = testPushRespKO
 
 		// Tick twice, one for initial push and one for retry
-		tickAndWait()
-		tickAndWait()
+		tickAndWait(ticker)
+		tickAndWait(ticker)
 
 		// Verify sent data
 		testClient.assert(t, []sm.RegionTelemetry{mm[0], mm[0]})
@@ -255,7 +260,11 @@ func TestTenantPusher(t *testing.T) {
 			resetTestClient()
 		})
 
+		ticker := &testTicker{
+			c: make(chan time.Time),
+		}
 		var opt withTicker = ticker
+
 		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, opt)
 
 		// Add some executions
@@ -263,14 +272,14 @@ func TestTenantPusher(t *testing.T) {
 
 		// Set KO mock response for client and tick once
 		testClient.rr = testPushRespKO
-		tickAndWait()
+		tickAndWait(ticker)
 
 		// Send more executions
 		addExecutions(pusher, 4, 10)
 
 		// Set OK mock response for client and tick again
 		testClient.rr = testPushRespOK
-		tickAndWait()
+		tickAndWait(ticker)
 
 		// Verify sent data
 		testClient.assert(t, []sm.RegionTelemetry{
@@ -282,7 +291,11 @@ func TestTenantPusher(t *testing.T) {
 	t.Run("should push on context done", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
+		ticker := &testTicker{
+			c: make(chan time.Time),
+		}
 		var opt withTicker = ticker
+
 		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, opt)
 
 		// Add some executions
@@ -292,7 +305,7 @@ func TestTenantPusher(t *testing.T) {
 		testClient.rr = testPushRespKO
 
 		// Tick once, which should make the push fail
-		tickAndWait()
+		tickAndWait(ticker)
 
 		// Verify sent data
 		testClient.assert(t, []sm.RegionTelemetry{mm[0]})
@@ -316,6 +329,10 @@ type testTicker struct {
 
 func (t *testTicker) C() <-chan time.Time {
 	return t.c
+}
+
+func (t *testTicker) Stop() {
+	close(t.c)
 }
 
 type testPushResp struct {

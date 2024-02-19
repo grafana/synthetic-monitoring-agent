@@ -74,6 +74,7 @@ LOOP:
 			p.logger.Debug().Msg("region pusher stopping")
 			m := p.next()
 			p.push(m)
+			ticker.Stop()
 			break LOOP
 		}
 	}
