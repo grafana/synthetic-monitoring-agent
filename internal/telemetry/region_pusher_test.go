@@ -8,6 +8,8 @@ import (
 	"time"
 
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+
+	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -139,6 +141,13 @@ var (
 			},
 		},
 	}
+
+	m = RegionMetrics{
+		pushRequestsActive:   prom.NewGauge(prom.GaugeOpts{}),
+		pushRequestsDuration: prom.NewHistogram(prom.HistogramOpts{}),
+		pushRequestsTotal:    prom.NewCounter(prom.CounterOpts{}),
+		pushRequestsError:    prom.NewCounter(prom.CounterOpts{}),
+	}
 )
 
 func TestTenantPusher(t *testing.T) {
@@ -208,7 +217,7 @@ func TestTenantPusher(t *testing.T) {
 		}
 		var opt withTicker = ticker
 
-		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, opt)
+		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, m, opt)
 
 		// Add some executions
 		addExecutions(pusher, 0, 4)
@@ -236,7 +245,7 @@ func TestTenantPusher(t *testing.T) {
 		}
 		var opt withTicker = ticker
 
-		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, opt)
+		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, m, opt)
 
 		// Add some executions
 		addExecutions(pusher, 0, 4)
@@ -265,7 +274,7 @@ func TestTenantPusher(t *testing.T) {
 		}
 		var opt withTicker = ticker
 
-		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, opt)
+		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, m, opt)
 
 		// Add some executions
 		addExecutions(pusher, 0, 4)
@@ -296,7 +305,7 @@ func TestTenantPusher(t *testing.T) {
 		}
 		var opt withTicker = ticker
 
-		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, opt)
+		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, m, opt)
 
 		// Add some executions
 		addExecutions(pusher, 0, 4)

@@ -6,6 +6,8 @@ import (
 	"time"
 
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+
+	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 )
 
@@ -19,6 +21,31 @@ type RegionPusher struct {
 
 	telemetry   map[int64]map[sm.CheckClass]*sm.CheckClassTelemetry // Indexed by local tenant ID
 	telemetryMu sync.Mutex
+
+	metrics RegionMetrics
+}
+
+type RegionMetrics struct {
+	pushRequestsActive   prom.Gauge
+	pushRequestsDuration prom.Observer
+	pushRequestsTotal    prom.Counter
+	pushRequestsError    prom.Counter
+}
+
+// start handles region metrics before a push telemetry request.
+func (m *RegionMetrics) start() (start time.Time) {
+	m.pushRequestsActive.Inc()
+	m.pushRequestsTotal.Inc()
+	return time.Now()
+}
+
+// end handles region metrics after a push telemetry request.
+func (m *RegionMetrics) end(err error, start time.Time) {
+	m.pushRequestsActive.Dec()
+	m.pushRequestsDuration.Observe(time.Since(start).Seconds())
+	if err != nil {
+		m.pushRequestsError.Inc()
+	}
 }
 
 // NewRegionPusher builds a new RegionPusher.
@@ -28,7 +55,7 @@ type RegionPusher struct {
 func NewRegionPusher(
 	ctx context.Context, timeSpan time.Duration,
 	client sm.TelemetryClient, logger zerolog.Logger, instance string, regionID int32,
-	opts ...any,
+	metrics RegionMetrics, opts ...any,
 ) *RegionPusher {
 	tp := &RegionPusher{
 		client:    client,
@@ -36,6 +63,7 @@ func NewRegionPusher(
 		instance:  instance,
 		regionID:  regionID,
 		telemetry: make(map[int64]map[sm.CheckClass]*sm.CheckClassTelemetry),
+		metrics:   metrics,
 	}
 
 	var ticker ticker = newStdTicker(timeSpan)
@@ -131,10 +159,18 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 }
 
 func (p *RegionPusher) push(m sm.RegionTelemetry) {
+	var (
+		r   *sm.PushTelemetryResponse
+		err error
+	)
+
+	start := p.metrics.start()
+	defer p.metrics.end(err, start)
+
 	// We don't want to cancel a possibly ongoing request even if the agent
 	// context is done, therefore use background context
 	ctx := context.Background()
-	r, err := p.client.PushTelemetry(ctx, &m)
+	r, err = p.client.PushTelemetry(ctx, &m)
 	if err != nil {
 		p.logger.Err(err).Msg("error pushing telemetry")
 		return

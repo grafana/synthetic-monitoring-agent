@@ -2,10 +2,13 @@ package telemetry
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+
+	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 )
 
@@ -21,6 +24,15 @@ type Telemeter struct {
 
 	pushers   map[int32]*RegionPusher // Indexed by region ID
 	pushersMu sync.RWMutex
+
+	metrics metrics
+}
+
+type metrics struct {
+	pushRequestsActive   *prom.GaugeVec
+	pushRequestsDuration *prom.HistogramVec
+	pushRequestsTotal    *prom.CounterVec
+	pushRequestsError    *prom.CounterVec
 }
 
 // Execution represents the telemetry for a check execution.
@@ -33,7 +45,8 @@ type Execution struct {
 
 // NewTelemeter creates a new Telemeter component.
 func NewTelemeter(
-	ctx context.Context, instance string, pushTimeSpan time.Duration, client sm.TelemetryClient, logger zerolog.Logger,
+	ctx context.Context, instance string, pushTimeSpan time.Duration, client sm.TelemetryClient,
+	logger zerolog.Logger, registerer prom.Registerer,
 ) *Telemeter {
 	t := &Telemeter{
 		ctx:          ctx,
@@ -43,6 +56,8 @@ func NewTelemeter(
 		pushTimeSpan: pushTimeSpan,
 		pushers:      make(map[int32]*RegionPusher),
 	}
+
+	t.registerMetrics(registerer)
 
 	return t
 }
@@ -63,13 +78,59 @@ func (t *Telemeter) AddExecution(e Execution) {
 		Str("instance", t.instance).
 		Int32("regionId", e.RegionID).
 		Logger()
+	labels := prom.Labels{
+		"region_id": strconv.FormatInt(int64(e.RegionID), 10),
+	}
+	m := RegionMetrics{
+		t.metrics.pushRequestsActive.With(labels),
+		t.metrics.pushRequestsDuration.With(labels),
+		t.metrics.pushRequestsTotal.With(labels),
+		t.metrics.pushRequestsError.With(labels),
+	}
 	p := NewRegionPusher(
-		t.ctx, t.pushTimeSpan,
-		t.client, l, t.instance, e.RegionID,
+		t.ctx, t.pushTimeSpan, t.client,
+		l, t.instance, e.RegionID, m,
 	)
 	p.AddExecution(e)
 
 	t.pushersMu.Lock()
 	defer t.pushersMu.Unlock()
 	t.pushers[e.RegionID] = p
+}
+
+func (t *Telemeter) registerMetrics(registerer prom.Registerer) {
+	t.metrics.pushRequestsActive = prom.NewGaugeVec(prom.GaugeOpts{
+		Namespace:   "sm_agent",
+		Subsystem:   "telemetry",
+		Name:        "push_requests_active",
+		Help:        "Active push telemetry requests",
+		ConstLabels: prom.Labels{"instance": t.instance},
+	}, []string{"region_id"})
+	t.metrics.pushRequestsDuration = prom.NewHistogramVec(prom.HistogramOpts{
+		Namespace:   "sm_agent",
+		Subsystem:   "telemetry",
+		Name:        "push_requests_duration_seconds",
+		Help:        "Duration of push telemetry requests",
+		Buckets:     prom.ExponentialBucketsRange(0.01, 2.0, 10),
+		ConstLabels: prom.Labels{"instance": t.instance},
+	}, []string{"region_id"})
+	t.metrics.pushRequestsTotal = prom.NewCounterVec(prom.CounterOpts{
+		Namespace:   "sm_agent",
+		Subsystem:   "telemetry",
+		Name:        "push_requests_total",
+		Help:        "Total count of push telemetry requests",
+		ConstLabels: prom.Labels{"instance": t.instance},
+	}, []string{"region_id"})
+	t.metrics.pushRequestsError = prom.NewCounterVec(prom.CounterOpts{
+		Namespace:   "sm_agent",
+		Subsystem:   "telemetry",
+		Name:        "push_requests_errors_total",
+		Help:        "Total count of errored push telemetry requests",
+		ConstLabels: prom.Labels{"instance": t.instance},
+	}, []string{"region_id"})
+
+	registerer.MustRegister(t.metrics.pushRequestsActive)
+	registerer.MustRegister(t.metrics.pushRequestsDuration)
+	registerer.MustRegister(t.metrics.pushRequestsTotal)
+	registerer.MustRegister(t.metrics.pushRequestsError)
 }

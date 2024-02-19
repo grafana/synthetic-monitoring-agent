@@ -236,6 +236,7 @@ func run(args []string, stdout io.Writer) error {
 		ctx, uuid.New().String(), time.Duration(*telemetryTimeSpan)*time.Minute,
 		synthetic_monitoring.NewTelemetryClient(conn),
 		zl.With().Str("subsystem", "telemetry").Logger(),
+		promRegisterer,
 	)
 
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{

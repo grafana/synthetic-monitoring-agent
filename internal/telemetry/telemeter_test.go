@@ -6,6 +6,7 @@ import (
 	"time"
 
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
@@ -53,9 +54,10 @@ func TestTelemeterAddExecution(t *testing.T) {
 		ctx        = context.Background()
 		timeSpan   = 1 * time.Hour
 		testClient = &testTelemetryClient{}
+		registerer = prom.NewPedanticRegistry()
 	)
 
-	tele := NewTelemeter(ctx, instance, timeSpan, testClient, zerolog.Nop())
+	tele := NewTelemeter(ctx, instance, timeSpan, testClient, zerolog.Nop(), registerer)
 
 	t.Run("should init with no region pushers", func(t *testing.T) {
 		verifyTelemeter(t, tele, 0)
