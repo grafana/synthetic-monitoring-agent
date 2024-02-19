@@ -147,6 +147,7 @@ var (
 		pushRequestsDuration: prom.NewHistogram(prom.HistogramOpts{}),
 		pushRequestsTotal:    prom.NewCounter(prom.CounterOpts{}),
 		pushRequestsError:    prom.NewCounter(prom.CounterOpts{}),
+		addExecutionDuration: prom.NewHistogram(prom.HistogramOpts{}),
 	}
 )
 

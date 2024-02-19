@@ -33,6 +33,8 @@ type metrics struct {
 	pushRequestsDuration *prom.HistogramVec
 	pushRequestsTotal    *prom.CounterVec
 	pushRequestsError    *prom.CounterVec
+
+	addExecutionDuration *prom.HistogramVec
 }
 
 // Execution represents the telemetry for a check execution.
@@ -98,6 +100,7 @@ func (t *Telemeter) AddExecution(e Execution) {
 		t.metrics.pushRequestsDuration.With(labels),
 		t.metrics.pushRequestsTotal.With(labels),
 		t.metrics.pushRequestsError.With(labels),
+		t.metrics.addExecutionDuration.With(labels),
 	}
 	p := NewRegionPusher(
 		t.ctx, t.pushTimeSpan, t.client,
@@ -139,8 +142,21 @@ func (t *Telemeter) registerMetrics(registerer prom.Registerer) {
 		ConstLabels: prom.Labels{"instance": t.instance},
 	}, []string{"region_id"})
 
+	t.metrics.addExecutionDuration = prom.NewHistogramVec(prom.HistogramOpts{
+		Namespace:                       "sm_agent",
+		Subsystem:                       "telemetry",
+		Name:                            "add_execution_duration_seconds",
+		Help:                            "Duration of add telemetry executions",
+		Buckets:                         []float64{.00001, .00002, .00005, .0001, .0002, .0005, .001, .002, .005, .01, .02, .05, .1, .2},
+		NativeHistogramBucketFactor:     1.1,
+		NativeHistogramMaxBucketNumber:  100,
+		NativeHistogramMinResetDuration: time.Hour,
+		ConstLabels:                     prom.Labels{"instance": t.instance},
+	}, []string{"region_id"})
+
 	registerer.MustRegister(t.metrics.pushRequestsActive)
 	registerer.MustRegister(t.metrics.pushRequestsDuration)
 	registerer.MustRegister(t.metrics.pushRequestsTotal)
 	registerer.MustRegister(t.metrics.pushRequestsError)
+	registerer.MustRegister(t.metrics.addExecutionDuration)
 }

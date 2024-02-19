@@ -30,6 +30,8 @@ type RegionMetrics struct {
 	pushRequestsDuration prom.Observer
 	pushRequestsTotal    prom.Counter
 	pushRequestsError    prom.Counter
+
+	addExecutionDuration prom.Observer
 }
 
 // start handles region metrics before a push telemetry request.
@@ -110,6 +112,7 @@ LOOP:
 
 // AddExecution adds a new execution to the tenant telemetry.
 func (p *RegionPusher) AddExecution(e Execution) {
+	start := time.Now()
 	p.telemetryMu.Lock()
 	defer p.telemetryMu.Unlock()
 
@@ -127,6 +130,11 @@ func (p *RegionPusher) AddExecution(e Execution) {
 
 	clTele.Executions++
 	clTele.Duration += float32(e.Duration.Seconds())
+
+	// measure contention for AddExecution
+	p.metrics.addExecutionDuration.Observe(
+		time.Since(start).Seconds(),
+	)
 }
 
 func (p *RegionPusher) next() sm.RegionTelemetry {
