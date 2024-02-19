@@ -72,6 +72,18 @@ func (t *Telemeter) AddExecution(e Execution) {
 	}
 	t.pushersMu.RUnlock()
 
+	// There is a minimal time window here on which a concurrent request could
+	// acquire the lock for the same region, therefore, acquiere the W lock as
+	// soon as the R lock has been released to avoid overlapping work, and
+	// verify that once acquired there is still no pusher for the region.
+	// This section will only be executed "N regions" times.
+	t.pushersMu.Lock()
+	defer t.pushersMu.Unlock()
+	if p, ok := t.pushers[e.RegionID]; ok {
+		p.AddExecution(e)
+		return
+	}
+
 	// If we do not have a pusher for this region, create it
 	l := t.logger.With().
 		Str("component", "region-pusher").
@@ -93,8 +105,6 @@ func (t *Telemeter) AddExecution(e Execution) {
 	)
 	p.AddExecution(e)
 
-	t.pushersMu.Lock()
-	defer t.pushersMu.Unlock()
 	t.pushers[e.RegionID] = p
 }
 
