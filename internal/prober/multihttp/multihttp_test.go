@@ -2,6 +2,7 @@ package multihttp
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ func TestNewProber(t *testing.T) {
 		"valid": {
 			expectFailure: false,
 			check: sm.Check{
+				Id:        1,
 				Target:    "http://www.example.org",
 				Job:       "test",
 				Frequency: 10 * 1000,
@@ -52,6 +54,7 @@ func TestNewProber(t *testing.T) {
 		"settings must be valid": {
 			expectFailure: true,
 			check: sm.Check{
+				Id:        2,
 				Target:    "http://www.example.org",
 				Job:       "test",
 				Frequency: 10 * 1000,
@@ -70,6 +73,7 @@ func TestNewProber(t *testing.T) {
 		"must contain multihttp settings": {
 			expectFailure: true,
 			check: sm.Check{
+				Id:        3,
 				Target:    "http://www.example.org",
 				Job:       "test",
 				Frequency: 10 * 1000,
@@ -81,16 +85,51 @@ func TestNewProber(t *testing.T) {
 				},
 			},
 		},
+		"header overwrite protection is case-insensitive": {
+			expectFailure: false,
+			check: sm.Check{
+				Id:        4,
+				Target:    "http://www.example.org",
+				Job:       "test",
+				Frequency: 10 * 1000,
+				Timeout:   10 * 1000,
+				Probes:    []int64{1},
+				Settings: sm.CheckSettings{
+					Multihttp: &sm.MultiHttpSettings{
+						Entries: []*sm.MultiHttpEntry{
+							{
+								Request: &sm.MultiHttpEntryRequest{
+									Url:     "http://www.example.org",
+									Headers: []*sm.HttpHeader{{Name: "X-sM-Id", Value: "9880-9880"}},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			var runner noopRunner
-			p, err := NewProber(ctx, tc.check, logger, runner)
+			checkId := tc.check.Id
+			reservedHeaders := []sm.HttpHeader{{
+				Name:  "x-sm-id",
+				Value: fmt.Sprintf("%d-%d", checkId, checkId),
+			}}
+
+			p, err := NewProber(ctx, tc.check, logger, runner, reservedHeaders)
 			if tc.expectFailure {
 				require.Error(t, err)
 				return
 			}
+
+			requestHeaders := tc.check.Settings.Multihttp.Entries[0].Request.Headers
+			require.Equal(t, len(requestHeaders), 1) // reserved header is present
+
+			require.Equal(t, requestHeaders[0].Name, "x-sm-id")
+			require.Equal(t, requestHeaders[0].Value, fmt.Sprintf("%d-%d", checkId, checkId))
 
 			require.NoError(t, err)
 			require.Equal(t, proberName, p.config.Prober)

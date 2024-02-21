@@ -21,8 +21,6 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const checkProbeIdHeader = "x-sm-id"
-
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Prober struct {
@@ -30,15 +28,13 @@ type Prober struct {
 	cacheBustingQueryParamName string
 }
 
-func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, checkProbeIdentifier string) (Prober, error) {
+func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, reservedHeaders []sm.HttpHeader) (Prober, error) {
 	if check.Settings.Http == nil {
 		return Prober{}, errUnsupportedCheck
 	}
 
-	// x-sm-id header to simplify correlating request to the check it participates in ( for adhoc checks)
-	if checkProbeIdentifier != "" {
-		checkProbeHeader := fmt.Sprintf("%s:%s", checkProbeIdHeader, checkProbeIdentifier)
-		augmentHttpHeaders(&check, []string{checkProbeHeader})
+	if len(reservedHeaders) > 0 {
+		augmentHttpHeaders(&check, reservedHeaders)
 	}
 
 	cfg, err := settingsToModule(ctx, check.Settings.Http, logger)
@@ -261,22 +257,30 @@ func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerol
 }
 
 // Overrides any user-provided headers with our own augmented values
-// for 'reserved' headers.
-func augmentHttpHeaders(check *sm.Check, additionalHeaders []string) {
+// for reserved headers.
+func augmentHttpHeaders(check *sm.Check, reservedHeaders []sm.HttpHeader) {
+	reservedNames := make(map[string]struct{})
+	for _, header := range reservedHeaders {
+		reservedNames[header.Name] = struct{}{}
+	}
+
 	headers := []string{}
 	for _, header := range check.Settings.Http.Headers {
 		name, _ := strToHeaderNameValue(header)
 
-		if strings.ToLower(name) == checkProbeIdHeader {
-			continue // users can't override this header with their own value.
+		_, present := reservedNames[strings.ToLower(name)]
+		if present {
+			continue // users can't override reserved headers with their own values
 		}
 
 		headers = append(headers, header)
 	}
-	headers = append(headers, additionalHeaders...)
 
-	httpHeaders := &check.Settings.Http.Headers
-	*httpHeaders = headers
+	for _, reservedHeader := range reservedHeaders {
+		headers = append(headers, fmt.Sprintf("%s:%s", reservedHeader.Name, reservedHeader.Value))
+	}
+
+	check.Settings.Http.Headers = headers
 }
 
 func buildHttpHeaders(headers []string) map[string]string {

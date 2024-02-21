@@ -52,13 +52,18 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		err    error
 	)
 
+	reservedHeaders := make([]sm.HttpHeader, 0, 1)
+	if f.checkProbeIdentifier != "" {
+		reservedHeaders = append(reservedHeaders, sm.HttpHeader{Name: "x-sm-id", Value: f.checkProbeIdentifier})
+	}
+
 	switch checkType := check.Type(); checkType {
 	case sm.CheckTypePing:
 		p, err = icmp.NewProber(check.Check)
 		target = check.Target
 
 	case sm.CheckTypeHttp:
-		p, err = http.NewProber(ctx, check.Check, logger, f.checkProbeIdentifier)
+		p, err = http.NewProber(ctx, check.Check, logger, reservedHeaders)
 		target = check.Target
 
 	case sm.CheckTypeDns:
@@ -83,7 +88,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 
 	case sm.CheckTypeMultiHttp:
 		if f.runner != nil {
-			p, err = multihttp.NewProber(ctx, check.Check, logger, f.runner)
+			p, err = multihttp.NewProber(ctx, check.Check, logger, f.runner, reservedHeaders)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")

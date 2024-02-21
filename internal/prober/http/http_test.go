@@ -90,8 +90,11 @@ func TestNewProber(t *testing.T) {
 		ctx := context.Background()
 		logger := zerolog.New(io.Discard)
 		t.Run(name, func(t *testing.T) {
+			// origin identifier for http requests is checkId-probeId; testing with checkId twice in the absence of probeId
 			checkId := testcase.input.Id
-			actual, err := NewProber(ctx, testcase.input, logger, fmt.Sprintf("%d-%d", checkId, checkId))
+			reservedHeaders := []sm.HttpHeader{{Name: "x-sm-id", Value: fmt.Sprintf("%d-%d", checkId, checkId)}}
+
+			actual, err := NewProber(ctx, testcase.input, logger, reservedHeaders)
 			require.Equal(t, &testcase.expected, &actual)
 			if testcase.ExpectError {
 				require.Error(t, err, "unsupported check")
@@ -224,7 +227,7 @@ func TestProbe(t *testing.T) {
 			zl := zerolog.Logger{}
 			kl := log.NewLogfmtLogger(io.Discard)
 
-			prober, err := NewProber(ctx, check, zl, "")
+			prober, err := NewProber(ctx, check, zl, []sm.HttpHeader{})
 			require.NoError(t, err)
 			require.Equal(t, tc.expectFailure, !prober.Probe(ctx, check.Target, registry, kl))
 

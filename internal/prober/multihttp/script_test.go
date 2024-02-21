@@ -812,7 +812,7 @@ func TestSettingsToScript(t *testing.T) {
 	k6path := filepath.Join(testhelper.ModuleDir(t), "dist", "k6")
 	runner := k6runner.New(k6path)
 
-	prober, err := NewProber(ctx, check, logger, runner)
+	prober, err := NewProber(ctx, check, logger, runner, []sm.HttpHeader{})
 	require.NoError(t, err)
 
 	reg := prometheus.NewPedanticRegistry()
