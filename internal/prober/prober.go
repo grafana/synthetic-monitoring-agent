@@ -3,12 +3,13 @@ package prober
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
+	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
@@ -52,9 +53,9 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		err    error
 	)
 
-	reservedHeaders := make([]sm.HttpHeader, 0, 1)
+	reservedHeaders := http.Header{}
 	if f.checkProbeIdentifier != "" {
-		reservedHeaders = append(reservedHeaders, sm.HttpHeader{Name: "x-sm-id", Value: f.checkProbeIdentifier})
+		reservedHeaders["x-sm-id"] = []string{f.checkProbeIdentifier} // avoiding Add() to bypass canonicalization of the key
 	}
 
 	switch checkType := check.Type(); checkType {
@@ -63,7 +64,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		target = check.Target
 
 	case sm.CheckTypeHttp:
-		p, err = http.NewProber(ctx, check.Check, logger, reservedHeaders)
+		p, err = httpProber.NewProber(ctx, check.Check, logger, reservedHeaders)
 		target = check.Target
 
 	case sm.CheckTypeDns:

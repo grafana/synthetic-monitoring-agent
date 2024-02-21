@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -28,7 +29,7 @@ type Prober struct {
 	cacheBustingQueryParamName string
 }
 
-func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, reservedHeaders []sm.HttpHeader) (Prober, error) {
+func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, reservedHeaders http.Header) (Prober, error) {
 	if check.Settings.Http == nil {
 		return Prober{}, errUnsupportedCheck
 	}
@@ -258,17 +259,12 @@ func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerol
 
 // Overrides any user-provided headers with our own augmented values
 // for reserved headers.
-func augmentHttpHeaders(check *sm.Check, reservedHeaders []sm.HttpHeader) {
-	reservedNames := make(map[string]struct{})
-	for _, header := range reservedHeaders {
-		reservedNames[header.Name] = struct{}{}
-	}
-
+func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 	headers := []string{}
 	for _, header := range check.Settings.Http.Headers {
 		name, _ := strToHeaderNameValue(header)
 
-		_, present := reservedNames[strings.ToLower(name)]
+		_, present := reservedHeaders[strings.ToLower(name)]
 		if present {
 			continue // users can't override reserved headers with their own values
 		}
@@ -276,8 +272,8 @@ func augmentHttpHeaders(check *sm.Check, reservedHeaders []sm.HttpHeader) {
 		headers = append(headers, header)
 	}
 
-	for _, reservedHeader := range reservedHeaders {
-		headers = append(headers, fmt.Sprintf("%s:%s", reservedHeader.Name, reservedHeader.Value))
+	for header, values := range reservedHeaders {
+		headers = append(headers, fmt.Sprintf("%s:%s", header, strings.Join(values, ",")))
 	}
 
 	check.Settings.Http.Headers = headers

@@ -3,6 +3,7 @@ package multihttp
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"time"
 
@@ -28,7 +29,7 @@ type Prober struct {
 	script *k6runner.Script
 }
 
-func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders []sm.HttpHeader) (Prober, error) {
+func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Multihttp == nil {
@@ -95,21 +96,16 @@ func settingsToModule(settings *sm.MultiHttpSettings) Module {
 
 // Overrides any user-provided headers with our own augmented values
 // for 'reserved' headers.
-func augmentHttpHeaders(check *sm.Check, reservedHeaders []sm.HttpHeader) {
-	reservedNames := make(map[string]struct{})
-	for _, header := range reservedHeaders {
-		reservedNames[header.Name] = struct{}{}
-	}
-
+func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 	updatedHeaders := []*sm.HttpHeader{}
-	for _, header := range reservedHeaders {
-		updatedHeaders = append(updatedHeaders, &header)
+	for key, values := range reservedHeaders {
+		updatedHeaders = append(updatedHeaders, &sm.HttpHeader{Name: key, Value: strings.Join(values, ",")})
 	}
 
 	for _, entry := range check.Settings.Multihttp.Entries {
 		heads := entry.Request.Headers
 		for _, headerPtr := range heads {
-			_, present := reservedNames[strings.ToLower(headerPtr.Name)]
+			_, present := reservedHeaders[strings.ToLower(headerPtr.Name)]
 
 			if present {
 				continue // users can't override reserved headers with their own values

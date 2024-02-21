@@ -3,6 +3,7 @@ package multihttp
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
@@ -114,10 +115,8 @@ func TestNewProber(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var runner noopRunner
 			checkId := tc.check.Id
-			reservedHeaders := []sm.HttpHeader{{
-				Name:  "x-sm-id",
-				Value: fmt.Sprintf("%d-%d", checkId, checkId),
-			}}
+			reservedHeaders := http.Header{}
+			reservedHeaders["x-sm-id"] = []string{fmt.Sprintf("%d-%d", checkId, checkId)}
 
 			p, err := NewProber(ctx, tc.check, logger, runner, reservedHeaders)
 			if tc.expectFailure {

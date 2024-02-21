@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -92,7 +93,8 @@ func TestNewProber(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			// origin identifier for http requests is checkId-probeId; testing with checkId twice in the absence of probeId
 			checkId := testcase.input.Id
-			reservedHeaders := []sm.HttpHeader{{Name: "x-sm-id", Value: fmt.Sprintf("%d-%d", checkId, checkId)}}
+			reservedHeaders := http.Header{}
+			reservedHeaders["x-sm-id"] = []string{fmt.Sprintf("%d-%d", checkId, checkId)}
 
 			actual, err := NewProber(ctx, testcase.input, logger, reservedHeaders)
 			require.Equal(t, &testcase.expected, &actual)
@@ -227,7 +229,7 @@ func TestProbe(t *testing.T) {
 			zl := zerolog.Logger{}
 			kl := log.NewLogfmtLogger(io.Discard)
 
-			prober, err := NewProber(ctx, check, zl, []sm.HttpHeader{})
+			prober, err := NewProber(ctx, check, zl, http.Header{})
 			require.NoError(t, err)
 			require.Equal(t, tc.expectFailure, !prober.Probe(ctx, check.Target, registry, kl))
 
