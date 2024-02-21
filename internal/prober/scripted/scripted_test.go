@@ -1,4 +1,4 @@
-package k6
+package scripted
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func TestNewProber(t *testing.T) {
 				Timeout:   10 * 1000,
 				Probes:    []int64{1},
 				Settings: synthetic_monitoring.CheckSettings{
-					K6: &synthetic_monitoring.K6Settings{
+					Scripted: &synthetic_monitoring.ScriptedSettings{
 						Script: []byte("// test"),
 					},
 				},
@@ -61,7 +61,7 @@ func TestNewProber(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, proberName, p.config.Prober)
 			require.Equal(t, 10*time.Second, p.config.Timeout)
-			require.Equal(t, tc.check.Settings.K6.Script, p.config.Script)
+			require.Equal(t, tc.check.Settings.Scripted.Script, p.config.Script)
 		})
 	}
 }

@@ -165,30 +165,30 @@ func getTestCases() map[string]struct {
 			},
 			class: "traceroute_basic",
 		},
-		"k6": {
+		"scripted": {
 			input: synthetic_monitoring.Check{
 				Target:  "http://127.0.0.1/",
 				Timeout: 2000,
 				Settings: synthetic_monitoring.CheckSettings{
-					K6: &synthetic_monitoring.K6Settings{
+					Scripted: &synthetic_monitoring.ScriptedSettings{
 						Script: []byte(`export default function() {}`),
 					},
 				},
 			},
-			class: "k6",
+			class: "scripted",
 		},
-		"k6_basic": {
+		"scripted_basic": {
 			input: synthetic_monitoring.Check{
 				Target:           "http://127.0.0.1/",
 				Timeout:          2000,
 				BasicMetricsOnly: true,
 				Settings: synthetic_monitoring.CheckSettings{
-					K6: &synthetic_monitoring.K6Settings{
+					Scripted: &synthetic_monitoring.ScriptedSettings{
 						Script: []byte(`export default function() {}`),
 					},
 				},
 			},
-			class: "k6_basic",
+			class: "scripted_basic",
 		},
 		"multihttp": {
 			input: synthetic_monitoring.Check{

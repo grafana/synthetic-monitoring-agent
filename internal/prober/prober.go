@@ -10,9 +10,9 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/k6"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/scripted"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -71,9 +71,9 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		p, err = traceroute.NewProber(check.Check, logger)
 		target = check.Target
 
-	case sm.CheckTypeK6:
+	case sm.CheckTypeScripted:
 		if f.runner != nil {
-			p, err = k6.NewProber(ctx, check.Check, logger, f.runner)
+			p, err = scripted.NewProber(ctx, check.Check, logger, f.runner)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")

@@ -824,7 +824,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 	// of view of the API, and skip running it here, e.g.
 
 	switch check.Type() {
-	case sm.CheckTypeK6:
+	case sm.CheckTypeScripted:
 		if !c.features.IsSet(feature.K6) {
 			return nil
 		}

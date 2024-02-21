@@ -1,4 +1,4 @@
-package k6
+package scripted
 
 import (
 	"context"
@@ -12,7 +12,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const proberName = "k6"
+const proberName = "scripted"
 
 var errUnsupportedCheck = errors.New("unsupported check")
 
@@ -31,15 +31,15 @@ type Prober struct {
 func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner) (Prober, error) {
 	var p Prober
 
-	if check.Settings.K6 == nil {
+	if check.Settings.Scripted == nil {
 		return p, errUnsupportedCheck
 	}
 
-	p.config = settingsToModule(check.Settings.K6)
+	p.config = settingsToModule(check.Settings.Scripted)
 	timeout := time.Duration(check.Timeout) * time.Millisecond
 	p.config.Timeout = timeout
 
-	script, err := k6runner.NewScript(check.Settings.K6.Script, runner)
+	script, err := k6runner.NewScript(check.Settings.Scripted.Script, runner)
 	if err != nil {
 		return p, err
 	}
@@ -64,10 +64,10 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	return success
 }
 
-func settingsToModule(settings *sm.K6Settings) Module {
+func settingsToModule(settings *sm.ScriptedSettings) Module {
 	var m Module
 
-	m.Prober = sm.CheckTypeK6.String()
+	m.Prober = sm.CheckTypeScripted.String()
 
 	m.Script = settings.Script
 

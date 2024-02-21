@@ -6,7 +6,7 @@ probe_data_received_bytes{scenario="default"} 94
 probe_data_sent_bytes{scenario="default"} 188
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.000136607
+probe_duration_seconds 0.000109703
 # HELP probe_http_duration_seconds 
 # TYPE probe_http_duration_seconds gauge
 probe_http_duration_seconds{method="GET",phase="connect",scenario="default",url="http://127.0.0.1:41427"} 0.000204212
@@ -55,7 +55,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.000136607
+probe_all_duration_seconds_sum 0.000109703
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary

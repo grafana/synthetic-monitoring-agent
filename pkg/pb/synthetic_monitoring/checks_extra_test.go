@@ -75,7 +75,7 @@ var validCheckCases = map[CheckType]Check{
 			Traceroute: &TracerouteSettings{},
 		},
 	},
-	CheckTypeK6: {
+	CheckTypeScripted: {
 		Id:        1,
 		TenantId:  1,
 		Target:    "http://www.example.org",
@@ -84,7 +84,7 @@ var validCheckCases = map[CheckType]Check{
 		Timeout:   10000,
 		Probes:    []int64{1},
 		Settings: CheckSettings{
-			K6: &K6Settings{
+			Scripted: &ScriptedSettings{
 				Script: []byte("// test"),
 			},
 		},
@@ -586,8 +586,8 @@ func TestCheckClass(t *testing.T) {
 			input:    validCheckCases[CheckTypeTraceroute],
 			expected: CheckClassProtocol,
 		},
-		CheckTypeK6.String(): {
-			input:    validCheckCases[CheckTypeK6],
+		CheckTypeScripted.String(): {
+			input:    validCheckCases[CheckTypeScripted],
 			expected: CheckClassScripted,
 		},
 		CheckTypeMultiHttp.String(): {
@@ -646,9 +646,9 @@ func TestCheckTypeString(t *testing.T) {
 			input:    CheckTypeTraceroute,
 			expected: "traceroute",
 		},
-		"k6": {
-			input:    CheckTypeK6,
-			expected: "k6",
+		"scripted": {
+			input:    CheckTypeScripted,
+			expected: "scripted",
 		},
 		"multihttp": {
 			input:    CheckTypeMultiHttp,
@@ -687,8 +687,8 @@ func TestCheckTypeClass(t *testing.T) {
 			input:    CheckTypeTraceroute,
 			expected: CheckClassProtocol,
 		},
-		CheckTypeK6.String(): {
-			input:    CheckTypeK6,
+		CheckTypeScripted.String(): {
+			input:    CheckTypeScripted,
 			expected: CheckClassScripted,
 		},
 		CheckTypeMultiHttp.String(): {

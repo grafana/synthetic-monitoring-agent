@@ -1,13 +1,13 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 4.911e-06
+probe_dns_lookup_time_seconds 2.55e-06
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.002287457
+probe_duration_seconds 0.00255547
 # HELP probe_grpc_duration_seconds Duration of gRPC request by phase
 # TYPE probe_grpc_duration_seconds gauge
-probe_grpc_duration_seconds{phase="check"} 0.002128242
-probe_grpc_duration_seconds{phase="resolve"} 4.911e-06
+probe_grpc_duration_seconds{phase="check"} 0.002417801
+probe_grpc_duration_seconds{phase="resolve"} 2.55e-06
 # HELP probe_grpc_healthcheck_response Response HealthCheck response
 # TYPE probe_grpc_healthcheck_response gauge
 probe_grpc_healthcheck_response{serving_status="NOT_SERVING"} 0
@@ -55,7 +55,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.002287457
+probe_all_duration_seconds_sum 0.00255547
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary

@@ -163,7 +163,7 @@ const (
 	CheckTypePing       CheckType = 2
 	CheckTypeTcp        CheckType = 3
 	CheckTypeTraceroute CheckType = 4
-	CheckTypeK6         CheckType = 5
+	CheckTypeScripted   CheckType = 5
 	CheckTypeMultiHttp  CheckType = 6
 	CheckTypeGrpc       CheckType = 7
 )
@@ -201,8 +201,8 @@ func (c Check) Type() CheckType {
 	case c.Settings.Traceroute != nil:
 		return CheckTypeTraceroute
 
-	case c.Settings.K6 != nil:
-		return CheckTypeK6
+	case c.Settings.Scripted != nil:
+		return CheckTypeScripted
 
 	case c.Settings.Multihttp != nil:
 		return CheckTypeMultiHttp
@@ -224,7 +224,7 @@ func (c CheckType) Class() CheckClass {
 	case CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute, CheckTypeGrpc:
 		return CheckClassProtocol
 
-	case CheckTypeK6, CheckTypeMultiHttp:
+	case CheckTypeScripted, CheckTypeMultiHttp:
 		return CheckClassScripted
 
 	default:
@@ -297,7 +297,7 @@ func (c Check) validateTarget() error {
 			return ErrInvalidTracerouteHostname
 		}
 
-	case CheckTypeK6:
+	case CheckTypeScripted:
 		return nil
 
 	case CheckTypeMultiHttp:
@@ -324,7 +324,7 @@ func (c Check) validateFrequency() error {
 			return ErrInvalidCheckFrequency
 		}
 
-	case c.Settings.K6 != nil || c.Settings.Multihttp != nil:
+	case c.Settings.Scripted != nil || c.Settings.Multihttp != nil:
 		// TODO(mem): k6 and multihttp checks should allow for a lower
 		// frequency (a higher number), but that needs that we keep the
 		// metrics alive on the Prometheus side, i.e. we need to cache
@@ -350,7 +350,7 @@ func (c Check) validateTimeout() error {
 			return ErrInvalidCheckTimeout
 		}
 
-	case c.Settings.K6 != nil || c.Settings.Multihttp != nil:
+	case c.Settings.Scripted != nil || c.Settings.Multihttp != nil:
 		// This is expirimental. A 30 second timeout means we have more
 		// checks lingering around. timeout must be in [1, 30] seconds,
 		// and it must be less than frequency (otherwise we can end up
@@ -414,8 +414,8 @@ func (c AdHocCheck) Type() CheckType {
 	case c.Settings.Traceroute != nil:
 		return CheckTypeTraceroute
 
-	case c.Settings.K6 != nil:
-		return CheckTypeK6
+	case c.Settings.Scripted != nil:
+		return CheckTypeScripted
 
 	case c.Settings.Multihttp != nil:
 		return CheckTypeMultiHttp
@@ -462,7 +462,7 @@ func (c AdHocCheck) validateTimeout() error {
 			return ErrInvalidCheckTimeout
 		}
 
-	case c.Settings.K6 != nil || c.Settings.Multihttp != nil:
+	case c.Settings.Scripted != nil || c.Settings.Multihttp != nil:
 		// This is expirimental. A 30 second timeout means we have more
 		// checks lingering around. timeout must be in [1, 30] seconds,
 		// and it must be less than frequency (otherwise we can end up
@@ -506,7 +506,7 @@ func (c AdHocCheck) validateTarget() error {
 			return ErrInvalidTracerouteHostname
 		}
 
-	case CheckTypeK6:
+	case CheckTypeScripted:
 		return nil
 
 	case CheckTypeMultiHttp:
@@ -552,9 +552,9 @@ func (s CheckSettings) Validate() error {
 		validateFn = s.Traceroute.Validate
 	}
 
-	if s.K6 != nil {
+	if s.Scripted != nil {
 		settingsCount++
-		validateFn = s.K6.Validate
+		validateFn = s.Scripted.Validate
 	}
 
 	if s.Multihttp != nil {
@@ -690,7 +690,7 @@ func (s *TracerouteSettings) Validate() error {
 	return nil
 }
 
-func (s *K6Settings) Validate() error {
+func (s *ScriptedSettings) Validate() error {
 	if len(s.Script) == 0 {
 		return ErrInvalidK6Script
 	}

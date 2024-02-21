@@ -1,9 +1,9 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 2.565e-06
+probe_dns_lookup_time_seconds 2.681e-06
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.000275033
+probe_duration_seconds 0.000358255
 # HELP probe_failed_due_to_regex Indicates if probe failed due to regex
 # TYPE probe_failed_due_to_regex gauge
 probe_failed_due_to_regex 0
@@ -12,11 +12,11 @@ probe_failed_due_to_regex 0
 probe_http_content_length 0
 # HELP probe_http_duration_seconds Duration of http request by phase, summed over all redirects
 # TYPE probe_http_duration_seconds gauge
-probe_http_duration_seconds{phase="connect"} 6.0319e-05
-probe_http_duration_seconds{phase="processing"} 7.4468e-05
-probe_http_duration_seconds{phase="resolve"} 2.565e-06
+probe_http_duration_seconds{phase="connect"} 8.9224e-05
+probe_http_duration_seconds{phase="processing"} 6.3702e-05
+probe_http_duration_seconds{phase="resolve"} 2.681e-06
 probe_http_duration_seconds{phase="tls"} 0
-probe_http_duration_seconds{phase="transfer"} 3.3071e-05
+probe_http_duration_seconds{phase="transfer"} 5.8922e-05
 # HELP probe_http_redirects The number of redirects
 # TYPE probe_http_redirects gauge
 probe_http_redirects 0
@@ -58,7 +58,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.000275033
+probe_all_duration_seconds_sum 0.000358255
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary

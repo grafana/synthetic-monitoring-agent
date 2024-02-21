@@ -29,9 +29,9 @@ import (
 	grpcProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/k6"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/scripted"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/traceroute"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -258,7 +258,7 @@ func TestValidateMetrics(t *testing.T) {
 			},
 		},
 
-		"k6": {
+		"scripted": {
 			setup: func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
 				httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.WriteHeader(http.StatusOK)
@@ -269,7 +269,7 @@ func TestValidateMetrics(t *testing.T) {
 					Target:  httpSrv.URL,
 					Timeout: 2000,
 					Settings: sm.CheckSettings{
-						K6: &sm.K6Settings{
+						Scripted: &sm.ScriptedSettings{
 							Script: []byte(`export default function() {}`),
 						},
 					},
@@ -286,14 +286,14 @@ func TestValidateMetrics(t *testing.T) {
 					}
 				}
 
-				prober, err := k6.NewProber(
+				prober, err := scripted.NewProber(
 					ctx,
 					check,
 					zerolog.New(zerolog.NewTestWriter(t)),
 					runner,
 				)
 				if err != nil {
-					t.Fatalf("cannot create K6 prober: %s", err)
+					t.Fatalf("cannot create scripted prober: %s", err)
 				}
 
 				return prober, check, httpSrv.Close
