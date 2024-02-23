@@ -114,14 +114,13 @@ func (d *probeData) Tenant() model.GlobalID {
 func New(ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger,
 	scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner, labelsLimiter LabelsLimiter,
 ) (*Scraper, error) {
-	checkProbeIdentifier := fmt.Sprintf("%d-%d", check.Id, probe.Id)
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
 		Publisher:     publisher,
 		Logger:        logger,
 		ScrapeCounter: scrapeCounter,
 		ErrorCounter:  errorCounter,
-		ProbeFactory:  prober.NewProberFactory(k6runner, checkProbeIdentifier),
+		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id),
 		LabelsLimiter: labelsLimiter,
 	})
 }

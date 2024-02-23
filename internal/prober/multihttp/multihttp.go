@@ -105,7 +105,7 @@ func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 	for _, entry := range check.Settings.Multihttp.Entries {
 		heads := entry.Request.Headers
 		for _, headerPtr := range heads {
-			_, present := reservedHeaders[strings.ToLower(headerPtr.Name)]
+			_, present := reservedHeaders[http.CanonicalHeaderKey(headerPtr.Name)]
 
 			if present {
 				continue // users can't override reserved headers with their own values

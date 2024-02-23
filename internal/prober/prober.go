@@ -35,14 +35,14 @@ type ProberFactory interface {
 }
 
 type proberFactory struct {
-	runner               k6runner.Runner
-	checkProbeIdentifier string
+	runner  k6runner.Runner
+	probeId int64
 }
 
-func NewProberFactory(runner k6runner.Runner, checkProbeIdentifier string) ProberFactory {
+func NewProberFactory(runner k6runner.Runner, probeId int64) ProberFactory {
 	return proberFactory{
-		runner:               runner,
-		checkProbeIdentifier: checkProbeIdentifier,
+		runner:  runner,
+		probeId: probeId,
 	}
 }
 
@@ -53,17 +53,13 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		err    error
 	)
 
-	reservedHeaders := http.Header{}
-	if f.checkProbeIdentifier != "" {
-		reservedHeaders["x-sm-id"] = []string{f.checkProbeIdentifier} // avoiding Add() to bypass canonicalization of the key
-	}
-
 	switch checkType := check.Type(); checkType {
 	case sm.CheckTypePing:
 		p, err = icmp.NewProber(check.Check)
 		target = check.Target
 
 	case sm.CheckTypeHttp:
+		reservedHeaders := f.getReservedHeaders(&check)
 		p, err = httpProber.NewProber(ctx, check.Check, logger, reservedHeaders)
 		target = check.Target
 
@@ -89,6 +85,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 
 	case sm.CheckTypeMultiHttp:
 		if f.runner != nil {
+			reservedHeaders := f.getReservedHeaders(&check)
 			p, err = multihttp.NewProber(ctx, check.Check, logger, f.runner, reservedHeaders)
 			target = check.Target
 		} else {
@@ -104,4 +101,15 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 	}
 
 	return p, target, err
+}
+
+// Build reserved HTTP request headers for applicable checks.
+func (f proberFactory) getReservedHeaders(check *model.Check) http.Header {
+	reservedHeaders := http.Header{}
+	if f.probeId != 0 {
+		checkProbeIdentifier := fmt.Sprintf("%d-%d", check.GlobalID(), f.probeId)
+		reservedHeaders.Add("x-sm-id", checkProbeIdentifier)
+	}
+
+	return reservedHeaders
 }

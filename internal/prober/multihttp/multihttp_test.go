@@ -116,7 +116,7 @@ func TestNewProber(t *testing.T) {
 			var runner noopRunner
 			checkId := tc.check.Id
 			reservedHeaders := http.Header{}
-			reservedHeaders["x-sm-id"] = []string{fmt.Sprintf("%d-%d", checkId, checkId)}
+			reservedHeaders.Add("x-sm-id", fmt.Sprintf("%d-%d", checkId, checkId))
 
 			p, err := NewProber(ctx, tc.check, logger, runner, reservedHeaders)
 			if tc.expectFailure {
@@ -127,7 +127,7 @@ func TestNewProber(t *testing.T) {
 			requestHeaders := tc.check.Settings.Multihttp.Entries[0].Request.Headers
 			require.Equal(t, len(requestHeaders), 1) // reserved header is present
 
-			require.Equal(t, requestHeaders[0].Name, "x-sm-id")
+			require.Equal(t, requestHeaders[0].Name, "X-Sm-Id")
 			require.Equal(t, requestHeaders[0].Value, fmt.Sprintf("%d-%d", checkId, checkId))
 
 			require.NoError(t, err)

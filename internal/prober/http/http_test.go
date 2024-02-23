@@ -46,7 +46,7 @@ func TestNewProber(t *testing.T) {
 			},
 			expected: Prober{
 				config: getDefaultModule().
-					addHttpHeader("x-sm-id", "3-3"). // is checkId twice since probeId is unavailable here
+					addHttpHeader("X-Sm-Id", "3-3"). // is checkId twice since probeId is unavailable here
 					getConfigModule(),
 			},
 			ExpectError: false,
@@ -80,7 +80,7 @@ func TestNewProber(t *testing.T) {
 				config: getDefaultModule().
 					addHttpHeader("uSeR-aGeNt", "test-user-agent").
 					addHttpHeader("some-header", "some-value").
-					addHttpHeader("x-sm-id", "5-5").
+					addHttpHeader("X-Sm-Id", "5-5").
 					getConfigModule(),
 			},
 			ExpectError: false,
@@ -94,7 +94,7 @@ func TestNewProber(t *testing.T) {
 			// origin identifier for http requests is checkId-probeId; testing with checkId twice in the absence of probeId
 			checkId := testcase.input.Id
 			reservedHeaders := http.Header{}
-			reservedHeaders["x-sm-id"] = []string{fmt.Sprintf("%d-%d", checkId, checkId)}
+			reservedHeaders.Add("x-sm-id", fmt.Sprintf("%d-%d", checkId, checkId))
 
 			actual, err := NewProber(ctx, testcase.input, logger, reservedHeaders)
 			require.Equal(t, &testcase.expected, &actual)

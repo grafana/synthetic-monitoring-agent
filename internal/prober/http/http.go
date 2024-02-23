@@ -264,7 +264,7 @@ func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 	for _, header := range check.Settings.Http.Headers {
 		name, _ := strToHeaderNameValue(header)
 
-		_, present := reservedHeaders[strings.ToLower(name)]
+		_, present := reservedHeaders[http.CanonicalHeaderKey(name)]
 		if present {
 			continue // users can't override reserved headers with their own values
 		}
@@ -272,8 +272,15 @@ func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 		headers = append(headers, header)
 	}
 
-	for header, values := range reservedHeaders {
-		headers = append(headers, fmt.Sprintf("%s:%s", header, strings.Join(values, ",")))
+	for key, values := range reservedHeaders {
+		var b strings.Builder
+		for _, value := range values {
+			b.Reset()
+			b.WriteString(key)
+			b.WriteRune(':')
+			b.WriteString(value)
+			headers = append(headers, b.String())
+		}
 	}
 
 	check.Settings.Http.Headers = headers
