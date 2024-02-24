@@ -2,7 +2,9 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"testing"
@@ -32,18 +34,26 @@ func TestNewProber(t *testing.T) {
 	}{
 		"default": {
 			input: sm.Check{
+				Id:     3,
 				Target: "www.grafana.com",
 				Settings: sm.CheckSettings{
-					Http: &sm.HttpSettings{},
+					Http: &sm.HttpSettings{
+						Headers: []string{
+							"X-SM-ID: 9880-98",
+						},
+					},
 				},
 			},
 			expected: Prober{
-				config: getDefaultModule().getConfigModule(),
+				config: getDefaultModule().
+					addHttpHeader("X-Sm-Id", "3-3"). // is checkId twice since probeId is unavailable here
+					getConfigModule(),
 			},
 			ExpectError: false,
 		},
 		"no-settings": {
 			input: sm.Check{
+				Id:     1,
 				Target: "www.grafana.com",
 				Settings: sm.CheckSettings{
 					Http: nil,
@@ -54,12 +64,14 @@ func TestNewProber(t *testing.T) {
 		},
 		"headers": {
 			input: sm.Check{
+				Id:     5,
 				Target: "www.grafana.com",
 				Settings: sm.CheckSettings{
 					Http: &sm.HttpSettings{
 						Headers: []string{
 							"uSeR-aGeNt: test-user-agent",
 							"some-header: some-value",
+							"x-SM-iD: 3232-32",
 						},
 					},
 				},
@@ -68,6 +80,7 @@ func TestNewProber(t *testing.T) {
 				config: getDefaultModule().
 					addHttpHeader("uSeR-aGeNt", "test-user-agent").
 					addHttpHeader("some-header", "some-value").
+					addHttpHeader("X-Sm-Id", "5-5").
 					getConfigModule(),
 			},
 			ExpectError: false,
@@ -78,7 +91,12 @@ func TestNewProber(t *testing.T) {
 		ctx := context.Background()
 		logger := zerolog.New(io.Discard)
 		t.Run(name, func(t *testing.T) {
-			actual, err := NewProber(ctx, testcase.input, logger)
+			// origin identifier for http requests is checkId-probeId; testing with checkId twice in the absence of probeId
+			checkId := testcase.input.Id
+			reservedHeaders := http.Header{}
+			reservedHeaders.Add("x-sm-id", fmt.Sprintf("%d-%d", checkId, checkId))
+
+			actual, err := NewProber(ctx, testcase.input, logger, reservedHeaders)
 			require.Equal(t, &testcase.expected, &actual)
 			if testcase.ExpectError {
 				require.Error(t, err, "unsupported check")
@@ -211,7 +229,7 @@ func TestProbe(t *testing.T) {
 			zl := zerolog.Logger{}
 			kl := log.NewLogfmtLogger(io.Discard)
 
-			prober, err := NewProber(ctx, check, zl)
+			prober, err := NewProber(ctx, check, zl, http.Header{})
 			require.NoError(t, err)
 			require.Equal(t, tc.expectFailure, !prober.Probe(ctx, check.Target, registry, kl))
 

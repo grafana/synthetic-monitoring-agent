@@ -3,12 +3,13 @@ package prober
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
+	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
@@ -34,12 +35,14 @@ type ProberFactory interface {
 }
 
 type proberFactory struct {
-	runner k6runner.Runner
+	runner  k6runner.Runner
+	probeId int64
 }
 
-func NewProberFactory(runner k6runner.Runner) ProberFactory {
+func NewProberFactory(runner k6runner.Runner, probeId int64) ProberFactory {
 	return proberFactory{
-		runner: runner,
+		runner:  runner,
+		probeId: probeId,
 	}
 }
 
@@ -56,7 +59,8 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		target = check.Target
 
 	case sm.CheckTypeHttp:
-		p, err = http.NewProber(ctx, check.Check, logger)
+		reservedHeaders := f.getReservedHeaders(&check)
+		p, err = httpProber.NewProber(ctx, check.Check, logger, reservedHeaders)
 		target = check.Target
 
 	case sm.CheckTypeDns:
@@ -81,7 +85,8 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 
 	case sm.CheckTypeMultiHttp:
 		if f.runner != nil {
-			p, err = multihttp.NewProber(ctx, check.Check, logger, f.runner)
+			reservedHeaders := f.getReservedHeaders(&check)
+			p, err = multihttp.NewProber(ctx, check.Check, logger, f.runner, reservedHeaders)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
@@ -96,4 +101,15 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 	}
 
 	return p, target, err
+}
+
+// Build reserved HTTP request headers for applicable checks.
+func (f proberFactory) getReservedHeaders(check *model.Check) http.Header {
+	reservedHeaders := http.Header{}
+	if f.probeId != 0 {
+		checkProbeIdentifier := fmt.Sprintf("%d-%d", check.GlobalID(), f.probeId)
+		reservedHeaders.Add("x-sm-id", checkProbeIdentifier)
+	}
+
+	return reservedHeaders
 }

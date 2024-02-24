@@ -3,6 +3,8 @@ package multihttp
 import (
 	"context"
 	"errors"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -27,7 +29,7 @@ type Prober struct {
 	script *k6runner.Script
 }
 
-func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner) (Prober, error) {
+func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Multihttp == nil {
@@ -36,6 +38,10 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 
 	if err := check.Settings.Multihttp.Validate(); err != nil {
 		return p, err
+	}
+
+	if len(reservedHeaders) > 0 {
+		augmentHttpHeaders(&check, reservedHeaders)
 	}
 
 	p.config = settingsToModule(check.Settings.Multihttp)
@@ -86,4 +92,28 @@ func settingsToModule(settings *sm.MultiHttpSettings) Module {
 	m.Prober = sm.CheckTypeMultiHttp.String()
 
 	return m
+}
+
+// Overrides any user-provided headers with our own augmented values
+// for 'reserved' headers.
+func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
+	updatedHeaders := []*sm.HttpHeader{}
+	for key, values := range reservedHeaders {
+		updatedHeaders = append(updatedHeaders, &sm.HttpHeader{Name: key, Value: strings.Join(values, ",")})
+	}
+
+	for _, entry := range check.Settings.Multihttp.Entries {
+		heads := entry.Request.Headers
+		for _, headerPtr := range heads {
+			_, present := reservedHeaders[http.CanonicalHeaderKey(headerPtr.Name)]
+
+			if present {
+				continue // users can't override reserved headers with their own values
+			}
+
+			updatedHeaders = append(updatedHeaders, headerPtr)
+		}
+
+		entry.Request.Headers = updatedHeaders
+	}
 }

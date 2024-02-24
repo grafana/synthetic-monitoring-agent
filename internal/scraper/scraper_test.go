@@ -111,6 +111,7 @@ func TestValidateMetrics(t *testing.T) {
 					ctx,
 					check,
 					zerolog.New(io.Discard),
+					http.Header{},
 				)
 				if err != nil {
 					t.Fatalf("cannot create HTTP prober: %s", err)
@@ -144,6 +145,7 @@ func TestValidateMetrics(t *testing.T) {
 					ctx,
 					check,
 					zerolog.New(io.Discard),
+					http.Header{},
 				)
 				if err != nil {
 					t.Fatalf("cannot create HTTP prober: %s", err)
@@ -340,6 +342,7 @@ func TestValidateMetrics(t *testing.T) {
 					check,
 					zerolog.New(zerolog.NewTestWriter(t)),
 					runner,
+					http.Header{},
 				)
 				if err != nil {
 					t.Fatalf("cannot create MultiHTTP prober: %s", err)

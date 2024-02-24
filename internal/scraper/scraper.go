@@ -120,7 +120,7 @@ func New(ctx context.Context, check model.Check, publisher pusher.Publisher, pro
 		Logger:        logger,
 		ScrapeCounter: scrapeCounter,
 		ErrorCounter:  errorCounter,
-		ProbeFactory:  prober.NewProberFactory(k6runner),
+		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id),
 		LabelsLimiter: labelsLimiter,
 	})
 }
