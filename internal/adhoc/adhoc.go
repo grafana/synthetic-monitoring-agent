@@ -3,11 +3,14 @@ package adhoc
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"time"
 
+	kitlog "github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -483,17 +486,25 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 	mfs, err := registry.Gather()
 
 	buf := &bytes.Buffer{}
-	targetLogger := zerolog.New(buf)
+	bl := kitlog.NewJSONLogger(buf)
 
-	targetLogger.Info().
-		AnErr("error", err).
-		Str("id", r.id).
-		Str("target", r.target).
-		Str("probe", r.probe).
-		Str("check_name", r.prober.Name()).
-		Interface("logs", logger.entries).
-		Interface("timeseries", mfs).
-		Msg("ad-hoc check done")
+	entriesBytes, _ := json.Marshal(logger.entries)
+	mfsBytes, _ := json.Marshal(mfs)
+
+	entriesJson := string(entriesBytes)
+	mfsJson := string(mfsBytes)
+
+	logLabelPairs := []interface{}{
+		"error", err,
+		"id", r.id,
+		"target", r.target,
+		"probe", r.probe,
+		"check_name", r.prober.Name(),
+		"logs", entriesJson,
+		"timeseries", mfsJson,
+	}
+	sl := kitlog.With(bl, logLabelPairs...)
+	level.Info(sl).Log("msg", "ad-hoc check done")
 
 	r.logger.Debug().
 		Str("id", r.id).
