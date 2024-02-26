@@ -26,20 +26,33 @@ type Runner interface {
 	Run(ctx context.Context, script []byte) (*RunResponse, error)
 }
 
-func New(uri string) Runner {
+type RunnerOpts struct {
+	Uri           string
+	BlacklistedIP string
+}
+
+func New(opts RunnerOpts) Runner {
 	var r Runner
 	logger := zerolog.Nop()
 
-	if strings.HasPrefix(uri, "http") {
+	if strings.HasPrefix(opts.Uri, "http") {
 		r = &HttpRunner{
-			url:    uri,
+			url:    opts.Uri,
 			logger: &logger,
 		}
 	} else {
+		var blacklistIP string
+		if opts.BlacklistedIP != "" {
+			blacklistIP = opts.BlacklistedIP
+		} else {
+			blacklistIP = "10.0.0.0/8"
+		}
+
 		r = &LocalRunner{
-			k6path: uri,
-			logger: &logger,
-			fs:     afero.NewOsFs(),
+			k6path:        opts.Uri,
+			logger:        &logger,
+			fs:            afero.NewOsFs(),
+			blacklistedIP: blacklistIP,
 		}
 	}
 
@@ -338,9 +351,10 @@ func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error
 }
 
 type LocalRunner struct {
-	k6path string
-	logger *zerolog.Logger
-	fs     afero.Fs
+	k6path        string
+	logger        *zerolog.Logger
+	fs            afero.Fs
+	blacklistedIP string
 }
 
 func (r LocalRunner) WithLogger(logger *zerolog.Logger) Runner {
@@ -406,7 +420,7 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 		"--batch", "10",
 		"--batch-per-host", "4",
 		"--no-connection-reuse",
-		"--blacklist-ip", "10.0.0.0/8", // TODO(mem): make this configurable
+		"--blacklist-ip", r.blacklistedIP,
 		"--block-hostnames", "*.cluster.local", // TODO(mem): make this configurable
 		"--summary-time-unit", "s",
 		// "--discard-response-bodies",                        // TODO(mem): make this configurable

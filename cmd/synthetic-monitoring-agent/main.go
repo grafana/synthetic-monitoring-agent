@@ -54,6 +54,7 @@ func run(args []string, stdout io.Writer) error {
 		enablePProf          = flags.Bool("enable-pprof", false, "exposes profiling data via HTTP /debug/pprof/ endpoint")
 		httpListenAddr       = flags.String("listen-address", "localhost:4050", "listen address")
 		k6URI                = flags.String("k6-uri", "k6", "how to run k6 (path or URL)")
+		k6BlacklistedIP      = flags.String("k6-blacklist-ip", "10.0.0.0/8", "blacklisted CIDR IP for k6 requests")
 		selectedPublisher    = flags.String("publisher", pusherV1.Name, "publisher type (EXPERIMENTAL)")
 	)
 
@@ -209,7 +210,18 @@ func run(args []string, stdout io.Writer) error {
 	var k6Runner k6runner.Runner
 
 	if features.IsSet(feature.K6) && len(*k6URI) > 0 {
-		k6Runner = k6runner.New(*k6URI)
+		if *k6BlacklistedIP != "" {
+			_, _, err := net.ParseCIDR(*k6BlacklistedIP)
+			if err != nil {
+				zl.Warn().Msg("Invalid CIDR IP provided for k6 blacklist; will use default config.")
+				*k6BlacklistedIP = ""
+			}
+		}
+
+		k6Runner = k6runner.New(k6runner.RunnerOpts{
+			Uri:           *k6URI,
+			BlacklistedIP: *k6BlacklistedIP,
+		})
 	}
 
 	tm := tenants.NewManager(ctx, synthetic_monitoring.NewTenantsClient(conn), tenantCh, 15*time.Minute)
