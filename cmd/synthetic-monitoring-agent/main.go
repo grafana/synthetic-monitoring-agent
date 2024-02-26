@@ -208,14 +208,9 @@ func run(args []string, stdout io.Writer) error {
 	defer conn.Close()
 
 	var k6Runner k6runner.Runner
-
 	if features.IsSet(feature.K6) && len(*k6URI) > 0 {
 		if *k6BlacklistedIP != "" {
-			_, _, err := net.ParseCIDR(*k6BlacklistedIP)
-			if err != nil {
-				zl.Warn().Msg("Invalid CIDR IP provided for k6 blacklist; will use default config.")
-				*k6BlacklistedIP = ""
-			}
+			validateBlacklistIp(k6BlacklistedIP, zl)
 		}
 
 		k6Runner = k6runner.New(k6runner.RunnerOpts{
@@ -308,6 +303,14 @@ func newConnectionBackoff() *backoff.Backoff {
 		Max:    30 * time.Second,
 		Factor: math.Pow(30./2., 1./8.), // reach the target in ~ 8 steps
 		Jitter: true,
+	}
+}
+
+func validateBlacklistIp(ip *string, logger zerolog.Logger) {
+	_, _, err := net.ParseCIDR(*ip)
+	if err != nil {
+		logger.Warn().Msg("Invalid CIDR IP provided for k6 blacklist; will use default config.")
+		*ip = ""
 	}
 }
 
