@@ -2,8 +2,8 @@
 ## [Unreleased]
 
 
-<a name="v0.20.2"></a>
-## [v0.20.2] - 2024-02-13
+<a name="v0.21.0"></a>
+## [v0.21.0] - 2024-02-26
 ### Feature
 - promote adhoc to permanent feature ([#615](https://github.com/grafana/synthetic-monitoring-agent/issues/615))
 
@@ -554,8 +554,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.2...HEAD
-[v0.20.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.1...v0.20.2
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.21.0...HEAD
+[v0.21.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.1...v0.21.0
 [v0.20.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.20.1
 [v0.19.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.5...v0.19.6
 [v0.19.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.4...v0.19.5
