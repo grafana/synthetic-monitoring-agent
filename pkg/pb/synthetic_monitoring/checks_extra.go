@@ -168,13 +168,6 @@ const (
 	CheckTypeGrpc       CheckType = 7
 )
 
-type CheckClass int32
-
-const (
-	CheckClassProtocol CheckClass = 0
-	CheckClassScripted CheckClass = 1
-)
-
 func CheckTypeFromString(in string) (CheckType, bool) {
 	ct, err := CheckTypeString(in)
 	if err != nil {
@@ -222,10 +215,10 @@ func (c Check) Class() CheckClass {
 func (c CheckType) Class() CheckClass {
 	switch c {
 	case CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute, CheckTypeGrpc:
-		return CheckClassProtocol
+		return CheckClass_PROTOCOL
 
 	case CheckTypeScripted, CheckTypeMultiHttp:
-		return CheckClassScripted
+		return CheckClass_SCRIPTED
 
 	default:
 		panic("unhandled check class")

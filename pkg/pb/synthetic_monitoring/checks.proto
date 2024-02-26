@@ -579,8 +579,47 @@ message MultiHttpEntryVariable {
 
 // GrpcSettings provides the settings for a gRPC check.
 message GrpcSettings {
-  IpVersion       ipVersion         = 1 [(gogoproto.jsontag) = "ipVersion"];
-  string service = 2 [(gogoproto.jsontag) = "service,omitempty"];
-  bool                      tls             = 3 [(gogoproto.jsontag) = "tls,omitempty"];
-  TLSConfig       tlsConfig           = 4 [(gogoproto.jsontag) = "tlsConfig,omitempty"];
+  IpVersion ipVersion = 1 [(gogoproto.jsontag) = "ipVersion"];
+  string    service   = 2 [(gogoproto.jsontag) = "service,omitempty"];
+  bool      tls       = 3 [(gogoproto.jsontag) = "tls,omitempty"];
+  TLSConfig tlsConfig = 4 [(gogoproto.jsontag) = "tlsConfig,omitempty"];
+}
+
+service Telemetry {
+  // PushTelemetry pushes telemetry data for all the tenants that are running
+  // checks in the agent which belong to the same region.
+  rpc PushTelemetry(RegionTelemetry) returns (PushTelemetryResponse) {};
+}
+
+// CheckClass represents the supported check classes.
+enum CheckClass {
+  PROTOCOL = 0;
+  SCRIPTED = 1;
+}
+
+// RegionTelemetry represents the telemetry data for a specific region.
+// Groups the telemetry data for all the tenants that have checks being
+// executed in the agent and belong to the same region.
+message RegionTelemetry {
+  string instance                    = 1 [(gogoproto.jsontag) = "instance"]; // Identifies the agent instance
+  int32 regionId                     = 2 [(gogoproto.jsontag) = "regionId"];
+  repeated TenantTelemetry telemetry = 3 [(gogoproto.jsontag) = "telemetry"];
+}
+
+// TenantTelemetry represents the telemetry data for a specific tenant.
+message TenantTelemetry {
+  int64 tenantId                         = 1 [(gogoproto.jsontag) = "tenantId"]; // Local tenant ID
+  repeated CheckClassTelemetry telemetry = 2 [(gogoproto.jsontag) = "telemetry"];
+}
+
+// CheckClassTelemetry represents the telemetry data for a specific check class.
+message CheckClassTelemetry {
+  CheckClass checkClass = 1 [(gogoproto.jsontag) = "checkClass"];
+  int32 executions      = 2 [(gogoproto.jsontag) = "executions"];
+  float duration        = 3 [(gogoproto.jsontag) = "duration"];
+}
+
+// PushTelemetryResponse represents a response for a push telemetry rpc call.
+message PushTelemetryResponse {
+  Status status   = 1 [(gogoproto.jsontag) = "status"];
 }
