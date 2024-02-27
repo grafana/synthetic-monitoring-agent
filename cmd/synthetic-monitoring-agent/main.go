@@ -209,10 +209,8 @@ func run(args []string, stdout io.Writer) error {
 
 	var k6Runner k6runner.Runner
 	if features.IsSet(feature.K6) && len(*k6URI) > 0 {
-		if *k6BlacklistedIP != "" {
-			if _, _, err := net.ParseCIDR(*k6BlacklistedIP); err != nil {
-				return err
-			}
+		if err := validateCIDR(*k6BlacklistedIP); err != nil {
+			return err
 		}
 
 		k6Runner = k6runner.New(k6runner.RunnerOpts{
@@ -308,12 +306,14 @@ func newConnectionBackoff() *backoff.Backoff {
 	}
 }
 
-func validateBlacklistIp(ip *string, logger zerolog.Logger) {
-	_, _, err := net.ParseCIDR(*ip)
-	if err != nil {
-		logger.Warn().Msg("Invalid CIDR IP provided for k6 blacklist; will use default config.")
-		*ip = ""
+func validateCIDR(ip string) error {
+	if ip != "" {
+		if _, _, err := net.ParseCIDR(ip); err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
 func stringFromEnv(name string, override string) string {
