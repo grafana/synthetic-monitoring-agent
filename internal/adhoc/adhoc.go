@@ -485,7 +485,7 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 	buf := &bytes.Buffer{}
 	targetLogger := zerolog.New(buf)
 
-	targetLogger.Info().
+	targetLogger.Warn().
 		AnErr("error", err).
 		Str("id", r.id).
 		Str("target", r.target).

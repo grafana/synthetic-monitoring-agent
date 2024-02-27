@@ -59,6 +59,7 @@ func TestHandlerRun(t *testing.T) {
 	}
 
 	publishCh := make(chan pusher.Payload)
+	zerolog.SetGlobalLevel(zerolog.WarnLevel) // default log level.
 
 	opts := HandlerOpts{
 		Logger:         logger,
@@ -92,6 +93,9 @@ func TestHandlerRun(t *testing.T) {
 	payload := <-publishCh
 	require.Len(t, payload.Metrics(), 0)
 	require.Len(t, payload.Streams(), 1)
+
+	logBody := payload.Streams()[0].Entries[0].Line
+	require.Contains(t, logBody, "ad-hoc check done") // log must publish even when verbose is disabled for check tests
 }
 
 type channelPublisher chan pusher.Payload
