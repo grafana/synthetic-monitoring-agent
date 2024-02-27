@@ -41,22 +41,23 @@ func New(opts RunnerOpts) Runner {
 			logger: &logger,
 		}
 	} else {
-		var blacklistIP string
-		if opts.BlacklistedIP != "" {
-			blacklistIP = opts.BlacklistedIP
-		} else {
-			blacklistIP = "10.0.0.0/8"
-		}
-
 		r = &LocalRunner{
 			k6path:        opts.Uri,
 			logger:        &logger,
 			fs:            afero.NewOsFs(),
-			blacklistedIP: blacklistIP,
+			blacklistedIP: "10.0.0.0/8",
 		}
+
+		r.(*LocalRunner).withOpts(opts)
 	}
 
 	return r
+}
+
+func (r *LocalRunner) withOpts(opts RunnerOpts) {
+	if opts.BlacklistedIP != "" {
+		r.blacklistedIP = opts.BlacklistedIP
+	}
 }
 
 type Script struct {
