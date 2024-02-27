@@ -20,6 +20,7 @@ package synthetic_monitoring
 //go:generate go run github.com/dmarkham/enumer -type=MultiHttpEntryAssertionType,MultiHttpEntryAssertionSubjectVariant,MultiHttpEntryAssertionConditionVariant,MultiHttpEntryVariableType -trimprefix=MultiHttpEntryAssertionType_,MultiHttpEntryAssertionSubjectVariant_,MultiHttpEntryAssertionConditionVariant_,MultiHttpEntryVariableType_ -transform=upper -output=multihttp_string.go
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime"
@@ -359,6 +360,31 @@ func (c Check) validateTimeout() error {
 		if c.Timeout < 1*1000 || c.Timeout > 10*1000 || c.Timeout > c.Frequency {
 			return ErrInvalidCheckTimeout
 		}
+	}
+
+	return nil
+}
+
+// UnmarshalJSON overloads the unmarshal JSON method for CheckSettings.
+// This is required in order to support backward compatibility for JSON
+// representations of CheckSettings that were encoded prior to the K6 to
+// scripted field name modification done in
+// https://github.com/grafana/synthetic-monitoring-agent/pull/622.
+func (s *CheckSettings) UnmarshalJSON(b []byte) error {
+	type CSAlias CheckSettings
+	aux := struct {
+		CSAlias
+		K6 *ScriptedSettings `json:"k6,omitempty"`
+	}{}
+
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+
+	*s = CheckSettings(aux.CSAlias)
+
+	if aux.K6 != nil && s.Scripted == nil {
+		s.Scripted = aux.K6
 	}
 
 	return nil

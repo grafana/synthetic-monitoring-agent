@@ -2029,3 +2029,44 @@ func TestMultiHttpSettingsValidate(t *testing.T) {
 		},
 	})
 }
+
+func TestCheckSettingsUnmarshalJSON(t *testing.T) {
+	testCases := []struct {
+		jsn string
+		exp CheckSettings
+	}{
+		{
+			jsn: `{
+				"k6": {
+					"script": []
+				}
+			}`,
+			exp: CheckSettings{
+				Scripted: &ScriptedSettings{
+					Script: []byte{},
+				},
+			},
+		},
+		{
+			jsn: `{
+				"scripted": {
+					"script": []
+				}
+			}`,
+			exp: CheckSettings{
+				Scripted: &ScriptedSettings{
+					Script: []byte{},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		var cs CheckSettings
+		if err := json.Unmarshal([]byte(tc.jsn), &cs); err != nil {
+			t.Fatalf("unexpected error unmarshalling CheckSettings: %v", err)
+		}
+
+		require.Equal(t, tc.exp, cs)
+	}
+}
