@@ -280,7 +280,7 @@ func TestValidateMetrics(t *testing.T) {
 				var runner k6runner.Runner
 
 				if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
-					runner = k6runner.New(k6Path)
+					runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
 				} else {
 					runner = &testRunner{
 						metrics: testhelper.MustReadFile(t, "testdata/k6.dat"),
@@ -329,7 +329,7 @@ func TestValidateMetrics(t *testing.T) {
 				var runner k6runner.Runner
 
 				if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
-					runner = k6runner.New(k6Path)
+					runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
 				} else {
 					runner = &testRunner{
 						metrics: testhelper.MustReadFile(t, "testdata/multihttp.dat"),

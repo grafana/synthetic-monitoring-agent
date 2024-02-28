@@ -23,18 +23,20 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	r1 := New("k6")
+	r1 := New(RunnerOpts{Uri: "k6"})
 	require.IsType(t, &LocalRunner{}, r1)
-	r2 := New("/usr/bin/k6")
+	require.Equal(t, "10.0.0.0/8", r1.(*LocalRunner).blacklistedIP)
+	r2 := New(RunnerOpts{Uri: "/usr/bin/k6", BlacklistedIP: "192.168.4.0/24"})
 	require.IsType(t, &LocalRunner{}, r2)
-	r3 := New("http://localhost:6565")
+	require.Equal(t, "192.168.4.0/24", r2.(*LocalRunner).blacklistedIP)
+	r3 := New(RunnerOpts{Uri: "http://localhost:6565"})
 	require.IsType(t, &HttpRunner{}, r3)
-	r4 := New("https://localhost:6565")
+	r4 := New(RunnerOpts{Uri: "https://localhost:6565"})
 	require.IsType(t, &HttpRunner{}, r4)
 }
 
 func TestNewScript(t *testing.T) {
-	runner := New("k6")
+	runner := New(RunnerOpts{Uri: "k6"})
 	src := []byte("test")
 	script, err := NewScript(src, runner)
 	require.NoError(t, err)
@@ -110,7 +112,7 @@ func TestHttpRunnerRun(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	runner := New(srv.URL + "/run")
+	runner := New(RunnerOpts{Uri: srv.URL + "/run"})
 	require.IsType(t, &HttpRunner{}, runner)
 
 	ctx := context.Background()
@@ -152,7 +154,7 @@ func TestHttpRunnerRunError(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	runner := New(srv.URL + "/run")
+	runner := New(RunnerOpts{Uri: srv.URL + "/run"})
 	require.IsType(t, &HttpRunner{}, runner)
 
 	ctx, cancel := testhelper.Context(context.Background(), t)

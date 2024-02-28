@@ -811,7 +811,7 @@ func TestSettingsToScript(t *testing.T) {
 	// logger := zerolog.New(zerolog.NewTestWriter(t))
 	logger := zerolog.Nop()
 	k6path := filepath.Join(testhelper.ModuleDir(t), "dist", "k6")
-	runner := k6runner.New(k6path)
+	runner := k6runner.New(k6runner.RunnerOpts{Uri: k6path})
 
 	prober, err := NewProber(ctx, check, logger, runner, http.Header{})
 	require.NoError(t, err)

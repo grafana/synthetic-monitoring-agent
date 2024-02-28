@@ -54,6 +54,7 @@ func run(args []string, stdout io.Writer) error {
 		enablePProf          = flags.Bool("enable-pprof", false, "exposes profiling data via HTTP /debug/pprof/ endpoint")
 		httpListenAddr       = flags.String("listen-address", "localhost:4050", "listen address")
 		k6URI                = flags.String("k6-uri", "k6", "how to run k6 (path or URL)")
+		k6BlacklistedIP      = flags.String("blocked-nets", "10.0.0.0/8", "IP networks to block in CIDR notation, disabled if empty")
 		selectedPublisher    = flags.String("publisher", pusherV1.Name, "publisher type (EXPERIMENTAL)")
 	)
 
@@ -207,9 +208,15 @@ func run(args []string, stdout io.Writer) error {
 	defer conn.Close()
 
 	var k6Runner k6runner.Runner
-
 	if features.IsSet(feature.K6) && len(*k6URI) > 0 {
-		k6Runner = k6runner.New(*k6URI)
+		if err := validateCIDR(*k6BlacklistedIP); err != nil {
+			return err
+		}
+
+		k6Runner = k6runner.New(k6runner.RunnerOpts{
+			Uri:           *k6URI,
+			BlacklistedIP: *k6BlacklistedIP,
+		})
 	}
 
 	tm := tenants.NewManager(ctx, synthetic_monitoring.NewTenantsClient(conn), tenantCh, 15*time.Minute)
@@ -297,6 +304,16 @@ func newConnectionBackoff() *backoff.Backoff {
 		Factor: math.Pow(30./2., 1./8.), // reach the target in ~ 8 steps
 		Jitter: true,
 	}
+}
+
+func validateCIDR(ip string) error {
+	if ip != "" {
+		if _, _, err := net.ParseCIDR(ip); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func stringFromEnv(name string, override string) string {
