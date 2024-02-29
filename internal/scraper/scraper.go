@@ -248,7 +248,6 @@ func (s *Scraper) Run(ctx context.Context) {
 		s.telemeter.AddExecution(telemetry.Execution{
 			LocalTenantID: s.check.TenantId,
 			RegionID:      int32(s.check.RegionId),
-			Region:        s.probe.Region,
 			CheckClass:    s.check.Class(),
 			Duration:      end.Sub(start),
 		})
