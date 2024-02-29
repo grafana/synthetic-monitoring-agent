@@ -2,7 +2,6 @@ package telemetry
 
 import (
 	"context"
-	"strconv"
 	"sync"
 	"time"
 
@@ -41,6 +40,7 @@ type metrics struct {
 type Execution struct {
 	LocalTenantID int64
 	RegionID      int32
+	Region        string
 	CheckClass    sm.CheckClass
 	Duration      time.Duration
 }
@@ -90,10 +90,10 @@ func (t *Telemeter) AddExecution(e Execution) {
 	l := t.logger.With().
 		Str("component", "region-pusher").
 		Str("agent_instance", t.instance).
-		Int32("regionId", e.RegionID).
+		Str("region", e.Region).
 		Logger()
 	labels := prom.Labels{
-		"region_id": strconv.FormatInt(int64(e.RegionID), 10),
+		"region": e.Region,
 	}
 	m := RegionMetrics{
 		t.metrics.pushRequestsActive.With(labels),
@@ -118,7 +118,7 @@ func (t *Telemeter) registerMetrics(registerer prom.Registerer) {
 		Name:        "push_requests_active",
 		Help:        "Active push telemetry requests",
 		ConstLabels: prom.Labels{"agent_instance": t.instance},
-	}, []string{"region_id"})
+	}, []string{"region"})
 	t.metrics.pushRequestsDuration = prom.NewHistogramVec(prom.HistogramOpts{
 		Namespace:   "sm_agent",
 		Subsystem:   "telemetry",
@@ -126,21 +126,21 @@ func (t *Telemeter) registerMetrics(registerer prom.Registerer) {
 		Help:        "Duration of push telemetry requests",
 		Buckets:     prom.ExponentialBucketsRange(0.01, 2.0, 10),
 		ConstLabels: prom.Labels{"agent_instance": t.instance},
-	}, []string{"region_id"})
+	}, []string{"region"})
 	t.metrics.pushRequestsTotal = prom.NewCounterVec(prom.CounterOpts{
 		Namespace:   "sm_agent",
 		Subsystem:   "telemetry",
 		Name:        "push_requests_total",
 		Help:        "Total count of push telemetry requests",
 		ConstLabels: prom.Labels{"agent_instance": t.instance},
-	}, []string{"region_id"})
+	}, []string{"region"})
 	t.metrics.pushRequestsError = prom.NewCounterVec(prom.CounterOpts{
 		Namespace:   "sm_agent",
 		Subsystem:   "telemetry",
 		Name:        "push_requests_errors_total",
 		Help:        "Total count of errored push telemetry requests",
 		ConstLabels: prom.Labels{"agent_instance": t.instance},
-	}, []string{"region_id"})
+	}, []string{"region"})
 
 	t.metrics.addExecutionDuration = prom.NewHistogramVec(prom.HistogramOpts{
 		Namespace:                       "sm_agent",
@@ -152,7 +152,7 @@ func (t *Telemeter) registerMetrics(registerer prom.Registerer) {
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: time.Hour,
 		ConstLabels:                     prom.Labels{"agent_instance": t.instance},
-	}, []string{"region_id"})
+	}, []string{"region"})
 
 	registerer.MustRegister(t.metrics.pushRequestsActive)
 	registerer.MustRegister(t.metrics.pushRequestsDuration)
