@@ -89,7 +89,7 @@ func (t *Telemeter) AddExecution(e Execution) {
 	// If we do not have a pusher for this region, create it
 	l := t.logger.With().
 		Str("component", "region-pusher").
-		Str("agent_instance", t.instance).
+		Str("agentInstance", t.instance).
 		Int32("regionId", e.RegionID).
 		Logger()
 	labels := prom.Labels{
