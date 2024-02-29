@@ -20,6 +20,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
+	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -296,7 +297,7 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 
 func testScraperFactory(ctx context.Context, check model.Check, publisher pusher.Publisher,
 	_ sm.Probe, logger zerolog.Logger, scrapeCounter scraper.Incrementer, scrapeErrorCounter scraper.IncrementerVec,
-	k6Runner k6runner.Runner, labelsLimiter scraper.LabelsLimiter,
+	k6Runner k6runner.Runner, labelsLimiter scraper.LabelsLimiter, telemeter *telemetry.Telemeter,
 ) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
@@ -308,6 +309,7 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 			Publisher:     publisher,
 			ScrapeCounter: scrapeCounter,
 			LabelsLimiter: testLabelsLimiter{},
+			Telemeter:     telemeter,
 		},
 	)
 }
