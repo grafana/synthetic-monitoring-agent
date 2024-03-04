@@ -31,7 +31,7 @@ ENUMER ?= docker run \
 		 -v '$(HOME)/.cache/go-build:/root/.cache/go-build' \
 		 --env GOFLAGS=-buildvcs=false \
 		 --workdir /mnt \
-		 '$(GO_TOOLS_IMAGE)' \
+		 '$(GBT_IMAGE)' \
 		 enumer
 endif
 endif

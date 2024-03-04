@@ -1,0 +1,51 @@
+#!/usr/bin/env sh
+
+set -e
+
+# This is a fallback value; the actual value should be passed in the environment.
+CGO_ENABLED=${CGO_ENABLED:-0}
+
+if test -z "${ROOTDIR}" ; then
+	ROOTDIR=$(dirname "$(go env GOMOD)")
+	if test -z "${ROOTDIR}" ; then
+		ROOTDIR=$(git rev-parse --show-toplevel)
+	fi
+	ROOTDIR=$(realpath -m "${ROOTDIR}")
+fi
+
+. "${ROOTDIR}/.gbt.mk"
+
+if test -z "${GOPATH}" ; then
+	GOPATH=$(go env GOPATH)
+fi
+
+if test -z "${GOMODCACHE}" ; then
+	GOMODCACHE=$(go env GOMODCACHE)
+fi
+
+if test -z "${CI}" ; then
+	CI=false
+fi
+
+if test -z "${GOOS}" ; then
+	GOOS=$(go env GOOS)
+fi
+
+if test -z "${GOARCH}" ; then
+	GOARCH=$(go env GOARCH)
+fi
+
+exec docker run                                  \
+	--rm                                     \
+	--user "$(id -u):$(id -g)"               \
+	--volume "${ROOTDIR}:${ROOTDIR}"         \
+	--volume "${HOME}/.cache:/.cache"        \
+	--volume "${GOPATH}:/go"                 \
+	--volume "${GOMODCACHE}:/go/pkg/mod"     \
+	--workdir "${PWD}"                       \
+	--env CI="${CI}"                         \
+	--env CGO_ENABLED="${CGO_ENABLED}"       \
+	--env GOOS="${GOOS}"                     \
+	--env GOARCH="${GOARCH}"                 \
+	"${GBT_IMAGE}"                           \
+	"$@"

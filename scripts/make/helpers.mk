@@ -119,7 +119,7 @@ else
 endif
 	$(S) false
 endif
-	$(V) ./scripts/generate-drone-yaml "$(GO_TOOLS_IMAGE)" "$(GH_REPO_NAME)" "$(ROOTDIR)/.drone.yml" "$(ROOTDIR)/scripts/configs/drone/main.jsonnet"
+	$(V) ./scripts/generate-drone-yaml "$(GBT_IMAGE)" "$(GH_REPO_NAME)" "$(ROOTDIR)/.drone.yml" "$(ROOTDIR)/scripts/configs/drone/main.jsonnet"
 
 .PHONY: dronefmt
 dronefmt: ## Format drone jsonnet files

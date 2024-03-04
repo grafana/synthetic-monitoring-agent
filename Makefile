@@ -11,7 +11,9 @@ all: deps build
 
 include $(ROOTDIR)/scripts/make/vars.mk
 
-include config.mk
+include $(ROOTDIR)/config.mk
+
+include $(ROOTDIR)/.gbt.mk
 
 -include $(ROOTDIR)/scripts/make/local.mk
 

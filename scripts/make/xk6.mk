@@ -6,19 +6,7 @@ K6_VERSION  := v0.50.0
 LOCAL_GOPATH ?= $(shell go env GOPATH)
 
 ifeq ($(origin XK6),undefined)
-XK6 ?= docker run \
-	      --rm \
-	      -i \
-	      -u "$(shell id -u):$(shell id -g)" \
-	      -e GOOS=$(GOOS) \
-	      -e GOARCH=$(GOARCH) \
-	      -v "${HOME}/.cache:/.cache" \
-	      -v "${LOCAL_GOPATH}:/go" \
-	      -v "$(XK6_PKG_DIR):$(XK6_PKG_DIR)" \
-	      -v "$(dir $(DIST_FILENAME)):$(dir $(DIST_FILENAME))" \
-	      --workdir /mnt \
-	      '$(GO_TOOLS_IMAGE)' \
-	      xk6
+XK6 ?= $(ROOTDIR)/scripts/docker-run xk6
 endif
 
 define build_xk6_template

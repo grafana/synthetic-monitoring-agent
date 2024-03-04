@@ -4,15 +4,7 @@ SH_FILES ?= $(shell $(ROOTDIR)/scripts/list-sh-scripts)
 
 ifeq ($(origin GOLANGCI_LINT),undefined)
 ifneq ($(LOCAL_GOLANGCI_LINT),yes)
-GOLANGCI_LINT ?= docker run \
-		 --rm \
-		 -v '$(ROOTDIR):/mnt' \
-		 -v '$(HOME)/.cache/go-build:/root/.cache/go-build' \
-		 -v '$(HOME)/.cache/golangci-lint:/root/.cache/golangci-lint' \
-		 --env GOFLAGS=-buildvcs=false \
-		 --workdir /mnt \
-		 '$(GO_TOOLS_IMAGE)' \
-		 golangci-lint
+GOLANGCI_LINT ?= $(ROOTDIR)/scripts/docker-run env GOFLAGS=-buildvcs=false golangci-lint
 endif
 endif
 
@@ -25,12 +17,7 @@ $(GOLANGCI_LINT): scripts/go/go.mod scripts/go/go.sum
 endif
 
 ifeq ($(origin SHELLCHECK),undefined)
-SHELLCHECK ?= docker run \
-	      --rm \
-	      -v '$(ROOTDIR):/mnt' \
-	      --workdir /mnt \
-	      '$(GO_TOOLS_IMAGE)' \
-	      shellcheck
+SHELLCHECK ?= $(ROOTDIR)/scripts/docker-run shellcheck
 endif
 
 .PHONY: golangci-lint
