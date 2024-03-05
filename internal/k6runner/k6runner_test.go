@@ -187,7 +187,7 @@ func TestTextToRegistry(t *testing.T) {
 
 	expectedMetrics := map[string]struct{}{}
 
-	promDecoder := expfmt.NewDecoder(bytes.NewBuffer(data), expfmt.FmtText)
+	promDecoder := expfmt.NewDecoder(bytes.NewBuffer(data), expfmt.NewFormat(expfmt.TypeTextPlain))
 DEC_LOOP:
 	for {
 		var mf dto.MetricFamily
@@ -262,8 +262,7 @@ func TestK6LogsToLogger(t *testing.T) {
 	require.NoError(t, err)
 }
 
-type testLogger struct {
-}
+type testLogger struct{}
 
 var _ logger.Logger = &testLogger{}
 
