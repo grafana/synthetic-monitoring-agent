@@ -138,6 +138,12 @@ const (
 	MaxMultiHttpTargets      = 10   // Max targets per multi-http check.
 	MaxMultiHttpAssertions   = 5    // Max assertions per multi-http target.
 	MaxMultiHttpVariables    = 5    // Max variables per multi-http target.
+
+	// Frequencies (in milliseconds)
+	MaxCheckFrequency      = 120 * 1000 // Maximum value for the check's frequency.
+	minCheckFrequency      = 1 * 1000   // Minimum default value for the check's frequency.
+	minTracerouteFrequency = 120 * 1000 // Minimum value for the traceroute check's frequency.
+	minK6Frequency         = 60 * 1000  // Minimum value for k6-class check's frequency.
 )
 
 type validatable interface {
@@ -310,24 +316,26 @@ func (c Check) validateTarget() error {
 }
 
 func (c Check) validateFrequency() error {
-	// frequency must be in [1, 120] seconds
-	switch {
-	case c.Settings.Traceroute != nil:
-		if c.Frequency != 120*1000 {
+	// All checks have a maximum frequency of MaxCheckFrequency.
+	if c.Frequency > MaxCheckFrequency {
+		return ErrInvalidCheckFrequency
+	}
+
+	// Different check types have different minimum allowed values for the frequency.
+
+	switch c.Type() {
+	case CheckTypeTraceroute:
+		if c.Frequency < minTracerouteFrequency {
 			return ErrInvalidCheckFrequency
 		}
 
-	case c.Settings.Scripted != nil || c.Settings.Multihttp != nil:
-		// TODO(mem): k6 and multihttp checks should allow for a lower
-		// frequency (a higher number), but that needs that we keep the
-		// metrics alive on the Prometheus side, i.e. we need to cache
-		// results and push them to Prometheus on a periodic basis.
-		if c.Frequency < 60*1000 || c.Frequency > 120*1000 {
+	case CheckTypeScripted, CheckTypeMultiHttp:
+		if c.Frequency < minK6Frequency {
 			return ErrInvalidCheckFrequency
 		}
 
 	default:
-		if c.Frequency < 1*1000 || c.Frequency > 120*1000 {
+		if c.Frequency < minCheckFrequency {
 			return ErrInvalidCheckFrequency
 		}
 	}

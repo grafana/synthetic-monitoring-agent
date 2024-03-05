@@ -35,6 +35,8 @@ const (
 	CheckInfoMetricName    = "sm_check_info"
 	CheckInfoSource        = "synthetic-monitoring-agent"
 	maxLabelValueLength    = 2048 // this is the default value in Prometheus
+	maxPublishInterval     = 2 * time.Minute
+	minPublishGap          = 10 * time.Second
 )
 
 var (
@@ -232,83 +234,122 @@ func (s *Scraper) Run(ctx context.Context) {
 	// TODO(mem): keep count of the number of successive errors and
 	// collect logs if threshold is reached.
 
-	var sm checkStateMachine
+	var (
+		frequency = ms(s.check.Frequency)
+		offset    = ms(s.check.Offset)
+	)
 
-	// need to keep the most recently published payload for clean up
-	var payload *probeData
-
-	scrape := func(ctx context.Context, t time.Time) {
-		s.scrapeCounter.Inc()
-
-		var err error
-		start := time.Now()
-		payload, err = s.collectData(ctx, t)
-		end := time.Now()
-
-		s.telemeter.AddExecution(telemetry.Execution{
-			LocalTenantID: s.check.TenantId,
-			RegionID:      int32(s.check.RegionId),
-			CheckClass:    s.check.Class(),
-			Duration:      end.Sub(start),
-		})
-
-		switch {
-		case errors.Is(err, errCheckFailed):
-			s.errorCounter.WithLabelValues("check").Inc()
-			sm.fail(func() {
-				s.logger.Info().Msg("check entered FAIL state")
-			})
-
-		case err != nil:
-			s.errorCounter.WithLabelValues("collector").Inc()
-			s.logger.Error().Err(err).Msg("error collecting data")
-			return
-
-		default:
-			sm.pass(func() {
-				s.logger.Info().Msg("check entered PASS state")
-			})
-		}
-
-		if payload != nil {
-			s.publisher.Publish(payload)
-		}
-	}
-
-	cleanup := func(ctx context.Context, t time.Time) {
-		if payload == nil {
-			return
-		}
-
-		staleSample := prompb.Sample{
-			Timestamp: t.UnixNano()/1e6 + 1, // ms
-			Value:     staleMarker,
-		}
-
-		for i := range payload.ts {
-			ts := &payload.ts[i]
-			for j := range ts.Samples {
-				ts.Samples[j] = staleSample
-			}
-		}
-
-		payload.streams = nil
-
-		s.publisher.Publish(payload)
-
-		payload = nil
-	}
-
-	offset := s.check.Offset
 	if offset == 0 {
-		offset = rand.Int63n(s.check.Frequency)
+		offset = randDuration(min(frequency, maxPublishInterval))
 	}
 
-	tickWithOffset(ctx, s.stop, scrape, cleanup, offset, s.check.Frequency)
+	scrapeHandler := scrapeHandler{scraper: s}
+
+	tickWithOffset(
+		ctx,
+		s.stop,
+		scrapeHandler.scrape, scrapeHandler.republish, scrapeHandler.cleanup,
+		frequency, offset,
+		maxPublishInterval, minPublishGap,
+	)
 
 	s.cancel()
 
 	s.logger.Info().Msg("scraper stopped")
+}
+
+type scrapeHandler struct {
+	scraper *Scraper
+	payload *probeData // needed to keep the most recently published payload for republication and clean up
+	sm      checkStateMachine
+}
+
+func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
+	h.scraper.scrapeCounter.Inc()
+
+	var err error
+
+	h.payload, err = h.scraper.collectData(ctx, t)
+
+	h.scraper.telemeter.AddExecution(telemetry.Execution{
+		LocalTenantID: h.scraper.check.TenantId,
+		RegionID:      int32(h.scraper.check.RegionId),
+		CheckClass:    h.scraper.check.Class(),
+		Duration:      time.Since(t),
+	})
+
+	switch {
+	case errors.Is(err, errCheckFailed):
+		h.scraper.errorCounter.WithLabelValues("check").Inc()
+		h.sm.fail(func() {
+			h.scraper.logger.Info().Msg("check entered FAIL state")
+		})
+
+	case err != nil:
+		h.scraper.errorCounter.WithLabelValues("collector").Inc()
+		h.scraper.logger.Error().Err(err).Msg("error collecting data")
+		return
+
+	default:
+		h.sm.pass(func() {
+			h.scraper.logger.Info().Msg("check entered PASS state")
+		})
+	}
+
+	if h.payload != nil {
+		h.scraper.publisher.Publish(h.payload)
+	}
+}
+
+func (h *scrapeHandler) republish(ctx context.Context, t time.Time) {
+	if h.payload == nil {
+		return
+	}
+
+	h.payload.streams = nil // do not republish logs
+
+	// Update the timestamps of all collected samples to now.
+	now := t.UnixMilli()
+	for i := range h.payload.ts {
+		ts := &h.payload.ts[i]
+		for j := range ts.Samples {
+			ts.Samples[j].Timestamp = now
+		}
+	}
+
+	h.scraper.publisher.Publish(h.payload)
+}
+
+func (h *scrapeHandler) cleanup(ctx context.Context, t time.Time) {
+	if h.payload == nil {
+		return
+	}
+
+	staleSample := prompb.Sample{
+		Timestamp: t.UnixNano()/1e6 + 1, // ms
+		Value:     staleMarker,
+	}
+
+	for i := range h.payload.ts {
+		ts := &h.payload.ts[i]
+		for j := range ts.Samples {
+			ts.Samples[j] = staleSample
+		}
+	}
+
+	h.payload.streams = nil
+
+	h.scraper.publisher.Publish(h.payload)
+
+	h.payload = nil
+}
+
+func ms(n int64) time.Duration {
+	return time.Duration(n) * time.Millisecond
+}
+
+func randDuration(d time.Duration) time.Duration {
+	return time.Duration(rand.Int63n(int64(d)))
 }
 
 func (s *Scraper) Stop() {
@@ -328,40 +369,56 @@ func (s Scraper) LastModified() float64 {
 	return s.check.Modified
 }
 
-func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Context, time.Time), cleanup func(context.Context, time.Time), offset, period int64) {
-	timer := time.NewTimer(time.Duration(offset) * time.Millisecond)
+func tickWithOffset(
+	ctx context.Context,
+	stop <-chan struct{},
+	work, idle, cleanup func(context.Context, time.Time),
+	period, offset, maxIdle, minGap time.Duration) {
+	// wait for up to offset duration, paying attention to cancellation signals.
+	offsetTimer := time.NewTimer(offset)
 
 	var lastTick time.Time
 
 	select {
 	case <-ctx.Done():
-		if !timer.Stop() {
-			<-timer.C
+		if !offsetTimer.Stop() {
+			<-offsetTimer.C
 		}
 		return
 
 	case <-stop:
-		if !timer.Stop() {
-			<-timer.C
+		if !offsetTimer.Stop() {
+			<-offsetTimer.C
 		}
 		// we haven't done anything yet, no clean up
 		return
 
-	case t := <-timer.C:
+	case t := <-offsetTimer.C:
 		lastTick = t
-		f(ctx, t)
+		work(ctx, t)
 	}
 
-	ticker := time.NewTicker(time.Duration(period) * time.Millisecond)
+	// create a ticker that won't fire, and replace it with a running
+	// ticker in case we need it.
+	inactivityTicker := &time.Ticker{}
+
+	if period > maxIdle {
+		inactivityTicker = time.NewTicker(maxIdle)
+	}
+
+	workTicker := time.NewTicker(period)
 
 	for {
 		select {
 		case <-ctx.Done():
-			ticker.Stop()
+			workTicker.Stop()
+			inactivityTicker.Stop()
+			// no clean up if the context is cancelled.
 			return
 
 		case <-stop:
-			ticker.Stop()
+			workTicker.Stop()
+			inactivityTicker.Stop()
 			// if we are here, we already pushed something
 			// at least once, lastTick cannot be zero, but
 			// just in case...
@@ -370,9 +427,24 @@ func tickWithOffset(ctx context.Context, stop <-chan struct{}, f func(context.Co
 			}
 			return
 
-		case t := <-ticker.C:
+		case t := <-inactivityTicker.C:
+			// if the amount of time since the last run is greater
+			// than minGap and the amount of time left until the
+			// next run is larger than minGap, then run the idle
+			// function.
+			//
+			// p----I----I----Ip---I----I----I-p
+			//      ^    ^    ^
+			//      |    |    +-- don't run here because it's too close to the next run
+			//      |    +-- run here
+			//      +-- don't run here because it's too close to the last run
+			if t.Sub(lastTick) >= minGap && lastTick.Add(period).Sub(t) >= minGap {
+				idle(ctx, t)
+			}
+
+		case t := <-workTicker.C:
 			lastTick = t
-			f(ctx, t)
+			work(ctx, t)
 		}
 	}
 }
