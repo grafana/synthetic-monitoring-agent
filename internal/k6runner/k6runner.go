@@ -186,7 +186,7 @@ func (rc *checkResultCollector) process(mf *dto.MetricFamily, sample *model.Samp
 }
 
 func extractMetricSamples(metrics []byte, logger zerolog.Logger, processors ...sampleProcessorFunc) error {
-	promDecoder := expfmt.NewDecoder(bytes.NewBuffer(metrics), expfmt.FmtText)
+	promDecoder := expfmt.NewDecoder(bytes.NewBuffer(metrics), expfmt.NewFormat(expfmt.TypeTextPlain))
 	decoderOpts := expfmt.DecodeOptions{Timestamp: model.Now()}
 	for {
 		var mf dto.MetricFamily

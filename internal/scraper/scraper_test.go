@@ -464,7 +464,7 @@ func verifyProberMetrics(
 	if *updateGolden {
 		var buf bytes.Buffer
 
-		enc := expfmt.NewEncoder(&buf, expfmt.FmtText)
+		enc := expfmt.NewEncoder(&buf, expfmt.NewFormat(expfmt.TypeTextPlain))
 
 		for _, m := range mfs {
 			if err := enc.Encode(m); err != nil {
@@ -515,7 +515,7 @@ func readGoldenFile(fn string) (map[string]struct{}, error) {
 	}
 	defer fh.Close()
 
-	dec := expfmt.NewDecoder(fh, expfmt.FmtText)
+	dec := expfmt.NewDecoder(fh, expfmt.NewFormat(expfmt.TypeTextPlain))
 
 	metrics := map[string]struct{}{}
 
