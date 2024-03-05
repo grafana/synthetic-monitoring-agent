@@ -2029,3 +2029,23 @@ func TestMultiHttpSettingsValidate(t *testing.T) {
 		},
 	})
 }
+
+func TestInClosedRange(t *testing.T) {
+	testcases := map[string]struct {
+		value    int64
+		lower    int64
+		upper    int64
+		expected bool
+	}{
+		"too low":     {value: 0, lower: 1, upper: 5, expected: false},
+		"lower bound": {value: 1, lower: 1, upper: 5, expected: true},
+		"in range":    {value: 3, lower: 1, upper: 5, expected: true},
+		"upper bound": {value: 5, lower: 1, upper: 5, expected: true},
+		"too high":    {value: 6, lower: 1, upper: 5, expected: false},
+	}
+
+	for name, tc := range testcases {
+		actual := inClosedRange(tc.value, tc.lower, tc.upper)
+		require.Equalf(t, tc.expected, actual, `%s`, name)
+	}
+}
