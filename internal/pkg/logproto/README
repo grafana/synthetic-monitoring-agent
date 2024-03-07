@@ -1,6 +1,0 @@
-In order to avoid pulling in a lot of problematic dependencies, the
-contents of this directory have been copied verbatim from
-https://github.com/grafana/loki, version 1.6.1 (tag v1.6.1).
-
-The corresponding license has been copied to the LICENSE file found in
-this directory.

@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/go-logfmt/logfmt"
+	logproto "github.com/grafana/loki/pkg/push"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
-	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/logproto"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	dnsProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	grpcProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
