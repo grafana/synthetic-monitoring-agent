@@ -173,7 +173,7 @@ func (p *RegionPusher) push(m sm.RegionTelemetry) {
 	)
 
 	start := p.metrics.start()
-	defer p.metrics.end(err, start)
+	defer func() { p.metrics.end(err, start) }()
 
 	// We don't want to cancel a possibly ongoing request even if the agent
 	// context is done, therefore use background context
