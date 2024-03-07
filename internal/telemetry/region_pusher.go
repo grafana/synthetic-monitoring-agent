@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -184,7 +185,9 @@ func (p *RegionPusher) push(m sm.RegionTelemetry) {
 		return
 	}
 	if r.Status.Code != sm.StatusCode_OK {
-		p.logger.Error().
+		// create an error so it's handled by metrics.end() on defer
+		err = fmt.Errorf("unexpected status code")
+		p.logger.Err(err).
 			Int32("statusCode", int32(r.Status.Code)).
 			Str("statusMessage", r.Status.Message).
 			Msg("error pushing telemetry")
