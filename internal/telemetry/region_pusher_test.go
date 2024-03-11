@@ -27,53 +27,53 @@ var (
 		{
 			LocalTenantID: 1,
 			CheckClass:    sm.CheckClass_PROTOCOL,
-			Duration:      1 * time.Second,
+			Duration:      59 * time.Second,
 		},
 		{
 			LocalTenantID: 1,
 			CheckClass:    sm.CheckClass_PROTOCOL,
-			Duration:      2 * time.Second,
+			Duration:      60 * time.Second,
 		},
 		{
 			LocalTenantID: 2,
 			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      1 * time.Second,
+			Duration:      61 * time.Second,
 		},
 		{
 			LocalTenantID: 2,
 			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      2 * time.Second,
+			Duration:      30 * time.Second,
 		},
 
 		{
 			LocalTenantID: 1,
 			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      1 * time.Second,
+			Duration:      30 * time.Second,
 		},
 		{
 			LocalTenantID: 1,
 			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      5 * time.Second,
+			Duration:      59 * time.Second,
 		},
 		{
 			LocalTenantID: 1,
 			CheckClass:    sm.CheckClass_PROTOCOL,
-			Duration:      4 * time.Second,
+			Duration:      130 * time.Second,
 		},
 		{
 			LocalTenantID: 1,
 			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      5 * time.Second,
+			Duration:      60 * time.Second,
 		},
 		{
 			LocalTenantID: 2,
 			CheckClass:    sm.CheckClass_PROTOCOL,
-			Duration:      2 * time.Second,
+			Duration:      45 * time.Second,
 		},
 		{
 			LocalTenantID: 1,
 			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      2 * time.Second,
+			Duration:      65 * time.Second,
 		},
 	}
 
@@ -87,9 +87,10 @@ var (
 					TenantId: 1,
 					Telemetry: []*sm.CheckClassTelemetry{
 						{
-							CheckClass: sm.CheckClass_PROTOCOL,
-							Executions: 2,
-							Duration:   3,
+							CheckClass:        sm.CheckClass_PROTOCOL,
+							Executions:        2,
+							Duration:          119,
+							SampledExecutions: 2,
 						},
 					},
 				},
@@ -97,9 +98,10 @@ var (
 					TenantId: 2,
 					Telemetry: []*sm.CheckClassTelemetry{
 						{
-							CheckClass: sm.CheckClass_SCRIPTED,
-							Executions: 2,
-							Duration:   3,
+							CheckClass:        sm.CheckClass_SCRIPTED,
+							Executions:        2,
+							Duration:          91,
+							SampledExecutions: 3,
 						},
 					},
 				},
@@ -114,14 +116,16 @@ var (
 					TenantId: 1,
 					Telemetry: []*sm.CheckClassTelemetry{
 						{
-							CheckClass: sm.CheckClass_PROTOCOL,
-							Executions: 3,
-							Duration:   7,
+							CheckClass:        sm.CheckClass_PROTOCOL,
+							Executions:        3,
+							Duration:          249,
+							SampledExecutions: 5,
 						},
 						{
-							CheckClass: sm.CheckClass_SCRIPTED,
-							Executions: 4,
-							Duration:   13,
+							CheckClass:        sm.CheckClass_SCRIPTED,
+							Executions:        4,
+							Duration:          214,
+							SampledExecutions: 5,
 						},
 					},
 				},
@@ -129,14 +133,16 @@ var (
 					TenantId: 2,
 					Telemetry: []*sm.CheckClassTelemetry{
 						{
-							CheckClass: sm.CheckClass_PROTOCOL,
-							Executions: 1,
-							Duration:   2,
+							CheckClass:        sm.CheckClass_PROTOCOL,
+							Executions:        1,
+							Duration:          45,
+							SampledExecutions: 1,
 						},
 						{
-							CheckClass: sm.CheckClass_SCRIPTED,
-							Executions: 2,
-							Duration:   3,
+							CheckClass:        sm.CheckClass_SCRIPTED,
+							Executions:        2,
+							Duration:          91,
+							SampledExecutions: 3,
 						},
 					},
 				},

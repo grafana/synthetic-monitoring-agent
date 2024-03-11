@@ -131,6 +131,7 @@ func (p *RegionPusher) AddExecution(e Execution) {
 
 	clTele.Executions++
 	clTele.Duration += float32(e.Duration.Seconds())
+	clTele.SampledExecutions += int32((e.Duration + time.Minute - 1) / time.Minute)
 
 	// measure contention for AddExecution
 	p.metrics.addExecutionDuration.Observe(
@@ -156,9 +157,10 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 		}
 		for _, clTele := range tTele {
 			tenantTele.Telemetry = append(tenantTele.Telemetry, &sm.CheckClassTelemetry{
-				CheckClass: clTele.CheckClass,
-				Executions: clTele.Executions,
-				Duration:   clTele.Duration,
+				CheckClass:        clTele.CheckClass,
+				Executions:        clTele.Executions,
+				Duration:          clTele.Duration,
+				SampledExecutions: clTele.SampledExecutions,
 			})
 		}
 		m.Telemetry = append(m.Telemetry, tenantTele)

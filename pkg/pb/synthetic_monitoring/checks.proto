@@ -614,9 +614,10 @@ message TenantTelemetry {
 
 // CheckClassTelemetry represents the telemetry data for a specific check class.
 message CheckClassTelemetry {
-  CheckClass checkClass = 1 [(gogoproto.jsontag) = "checkClass"];
-  int32 executions      = 2 [(gogoproto.jsontag) = "executions"];
-  float duration        = 3 [(gogoproto.jsontag) = "duration"];
+  CheckClass checkClass   = 1 [(gogoproto.jsontag) = "checkClass"];
+  int32 executions        = 2 [(gogoproto.jsontag) = "executions"];
+  float duration          = 3 [(gogoproto.jsontag) = "duration"];
+  int32 sampledExecutions = 4 [(gogoproto.jsontag) = "sampledExecutions"];
 }
 
 // PushTelemetryResponse represents a response for a push telemetry rpc call.
