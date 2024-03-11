@@ -3,7 +3,6 @@ package telemetry
 import (
 	"context"
 	"fmt"
-	"math"
 	"sync"
 	"time"
 
@@ -130,11 +129,9 @@ func (p *RegionPusher) AddExecution(e Execution) {
 		tenantTele[e.CheckClass] = clTele
 	}
 
-	duration := e.Duration.Seconds()
-
 	clTele.Executions++
-	clTele.Duration += float32(duration)
-	clTele.SampledExecutions += int32(math.Ceil(duration / 60))
+	clTele.Duration += float32(e.Duration.Seconds())
+	clTele.SampledExecutions += int32((e.Duration + time.Minute - 1) / time.Minute)
 
 	// measure contention for AddExecution
 	p.metrics.addExecutionDuration.Observe(
