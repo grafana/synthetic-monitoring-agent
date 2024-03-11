@@ -2,6 +2,15 @@
 ## [Unreleased]
 
 
+<a name="v0.22.0"></a>
+## [v0.22.0] - 2024-03-11
+### Feature
+- allow checks to run less often ([#611](https://github.com/grafana/synthetic-monitoring-agent/issues/611))
+
+### Fix
+- telemetry region label ([#638](https://github.com/grafana/synthetic-monitoring-agent/issues/638))
+
+
 <a name="v0.21.0"></a>
 ## [v0.21.0] - 2024-02-26
 ### Feature
@@ -554,7 +563,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.22.0...HEAD
+[v0.22.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.21.0...v0.22.0
 [v0.21.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.1...v0.21.0
 [v0.20.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.20.1
 [v0.19.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.5...v0.19.6
