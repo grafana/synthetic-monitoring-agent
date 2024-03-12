@@ -1610,12 +1610,13 @@ func TestScraperRun(t *testing.T) {
 	testProber := &testProberB{wantedFailures: 2}
 	testTelemeter := &testTelemeter{}
 
+	metrics := NewMetrics(&counter, &errCounter)
+
 	s, err := NewWithOpts(ctx, check, ScraperOpts{
-		ScrapeCounter: &counter,
-		ErrorCounter:  &errCounter,
-		ProbeFactory:  testProbeFactory{builder: func() prober.Prober { return testProber }},
-		Logger:        zerolog.New(zerolog.NewTestWriter(t)),
-		Publisher:     &testPublisher{},
+		Metrics:      metrics,
+		ProbeFactory: testProbeFactory{builder: func() prober.Prober { return testProber }},
+		Logger:       zerolog.New(zerolog.NewTestWriter(t)),
+		Publisher:    &testPublisher{},
 		LabelsLimiter: testLabelsLimiter{
 			maxMetricLabels: 20,
 			maxLogLabels:    15,

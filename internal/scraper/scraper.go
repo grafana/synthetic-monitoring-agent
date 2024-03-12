@@ -44,24 +44,10 @@ var (
 	staleMarker float64 = math.Float64frombits(staleNaN)
 )
 
-type Incrementer interface {
-	Inc()
-}
-
-type IncrementerVec interface {
-	WithLabelValues(...string) Incrementer
-}
-
-type counterVecWrapper struct {
-	c *prometheus.CounterVec
-}
-
-func (c *counterVecWrapper) WithLabelValues(v ...string) Incrementer {
-	return c.c.WithLabelValues(v...)
-}
-
-func NewIncrementerFromCounterVec(c *prometheus.CounterVec) IncrementerVec {
-	return &counterVecWrapper{c: c}
+type Metrics interface {
+	AddScrape()
+	AddCheckError()
+	AddCollectorError()
 }
 
 type LabelsLimiter interface {
@@ -84,8 +70,7 @@ type Scraper struct {
 	prober        prober.Prober
 	labelsLimiter LabelsLimiter
 	stop          chan struct{}
-	scrapeCounter Incrementer
-	errorCounter  IncrementerVec
+	metrics       Metrics
 	summaries     map[uint64]prometheus.Summary
 	histograms    map[uint64]prometheus.Histogram
 	telemeter     Telemeter
@@ -93,7 +78,7 @@ type Scraper struct {
 
 type Factory func(
 	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger,
-	scrapeCounter Incrementer, errorCounter IncrementerVec, k6runner k6runner.Runner, labelsLimiter LabelsLimiter,
+	metrics Metrics, k6runner k6runner.Runner, labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 ) (*Scraper, error)
 
@@ -122,15 +107,14 @@ func (d *probeData) Tenant() model.GlobalID {
 
 func New(
 	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe,
-	logger zerolog.Logger, scrapeCounter Incrementer, errorCounter IncrementerVec,
+	logger zerolog.Logger, metrics Metrics,
 	k6runner k6runner.Runner, labelsLimiter LabelsLimiter, telemeter *telemetry.Telemeter,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
 		Publisher:     publisher,
 		Logger:        logger,
-		ScrapeCounter: scrapeCounter,
-		ErrorCounter:  errorCounter,
+		Metrics:       metrics,
 		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id),
 		LabelsLimiter: labelsLimiter,
 		Telemeter:     telemeter,
@@ -141,8 +125,7 @@ type ScraperOpts struct {
 	Probe         sm.Probe
 	Publisher     pusher.Publisher
 	Logger        zerolog.Logger
-	ScrapeCounter Incrementer
-	ErrorCounter  IncrementerVec
+	Metrics       Metrics
 	ProbeFactory  prober.ProberFactory
 	LabelsLimiter LabelsLimiter
 	Telemeter     Telemeter
@@ -179,8 +162,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		prober:        smProber,
 		labelsLimiter: opts.LabelsLimiter,
 		stop:          make(chan struct{}),
-		scrapeCounter: opts.ScrapeCounter,
-		errorCounter:  opts.ErrorCounter,
+		metrics:       opts.Metrics,
 		summaries:     make(map[uint64]prometheus.Summary),
 		histograms:    make(map[uint64]prometheus.Histogram),
 		telemeter:     opts.Telemeter,
@@ -265,7 +247,7 @@ type scrapeHandler struct {
 }
 
 func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
-	h.scraper.scrapeCounter.Inc()
+	h.scraper.metrics.AddScrape()
 
 	var err error
 
@@ -280,13 +262,13 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 
 	switch {
 	case errors.Is(err, errCheckFailed):
-		h.scraper.errorCounter.WithLabelValues("check").Inc()
+		h.scraper.metrics.AddCheckError()
 		h.sm.fail(func() {
 			h.scraper.logger.Info().Msg("check entered FAIL state")
 		})
 
 	case err != nil:
-		h.scraper.errorCounter.WithLabelValues("collector").Inc()
+		h.scraper.metrics.AddCollectorError()
 		h.scraper.logger.Error().Err(err).Msg("error collecting data")
 		return
 
