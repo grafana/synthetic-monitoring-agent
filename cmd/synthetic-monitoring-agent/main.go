@@ -61,7 +61,7 @@ func run(args []string, stdout io.Writer) error {
 		httpListenAddr       = flags.String("listen-address", "localhost:4050", "listen address")
 		k6URI                = flags.String("k6-uri", "k6", "how to run k6 (path or URL)")
 		k6BlacklistedIP      = flags.String("blocked-nets", "10.0.0.0/8", "IP networks to block in CIDR notation, disabled if empty")
-		selectedPublisher    = flags.String("publisher", pusherV1.Name, "publisher type (EXPERIMENTAL)")
+		selectedPublisher    = flags.String("publisher", pusherV2.Name, "publisher type")
 		telemetryTimeSpan    = flags.Int("telemetry-time-span", defTelemetryTimeSpan, "time span between telemetry push executions per tenant")
 	)
 
