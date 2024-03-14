@@ -296,18 +296,17 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 }
 
 func testScraperFactory(ctx context.Context, check model.Check, publisher pusher.Publisher,
-	_ sm.Probe, logger zerolog.Logger, scrapeCounter scraper.Incrementer, scrapeErrorCounter scraper.IncrementerVec,
+	_ sm.Probe, logger zerolog.Logger, metrics scraper.Metrics,
 	k6Runner k6runner.Runner, labelsLimiter scraper.LabelsLimiter, telemeter *telemetry.Telemeter,
 ) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
 		check,
 		scraper.ScraperOpts{
-			ErrorCounter:  scrapeErrorCounter,
 			Logger:        logger,
 			ProbeFactory:  testProbeFactory{},
 			Publisher:     publisher,
-			ScrapeCounter: scrapeCounter,
+			Metrics:       metrics,
 			LabelsLimiter: testLabelsLimiter{},
 			Telemeter:     telemeter,
 		},

@@ -867,9 +867,15 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		return err
 	}
 
+	metrics := scraper.NewMetrics(
+		scrapeCounter,
+		scraper.NewIncrementerFromCounterVec(scrapeErrorCounter),
+	)
+
 	scraper, err := c.scraperFactory(
-		ctx, check, c.publisher, *c.probe, c.logger, scrapeCounter,
-		scraper.NewIncrementerFromCounterVec(scrapeErrorCounter), c.k6Runner,
+		ctx, check, c.publisher, *c.probe, c.logger,
+		metrics,
+		c.k6Runner,
 		c.tenantLimits, c.telemeter,
 	)
 	if err != nil {
