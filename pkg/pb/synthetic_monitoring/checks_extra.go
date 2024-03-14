@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/constraints"
 	"golang.org/x/net/http/httpguts"
 )
 
@@ -140,10 +141,18 @@ const (
 	MaxMultiHttpVariables    = 5    // Max variables per multi-http target.
 
 	// Frequencies (in milliseconds)
-	MaxCheckFrequency      = 120 * 1000 // Maximum value for the check's frequency.
-	minCheckFrequency      = 1 * 1000   // Minimum default value for the check's frequency.
-	minTracerouteFrequency = 120 * 1000 // Minimum value for the traceroute check's frequency.
-	minK6Frequency         = 60 * 1000  // Minimum value for k6-class check's frequency.
+	MaxCheckFrequency      = 1 * 60 * 60 * 1000 // Maximum value for the check's frequency (1 hour).
+	minCheckFrequency      = 1 * 1000           // Minimum default value for the check's frequency (1 second).
+	minTracerouteFrequency = 120 * 1000         // Minimum value for the traceroute check's frequency (2 min).
+	minK6Frequency         = 60 * 1000          // Minimum value for k6-class check's frequency (1 min).
+
+	// Timeouts (in milliseconds)
+	minCheckTimeout      = minCheckFrequency
+	MaxCheckTimeout      = 1 * 60 * 1000   // Maximum value for the check's timeout (1 minute).
+	minScriptedTimeout   = minCheckTimeout // Minimum timeout for scripted checks (1 second).
+	maxScriptedTimeout   = MaxCheckTimeout // Maximum timeout for scripted checks (1 minute).
+	minTracerouteTimeout = 30 * 1000       // Minimum timeout for traceroute checks (30 second).
+	maxTracerouteTimeout = 30 * 1000       // Minimum timeout for traceroute checks (30 second).
 )
 
 type validatable interface {
@@ -316,57 +325,51 @@ func (c Check) validateTarget() error {
 }
 
 func (c Check) validateFrequency() error {
-	// All checks have a maximum frequency of MaxCheckFrequency.
-	if c.Frequency > MaxCheckFrequency {
-		return ErrInvalidCheckFrequency
-	}
+	var (
+		minFrequency int64 = minCheckFrequency
+		maxFrequency int64 = MaxCheckFrequency
+	)
 
-	// Different check types have different minimum allowed values for the frequency.
+	// Some check types have different allowed values for the frequency.
 
 	switch c.Type() {
 	case CheckTypeTraceroute:
-		if c.Frequency < minTracerouteFrequency {
-			return ErrInvalidCheckFrequency
-		}
+		minFrequency = minTracerouteFrequency
 
 	case CheckTypeScripted, CheckTypeMultiHttp:
-		if c.Frequency < minK6Frequency {
-			return ErrInvalidCheckFrequency
-		}
+		minFrequency = minK6Frequency
+	}
 
-	default:
-		if c.Frequency < minCheckFrequency {
-			return ErrInvalidCheckFrequency
-		}
+	if !inClosedRange(c.Frequency, minFrequency, maxFrequency) {
+		return ErrInvalidCheckFrequency
 	}
 
 	return nil
 }
 
 func (c Check) validateTimeout() error {
+	var minTimeout, maxTimeout int64
+
 	switch {
 	case c.Settings.Traceroute != nil:
-		// We are hardcoding traceroute frequency and timeout until we can get data on what the boundaries should be
-		if c.Timeout != 30*1000 {
-			return ErrInvalidCheckTimeout
-		}
+		minTimeout, maxTimeout = minTracerouteTimeout, min(c.Frequency, maxTracerouteTimeout)
 
-	case c.Settings.Scripted != nil || c.Settings.Multihttp != nil:
-		// This is expirimental. A 30 second timeout means we have more
-		// checks lingering around. timeout must be in [1, 30] seconds,
-		// and it must be less than frequency (otherwise we can end up
-		// running overlapping checks)
-		if c.Timeout < 1*1000 || c.Timeout > 30*1000 || c.Timeout > c.Frequency {
-			return ErrInvalidCheckTimeout
-		}
-
-	default:
-		// timeout must be in [1, 10] seconds, and it must be less than
+	case c.Settings.Scripted != nil, c.Settings.Multihttp != nil:
+		// This is experimental. A large timeout means we have more
+		// checks lingering around. timeout must be less or equal than
 		// frequency (otherwise we can end up running overlapping
 		// checks)
-		if c.Timeout < 1*1000 || c.Timeout > 10*1000 || c.Timeout > c.Frequency {
-			return ErrInvalidCheckTimeout
-		}
+		minTimeout, maxTimeout = minScriptedTimeout, min(c.Frequency, maxScriptedTimeout)
+
+	default:
+		// timeout must be within the defined limits, and it must be
+		// less than frequency (otherwise we can end up running
+		// overlapping checks)
+		minTimeout, maxTimeout = minCheckTimeout, min(c.Frequency, MaxCheckTimeout)
+	}
+
+	if !inClosedRange(c.Timeout, minTimeout, maxTimeout) {
+		return ErrInvalidCheckTimeout
 	}
 
 	return nil
@@ -1398,4 +1401,9 @@ func validateDnsLabel(label string, isLast bool) error {
 	}
 
 	return nil
+}
+
+// inClosedRange returns true if the value `v` is in [lower, upper].
+func inClosedRange[T constraints.Ordered](v, lower, upper T) bool {
+	return v >= lower && v <= upper
 }
