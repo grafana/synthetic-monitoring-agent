@@ -155,6 +155,39 @@ const (
 	maxTracerouteTimeout = 30 * 1000       // Minimum timeout for traceroute checks (30 second).
 )
 
+const (
+	// These constants specify the maximum number of labels set by the agent
+	// for any metric and log stream for all supported probes, as well as the
+	// max number of labels set for the sm_check_info metric.
+	// These are constant per agent version but might vary between versions.
+	// They can be queried through MaxAgentMetricLabels(), MaxAgentLogLabels()
+	// and MaxAgentCheckInfoLabels() exported functions. These are required in
+	// order to calculate how many check labels can be set without exceeding
+	// specific tenant limits.
+
+	maxAgentMetricLabels    = 9 // Max metric labels set by the agent for any check type
+	maxAgentLogLabels       = 7 // Max log labels set by the agent for any check type
+	maxAgentCheckInfoLabels = 9 // Max labels set by the agent for sm_check_info metric
+)
+
+// MaxAgentMetricLabels returns the maximum number of labels set by the agent
+// to any metric.
+func MaxAgentMetricLabels() int {
+	return maxAgentMetricLabels
+}
+
+// MaxAgentLogLabels returns the maximum number of labels set by the agent
+// to any log stream.
+func MaxAgentLogLabels() int {
+	return maxAgentLogLabels
+}
+
+// MaxAgentCheckInfoLabels returns the maximum number of labels set by the agent
+// for sm_check_info metric.
+func MaxAgentCheckInfoLabels() int {
+	return maxAgentCheckInfoLabels
+}
+
 type validatable interface {
 	Validate() error
 }
