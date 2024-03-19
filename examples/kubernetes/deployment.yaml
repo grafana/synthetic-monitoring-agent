@@ -21,7 +21,7 @@ spec:
     spec:
       containers:
         - args:
-            - /usr/local/bin/synthetic-monitoring-agent --api-server-address=${API_SERVER} --api-token=${API_TOKEN} --verbose=true
+            - /usr/local/bin/synthetic-monitoring-agent --api-server-address=${API_SERVER} --api-token=${API_TOKEN} --verbose=true --listen-address=0.0.0.0:4050
           command:
             - sh
             - -c
