@@ -3,6 +3,7 @@ package v2
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"sync"
@@ -91,6 +92,15 @@ func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
 					}
 					continue
 				}
+			}
+
+			// We are not retrying anymore or the error is not retryable. Log the error.
+			if httpStatusCode != http.StatusOK {
+				q.options.logger.Error().
+					Err(pushErr.inner).
+					Int("status_code", httpStatusCode).
+					Stringer("kind", pushErr.Kind()).
+					Msg("store stream failed")
 			}
 
 			size := q.options.pool.returnAll(records)
