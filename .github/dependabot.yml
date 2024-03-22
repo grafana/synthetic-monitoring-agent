@@ -9,3 +9,7 @@ updates:
       - "dependencies"
     schedule:
       interval: "daily"
+    groups:
+      prometheus-go:
+        patterns:
+          - "github.com/prometheus/*"
