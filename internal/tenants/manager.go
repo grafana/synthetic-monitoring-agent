@@ -93,8 +93,10 @@ func (tm *Manager) updateTenant(tenant sm.Tenant) {
 	info.mutex.Unlock()
 }
 
-// GetTenant retrieves the tenant specified by `req`, either from a
-// local cache or by making a request to the API.
+// GetTenant retrieves the tenant specified by `req`, either from a local cache
+// or by making a request to the API. Notice that this method will favour
+// returning expired tenant data from the cache if new data can not be retrieved
+// from the API.
 func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenant, error) {
 	tm.tenantsMutex.Lock()
 	now := time.Now()
@@ -108,16 +110,31 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 	info.mutex.Lock()
 	defer info.mutex.Unlock()
 
+	// If there is a valid tenant in the cache, return it
 	if info.validUntil.After(now) {
 		return info.tenant, nil
 	}
 
+	// Request the tenant to the API
 	tenant, err := tm.tenantsClient.GetTenant(ctx, req)
+	// Treat every error in the same way, whether it's network or app related.
+	// As example of application errors: If the API has issues reaching the DB,
+	// we still don't want to block the agents. If the tenant is disabled, it
+	// should be propagated through other paths, and this component should act
+	// "silly" on it.
+	if err != nil && (!found || info.tenant == nil) {
+		// Only return error if tenant was not found in the cache or
+		// is not a valid entry, and can not be retrieved from the API
+		return nil, err
+	}
 
+	// If tenant was retrieved from the API, update it in the cache
 	if err == nil {
 		info.validUntil = time.Now().Add(tm.timeout)
 		info.tenant = tenant
 	}
 
-	return tenant, err
+	// At this point we are either returning the new tenant data retrieved
+	// from the API, or the stale tenant data that was present in the cache
+	return info.tenant, nil
 }
