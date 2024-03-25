@@ -15,12 +15,17 @@ import (
 type testTenantsClient struct {
 	tenants      map[int64]sm.Tenant
 	requestCount map[int64]int
+	err          error
 }
 
 var errTenantNotFound = errors.New("tenant not found")
 
 func (c *testTenantsClient) GetTenant(ctx context.Context, in *sm.TenantInfo, opts ...grpc.CallOption) (*sm.Tenant, error) {
 	c.requestCount[in.Id]++
+
+	if c.err != nil {
+		return nil, c.err
+	}
 
 	tenant, found := c.tenants[in.Id]
 	if !found {
@@ -60,8 +65,8 @@ func TestTenantManagerGetTenant(t *testing.T) {
 	defer cancel()
 
 	tenantCh := make(chan sm.Tenant)
-
-	tm := NewManager(ctx, &tc, tenantCh, 500*time.Millisecond)
+	cacheExpirationTime := 200 * time.Millisecond
+	tm := NewManager(ctx, &tc, tenantCh, cacheExpirationTime)
 
 	t1 := tc.tenants[1]
 
@@ -84,7 +89,7 @@ func TestTenantManagerGetTenant(t *testing.T) {
 	// requesting the same tenant after a longer time should evict
 	// the existing tenant and make a new request; make sure we are
 	// not getting a cached copy.
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(cacheExpirationTime)
 
 	t1.MetricsRemote.Password += "-new"
 
@@ -141,5 +146,18 @@ func TestTenantManagerGetTenant(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, tenant)
 	require.Equal(t, 0, tc.requestCount[t3.Id])
+	require.Equal(t, t3, *tenant)
+
+	// wait for tenants to expire
+	time.Sleep(cacheExpirationTime)
+	// force tenants client to return an error
+	tc.err = errors.New("network error")
+
+	// if a tenant is present in the cache, this one should be returned, even
+	// if it is expired, in case new data can not be retrieved from the API
+	tenant, err = tm.GetTenant(ctx, &sm.TenantInfo{Id: t3.Id})
+	require.NoError(t, err)
+	require.NotNil(t, tenant)
+	require.Equal(t, 1, tc.requestCount[t3.Id])
 	require.Equal(t, t3, *tenant)
 }
