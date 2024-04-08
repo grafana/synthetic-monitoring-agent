@@ -93,7 +93,6 @@ linters-settings:
       - github.com/jmoiron/sqlx
   gocritic:
     enabled-checks:
-      - appendAssign
       - argOrder
       - assignOp
       - badCall
