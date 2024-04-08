@@ -210,6 +210,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		"version",
 		"commit",
 		"buildstamp",
+		"scriptedChecksEnabled",
 	})
 
 	if err := opts.PromRegisterer.Register(probeInfoGauge); err != nil {
@@ -356,7 +357,12 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		}
 	}
 
-	result, err := client.RegisterProbe(ctx, &sm.ProbeInfo{Version: version.Short(), Commit: version.Commit(), Buildstamp: version.Buildstamp()})
+	result, err := client.RegisterProbe(ctx, &sm.ProbeInfo{
+		Version:               version.Short(),
+		Commit:                version.Commit(),
+		Buildstamp:            version.Buildstamp(),
+		ScriptedChecksEnabled: c.features.IsSet(feature.K6),
+	})
 	if err != nil {
 		return connected, grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
 	}
@@ -391,11 +397,12 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	// here.
 	c.metrics.probeInfo.Reset()
 	c.metrics.probeInfo.With(map[string]string{
-		"id":         strconv.FormatInt(c.probe.Id, 10),
-		"name":       c.probe.Name,
-		"version":    version.Short(),
-		"commit":     version.Commit(),
-		"buildstamp": version.Buildstamp(),
+		"id":                    strconv.FormatInt(c.probe.Id, 10),
+		"name":                  c.probe.Name,
+		"version":               version.Short(),
+		"commit":                version.Commit(),
+		"buildstamp":            version.Buildstamp(),
+		"scriptedChecksEnabled": strconv.FormatBool(c.features.IsSet(feature.K6)),
 	}).Set(1)
 
 	// groupCtx is used to coordinate shutting down all the
@@ -830,6 +837,8 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 	switch check.Type() {
 	case sm.CheckTypeScripted:
 		if !c.features.IsSet(feature.K6) {
+			c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).
+				Msg("scripted check allocated to ineligible probe")
 			return nil
 		}
 
