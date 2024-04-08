@@ -77,6 +77,7 @@ message ProbeInfo {
   string Version    = 1 [(gogoproto.jsontag) = "version"];     // version of the probe
   string Commit     = 2 [(gogoproto.jsontag) = "commit"];      // commit hash used to build the probe
   string Buildstamp = 3 [(gogoproto.jsontag) = "buildstamp"];  // timestamp when the probe was built
+  bool ScriptedChecksEnabled = 4 [(gogoproto.jsontag) = "scriptedChecksEnabled"]; // probe has scripted check execution enabled
 }
 
 // PingRequest is the message sent as argument of the Ping method.
@@ -133,6 +134,7 @@ message Probe {
   bool   deprecated        = 14 [(gogoproto.jsontag) = "deprecated"];                           // whether the probe has been deprecated
   double created           = 100 [(gogoproto.jsontag) = "created"];                             // time the probe was created
   double modified          = 101 [(gogoproto.jsontag) = "modified"];                            // last time modified
+  bool k6Enabled           = 102 [(gogoproto.jsontag) = "k6Enabled"];                           // probe has scripted checks enabled
 }
 
 service Tenants {
