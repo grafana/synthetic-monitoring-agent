@@ -1,7 +1,7 @@
 XK6_PKG_DIR := $(ROOTDIR)/xk6/sm
 XK6_OUT_DIR := $(DISTDIR)/$(HOST_OS)-$(HOST_ARCH)
 K6_BIN      := $(XK6_OUT_DIR)/k6
-K6_VERSION  := v0.47.0
+K6_VERSION  := v0.50.0
 
 LOCAL_GOPATH ?= $(shell go env GOPATH)
 
