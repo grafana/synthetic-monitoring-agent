@@ -93,7 +93,7 @@ export default function() {
 		// TODO(mem): build params out of options for the check
 		tags: {
 		  name: '{{ $idx }}', // TODO(mem): give the user some control over this?
-		  __raw_url__: url.toString(),
+		  __raw_url__: '{{ .Request.Url }}',
 		},
 		redirects: 0{{ if gt (len $headers) 0 }},
 		headers: {{ $headers }}{{ end }}
