@@ -117,6 +117,10 @@ message RegisterProbeResult {
 
 // Probe represents a probe.
 message Probe {
+  message Capabilities {
+    bool disableScriptedChecks = 1 [(gogoproto.jsontag) = "disableScriptedChecks"]; // probe should not run scripted checks
+  }
+
   int64             id                    = 1 [(gogoproto.jsontag) = "id"];                                    // ID of the probe, assigned by the API
   int64             tenantId              = 2 [(gogoproto.jsontag) = "tenantId"];                              // ID of the synthetic-monitoring tenant this probe belongs to
   string            name                  = 3 [(gogoproto.jsontag) = "name"];                                  // name of the probe
@@ -133,11 +137,7 @@ message Probe {
   bool              deprecated            = 14 [(gogoproto.jsontag) = "deprecated"];                           // whether the probe has been deprecated
   double            created               = 100 [(gogoproto.jsontag) = "created"];                             // time the probe was created
   double            modified              = 101 [(gogoproto.jsontag) = "modified"];                            // last time modified
-  ProbeCapabilities capabilities          = 102 [(gogoproto.jsontag) = "capabilities"];                        // probe feature enablements
-}
-
-message ProbeCapabilities {
-  bool disableScriptedChecks = 1 [(gogoproto.jsontag) = "disableScriptedChecks"]; // probe should not run scripted checks
+  Capabilities      capabilities          = 102 [(gogoproto.jsontag) = "capabilities"];                        // probe feature enablements
 }
 
 service Tenants {
