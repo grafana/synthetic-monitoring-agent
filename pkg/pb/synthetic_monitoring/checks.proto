@@ -117,22 +117,27 @@ message RegisterProbeResult {
 
 // Probe represents a probe.
 message Probe {
-  int64          id        = 1 [(gogoproto.jsontag) = "id"];                                    // ID of the probe, assigned by the API
-  int64          tenantId  = 2 [(gogoproto.jsontag) = "tenantId"];                              // ID of the synthetic-monitoring tenant this probe belongs to
-  string         name      = 3 [(gogoproto.jsontag) = "name"];                                  // name of the probe
-  float          latitude  = 4 [(gogoproto.jsontag) = "latitude"];                              // latitude of the probe
-  float          longitude = 5 [(gogoproto.jsontag) = "longitude"];                             // longitude of the probe
-  repeated Label labels    = 6 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "labels"];  // probe-specific labels applied to all metrics and events
-  string         region    = 7 [(gogoproto.jsontag) = "region"];                                // region of the probe, such as AMER, EMEA, APAC
-  bool public              = 8 [(gogoproto.jsontag) = "public"];                                // whether the probe is private or shared with all users
-  bool   online            = 9 [(gogoproto.jsontag) = "online"];                                // whether the probe is currently online
-  double onlineChange      = 10 [(gogoproto.jsontag) = "onlineChange"];                         // time probe started or stopped being online
-  string version           = 11 [(gogoproto.jsontag) = "version"];                              // version of the probe
-  string commit            = 12 [(gogoproto.jsontag) = "commit"];                               // commit hash used to build the probe
-  string buildstamp        = 13 [(gogoproto.jsontag) = "buildstamp"];                           // timestamp when the probe was built
-  bool   deprecated        = 14 [(gogoproto.jsontag) = "deprecated"];                           // whether the probe has been deprecated
-  double created           = 100 [(gogoproto.jsontag) = "created"];                             // time the probe was created
-  double modified          = 101 [(gogoproto.jsontag) = "modified"];                            // last time modified
+  message Capabilities {
+    bool disableScriptedChecks = 1 [(gogoproto.jsontag) = "disableScriptedChecks"]; // probe should not run scripted checks
+  }
+
+  int64             id                    = 1 [(gogoproto.jsontag) = "id"];                                    // ID of the probe, assigned by the API
+  int64             tenantId              = 2 [(gogoproto.jsontag) = "tenantId"];                              // ID of the synthetic-monitoring tenant this probe belongs to
+  string            name                  = 3 [(gogoproto.jsontag) = "name"];                                  // name of the probe
+  float             latitude              = 4 [(gogoproto.jsontag) = "latitude"];                              // latitude of the probe
+  float             longitude             = 5 [(gogoproto.jsontag) = "longitude"];                             // longitude of the probe
+  repeated Label    labels                = 6 [(gogoproto.nullable) = false, (gogoproto.jsontag) = "labels"];  // probe-specific labels applied to all metrics and events
+  string            region                = 7 [(gogoproto.jsontag) = "region"];                                // region of the probe, such as AMER, EMEA, APAC
+  bool              public                = 8 [(gogoproto.jsontag) = "public"];                                // whether the probe is private or shared with all users
+  bool              online                = 9 [(gogoproto.jsontag) = "online"];                                // whether the probe is currently online
+  double            onlineChange          = 10 [(gogoproto.jsontag) = "onlineChange"];                         // time probe started or stopped being online
+  string            version               = 11 [(gogoproto.jsontag) = "version"];                              // version of the probe
+  string            commit                = 12 [(gogoproto.jsontag) = "commit"];                               // commit hash used to build the probe
+  string            buildstamp            = 13 [(gogoproto.jsontag) = "buildstamp"];                           // timestamp when the probe was built
+  bool              deprecated            = 14 [(gogoproto.jsontag) = "deprecated"];                           // whether the probe has been deprecated
+  double            created               = 100 [(gogoproto.jsontag) = "created"];                             // time the probe was created
+  double            modified              = 101 [(gogoproto.jsontag) = "modified"];                            // last time modified
+  Capabilities      capabilities          = 102 [(gogoproto.jsontag) = "capabilities"];                        // probe feature enablements
 }
 
 service Tenants {
