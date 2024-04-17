@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.23.4"></a>
+## [v0.23.4] - 2024-04-16
+### Feature
+- upgrade k6 to v0.50.0 ([#681](https://github.com/grafana/synthetic-monitoring-agent/issues/681))
+
+
 <a name="v0.23.3"></a>
 ## [v0.23.3] - 2024-04-10
 
@@ -39,11 +45,6 @@
 
 ### Fix
 - missing http check regex validations ([#612](https://github.com/grafana/synthetic-monitoring-agent/issues/612))
-
-
-<a name="v0.20.1"></a>
-## [v0.20.1] - 2024-02-12
-### Fix
 - add test for HTTP check with a long URL
 
 
@@ -584,14 +585,14 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.3...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.4...HEAD
+[v0.23.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.3...v0.23.4
 [v0.23.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.2...v0.23.3
 [v0.23.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.1...v0.23.2
 [v0.23.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.0...v0.23.1
 [v0.23.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.22.0...v0.23.0
 [v0.22.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.21.0...v0.22.0
-[v0.21.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.1...v0.21.0
-[v0.20.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.20.1
+[v0.21.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.21.0
 [v0.19.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.5...v0.19.6
 [v0.19.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.4...v0.19.5
 [v0.19.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.3...v0.19.4
