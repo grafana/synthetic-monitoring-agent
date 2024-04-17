@@ -332,7 +332,6 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
-
 }
 
 type testProber struct{}
