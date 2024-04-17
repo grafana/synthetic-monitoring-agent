@@ -361,17 +361,36 @@ func tickWithOffset(
 
 	var lastTick time.Time
 
-	select {
-	case <-ctx.Done():
+	drainOffsetTimer := func() {
 		if !offsetTimer.Stop() {
 			<-offsetTimer.C
 		}
+	}
+
+	// Check context and stop channels first, to avoid runnig the work
+	// function if we have been cancelled already. This can happen with a 0
+	// offset, and the Go runtime choosing to send the offset tick before
+	// other two channels.
+	select {
+	case <-ctx.Done():
+		drainOffsetTimer()
 		return
 
 	case <-stop:
-		if !offsetTimer.Stop() {
-			<-offsetTimer.C
-		}
+		drainOffsetTimer()
+		// we haven't done anything yet, no clean up
+		return
+
+	default:
+	}
+
+	select {
+	case <-ctx.Done():
+		drainOffsetTimer()
+		return
+
+	case <-stop:
+		drainOffsetTimer()
 		// we haven't done anything yet, no clean up
 		return
 

@@ -1883,6 +1883,30 @@ func TestTickWithOffset(t *testing.T) {
 			minGap:   150 * time.Millisecond,
 			expected: nil,
 		},
+		"A zero offset and a short timeout.": {
+			timeout: 25 * time.Millisecond,
+			period:  50 * time.Millisecond,
+			offset:  0,
+			maxIdle: 100 * time.Millisecond,
+			minGap:  150 * time.Millisecond,
+			expected: []int{
+				WORK, // 0
+				CLEANUP,
+			},
+		},
+		"A zero offset and a larger timeout.": {
+			timeout: 200 * time.Millisecond,
+			period:  75 * time.Millisecond,
+			offset:  0,
+			maxIdle: 100 * time.Millisecond,
+			minGap:  150 * time.Millisecond,
+			expected: []int{
+				WORK, // 0
+				WORK, // 75
+				WORK, // 150
+				CLEANUP,
+			},
+		},
 	}
 
 	for name, tc := range testcases {
@@ -1905,7 +1929,7 @@ func TestTickWithOffset(t *testing.T) {
 
 			if tc.timeout > 0 {
 				go func() {
-					time.Sleep(1050 * time.Millisecond)
+					time.Sleep(tc.timeout)
 					close(stop)
 				}()
 			} else {
