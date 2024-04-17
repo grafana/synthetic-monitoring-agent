@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -e
+
+if command -v enumer > /dev/null 2>&1 ; then
+	exec enumer "$@"
+fi
+
+if test -z "${ROOTDIR}" ; then
+	ROOTDIR=$(dirname "$(go env GOMOD)")
+	if test -z "${ROOTDIR}" ; then
+		ROOTDIR=$(git rev-parse --show-toplevel)
+	fi
+	ROOTDIR=$(realpath -m "${ROOTDIR}")
+fi
+
+"${ROOTDIR}/scripts/docker-run" enumer "$@"
+

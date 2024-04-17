@@ -23,6 +23,7 @@ endif
 # to building the tools that we need if they are missing.
 ifeq ($(USE_LOCAL_TOOLS),true)
 GOLANGCI_LINT := golangci-lint
+GOTESTSUM     := gotestsum
 SHELLCHECK    := shellcheck
 XK6           := xk6
 endif

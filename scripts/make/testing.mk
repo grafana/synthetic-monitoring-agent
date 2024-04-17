@@ -5,11 +5,13 @@ GO_TEST_ARGS ?= $(GO_PKGS)
 TEST_OUTPUT := $(DISTDIR)/test
 
 ifeq ($(origin GOTESTSUM),undefined)
-GOTESTSUM ?= $(ROOTDIR)/scripts/go/bin/gotestsum
-LOCAL_GOTESTSUM = yes
+ifneq ($(LOCAL_GOTESTSUM),yes)
+GOTESTSUM ?= $(ROOTDIR)/scripts/docker-run gotestsum
+endif
 endif
 
 ifeq ($(LOCAL_GOTESTSUM),yes)
+GOTESTSUM ?= $(ROOTDIR)/scripts/go/bin/gotestsum
 $(GOTESTSUM): scripts/go/go.mod
 	$(S) cd scripts/go && \
 		$(GO) mod download && \
@@ -17,9 +19,11 @@ $(GOTESTSUM): scripts/go/go.mod
 endif
 
 .PHONY: test-go
-test-go: $(GOTESTSUM) ## Run Go tests.
+test-go: ## Run Go tests.
+test-go: $(if $(filter $(LOCAL_GOTESTSUM),yes),$(GOTESTSUM))
+test-go:
 	$(S) echo "test backend"
-	$(GOTESTSUM) \
+	env CGO_ENABLED=1 $(GOTESTSUM) \
 		--format standard-verbose \
 		--jsonfile $(TEST_OUTPUT).json \
 		--junitfile $(TEST_OUTPUT).xml \

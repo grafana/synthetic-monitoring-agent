@@ -16,8 +16,8 @@
 // messages used to communicate with synthetic-monitoring-api.
 package synthetic_monitoring
 
-//go:generate go run github.com/dmarkham/enumer -type=CheckType,CheckClass -trimprefix=CheckType,CheckClass -transform=lower -output=string.go
-//go:generate go run github.com/dmarkham/enumer -type=MultiHttpEntryAssertionType,MultiHttpEntryAssertionSubjectVariant,MultiHttpEntryAssertionConditionVariant,MultiHttpEntryVariableType -trimprefix=MultiHttpEntryAssertionType_,MultiHttpEntryAssertionSubjectVariant_,MultiHttpEntryAssertionConditionVariant_,MultiHttpEntryVariableType_ -transform=upper -output=multihttp_string.go
+//go:generate ../../../scripts/enumer -type=CheckType -trimprefix=CheckType -transform=lower -output=string.go
+//go:generate ../../../scripts/enumer -type=MultiHttpEntryAssertionType,MultiHttpEntryAssertionSubjectVariant,MultiHttpEntryAssertionConditionVariant,MultiHttpEntryVariableType -trimprefix=MultiHttpEntryAssertionType_,MultiHttpEntryAssertionSubjectVariant_,MultiHttpEntryAssertionConditionVariant_,MultiHttpEntryVariableType_ -transform=upper -output=multihttp_string.go
 
 import (
 	"errors"
