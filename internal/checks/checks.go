@@ -43,10 +43,11 @@ type TransientError Error
 func (e TransientError) Error() string { return string(e) }
 
 const (
-	errNotAuthorized     = Error("probe not authorized")
-	errTransportClosing  = TransientError("transport closing")
-	errProbeUnregistered = TransientError("probe no longer registered")
-	errIncompatibleApi   = Error("API does not support required features")
+	errNotAuthorized       = Error("probe not authorized")
+	errTransportClosing    = TransientError("transport closing")
+	errProbeUnregistered   = TransientError("probe no longer registered")
+	errIncompatibleApi     = Error("API does not support required features")
+	errCapabilityK6Missing = Error("K6 is required for scripted check support")
 )
 
 // Backoffer defines an interface to provide backoff durations.
@@ -372,6 +373,10 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		return connected, fmt.Errorf("registering probe with synthetic-monitoring-api, response: %s", result.Status.Message)
 	}
 
+	if err := c.validateProbeCapabilities(result.Probe.Capabilities); err != nil {
+		return connected, err
+	}
+
 	c.probe = &result.Probe
 
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
@@ -463,6 +468,14 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	err = g.Wait()
 
 	return connected, errorHandler(err, "getting changes from synthetic-monitoring-api", signalFired)
+}
+
+func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities) error {
+	if !capabilities.DisableScriptedChecks && c.k6Runner == nil {
+		return errCapabilityK6Missing
+	}
+
+	return nil
 }
 
 // ping will use the provided client to send a health signal to the GRPC

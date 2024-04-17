@@ -266,6 +266,75 @@ func TestHandleCheckOp(t *testing.T) {
 	require.False(t, scraperExists())
 }
 
+func TestCheckHandlerProbeValidation(t *testing.T) {
+	testcases := map[string]struct {
+		opts          UpdaterOptions
+		probe         sm.Probe
+		expectedError error
+	}{
+		"has K6 when required": {
+			expectedError: nil,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+				K6Runner:       noopRunner{},
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: false}},
+		},
+		"missing K6 when required": {
+			expectedError: errCapabilityK6Missing,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: false}},
+		},
+		"has K6 but not required": {
+			expectedError: nil,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+				K6Runner:       noopRunner{},
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: true}},
+		},
+		"missing K6 but not required": {
+			expectedError: nil,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: true}},
+		},
+	}
+
+	for _, tc := range testcases {
+		u, err := NewUpdater(tc.opts)
+		require.NoError(t, err)
+
+		err = u.validateProbeCapabilities(tc.probe.Capabilities)
+
+		if tc.expectedError != nil {
+			require.Error(t, err, tc.expectedError)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+
+}
+
 type testProber struct{}
 
 func (testProber) Name() string {
@@ -317,4 +386,15 @@ type channelPublisher chan pusher.Payload
 
 func (c channelPublisher) Publish(payload pusher.Payload) {
 	c <- payload
+}
+
+type noopRunner struct{}
+
+func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
+	var r noopRunner
+	return r
+}
+
+func (noopRunner) Run(ctx context.Context, script []byte) (*k6runner.RunResponse, error) {
+	return &k6runner.RunResponse{}, nil
 }
