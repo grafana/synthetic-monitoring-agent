@@ -123,7 +123,8 @@ message RegisterProbeResult {
 // Probe represents a probe.
 message Probe {
   message Capabilities {
-    bool disableScriptedChecks = 1 [(gogoproto.jsontag) = "disableScriptedChecks"]; // probe should not run scripted checks
+    bool disableScriptedChecks = 1 [(gogoproto.jsontag) = "disableScriptedChecks", deprecated = true]; // probe should not run scripted checks
+    bool enableScriptedChecks = 2 [(gogoproto.jsontag) = "enableScriptedChecks"]; // probe can run scripted checks
   }
 
   int64 id = 1 [(gogoproto.jsontag) = "id"]; // ID of the probe, assigned by the API
