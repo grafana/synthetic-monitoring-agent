@@ -47,23 +47,48 @@ func run(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet(filepath.Base(args[0]), flag.ExitOnError)
 
 	var (
-		features             = feature.NewCollection()
-		devMode              = flags.Bool("dev", false, "turn on all development flags")
-		debug                = flags.Bool("debug", false, "debug output (enables verbose)")
-		verbose              = flags.Bool("verbose", false, "verbose logging")
-		reportVersion        = flags.Bool("version", false, "report version and exit")
-		grpcApiServerAddr    = flags.String("api-server-address", "localhost:4031", "GRPC API server address")
-		grpcInsecure         = flags.Bool("api-insecure", false, "Don't use TLS with connections to GRPC API")
-		apiToken             = flags.String("api-token", "", "synthetic monitoring probe authentication token")
-		enableChangeLogLevel = flags.Bool("enable-change-log-level", false, "enable changing the log level at runtime")
-		enableDisconnect     = flags.Bool("enable-disconnect", false, "enable HTTP /disconnect endpoint")
-		enablePProf          = flags.Bool("enable-pprof", false, "exposes profiling data via HTTP /debug/pprof/ endpoint")
-		httpListenAddr       = flags.String("listen-address", "localhost:4050", "listen address")
-		k6URI                = flags.String("k6-uri", "k6", "how to run k6 (path or URL)")
-		k6BlacklistedIP      = flags.String("blocked-nets", "10.0.0.0/8", "IP networks to block in CIDR notation, disabled if empty")
-		selectedPublisher    = flags.String("publisher", pusherV2.Name, "publisher type")
-		telemetryTimeSpan    = flags.Int("telemetry-time-span", defTelemetryTimeSpan, "time span between telemetry push executions per tenant")
+		features = feature.NewCollection()
+		config   = struct {
+			DevMode              bool
+			Debug                bool
+			Verbose              bool
+			ReportVersion        bool
+			GrpcApiServerAddr    string
+			GrpcInsecure         bool
+			ApiToken             Secret
+			EnableChangeLogLevel bool
+			EnableDisconnect     bool
+			EnablePProf          bool
+			HttpListenAddr       string
+			K6URI                string
+			K6BlacklistedIP      string
+			SelectedPublisher    string
+			TelemetryTimeSpan    int
+		}{
+			GrpcApiServerAddr: "localhost:4031",
+			HttpListenAddr:    "localhost:4050",
+			K6URI:             "k6",
+			K6BlacklistedIP:   "10.0.0.0/8",
+			SelectedPublisher: pusherV2.Name,
+			TelemetryTimeSpan: defTelemetryTimeSpan,
+		}
 	)
+
+	flags.BoolVar(&config.DevMode, "dev", config.DevMode, "turn on all development flags")
+	flags.BoolVar(&config.Debug, "debug", config.Debug, "debug output (enables verbose)")
+	flags.BoolVar(&config.Verbose, "verbose", config.Verbose, "verbose logging")
+	flags.BoolVar(&config.ReportVersion, "version", config.ReportVersion, "report version and exit")
+	flags.StringVar(&config.GrpcApiServerAddr, "api-server-address", config.GrpcApiServerAddr, "GRPC API server address")
+	flags.BoolVar(&config.GrpcInsecure, "api-insecure", config.GrpcInsecure, "Don't use TLS with connections to GRPC API")
+	flags.Var(&config.ApiToken, "api-token", `synthetic monitoring probe authentication token (default "")`)
+	flags.BoolVar(&config.EnableChangeLogLevel, "enable-change-log-level", config.EnableChangeLogLevel, "enable changing the log level at runtime")
+	flags.BoolVar(&config.EnableDisconnect, "enable-disconnect", config.EnableDisconnect, "enable HTTP /disconnect endpoint")
+	flags.BoolVar(&config.EnablePProf, "enable-pprof", config.EnablePProf, "exposes profiling data via HTTP /debug/pprof/ endpoint")
+	flags.StringVar(&config.HttpListenAddr, "listen-address", config.HttpListenAddr, "listen address")
+	flags.StringVar(&config.K6URI, "k6-uri", config.K6URI, "how to run k6 (path or URL)")
+	flags.StringVar(&config.K6BlacklistedIP, "blocked-nets", config.K6BlacklistedIP, "IP networks to block in CIDR notation, disabled if empty")
+	flags.StringVar(&config.SelectedPublisher, "publisher", config.SelectedPublisher, "publisher type")
+	flags.IntVar(&config.TelemetryTimeSpan, "telemetry-time-span", config.TelemetryTimeSpan, "time span between telemetry push executions per tenant")
 
 	flags.Var(&features, "features", "optional feature flags")
 
@@ -71,7 +96,7 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	if *reportVersion {
+	if config.ReportVersion {
 		fmt.Printf(
 			"%s version=\"%s\" buildstamp=\"%s\" commit=\"%s\"\n",
 			flags.Name(),
@@ -82,11 +107,11 @@ func run(args []string, stdout io.Writer) error {
 		return nil
 	}
 
-	if *devMode {
-		*debug = true
-		*enableChangeLogLevel = true
-		*enableDisconnect = true
-		*enablePProf = true
+	if config.DevMode {
+		config.Debug = true
+		config.EnableChangeLogLevel = true
+		config.EnableDisconnect = true
+		config.EnablePProf = true
 	}
 
 	// If the token is provided on the command line, prefer that. Otherwise
@@ -95,9 +120,9 @@ func run(args []string, stdout io.Writer) error {
 	// variable name previously used in the systemd unit files.
 	//
 	// Using API_TOKEN should be deprecated after March 1st, 2023.
-	*apiToken = stringFromEnv("API_TOKEN", stringFromEnv("SM_AGENT_API_TOKEN", *apiToken))
+	config.ApiToken = Secret(stringFromEnv("API_TOKEN", stringFromEnv("SM_AGENT_API_TOKEN", string(config.ApiToken))))
 
-	if *apiToken == "" {
+	if config.ApiToken == "" {
 		return fmt.Errorf("invalid API token")
 	}
 
@@ -111,14 +136,14 @@ func run(args []string, stdout io.Writer) error {
 	zl := zerolog.New(stdout).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
 
 	switch {
-	case *debug:
+	case config.Debug:
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 		zlGrpc := zl.With().Str("component", "grpc-go").Logger()
 		zl = zl.With().Caller().Logger()
-		*verbose = true
+		config.Verbose = true
 		grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(zlGrpc, zlGrpc, zlGrpc, 99))
 
-	case *verbose:
+	case config.Verbose:
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	default:
@@ -134,27 +159,25 @@ func run(args []string, stdout io.Writer) error {
 		Str("commit", version.Commit()).
 		Str("buildstamp", version.Buildstamp()).
 		Str("features", features.String()).
-		Bool("change-log-level-enabled", *enableChangeLogLevel).
-		Bool("disconnect-enabled", *enableDisconnect).
-		Bool("pprof-enabled", *enablePProf).
+		Interface("config", config).
 		Msg("starting")
 
 	notifyAboutDeprecatedFeatureFlags(features, zl)
 
 	if features.IsSet(feature.K6) {
-		newUri, err := validateK6URI(*k6URI)
+		newUri, err := validateK6URI(config.K6URI)
 		if err != nil {
-			*k6URI = ""
-			zl.Warn().Str("k6URI", *k6URI).Err(err).Msg("invalid k6 URI")
-		} else if newUri != *k6URI {
-			*k6URI = newUri
+			config.K6URI = ""
+			zl.Warn().Str("k6URI", config.K6URI).Err(err).Msg("invalid k6 URI")
+		} else if newUri != config.K6URI {
+			config.K6URI = newUri
 		}
 	} else {
-		*k6URI = ""
+		config.K6URI = ""
 	}
 
-	if len(*k6URI) > 0 {
-		zl.Info().Str("k6URI", *k6URI).Msg("enabling k6 checks")
+	if len(config.K6URI) > 0 {
+		zl.Info().Str("k6URI", config.K6URI).Msg("enabling k6 checks")
 	} else {
 		zl.Info().Msg("disabling k6 checks")
 	}
@@ -172,13 +195,13 @@ func run(args []string, stdout io.Writer) error {
 		Logger:                zl.With().Str("subsystem", "mux").Logger(),
 		PromRegisterer:        promRegisterer,
 		isReady:               readynessHandler,
-		changeLogLevelEnabled: *enableChangeLogLevel,
-		disconnectEnabled:     *enableDisconnect,
-		pprofEnabled:          *enablePProf,
+		changeLogLevelEnabled: config.EnableChangeLogLevel,
+		disconnectEnabled:     config.EnableDisconnect,
+		pprofEnabled:          config.EnablePProf,
 	})
 
 	httpConfig := http.Config{
-		ListenAddr:   *httpListenAddr,
+		ListenAddr:   config.HttpListenAddr,
 		Logger:       zl.With().Str("subsystem", "http").Logger(),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 60 * time.Second,
@@ -208,21 +231,21 @@ func run(args []string, stdout io.Writer) error {
 
 	tenantCh := make(chan synthetic_monitoring.Tenant)
 
-	conn, err := dialAPIServer(ctx, *grpcApiServerAddr, *grpcInsecure, *apiToken)
+	conn, err := dialAPIServer(ctx, config.GrpcApiServerAddr, config.GrpcInsecure, string(config.ApiToken))
 	if err != nil {
-		return fmt.Errorf("dialing GRPC server %s: %w", *grpcApiServerAddr, err)
+		return fmt.Errorf("dialing GRPC server %s: %w", config.GrpcApiServerAddr, err)
 	}
 	defer conn.Close()
 
 	var k6Runner k6runner.Runner
-	if features.IsSet(feature.K6) && len(*k6URI) > 0 {
-		if err := validateCIDR(*k6BlacklistedIP); err != nil {
+	if features.IsSet(feature.K6) && len(config.K6URI) > 0 {
+		if err := validateCIDR(config.K6BlacklistedIP); err != nil {
 			return err
 		}
 
 		k6Runner = k6runner.New(k6runner.RunnerOpts{
-			Uri:           *k6URI,
-			BlacklistedIP: *k6BlacklistedIP,
+			Uri:           config.K6URI,
+			BlacklistedIP: config.K6BlacklistedIP,
 		})
 	}
 
@@ -232,16 +255,16 @@ func run(args []string, stdout io.Writer) error {
 	pusherRegistry.MustRegister(pusherV1.Name, pusherV1.NewPublisher)
 	pusherRegistry.MustRegister(pusherV2.Name, pusherV2.NewPublisher)
 
-	publisherFactory, err := pusherRegistry.Lookup(*selectedPublisher)
+	publisherFactory, err := pusherRegistry.Lookup(config.SelectedPublisher)
 	if err != nil {
 		return fmt.Errorf("creating publisher: %w", err)
 	}
 
-	publisher := publisherFactory(ctx, tm, zl.With().Str("subsystem", "publisher").Str("version", *selectedPublisher).Logger(), promRegisterer)
+	publisher := publisherFactory(ctx, tm, zl.With().Str("subsystem", "publisher").Str("version", config.SelectedPublisher).Logger(), promRegisterer)
 	limits := limits.NewTenantLimits(tm)
 
 	telemetry := telemetry.NewTelemeter(
-		ctx, uuid.New().String(), time.Duration(*telemetryTimeSpan)*time.Minute,
+		ctx, uuid.New().String(), time.Duration(config.TelemetryTimeSpan)*time.Minute,
 		synthetic_monitoring.NewTelemetryClient(conn),
 		zl.With().Str("subsystem", "telemetry").Logger(),
 		promRegisterer,
