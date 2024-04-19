@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/google/uuid"
 	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
@@ -43,6 +44,11 @@ const (
 	defTelemetryTimeSpan = 5 // min
 )
 
+// run is the main entry point for the program.
+//
+// TODO(mem): refactor this function to be more readable.
+//
+//nolint:gocyclo // this function is doing a lot of configuration, and it ends up being long and with lots of branches.
 func run(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet(filepath.Base(args[0]), flag.ExitOnError)
 
@@ -64,6 +70,8 @@ func run(args []string, stdout io.Writer) error {
 			K6BlacklistedIP      string
 			SelectedPublisher    string
 			TelemetryTimeSpan    int
+			AutoMemLimit         bool
+			MemLimitRatio        float64
 		}{
 			GrpcApiServerAddr: "localhost:4031",
 			HttpListenAddr:    "localhost:4050",
@@ -71,6 +79,8 @@ func run(args []string, stdout io.Writer) error {
 			K6BlacklistedIP:   "10.0.0.0/8",
 			SelectedPublisher: pusherV2.Name,
 			TelemetryTimeSpan: defTelemetryTimeSpan,
+			AutoMemLimit:      true,
+			MemLimitRatio:     0.9,
 		}
 	)
 
@@ -89,6 +99,8 @@ func run(args []string, stdout io.Writer) error {
 	flags.StringVar(&config.K6BlacklistedIP, "blocked-nets", config.K6BlacklistedIP, "IP networks to block in CIDR notation, disabled if empty")
 	flags.StringVar(&config.SelectedPublisher, "publisher", config.SelectedPublisher, "publisher type")
 	flags.IntVar(&config.TelemetryTimeSpan, "telemetry-time-span", config.TelemetryTimeSpan, "time span between telemetry push executions per tenant")
+	flags.BoolVar(&config.AutoMemLimit, "enable-auto-memlimit", config.AutoMemLimit, "automatically set GOMEMLIMIT")
+	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
 
 	flags.Var(&features, "features", "optional feature flags")
 
@@ -112,6 +124,13 @@ func run(args []string, stdout io.Writer) error {
 		config.EnableChangeLogLevel = true
 		config.EnableDisconnect = true
 		config.EnablePProf = true
+	}
+
+	if config.AutoMemLimit {
+		err := setupGoMemLimit(config.MemLimitRatio)
+		if err != nil {
+			return err
+		}
 	}
 
 	// If the token is provided on the command line, prefer that. Otherwise
@@ -395,4 +414,22 @@ func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.L
 			zl.Info().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the --feature flag without loss of functionality", ff)
 		}
 	}
+}
+
+func setupGoMemLimit(ratio float64) error {
+	_, err := memlimit.SetGoMemLimitWithOpts(
+		memlimit.WithRatio(ratio),
+		memlimit.WithProvider(
+			memlimit.ApplyFallback(
+				memlimit.FromCgroup, // prefer cgroup limit if available
+				memlimit.FromSystem, // fallback to the system's memory
+			),
+		),
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to set GOMEMLIMIT: %w", err)
+	}
+
+	return nil
 }
