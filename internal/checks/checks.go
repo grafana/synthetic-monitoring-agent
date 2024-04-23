@@ -47,7 +47,7 @@ const (
 	errTransportClosing    = TransientError("transport closing")
 	errProbeUnregistered   = TransientError("probe no longer registered")
 	errIncompatibleApi     = Error("API does not support required features")
-	errCapabilityK6Missing = Error("K6 is required for scripted check support")
+	errCapabilityK6Missing = Error("k6 is required for scripted check support")
 )
 
 // Backoffer defines an interface to provide backoff durations.
@@ -297,6 +297,14 @@ func (c *Updater) Run(ctx context.Context) error {
 				Err(err).
 				Str("connection_state", c.api.conn.GetState().String()).
 				Msg("cannot connect, bailing out")
+			return err
+
+		case errors.Is(err, errCapabilityK6Missing):
+			// probe missing k6 to support capability
+			c.logger.Error().
+				Err(err).
+				Str("connection_state", c.api.conn.GetState().String()).
+				Msg("k6 requirement missing, bailing out")
 			return err
 
 		case errors.Is(err, context.Canceled):
