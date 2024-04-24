@@ -38,15 +38,26 @@ type Error string
 
 func (e Error) Error() string { return string(e) }
 
+// TransientError is an error that can be recovered.
 type TransientError Error
 
 func (e TransientError) Error() string { return string(e) }
 
+var _ error = TransientError("")
+
+// FatalError is an error that causes the program to terminate.
+type FatalError Error
+
+func (e FatalError) Error() string { return string(e) }
+
+var _ error = FatalError("")
+
 const (
-	errNotAuthorized     = Error("probe not authorized")
-	errTransportClosing  = TransientError("transport closing")
-	errProbeUnregistered = TransientError("probe no longer registered")
-	errIncompatibleApi   = Error("API does not support required features")
+	errCapabilityK6Missing = FatalError("k6 is required for scripted check support")
+	errIncompatibleApi     = FatalError("API does not support required features")
+	errNotAuthorized       = FatalError("probe not authorized")
+	errProbeUnregistered   = TransientError("probe no longer registered")
+	errTransportClosing    = TransientError("transport closing")
 )
 
 // Backoffer defines an interface to provide backoff durations.
@@ -252,74 +263,74 @@ func (c *Updater) Run(ctx context.Context) error {
 	c.backoff.Reset()
 
 	for {
-		var transientErr *TransientError
-
 		wasConnected, err := c.loop(ctx)
 
-		c.logger.Info().
-			Err(err).
-			Bool("was_connected", wasConnected).
-			Str("connection_state", c.api.conn.GetState().String()).
-			Msg("broke out of loop")
+		logger := c.logger.With().Str("connection_state", c.api.conn.GetState().String()).Logger()
 
-		switch {
-		case err == nil:
-			return nil
+		logger.Info().Err(err).Bool("was_connected", wasConnected).Msg("broke out of loop")
 
-		case errors.As(err, &transientErr):
-			c.logger.Warn().
-				Err(err).
-				Str("connection_state", c.api.conn.GetState().String()).
-				Msg("transient error, trying to reconnect")
+		done, err := handleError(ctx, logger, c.backoff, wasConnected, err)
 
-			if err := sleepCtx(ctx, c.backoff.Duration()); err != nil {
-				return err
-			}
-
-			if wasConnected {
-				c.backoff.Reset()
-			}
-
-			continue
-
-		case errors.Is(err, errNotAuthorized):
-			// our token is invalid, bail out?
-			c.logger.Error().
-				Err(err).
-				Str("connection_state", c.api.conn.GetState().String()).
-				Msg("cannot connect, bailing out")
+		if done {
 			return err
-
-		case errors.Is(err, errIncompatibleApi):
-			// API server doesn't support required features.
-			c.logger.Error().
-				Err(err).
-				Str("connection_state", c.api.conn.GetState().String()).
-				Msg("cannot connect, bailing out")
-			return err
-
-		case errors.Is(err, context.Canceled):
-			// context was cancelled, clean up
-			c.logger.Error().
-				Err(err).
-				Str("connection_state", c.api.conn.GetState().String()).
-				Msg("context cancelled, closing updater")
-			return nil
-
-		default:
-			c.logger.Warn().
-				Err(err).
-				Str("connection_state", c.api.conn.GetState().String()).
-				Msg("handling check changes")
-
-			// TODO(mem): this might be a transient error (e.g. bad connection). We probably need to
-			// fine-tune GRPPC's backoff parameters. We might also need to keep count of the reconnects, and
-			// give up if they hit some threshold?
-			if err := sleepCtx(ctx, c.backoff.Duration()); err != nil {
-				return err
-			}
 		}
 	}
+}
+
+// handleError takes care of handling errors that occur during the execution of
+// the updater loop. It returns a boolean indicating whether the updater should
+// stop and an error that should be returned to the caller of this function.
+// That error might be nil.
+//
+// TODO(mem): `wasConnected` is passed to preserve the previous behavior of the
+// updater. It might be possible to remove it and handle this in the caller.
+func handleError(ctx context.Context, logger zerolog.Logger, backoff Backoffer, wasConnected bool, err error) (bool, error) {
+	var (
+		transientErr TransientError
+		fatalError   FatalError
+	)
+
+	switch {
+	case err == nil:
+		return true, nil
+
+	case errors.As(err, &transientErr):
+		logger.Warn().Err(err).Msg("transient error, trying to reconnect")
+
+		if err := sleepCtx(ctx, backoff.Duration()); err != nil {
+			return true, err
+		}
+
+		if wasConnected {
+			backoff.Reset()
+		}
+
+		return false, nil
+
+	case errors.As(err, &fatalError):
+		logger.Error().Err(err).Msg("fatal error, bailing out")
+		return true, err
+
+	case errors.Is(err, context.Canceled):
+		// context was cancelled, clean up
+		logger.Error().
+			Err(err).
+			Msg("context cancelled, closing updater")
+		return true, nil
+
+	default:
+		logger.Warn().
+			Msg("handling check changes")
+
+		// TODO(mem): this might be a transient error (e.g. bad connection). We probably need to
+		// fine-tune GRPPC's backoff parameters. We might also need to keep count of the reconnects, and
+		// give up if they hit some threshold?
+		if err := sleepCtx(ctx, backoff.Duration()); err != nil {
+			return true, err
+		}
+	}
+
+	return false, nil
 }
 
 func (c *Updater) loop(ctx context.Context) (bool, error) {
@@ -370,6 +381,10 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	default:
 		return connected, fmt.Errorf("registering probe with synthetic-monitoring-api, response: %s", result.Status.Message)
+	}
+
+	if err := c.validateProbeCapabilities(result.Probe.Capabilities); err != nil {
+		return connected, err
 	}
 
 	c.probe = &result.Probe
@@ -463,6 +478,14 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	err = g.Wait()
 
 	return connected, errorHandler(err, "getting changes from synthetic-monitoring-api", signalFired)
+}
+
+func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities) error {
+	if !capabilities.DisableScriptedChecks && c.k6Runner == nil {
+		return errCapabilityK6Missing
+	}
+
+	return nil
 }
 
 // ping will use the provided client to send a health signal to the GRPC

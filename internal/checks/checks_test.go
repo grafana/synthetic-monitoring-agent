@@ -2,6 +2,7 @@ package checks
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
+	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -266,6 +268,74 @@ func TestHandleCheckOp(t *testing.T) {
 	require.False(t, scraperExists())
 }
 
+func TestCheckHandlerProbeValidation(t *testing.T) {
+	testcases := map[string]struct {
+		opts          UpdaterOptions
+		probe         sm.Probe
+		expectedError error
+	}{
+		"has K6 when required": {
+			expectedError: nil,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+				K6Runner:       noopRunner{},
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: false}},
+		},
+		"missing K6 when required": {
+			expectedError: errCapabilityK6Missing,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: false}},
+		},
+		"has K6 but not required": {
+			expectedError: nil,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+				K6Runner:       noopRunner{},
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: true}},
+		},
+		"missing K6 but not required": {
+			expectedError: nil,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: true}},
+		},
+	}
+
+	for _, tc := range testcases {
+		u, err := NewUpdater(tc.opts)
+		require.NoError(t, err)
+
+		err = u.validateProbeCapabilities(tc.probe.Capabilities)
+
+		if tc.expectedError != nil {
+			require.Error(t, err, tc.expectedError)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+}
+
 type testProber struct{}
 
 func (testProber) Name() string {
@@ -317,4 +387,117 @@ type channelPublisher chan pusher.Payload
 
 func (c channelPublisher) Publish(payload pusher.Payload) {
 	c <- payload
+}
+
+type noopRunner struct{}
+
+func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
+	var r noopRunner
+	return r
+}
+
+func (noopRunner) Run(ctx context.Context, script []byte) (*k6runner.RunResponse, error) {
+	return &k6runner.RunResponse{}, nil
+}
+
+type testBackoff time.Duration
+
+func (b *testBackoff) Reset() {
+	*b = 0
+}
+
+func (b testBackoff) Duration() time.Duration {
+	return time.Duration(b)
+}
+
+// TestHandleError tests the handleError function. It considers the errors that
+// might be returned from the loop method.
+func TestHandleError(t *testing.T) {
+	ctx, cancel := testhelper.Context(context.Background(), t)
+	defer cancel()
+
+	logger := zerolog.Nop()
+
+	t.Run("no error", func(t *testing.T) {
+		backoff := testBackoff(1)
+		done, err := handleError(ctx, logger, &backoff, false, nil)
+		require.True(t, done)
+		require.NoError(t, err)
+		require.NotZero(t, backoff)
+	})
+
+	t.Run("context cancelled", func(t *testing.T) {
+		backoff := testBackoff(1)
+		done, err := handleError(ctx, logger, &backoff, false, fmt.Errorf("wrapped: %w", context.Canceled))
+		require.True(t, done)
+		require.NoError(t, err)
+		require.NotZero(t, backoff)
+	})
+
+	t.Run("k6 capability missing", func(t *testing.T) {
+		backoff := testBackoff(1)
+		done, err := handleError(ctx, logger, &backoff, false, errCapabilityK6Missing)
+		require.True(t, done)
+		require.ErrorIs(t, err, errCapabilityK6Missing)
+		require.NotZero(t, backoff)
+	})
+
+	t.Run("incompatible API", func(t *testing.T) {
+		backoff := testBackoff(1)
+		done, err := handleError(ctx, logger, &backoff, false, errIncompatibleApi)
+		require.True(t, done)
+		require.ErrorIs(t, err, errIncompatibleApi)
+		require.NotZero(t, backoff)
+	})
+
+	t.Run("not authorized", func(t *testing.T) {
+		backoff := testBackoff(1)
+		done, err := handleError(ctx, logger, &backoff, false, errNotAuthorized)
+		require.True(t, done)
+		require.ErrorIs(t, err, errNotAuthorized)
+		require.NotZero(t, backoff)
+	})
+
+	t.Run("transport closing - not connected", func(t *testing.T) {
+		backoff := testBackoff(1)
+		done, err := handleError(ctx, logger, &backoff, false, errTransportClosing)
+		require.False(t, done)
+		require.NoError(t, err)
+		require.NotZero(t, backoff)
+	})
+
+	t.Run("transport closing - not connected - cancelled context", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		backoff := testBackoff(100)
+		done, err := handleError(ctx, logger, &backoff, false, errTransportClosing)
+		require.True(t, done)
+		require.ErrorIs(t, err, context.Canceled)
+		require.NotZero(t, backoff)
+	})
+
+	t.Run("transport closing - connected", func(t *testing.T) {
+		backoff := testBackoff(1)
+		done, err := handleError(ctx, logger, &backoff, true, errTransportClosing)
+		require.False(t, done)
+		require.NoError(t, err)
+		require.Zero(t, backoff)
+	})
+
+	t.Run("probe unregistered - not connected", func(t *testing.T) {
+		backoff := testBackoff(1)
+		done, err := handleError(ctx, logger, &backoff, false, errProbeUnregistered)
+		require.False(t, done)
+		require.NoError(t, err)
+		require.NotZero(t, backoff)
+	})
+
+	t.Run("probe unregistered - connected", func(t *testing.T) {
+		backoff := testBackoff(1)
+		done, err := handleError(ctx, logger, &backoff, true, errProbeUnregistered)
+		require.False(t, done)
+		require.NoError(t, err)
+		require.Zero(t, backoff)
+	})
 }
