@@ -481,7 +481,10 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 }
 
 func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities) error {
-	if !capabilities.DisableScriptedChecks && c.k6Runner == nil {
+	// k6 is only not required on this probe if explicitly disabled
+	requireK6 := capabilities == nil || !capabilities.DisableScriptedChecks
+
+	if requireK6 && c.k6Runner == nil {
 		return errCapabilityK6Missing
 	}
 

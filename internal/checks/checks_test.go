@@ -320,6 +320,29 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: true}},
 		},
+		"missing K6 when required by default": {
+			expectedError: errCapabilityK6Missing,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe"},
+		},
+		"has K6 when required by default": {
+			expectedError: nil,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+				K6Runner:       noopRunner{},
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe"},
+		},
 	}
 
 	for _, tc := range testcases {
