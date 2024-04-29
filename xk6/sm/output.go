@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"go.k6.io/k6/metrics"
@@ -30,6 +31,7 @@ type Output struct {
 	logger logrus.FieldLogger
 	buffer output.SampleBuffer
 	out    io.WriteCloser
+	start  time.Time
 }
 
 // New creates a new instance of the output.
@@ -58,6 +60,11 @@ func (o *Output) Description() string {
 // used for any long initialization tasks, as well as for starting a
 // goroutine to asynchronously flush metrics to the output.
 func (o *Output) Start() error {
+	o.start = time.Now()
+	o.logger.WithFields(logrus.Fields{
+		"output": o.Description(),
+		"ts":     o.start.UnixMilli(),
+	}).Debug("starting output")
 	return nil
 }
 
@@ -72,10 +79,18 @@ func (o *Output) AddMetricSamples(samples []metrics.SampleContainer) {
 
 // Stop flushes all remaining metrics and finalize the test run.
 func (o *Output) Stop() error {
+	duration := time.Since(o.start)
+	o.logger.WithFields(logrus.Fields{
+		"output":   o.Description(),
+		"duration": duration,
+	}).Debug("stopping output")
+
 	defer o.out.Close()
 
 	genericMetrics := newGenericMetricsCollection()
 	targetMetrics := newTargetMetricsCollection()
+
+	genericMetrics.Update("script_duration_seconds", "Returns how long the script took to complete in seconds", "", "", duration.Seconds(), nil)
 
 	for _, samples := range o.buffer.GetBufferedSamples() {
 		for _, sample := range samples.GetSamples() {
@@ -150,7 +165,7 @@ func (o *Output) Stop() error {
 				}
 			}
 
-			genericMetrics.Update(metricName, scenario, group, value, tags)
+			genericMetrics.Update(metricName, "", scenario, group, value, tags)
 		}
 	}
 
@@ -441,6 +456,7 @@ type genericMetric struct {
 	name  string
 	value float64
 	tags  map[string]string
+	help  string
 }
 
 type genericMetricsCollection map[string]genericMetric
@@ -449,7 +465,7 @@ func newGenericMetricsCollection() genericMetricsCollection {
 	return make(genericMetricsCollection)
 }
 
-func (c genericMetricsCollection) Update(metric, scenario, group string, delta float64, tags map[string]string) {
+func (c genericMetricsCollection) Update(metric, help, scenario, group string, delta float64, tags map[string]string) {
 	var key strings.Builder
 
 	key.WriteString(metric)
@@ -470,6 +486,7 @@ func (c genericMetricsCollection) Update(metric, scenario, group string, delta f
 
 	m := c[keyStr]
 	m.name = metric
+	m.help = help
 	m.value += delta
 	if len(tags) > 0 {
 		m.tags = tags
@@ -481,6 +498,7 @@ func (c genericMetricsCollection) Write(w io.Writer) {
 	for _, metric := range c {
 		out := newBufferedMetricTextOutput(w)
 		out.Name("probe_" + metric.name)
+		out.Help(metric.help)
 		for key, value := range metric.tags {
 			out.Tags(key, value)
 		}
@@ -538,6 +556,7 @@ type bufferedMetricTextOutput struct {
 	dest                io.Writer
 	commonKeysAndValues []string
 	name                string
+	help                string
 	buf                 strings.Builder
 }
 
@@ -548,6 +567,10 @@ func newBufferedMetricTextOutput(dest io.Writer, keysAndValues ...string) *buffe
 func (o *bufferedMetricTextOutput) Name(name string) {
 	o.name = name
 	o.buf.Reset()
+}
+
+func (o *bufferedMetricTextOutput) Help(str string) {
+	o.help = str
 }
 
 func (o *bufferedMetricTextOutput) Tags(keysAndValues ...string) {
@@ -586,6 +609,10 @@ func (o *bufferedMetricTextOutput) Value(v any) {
 		o.buf.WriteRune('"')
 		o.buf.WriteString(o.commonKeysAndValues[i+1])
 		o.buf.WriteRune('"')
+	}
+
+	if o.help != "" {
+		fmt.Fprintf(o.dest, "# HELP %s %s\n", o.name, o.help)
 	}
 
 	fmt.Fprint(o.dest, o.name)
