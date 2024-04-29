@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -111,7 +112,8 @@ func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger l
 		return false, err
 	}
 
-	return !resultCollector.failure, nil
+	success := result.Error == "" && result.ErrorCode == ""
+	return success, nil
 }
 
 type customCollector struct {
@@ -293,8 +295,10 @@ type RunRequest struct {
 }
 
 type RunResponse struct {
-	Metrics []byte `json:"metrics"`
-	Logs    []byte `json:"logs"`
+	Error     string `json:"error,omitempty"`
+	ErrorCode string `json:"errorCode,omitempty"`
+	Metrics   []byte `json:"metrics"`
+	Logs      []byte `json:"logs"`
 }
 
 func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
@@ -303,6 +307,8 @@ func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
 		logger: logger,
 	}
 }
+
+var ErrUnexpectedStatus = errors.New("unexpected status code")
 
 func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error) {
 	req, err := json.Marshal(&RunRequest{
@@ -323,24 +329,17 @@ func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error
 
 	defer resp.Body.Close()
 
-	dec := json.NewDecoder(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		var result requestError
-
-		err := dec.Decode(&result)
-		if err != nil {
-			r.logger.Error().Err(err).Msg("decoding request response")
-			return nil, fmt.Errorf("running script: %w", err)
-		}
-
-		r.logger.Error().Err(result).Msg("request response")
-		return nil, fmt.Errorf("running script: %w", result)
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusRequestTimeout, http.StatusUnprocessableEntity, http.StatusInternalServerError:
+	// These are status code that come with a machine-readable response. The response may contain an error, which is
+	// handled later.
+	// See: https://github.com/grafana/sm-k6-runner/blob/main/internal/mq/proxy.go#L215
+	default:
+		return nil, fmt.Errorf("%w %d", ErrUnexpectedStatus, resp.StatusCode)
 	}
 
 	var result RunResponse
-
-	err = dec.Decode(&result)
+	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		r.logger.Error().Err(err).Msg("decoding script result")
 		return nil, fmt.Errorf("decoding script result: %w", err)
