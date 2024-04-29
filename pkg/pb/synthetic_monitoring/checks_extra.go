@@ -379,31 +379,7 @@ func (c Check) validateFrequency() error {
 }
 
 func (c Check) validateTimeout() error {
-	var minTimeout, maxTimeout int64
-
-	switch {
-	case c.Settings.Traceroute != nil:
-		minTimeout, maxTimeout = minTracerouteTimeout, min(c.Frequency, maxTracerouteTimeout)
-
-	case c.Settings.Scripted != nil, c.Settings.Multihttp != nil:
-		// This is experimental. A large timeout means we have more
-		// checks lingering around. timeout must be less or equal than
-		// frequency (otherwise we can end up running overlapping
-		// checks)
-		minTimeout, maxTimeout = minScriptedTimeout, min(c.Frequency, maxScriptedTimeout)
-
-	default:
-		// timeout must be within the defined limits, and it must be
-		// less than frequency (otherwise we can end up running
-		// overlapping checks)
-		minTimeout, maxTimeout = minCheckTimeout, min(c.Frequency, MaxCheckTimeout)
-	}
-
-	if !inClosedRange(c.Timeout, minTimeout, maxTimeout) {
-		return ErrInvalidCheckTimeout
-	}
-
-	return nil
+	return validateTimeout(c.Type(), c.Timeout, c.Frequency)
 }
 
 func validateLabels(labels []Label) error {
@@ -486,32 +462,8 @@ func (c AdHocCheck) Validate() error {
 }
 
 func (c AdHocCheck) validateTimeout() error {
-	switch {
-	case c.Settings.Traceroute != nil:
-		// We are hardcoding traceroute frequency and timeout until we can get data on what the boundaries should be
-		if c.Timeout != 30*1000 {
-			return ErrInvalidCheckTimeout
-		}
-
-	case c.Settings.Scripted != nil || c.Settings.Multihttp != nil:
-		// This is expirimental. A 30 second timeout means we have more
-		// checks lingering around. timeout must be in [1, 30] seconds,
-		// and it must be less than frequency (otherwise we can end up
-		// running overlapping checks)
-		if c.Timeout < 1*1000 || c.Timeout > 30*1000 {
-			return ErrInvalidCheckTimeout
-		}
-
-	default:
-		// timeout must be in [1, 10] seconds, and it must be less than
-		// frequency (otherwise we can end up running overlapping
-		// checks)
-		if c.Timeout < 1*1000 || c.Timeout > 10*1000 {
-			return ErrInvalidCheckTimeout
-		}
-	}
-
-	return nil
+	// Ad-hoc checks don't have a frequency, so we pass the timeout value instead.
+	return validateTimeout(c.Type(), c.Timeout, c.Timeout)
 }
 
 func (c AdHocCheck) validateTarget() error {
@@ -1425,6 +1377,34 @@ func validateDnsLabel(label string, isLast bool) error {
 	// number of ASCII characters, not the number of runes.
 	if len(label) == 0 || len(label) > 63 {
 		return ErrInvalidDnsNameElement
+	}
+
+	return nil
+}
+
+func validateTimeout(checkType CheckType, timeout, frequency int64) error {
+	var minTimeout, maxTimeout int64
+
+	switch checkType {
+	case CheckTypeTraceroute:
+		minTimeout, maxTimeout = minTracerouteTimeout, min(frequency, maxTracerouteTimeout)
+
+	case CheckTypeScripted, CheckTypeMultiHttp:
+		// This is experimental. A large timeout means we have more
+		// checks lingering around. timeout must be less or equal than
+		// frequency (otherwise we can end up running overlapping
+		// checks)
+		minTimeout, maxTimeout = minScriptedTimeout, min(frequency, maxScriptedTimeout)
+
+	default:
+		// timeout must be within the defined limits, and it must be
+		// less than frequency (otherwise we can end up running
+		// overlapping checks)
+		minTimeout, maxTimeout = minCheckTimeout, min(frequency, MaxCheckTimeout)
+	}
+
+	if !inClosedRange(timeout, minTimeout, maxTimeout) {
+		return ErrInvalidCheckTimeout
 	}
 
 	return nil
