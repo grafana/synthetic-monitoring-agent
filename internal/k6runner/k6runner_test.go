@@ -164,6 +164,104 @@ func TestHttpRunnerRunError(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestScriptHTTPRun tests that Script reports what it should depending on the status code and responses of the HTTP
+// runner.
+func TestScriptHTTPRun(t *testing.T) {
+	t.Parallel()
+
+	var (
+		testMetrics = testhelper.MustReadFile(t, "testdata/test.out")
+		testLogs    = testhelper.MustReadFile(t, "testdata/test.log")
+	)
+
+	for _, tc := range []struct {
+		name          string
+		response      *RunResponse
+		statusCode    int
+		expectSuccess bool
+		expectError   error
+	}{
+		{
+			name: "all good",
+			response: &RunResponse{
+				Metrics: testMetrics,
+				Logs:    testLogs,
+			},
+			statusCode:    http.StatusOK,
+			expectSuccess: true,
+			expectError:   nil,
+		},
+		{
+			// HTTP runner returns an error when the upstream status is not recognized.
+			// Script should report that error and failure.
+			name:          "unexpected status",
+			response:      &RunResponse{},
+			statusCode:    999,
+			expectSuccess: false,
+			expectError:   ErrUnexpectedStatus,
+		},
+		{
+			// HTTP runner should report failure but no error if there is an error in the response.
+			// Other than checking for known status codes, it is ignored in this logic.
+			name: "error in response status 200",
+			response: &RunResponse{
+				Metrics:   testMetrics,
+				Logs:      testLogs,
+				ErrorCode: "something-wrong",
+			},
+			statusCode:    http.StatusOK,
+			expectSuccess: false,
+			expectError:   nil,
+		},
+		{
+			// HTTP runner should report failure but no error if there is an error in the response.
+			// Other than checking for known status codes, it is ignored in this logic.
+			name: "error in response status 4XX",
+			response: &RunResponse{
+				Metrics:   testMetrics,
+				Logs:      testLogs,
+				ErrorCode: "something-wrong",
+			},
+			statusCode:    http.StatusUnprocessableEntity,
+			expectSuccess: false,
+			expectError:   nil,
+		},
+	} {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.statusCode)
+				_ = json.NewEncoder(w).Encode(tc.response)
+			})
+			srv := httptest.NewServer(mux)
+			t.Cleanup(srv.Close)
+
+			runner := New(RunnerOpts{Uri: srv.URL + "/run"})
+			script, err := NewScript([]byte("tee-hee"), runner)
+			require.NoError(t, err)
+
+			ctx, cancel := testhelper.Context(context.Background(), t)
+			t.Cleanup(cancel)
+
+			var (
+				registry = prometheus.NewRegistry()
+				logger   testLogger
+				buf      bytes.Buffer
+				zlogger  = zerolog.New(&buf)
+			)
+
+			success, err := script.Run(ctx, registry, &logger, zlogger)
+			require.Equal(t, tc.expectSuccess, success)
+			require.ErrorIs(t, err, tc.expectError)
+		})
+	}
+}
+
 type testRunner struct {
 	metrics []byte
 	logs    []byte
