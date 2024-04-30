@@ -249,16 +249,12 @@ type scrapeHandler struct {
 func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	h.scraper.metrics.AddScrape()
 
-	var err error
+	var (
+		err      error
+		duration time.Duration
+	)
 
-	h.payload, err = h.scraper.collectData(ctx, t)
-
-	h.scraper.telemeter.AddExecution(telemetry.Execution{
-		LocalTenantID: h.scraper.check.TenantId,
-		RegionID:      int32(h.scraper.check.RegionId),
-		CheckClass:    h.scraper.check.Class(),
-		Duration:      time.Since(t),
-	})
+	h.payload, duration, err = h.scraper.collectData(ctx, t)
 
 	switch {
 	case errors.Is(err, errCheckFailed):
@@ -277,6 +273,14 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 			h.scraper.logger.Info().Msg("check entered PASS state")
 		})
 	}
+
+	// If we are dropping the data in case of errors, we should not count that execution.
+	h.scraper.telemeter.AddExecution(telemetry.Execution{
+		LocalTenantID: h.scraper.check.TenantId,
+		RegionID:      int32(h.scraper.check.RegionId),
+		CheckClass:    h.scraper.check.Class(),
+		Duration:      duration,
+	})
 
 	if h.payload != nil {
 		h.scraper.publisher.Publish(h.payload)
@@ -450,7 +454,7 @@ func tickWithOffset(
 	}
 }
 
-func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, error) {
+func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
 	var (
 		target = s.target
 		// These are the labels defined by the user.
@@ -461,16 +465,16 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 
 	maxMetricLabels, err := s.labelsLimiter.MetricLabels(ctx, s.check.GlobalTenantID())
 	if err != nil {
-		return nil, fmt.Errorf("retrieving tenant metric labels limit: %w", err)
+		return nil, 0, fmt.Errorf("retrieving tenant metric labels limit: %w", err)
 	}
 	maxLogLabels, err := s.labelsLimiter.LogLabels(ctx, s.check.GlobalTenantID())
 	if err != nil {
-		return nil, fmt.Errorf("retrieving tenant log labels limit: %w", err)
+		return nil, 0, fmt.Errorf("retrieving tenant log labels limit: %w", err)
 	}
 
 	if len(checkInfoLabels) > maxMetricLabels {
 		// This should never happen.
-		return nil, fmt.Errorf("invalid configuration, too many labels: %d", len(checkInfoLabels))
+		return nil, 0, fmt.Errorf("invalid configuration, too many labels: %d", len(checkInfoLabels))
 	}
 
 	logLabels := []labelPair{
@@ -507,8 +511,16 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 		s.check.BasicMetricsOnly,
 	)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
+
+	duration, found := patchDuration(mfs)
+	if !found {
+		duration = time.Since(t)
+	}
+
+	// At this point we know the check has been executed, regardless of
+	// whether it succeeded or not.
 
 	// TODO(mem): this is constant for the scraper, move this
 	// outside this function?
@@ -537,7 +549,47 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, erro
 	// loki does not support joins
 	streams := s.extractLogs(t, logs.Bytes(), logLabels)
 
-	return &probeData{ts: ts, streams: streams, tenantId: s.check.GlobalTenantID()}, err
+	return &probeData{ts: ts, streams: streams, tenantId: s.check.GlobalTenantID()}, duration, err
+}
+
+// patchDuration will modify the probe_duration_seconds metric to match the
+// probe_script_duration_seconds metric. This is necessary because the
+// probe_duration_seconds metric includes the time it takes waiting to run the
+// script plus the time it takes to actually run the script.
+//
+// TODO(mem): find a better way to handle this.
+func patchDuration(mfs []*dto.MetricFamily) (time.Duration, bool) {
+	var duration, scriptDuration *dto.Gauge
+
+	getGauge := func(mf *dto.MetricFamily) *dto.Gauge {
+		for _, m := range mf.GetMetric() {
+			if g := m.GetGauge(); g != nil {
+				return g
+			}
+		}
+		return nil
+	}
+
+	for _, mf := range mfs {
+		switch mf.GetName() {
+		case "probe_duration_seconds":
+			duration = getGauge(mf)
+
+		case "probe_script_duration_seconds":
+			scriptDuration = getGauge(mf)
+		}
+
+		if duration != nil && scriptDuration != nil {
+			*duration.Value = *scriptDuration.Value
+			break
+		}
+	}
+
+	if duration != nil {
+		return time.Duration(*duration.Value * float64(time.Second)), true
+	}
+
+	return 0, false
 }
 
 func getProbeMetrics(
@@ -611,8 +663,8 @@ func runProber(
 	})
 
 	registry.MustRegister(probeSuccessGauge)
-	registry.MustRegister(probeDurationGauge)
 	registry.MustRegister(smCheckInfo)
+	registry.MustRegister(probeDurationGauge)
 
 	probeDurationGauge.Set(duration)
 

@@ -906,9 +906,10 @@ func TestValidateLabels(t *testing.T) {
 				},
 			}
 
-			data, err := s.collectData(context.Background(), time.Unix(int64(3141000)/1000, 0))
+			data, duration, err := s.collectData(context.Background(), time.Unix(int64(3141000)/1000, 0))
 			require.NoError(t, err)
 			require.NotNil(t, data)
+			require.NotZero(t, duration)
 
 			metricLabels := maxProbeMetricLabels(t, data.Metrics())
 			logLabels := maxProbeLogLabels(t, data.Streams())
@@ -1529,9 +1530,10 @@ func TestScraperCollectData(t *testing.T) {
 				},
 			}
 
-			data, err := s.collectData(context.Background(), time.Unix(sampleTsMs/1000, 0))
+			data, duration, err := s.collectData(context.Background(), time.Unix(sampleTsMs/1000, 0))
 			require.NoError(t, err)
 			require.NotNil(t, data)
+			require.NotZero(t, duration)
 
 			for _, ts := range data.Metrics() {
 				validateMetrics(t, ts, tc)
