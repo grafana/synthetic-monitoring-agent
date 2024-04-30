@@ -75,6 +75,11 @@ func NewScript(script []byte, k6runner Runner) (*Script, error) {
 	return &r, nil
 }
 
+var (
+	ErrBuggyRunner = errors.New("runner returned buggy response")
+	ErrFromRunner  = errors.New("runner reported an error")
+)
+
 func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) (bool, error) {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
@@ -112,8 +117,29 @@ func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger l
 		return false, err
 	}
 
-	success := result.Error == "" && result.ErrorCode == ""
-	return success, nil
+	// If only one of Error and ErrorCode are non-empty, the proxy is misbehaving.
+	switch {
+	case result.Error == "" && result.ErrorCode != "":
+		fallthrough
+	case result.Error != "" && result.ErrorCode == "":
+		return false, fmt.Errorf(
+			"%w: only one of error (%q) and errorCode (%q) is non-empty",
+			ErrBuggyRunner, result.Error, result.ErrorCode,
+		)
+	}
+
+	// https://github.com/grafana/sm-k6-runner/blob/b811839d444a7e69fd056b0a4e6ccf7e914197f3/internal/mq/runner.go#L51
+	switch result.ErrorCode {
+	case "":
+		// No error, all good.
+		return true, nil
+	case "timeout", "killed", "user":
+		// These are user errors. The probe failed, but we don't return an error.
+		return false, nil
+	default:
+		// We got an "unknown" error, or some other code we do not recognize. Return it so we log it.
+		return false, fmt.Errorf("%w: %s: %s", ErrFromRunner, result.ErrorCode, result.Error)
+	}
 }
 
 type customCollector struct {

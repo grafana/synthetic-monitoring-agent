@@ -192,8 +192,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectError:   nil,
 		},
 		{
-			// HTTP runner returns an error when the upstream status is not recognized.
-			// Script should report that error and failure.
+			// HTTP runner should report failure and an error when the upstream status is not recognized.
 			name:          "unexpected status",
 			response:      &RunResponse{},
 			statusCode:    999,
@@ -201,30 +200,54 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectError:   ErrUnexpectedStatus,
 		},
 		{
-			// HTTP runner should report failure but no error if there is an error in the response.
-			// Other than checking for known status codes, it is ignored in this logic.
-			name: "error in response status 200",
+			// HTTP runner should report failure and an error when the error is unknown.
+			name: "non-user error",
 			response: &RunResponse{
 				Metrics:   testMetrics,
 				Logs:      testLogs,
+				Error:     "something went wrong",
 				ErrorCode: "something-wrong",
+			},
+			statusCode:    http.StatusOK,
+			expectSuccess: false,
+			expectError:   ErrFromRunner,
+		},
+		{
+			// HTTP runner should report failure but no error when the error is unknown.
+			name: "user error",
+			response: &RunResponse{
+				Metrics:   testMetrics,
+				Logs:      testLogs,
+				Error:     "syntax error somewhere or something",
+				ErrorCode: "user",
 			},
 			statusCode:    http.StatusOK,
 			expectSuccess: false,
 			expectError:   nil,
 		},
 		{
-			// HTTP runner should report failure but no error if there is an error in the response.
-			// Other than checking for known status codes, it is ignored in this logic.
-			name: "error in response status 4XX",
+			name: "inconsistent runner response A",
 			response: &RunResponse{
 				Metrics:   testMetrics,
 				Logs:      testLogs,
-				ErrorCode: "something-wrong",
+				Error:     "set",
+				ErrorCode: "",
 			},
-			statusCode:    http.StatusUnprocessableEntity,
+			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
-			expectError:   nil,
+			expectError:   ErrBuggyRunner,
+		},
+		{
+			name: "inconsistent runner response B",
+			response: &RunResponse{
+				Metrics:   testMetrics,
+				Logs:      testLogs,
+				Error:     "",
+				ErrorCode: "set",
+			},
+			statusCode:    http.StatusInternalServerError,
+			expectSuccess: false,
+			expectError:   ErrBuggyRunner,
 		},
 	} {
 		tc := tc
