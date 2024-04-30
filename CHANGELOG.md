@@ -2,8 +2,22 @@
 ## [Unreleased]
 
 
+<a name="v0.24.0"></a>
+## [v0.24.0] - 2024-04-30
+### Feature
+- automatically set up GOMEMLIMIT ([#691](https://github.com/grafana/synthetic-monitoring-agent/issues/691))
+
+### Fix
+- use uniform timeout validation logic ([#693](https://github.com/grafana/synthetic-monitoring-agent/issues/693))
+- TestTickWithOffset sometimes if offset is 0 ([#686](https://github.com/grafana/synthetic-monitoring-agent/issues/686))
+
+### K6runner
+- inspect errors and propagate unexpected ones to the probe
+- handle errors reported by http runners
+
+
 <a name="v0.23.4"></a>
-## [v0.23.4] - 2024-04-16
+## [v0.23.4] - 2024-04-17
 ### Feature
 - upgrade k6 to v0.50.0 ([#681](https://github.com/grafana/synthetic-monitoring-agent/issues/681))
 
@@ -585,7 +599,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.4...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.0...HEAD
+[v0.24.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.4...v0.24.0
 [v0.23.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.3...v0.23.4
 [v0.23.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.2...v0.23.3
 [v0.23.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.1...v0.23.2
