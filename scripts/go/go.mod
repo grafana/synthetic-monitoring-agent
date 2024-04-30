@@ -1,6 +1,6 @@
 module github.com/grafana/synthetic-monitoring-agent/scripts/go
 
-go 1.21
+go 1.22
 
 require (
 	github.com/dmarkham/enumer v1.5.9
