@@ -181,8 +181,6 @@ func run(args []string, stdout io.Writer) error {
 		Interface("config", config).
 		Msg("starting")
 
-	notifyAboutDeprecatedFeatureFlags(features, zl)
-
 	if features.IsSet(feature.K6) {
 		newUri, err := validateK6URI(config.K6URI)
 		if err != nil {
@@ -406,14 +404,6 @@ func validateK6URI(uri string) (string, error) {
 	}
 
 	return uri, nil
-}
-
-func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {
-	for _, ff := range []string{feature.AdHoc, feature.Traceroute} {
-		if features.IsSet(ff) {
-			zl.Info().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the --feature flag without loss of functionality", ff)
-		}
-	}
 }
 
 func setupGoMemLimit(ratio float64) error {

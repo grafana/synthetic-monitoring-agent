@@ -9,11 +9,7 @@ import (
 )
 
 // TODO: this doesn't seem like the right place for this
-const (
-	Traceroute = "traceroute"
-	AdHoc      = "adhoc"
-	K6         = "k6"
-)
+const K6 = "k6"
 
 // ErrInvalidCollection is returned when you try to set a flag in an
 // invalid collection.
