@@ -493,7 +493,7 @@ func TestHandleError(t *testing.T) {
 		ctx, cancel := context.WithCancel(ctx)
 		cancel()
 
-		backoff := testBackoff(100)
+		backoff := testBackoff(time.Second)
 		done, err := handleError(ctx, logger, &backoff, false, errTransportClosing)
 		require.True(t, done)
 		require.ErrorIs(t, err, context.Canceled)
