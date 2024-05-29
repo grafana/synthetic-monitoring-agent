@@ -320,9 +320,17 @@ func TestBuildBody(t *testing.T) {
 		input    input
 		expected string
 	}{
+		"variable in body is interpolated correctly": {
+			input:    input{body: &sm.HttpRequestBody{Payload: []byte("test ${testVar} works")}},
+			expected: "'test '+vars['testVar']+' works'", // 'test '+vars['testVar']+' works'
+		},
+		"body starting with variable is interpolated correctly": {
+			input:    input{body: &sm.HttpRequestBody{Payload: []byte("${testVar} test")}},
+			expected: "vars['testVar']+' test'", // vars['testVar']+' test'
+		},
 		"not empty": {
 			input:    input{body: &sm.HttpRequestBody{Payload: []byte("test")}},
-			expected: `encoding.b64decode("dGVzdA", 'rawstd', "b")`,
+			expected: "'test'", // 'test'
 		},
 		"nil": {
 			input:    input{body: nil},

@@ -3,7 +3,6 @@ package multihttp
 import (
 	"bytes"
 	"embed"
-	"encoding/base64"
 	"fmt"
 	"regexp"
 	"strings"
@@ -96,11 +95,8 @@ func buildBody(body *sm.HttpRequestBody) string {
 
 	default:
 		var buf strings.Builder
-
-		buf.WriteString(`encoding.b64decode("`)
-		buf.WriteString(base64.RawStdEncoding.EncodeToString(body.Payload))
-		buf.WriteString(`", 'rawstd', "b")`)
-
+		bodyString := string(body.Payload)
+		buf.WriteString(performVariableExpansion(bodyString))
 		return buf.String()
 	}
 }
