@@ -120,6 +120,10 @@ var (
 	ErrInvalidMultiHttpAssertionMissingValue         = errors.New("invalid multi-http assertion, missing value")
 	ErrInvalidMultiHttpAssertionExpressionNotAllowed = errors.New("invalid multi-http assertion, expression not allowed")
 	ErrInvalidMultiHttpAssertionMissingHeaderName    = errors.New("invalid multi-http assertion, missing header name")
+
+	ErrInvalidCheckAlerts        = errors.New("invalid check alerts")
+	ErrInvalidAlertThreshold     = errors.New("invalid alert threshold")
+	ErrInvalidAlertsForCheckType = errors.New("invalid alerts for check type")
 )
 
 const (
@@ -302,6 +306,10 @@ func (c Check) Validate() error {
 	}
 
 	if err := c.validateTarget(); err != nil {
+		return err
+	}
+
+	if err := c.Alerts.Validate(c.Type()); err != nil {
 		return err
 	}
 
@@ -698,6 +706,113 @@ func (s *MultiHttpSettings) Validate() error {
 }
 
 func (s *GrpcSettings) Validate() error {
+	return nil
+}
+
+func (a CheckAlerts) Validate(checkType CheckType) error {
+	var (
+		alertsType CheckType
+		validateFn func() error
+	)
+
+	// Specific check type alerts can only be set for a single type
+	typeAlertsCount := 0
+
+	if a.Ping != nil {
+		typeAlertsCount++
+		alertsType = CheckTypePing
+		validateFn = a.Ping.Validate
+	}
+
+	if a.Http != nil {
+		typeAlertsCount++
+		alertsType = CheckTypeHttp
+		validateFn = a.Http.Validate
+	}
+
+	if typeAlertsCount > 1 {
+		return ErrInvalidCheckAlerts
+	}
+
+	if typeAlertsCount > 0 {
+		// If there are check type alerts set, the alerts type must match the check
+		// type
+		if alertsType != checkType {
+			return ErrInvalidAlertsForCheckType
+		}
+		if err := validateFn(); err != nil {
+			return err
+		}
+	}
+
+	// Common alerts can be set independently of check type alerts, therefore
+	// validate it if set
+	if a.Common != nil {
+		if err := a.Common.Validate(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (a *CommonAlerts) Validate() error {
+	return a.ProbeFailedExecutionsTooHigh.Validate()
+}
+
+func (a *PingAlerts) Validate() error {
+	if err := a.IcmpDurationTooHighP50.Validate(); err != nil {
+		return err
+	}
+
+	if err := a.IcmpDurationTooHighP90.Validate(); err != nil {
+		return err
+	}
+
+	if err := a.IcmpDurationTooHighP95.Validate(); err != nil {
+		return err
+	}
+
+	if err := a.IcmpDurationTooHighP99.Validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *HttpAlerts) Validate() error {
+	if err := a.RequestDurationTooHighP50.Validate(); err != nil {
+		return err
+	}
+
+	if err := a.RequestDurationTooHighP90.Validate(); err != nil {
+		return err
+	}
+
+	if err := a.RequestDurationTooHighP95.Validate(); err != nil {
+		return err
+	}
+
+	if err := a.RequestDurationTooHighP99.Validate(); err != nil {
+		return err
+	}
+
+	if err := a.TargetCertificateCloseToExpiring.Validate(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (a *Alert) Validate() error {
+	if a == nil {
+		return nil
+	}
+
+	if a.Threshold < 0 {
+		return ErrInvalidAlertThreshold
+	}
+
 	return nil
 }
 
