@@ -342,6 +342,45 @@ func TestBuildBody(t *testing.T) {
 	}
 }
 
+func TestInterpolateBodyVariables(t *testing.T) {
+	t.Parallel()
+
+	type input struct {
+		body *sm.HttpRequestBody
+	}
+
+	testcases := map[string]struct {
+		input    input
+		expected []string
+	}{
+		"no variables": {
+			input:    input{body: &sm.HttpRequestBody{Payload: []byte("test")}},
+			expected: []string{},
+		},
+		"basic": {
+			input: input{body: &sm.HttpRequestBody{Payload: []byte("test ${variable1}")}},
+			expected: []string{
+				"body.replace('${variable1}', vars['variable1'])",
+			},
+		},
+		"several variables with repeats": {
+			input: input{body: &sm.HttpRequestBody{Payload: []byte("${variable1} is ${variable1} fun ${variable2} ok ${variable3}")}},
+			expected: []string{
+				"body.replace('${variable1}', vars['variable1'])",
+				"body.replace('${variable2}', vars['variable2'])",
+				"body.replace('${variable3}', vars['variable3'])",
+			},
+		},
+	}
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			actual := interpolateBodyVariables("body", tc.input.body)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
 func TestAssertionConditionName(t *testing.T) {
 	testcases := map[string]struct {
 		condition sm.MultiHttpEntryAssertionConditionVariant

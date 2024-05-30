@@ -69,6 +69,7 @@ function assertHeader(headers, name, matcher) {
 
 export default function() {
 	let response;
+	let body;
 	let url;
 	let currentCheck;
 	let match;
@@ -87,9 +88,14 @@ export default function() {
 	{{ range $queries }}{{ . }};
 	{{ end -}}
 	{{- $method := .Request.Method.String }}
-	{{- $body := buildBody .Request.Body }}
+	
+	body = {{ buildBody .Request.Body }};
+	{{- $bodyVars := interpolateBodyVars "body" .Request.Body }}
+	{{ range $bodyVars }}{{ . }};
+	{{ end -}}
+
 	{{- $headers := buildHeaders .Request.Headers .Request.Body }}
-	response = http.request('{{ $method }}', url.toString(), {{ $body }}, {
+	response = http.request('{{ $method }}', url.toString(), body, {
 		// TODO(mem): build params out of options for the check
 		tags: {
 		  name: '{{ $idx }}', // TODO(mem): give the user some control over this?

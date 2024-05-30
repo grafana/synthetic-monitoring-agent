@@ -105,6 +105,44 @@ func buildBody(body *sm.HttpRequestBody) string {
 	}
 }
 
+func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []string {
+	switch {
+	case body == nil || len(body.Payload) == 0:
+		return nil
+
+	default:
+		var buf strings.Builder
+
+		matches := userVariables.FindAllString(string(body.Payload), -1)
+		parsedMatches := make(map[string]struct{})
+		out := make([]string, 0, len(matches))
+
+		// For every instance of ${variable} in the body,
+		// this block returns {bodyVarName}.replace('${variable}', vars['variable'])
+		for _, m := range matches {
+			if _, found := parsedMatches[m]; found {
+				continue
+			}
+
+			buf.Reset()
+			buf.WriteString(bodyVarName)
+			buf.WriteString(".replace('")
+			buf.WriteString(m)
+			buf.WriteString("', vars['")
+			// writing the variable name from between ${ and }
+			for i := 2; i < len(m)-1; i++ {
+				buf.WriteByte(m[i])
+			}
+			buf.WriteString("'])")
+			out = append(out, buf.String())
+
+			parsedMatches[m] = struct{}{}
+		}
+
+		return out
+	}
+}
+
 func buildHeaders(headers []*sm.HttpHeader, body *sm.HttpRequestBody) string {
 	var buf strings.Builder
 
@@ -387,12 +425,13 @@ func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
 	tmpl, err := template.
 		New("").
 		Funcs(template.FuncMap{
-			"buildBody":        buildBody,
-			"buildChecks":      buildChecks,
-			"buildHeaders":     buildHeaders,
-			"buildUrl":         performVariableExpansion,
-			"buildQueryParams": buildQueryParams,
-			"buildVars":        buildVars,
+			"buildBody":           buildBody,
+			"buildChecks":         buildChecks,
+			"buildHeaders":        buildHeaders,
+			"buildUrl":            performVariableExpansion,
+			"buildQueryParams":    buildQueryParams,
+			"buildVars":           buildVars,
+			"interpolateBodyVars": interpolateBodyVariables,
 		}).
 		ParseFS(templateFS, "*.tmpl")
 	if err != nil {
