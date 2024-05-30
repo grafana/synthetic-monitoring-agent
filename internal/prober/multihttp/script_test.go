@@ -343,6 +343,8 @@ func TestBuildBody(t *testing.T) {
 }
 
 func TestInterpolateBodyVariables(t *testing.T) {
+	t.Parallel()
+
 	type input struct {
 		body *sm.HttpRequestBody
 	}
@@ -372,6 +374,7 @@ func TestInterpolateBodyVariables(t *testing.T) {
 	}
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			actual := interpolateBodyVariables("body", tc.input.body)
 			require.Equal(t, tc.expected, actual)
 		})
