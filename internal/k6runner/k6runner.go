@@ -337,17 +337,32 @@ func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
 var ErrUnexpectedStatus = errors.New("unexpected status code")
 
 func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error) {
-	req, err := json.Marshal(&RunRequest{
+	k6Timeout := getTimeout(ctx)
+
+	reqBody, err := json.Marshal(&RunRequest{
 		Script: script,
 		Settings: Settings{
-			Timeout: getTimeout(ctx).Milliseconds(),
+			Timeout: k6Timeout.Milliseconds(),
 		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("running script: %w", err)
 	}
 
-	resp, err := http.Post(r.url, "application/json", bytes.NewBuffer(req))
+	// The context above carries the check timeout, which will be eventually passed to k6 by the runner at the other end
+	// of this request. To account for network overhead, we add a second of grace time to the script timeout to form
+	// the timeout of this request.
+	reqCtx, cancel := context.WithTimeout(ctx, k6Timeout+time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, r.url, bytes.NewReader(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("building request: %w", err)
+	}
+
+	req.Header.Add("content-type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		r.logger.Error().Err(err).Msg("sending request")
 		return nil, fmt.Errorf("running script: %w", err)
