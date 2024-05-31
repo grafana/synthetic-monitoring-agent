@@ -350,9 +350,9 @@ func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error
 	}
 
 	// The context above carries the check timeout, which will be eventually passed to k6 by the runner at the other end
-	// of this request. To account for network overhead, we add a second of grace time to the script timeout to form
-	// the timeout of this request.
-	reqCtx, cancel := context.WithTimeout(ctx, k6Timeout+time.Second)
+	// of this request. To account for network overhead, we create a different context with an extra second of timeout,
+	// which adds some grace time to account for the network/system latency of the http request.
+	reqCtx, cancel := context.WithTimeout(context.Background(), k6Timeout+time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, r.url, bytes.NewReader(reqBody))
