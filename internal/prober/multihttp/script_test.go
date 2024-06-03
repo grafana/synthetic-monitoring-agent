@@ -322,7 +322,7 @@ func TestBuildBody(t *testing.T) {
 	}{
 		"not empty": {
 			input:    input{body: &sm.HttpRequestBody{Payload: []byte("test")}},
-			expected: `encoding.b64decode("dGVzdA", 'rawstd', "b")`,
+			expected: `encoding.b64decode("dGVzdA", 'rawstd', "s")`,
 		},
 		"nil": {
 			input:    input{body: nil},
@@ -360,15 +360,15 @@ func TestInterpolateBodyVariables(t *testing.T) {
 		"basic": {
 			input: input{body: &sm.HttpRequestBody{Payload: []byte("test ${variable1}")}},
 			expected: []string{
-				"body.replace('${variable1}', vars['variable1'])",
+				"body=body.replaceAll('${variable1}', vars['variable1'])",
 			},
 		},
 		"several variables with repeats": {
 			input: input{body: &sm.HttpRequestBody{Payload: []byte("${variable1} is ${variable1} fun ${variable2} ok ${variable3}")}},
 			expected: []string{
-				"body.replace('${variable1}', vars['variable1'])",
-				"body.replace('${variable2}', vars['variable2'])",
-				"body.replace('${variable3}', vars['variable3'])",
+				"body=body.replaceAll('${variable1}', vars['variable1'])",
+				"body=body.replaceAll('${variable2}', vars['variable2'])",
+				"body=body.replaceAll('${variable3}', vars['variable3'])",
 			},
 		},
 	}
