@@ -99,7 +99,7 @@ func buildBody(body *sm.HttpRequestBody) string {
 
 		buf.WriteString(`encoding.b64decode("`)
 		buf.WriteString(base64.RawStdEncoding.EncodeToString(body.Payload))
-		buf.WriteString(`", 'rawstd', "b")`)
+		buf.WriteString(`", 'rawstd', "s")`)
 
 		return buf.String()
 	}
@@ -118,7 +118,7 @@ func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []st
 		out := make([]string, 0, len(matches))
 
 		// For every instance of ${variable} in the body,
-		// this block returns {bodyVarName}.replace('${variable}', vars['variable'])
+		// this block returns {bodyVarName} = {bodyVarName}.replaceAll('${variable}', vars['variable'])
 		for _, m := range matches {
 			if _, found := parsedMatches[m]; found {
 				continue
@@ -126,7 +126,9 @@ func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []st
 
 			buf.Reset()
 			buf.WriteString(bodyVarName)
-			buf.WriteString(".replace('")
+			buf.WriteString("=")
+			buf.WriteString(bodyVarName)
+			buf.WriteString(".replaceAll('")
 			buf.WriteString(m)
 			buf.WriteString("', vars['")
 			// writing the variable name from between ${ and }
