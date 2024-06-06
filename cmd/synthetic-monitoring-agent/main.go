@@ -134,7 +134,9 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	if !config.DisableK6 {
-		features.Set(feature.K6)
+		if err := features.Set(feature.K6); err != nil {
+			return fmt.Errorf("cannot set k6 feature: %w", err)
+		}
 	}
 
 	// If the token is provided on the command line, prefer that. Otherwise

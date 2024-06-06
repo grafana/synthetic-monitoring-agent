@@ -53,7 +53,7 @@ func (e FatalError) Error() string { return string(e) }
 var _ error = FatalError("")
 
 const (
-	errCapabilityK6Missing = FatalError("k6 is required for scripted check support")
+	errCapabilityK6Missing = FatalError("k6 is required for scripted check support - configure k6 or edit probe capabilities in the SM app")
 	errIncompatibleApi     = FatalError("API does not support required features")
 	errNotAuthorized       = FatalError("probe not authorized")
 	errProbeUnregistered   = TransientError("probe no longer registered")
