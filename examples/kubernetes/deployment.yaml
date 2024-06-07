@@ -21,32 +21,39 @@ spec:
     spec:
       containers:
         - args:
-            - /usr/local/bin/synthetic-monitoring-agent --api-server-address=${API_SERVER} --api-token=${API_TOKEN} --verbose=true
-          command:
-            - sh
-            - -c
+            - --api-server-address=$(API_SERVER)
+            - --api-token=$(API_TOKEN)
+            - --verbose=true
+            # Uncomment to listen on all interfaces. This exposes metrics and debugging endpoints to the cluster, so it
+            # should only be done on trusted clusters or with network policies set in place.
+            # - --listen-address=0.0.0.0:4050
           env:
             - name: API_TOKEN
               valueFrom:
                 secretKeyRef:
                   key: api-token
                   name: sm-agent-1
-            #
             - name: API_SERVER
-              value: "PROBE_API_SERVER_URL"
+              valueFrom:
+                secretKeyRef:
+                  key: api-server
+                  name: sm-agent-1
           image: grafana/synthetic-monitoring-agent:latest
           name: agent
           ports:
             - containerPort: 4050
               name: http-metrics
-          readinessProbe:
-            httpGet:
-              path: /ready
-              port: 4050
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 4050
+          # Readiness/liveness probes can be enabled to show the agent as not ready if it cannot successfully connect
+          # to the Grafana Synthetic Monitoring API. Enabling this probes requires configuring the agent to listen on
+          # all interfaces, so they are commented out by default.
+          # readinessProbe:
+          #   httpGet:
+          #     path: /ready
+          #     port: 4050
+          # livenessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: 4050
           resources:
             requests:
               cpu: 200m
