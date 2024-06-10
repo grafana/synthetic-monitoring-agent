@@ -2,6 +2,12 @@
 ## [Unreleased]
 
 
+<a name="v0.24.2"></a>
+## [v0.24.2] - 2024-06-10
+### Fix
+- Interpolate variables into MultiHTTP request bodies ([#713](https://github.com/grafana/synthetic-monitoring-agent/issues/713))
+
+
 <a name="v0.24.1"></a>
 ## [v0.24.1] - 2024-04-30
 ### Fix
@@ -65,11 +71,6 @@
 
 ### Fix
 - missing http check regex validations ([#612](https://github.com/grafana/synthetic-monitoring-agent/issues/612))
-
-
-<a name="v0.20.1"></a>
-## [v0.20.1] - 2024-02-12
-### Fix
 - add test for HTTP check with a long URL
 
 
@@ -610,7 +611,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.1...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.2...HEAD
+[v0.24.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.1...v0.24.2
 [v0.24.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.0...v0.24.1
 [v0.24.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.4...v0.24.0
 [v0.23.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.3...v0.23.4
@@ -619,8 +621,7 @@
 [v0.23.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.0...v0.23.1
 [v0.23.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.22.0...v0.23.0
 [v0.22.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.21.0...v0.22.0
-[v0.21.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.1...v0.21.0
-[v0.20.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.20.1
+[v0.21.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.21.0
 [v0.19.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.5...v0.19.6
 [v0.19.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.4...v0.19.5
 [v0.19.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.3...v0.19.4
