@@ -61,13 +61,13 @@ func (r *LocalRunner) withOpts(opts RunnerOpts) {
 	}
 }
 
-type Script struct {
+type Processor struct {
 	runner Runner
 	script []byte
 }
 
-func NewScript(script []byte, k6runner Runner) (*Script, error) {
-	r := Script{
+func NewProcessor(script []byte, k6runner Runner) (*Processor, error) {
+	r := Processor{
 		runner: k6runner,
 		script: script,
 	}
@@ -80,7 +80,7 @@ var (
 	ErrFromRunner  = errors.New("runner reported an error")
 )
 
-func (r Script) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) (bool, error) {
+func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) (bool, error) {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
 	result, err := k6runner.Run(ctx, r.script)
