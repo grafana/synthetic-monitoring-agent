@@ -72,6 +72,7 @@ func run(args []string, stdout io.Writer) error {
 			TelemetryTimeSpan    int
 			AutoMemLimit         bool
 			MemLimitRatio        float64
+			DisableK6            bool
 		}{
 			GrpcApiServerAddr: "localhost:4031",
 			HttpListenAddr:    "localhost:4050",
@@ -100,9 +101,8 @@ func run(args []string, stdout io.Writer) error {
 	flags.StringVar(&config.SelectedPublisher, "publisher", config.SelectedPublisher, "publisher type")
 	flags.IntVar(&config.TelemetryTimeSpan, "telemetry-time-span", config.TelemetryTimeSpan, "time span between telemetry push executions per tenant")
 	flags.BoolVar(&config.AutoMemLimit, "enable-auto-memlimit", config.AutoMemLimit, "automatically set GOMEMLIMIT")
+	flags.BoolVar(&config.DisableK6, "disable-k6", config.DisableK6, "disables running k6 checks on this probe")
 	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
-
-	flags.Var(&features, "features", "optional feature flags")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -130,6 +130,12 @@ func run(args []string, stdout io.Writer) error {
 		err := setupGoMemLimit(config.MemLimitRatio)
 		if err != nil {
 			return err
+		}
+	}
+
+	if !config.DisableK6 {
+		if err := features.Set(feature.K6); err != nil {
+			return fmt.Errorf("cannot set k6 feature: %w", err)
 		}
 	}
 
