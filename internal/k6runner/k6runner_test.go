@@ -38,7 +38,7 @@ func TestNew(t *testing.T) {
 func TestNewScript(t *testing.T) {
 	runner := New(RunnerOpts{Uri: "k6"})
 	src := []byte("test")
-	script, err := NewScript(src, runner)
+	script, err := NewProcessor(src, runner)
 	require.NoError(t, err)
 	require.NotNil(t, script)
 	require.Equal(t, src, script.script)
@@ -51,7 +51,7 @@ func TestScriptRun(t *testing.T) {
 		logs:    testhelper.MustReadFile(t, "testdata/test.log"),
 	}
 
-	script, err := NewScript(testhelper.MustReadFile(t, "testdata/test.js"), &runner)
+	script, err := NewProcessor(testhelper.MustReadFile(t, "testdata/test.js"), &runner)
 	require.NoError(t, err)
 	require.NotNil(t, script)
 
@@ -278,7 +278,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			t.Cleanup(srv.Close)
 
 			runner := New(RunnerOpts{Uri: srv.URL + "/run"})
-			script, err := NewScript([]byte("tee-hee"), runner)
+			script, err := NewProcessor([]byte("tee-hee"), runner)
 			require.NoError(t, err)
 
 			baseCtx, baseCancel := context.WithTimeout(context.Background(), time.Second)

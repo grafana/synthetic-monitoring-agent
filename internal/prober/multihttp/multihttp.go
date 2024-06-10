@@ -26,7 +26,7 @@ type Module struct {
 type Prober struct {
 	logger zerolog.Logger
 	config Module
-	script *k6runner.Script
+	script *k6runner.Processor
 }
 
 func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header) (Prober, error) {
@@ -53,7 +53,7 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 		return p, err
 	}
 
-	k6Script, err := k6runner.NewScript(script, runner)
+	k6Script, err := k6runner.NewProcessor(script, runner)
 	if err != nil {
 		return p, err
 	}
