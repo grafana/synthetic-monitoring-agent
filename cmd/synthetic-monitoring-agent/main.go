@@ -103,6 +103,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.AutoMemLimit, "enable-auto-memlimit", config.AutoMemLimit, "automatically set GOMEMLIMIT")
 	flags.BoolVar(&config.DisableK6, "disable-k6", config.DisableK6, "disables running k6 checks on this probe")
 	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
+	flags.Var(&features, "features", "optional feature flags")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -186,6 +187,8 @@ func run(args []string, stdout io.Writer) error {
 		Str("features", features.String()).
 		Interface("config", config).
 		Msg("starting")
+
+	notifyAboutDeprecatedFeatureFlags(features, zl)
 
 	if features.IsSet(feature.K6) {
 		newUri, err := validateK6URI(config.K6URI)
@@ -410,6 +413,14 @@ func validateK6URI(uri string) (string, error) {
 	}
 
 	return uri, nil
+}
+
+func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {
+	for _, ff := range []string{feature.K6, feature.Traceroute} {
+		if features.IsSet(ff) {
+			zl.Info().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the --feature flag without loss of functionality", ff)
+		}
+	}
 }
 
 func setupGoMemLimit(ratio float64) error {
