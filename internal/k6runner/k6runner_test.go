@@ -177,6 +177,7 @@ func TestScriptHTTPRun(t *testing.T) {
 	for _, tc := range []struct {
 		name          string
 		response      *RunResponse
+		delay         time.Duration
 		statusCode    int
 		expectSuccess bool
 		expectError   error
@@ -249,6 +250,17 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectError:   ErrBuggyRunner,
 		},
+		{
+			name: "request timeout",
+			response: &RunResponse{
+				Metrics: testMetrics,
+				Logs:    testLogs,
+			},
+			delay:         2 * time.Second,
+			statusCode:    http.StatusInternalServerError,
+			expectSuccess: false,
+			expectError:   context.DeadlineExceeded,
+		},
 	} {
 		tc := tc
 
@@ -257,6 +269,7 @@ func TestScriptHTTPRun(t *testing.T) {
 
 			mux := http.NewServeMux()
 			mux.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
+				time.Sleep(tc.delay)
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tc.statusCode)
 				_ = json.NewEncoder(w).Encode(tc.response)
@@ -268,7 +281,9 @@ func TestScriptHTTPRun(t *testing.T) {
 			script, err := NewScript([]byte("tee-hee"), runner)
 			require.NoError(t, err)
 
-			ctx, cancel := testhelper.Context(context.Background(), t)
+			baseCtx, baseCancel := context.WithTimeout(context.Background(), time.Second)
+			t.Cleanup(baseCancel)
+			ctx, cancel := testhelper.Context(baseCtx, t)
 			t.Cleanup(cancel)
 
 			var (
