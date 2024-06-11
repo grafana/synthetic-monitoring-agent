@@ -22,9 +22,24 @@ import (
 	"github.com/spf13/afero"
 )
 
+// Script is a k6 script that a runner is able to run, with some added instructions for that runner to act on.
+type Script struct {
+	Script   []byte   `json:"script"`
+	Settings Settings `json:"settings"`
+	// TODO: Add Metadata and Features.
+}
+
+type Settings struct {
+	// Timeout for k6 run, in milliseconds. This value is a configuration value for remote runners, which will instruct
+	// them to return an error if the operation takes longer than this time to complete. Clients should expect that
+	// requests to remote runners may take longer than this value due to network and other latencies, and thus clients
+	// should wait additional time before aborting outgoing requests.
+	Timeout int64 `json:"timeout"`
+}
+
 type Runner interface {
 	WithLogger(logger *zerolog.Logger) Runner
-	Run(ctx context.Context, script []byte) (*RunResponse, error)
+	Run(ctx context.Context, script Script) (*RunResponse, error)
 }
 
 type RunnerOpts struct {
@@ -61,12 +76,13 @@ func (r *LocalRunner) withOpts(opts RunnerOpts) {
 	}
 }
 
+// Processor runs a script with a runner and parses the k6 output.
 type Processor struct {
 	runner Runner
-	script []byte
+	script Script
 }
 
-func NewProcessor(script []byte, k6runner Runner) (*Processor, error) {
+func NewProcessor(script Script, k6runner Runner) (*Processor, error) {
 	r := Processor{
 		runner: k6runner,
 		script: script,
@@ -311,15 +327,6 @@ func (r requestError) Error() string {
 	return fmt.Sprintf("%s: %s", r.Err, r.Message)
 }
 
-type Settings struct {
-	Timeout int64 `json:"timeout"`
-}
-
-type RunRequest struct {
-	Script   []byte   `json:"script"`
-	Settings Settings `json:"settings"`
-}
-
 type RunResponse struct {
 	Error     string `json:"error,omitempty"`
 	ErrorCode string `json:"errorCode,omitempty"`
@@ -336,17 +343,12 @@ func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
 
 var ErrUnexpectedStatus = errors.New("unexpected status code")
 
-func (r HttpRunner) Run(ctx context.Context, script []byte) (*RunResponse, error) {
-	k6Timeout := getTimeout(ctx)
+func (r HttpRunner) Run(ctx context.Context, script Script) (*RunResponse, error) {
+	k6Timeout := time.Duration(script.Settings.Timeout) * time.Millisecond
 
-	reqBody, err := json.Marshal(&RunRequest{
-		Script: script,
-		Settings: Settings{
-			Timeout: k6Timeout.Milliseconds(),
-		},
-	})
+	reqBody, err := json.Marshal(script)
 	if err != nil {
-		return nil, fmt.Errorf("running script: %w", err)
+		return nil, fmt.Errorf("encoding script: %w", err)
 	}
 
 	// The context above carries the check timeout, which will be eventually passed to k6 by the runner at the other end
@@ -406,7 +408,7 @@ func (r LocalRunner) WithLogger(logger *zerolog.Logger) Runner {
 	}
 }
 
-func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, error) {
+func (r LocalRunner) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	afs := afero.Afero{Fs: r.fs}
 
 	workdir, err := afs.TempDir("", "k6-runner")
@@ -435,7 +437,7 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 		return nil, fmt.Errorf("cannot obtain temporary script filename: %w", err)
 	}
 
-	if err := afs.WriteFile(scriptFn, script, 0o644); err != nil {
+	if err := afs.WriteFile(scriptFn, script.Script, 0o644); err != nil {
 		return nil, fmt.Errorf("cannot write temporary script file: %w", err)
 	}
 
@@ -444,7 +446,7 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 		return nil, fmt.Errorf("cannot find k6 executable: %w", err)
 	}
 
-	timeout := getTimeout(ctx)
+	timeout := time.Duration(script.Settings.Timeout) * time.Millisecond
 
 	// #nosec G204 -- the variables are not user-controlled
 	cmd := exec.CommandContext(
@@ -483,7 +485,7 @@ func (r LocalRunner) Run(ctx context.Context, script []byte) (*RunResponse, erro
 
 	start := time.Now()
 
-	r.logger.Info().Str("command", cmd.String()).Bytes("script", script).Msg("running k6 script")
+	r.logger.Info().Str("command", cmd.String()).Bytes("script", script.Script).Msg("running k6 script")
 
 	if err := cmd.Run(); err != nil {
 		r.logger.Error().Err(err).Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("k6 exited with error")
@@ -523,13 +525,4 @@ func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
 		return "", fmt.Errorf("cannot close temporary file: %w", err)
 	}
 	return f.Name(), nil
-}
-
-func getTimeout(ctx context.Context) time.Duration {
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		return 10 * time.Second
-	}
-
-	return time.Until(deadline)
 }
