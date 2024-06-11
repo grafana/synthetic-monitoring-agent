@@ -37,6 +37,9 @@ type Settings struct {
 	Timeout int64 `json:"timeout"`
 }
 
+// ErrNoTimeout is returned by [Runner] implementations if the supplied script has a timeout of zero.
+var ErrNoTimeout = errors.New("check has no timeout")
+
 type Runner interface {
 	WithLogger(logger *zerolog.Logger) Runner
 	Run(ctx context.Context, script Script) (*RunResponse, error)
@@ -337,7 +340,10 @@ func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
 var ErrUnexpectedStatus = errors.New("unexpected status code")
 
 func (r HttpRunner) Run(ctx context.Context, script Script) (*RunResponse, error) {
-	k6Timeout := time.Duration(script.Settings.Timeout) * time.Millisecond
+	checkTimeout := time.Duration(script.Settings.Timeout) * time.Millisecond
+	if checkTimeout == 0 {
+		return nil, ErrNoTimeout
+	}
 
 	reqBody, err := json.Marshal(script)
 	if err != nil {
@@ -347,7 +353,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script) (*RunResponse, error
 	// The context above carries the check timeout, which will be eventually passed to k6 by the runner at the other end
 	// of this request. To account for network overhead, we create a different context with an extra second of timeout,
 	// which adds some grace time to account for the network/system latency of the http request.
-	reqCtx, cancel := context.WithTimeout(context.Background(), k6Timeout+time.Second)
+	reqCtx, cancel := context.WithTimeout(context.Background(), checkTimeout+time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, r.url, bytes.NewReader(reqBody))

@@ -46,6 +46,9 @@ func TestNewScript(t *testing.T) {
 	runner := New(RunnerOpts{Uri: "k6"})
 	script := Script{
 		Script: []byte("test"),
+		Settings: Settings{
+			Timeout: 1000,
+		},
 	}
 
 	processor, err := NewProcessor(script, runner)
@@ -61,7 +64,12 @@ func TestScriptRun(t *testing.T) {
 		logs:    testhelper.MustReadFile(t, "testdata/test.log"),
 	}
 
-	processor, err := NewProcessor(Script{Script: testhelper.MustReadFile(t, "testdata/test.js")}, &runner)
+	processor, err := NewProcessor(Script{
+		Script: testhelper.MustReadFile(t, "testdata/test.js"),
+		Settings: Settings{
+			Timeout: 1000,
+		},
+	}, &runner)
 	require.NoError(t, err)
 	require.NotNil(t, processor)
 
@@ -302,7 +310,7 @@ func TestScriptHTTPRun(t *testing.T) {
 				Metrics: testMetrics,
 				Logs:    testLogs,
 			},
-			delay:         2 * time.Second,
+			delay:         7 * time.Second, // Beyond 5s of grace time.
 			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
 			expectError:   context.DeadlineExceeded,
@@ -324,7 +332,12 @@ func TestScriptHTTPRun(t *testing.T) {
 			t.Cleanup(srv.Close)
 
 			runner := New(RunnerOpts{Uri: srv.URL + "/run"})
-			script, err := NewProcessor(Script{Script: []byte("tee-hee")}, runner)
+			script, err := NewProcessor(Script{
+				Script: []byte("tee-hee"),
+				Settings: Settings{
+					Timeout: 1000,
+				},
+			}, runner)
 			require.NoError(t, err)
 
 			baseCtx, baseCancel := context.WithTimeout(context.Background(), time.Second)
