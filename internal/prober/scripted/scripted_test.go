@@ -59,9 +59,9 @@ func TestNewProber(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.Equal(t, proberName, p.config.Prober)
-			require.Equal(t, 10*time.Second, p.config.Timeout)
-			require.Equal(t, tc.check.Settings.Scripted.Script, p.config.Script)
+			require.Equal(t, proberName, p.module.Prober)
+			require.Equal(t, 10*time.Second, time.Duration(p.module.Script.Settings.Timeout)*time.Millisecond)
+			require.Equal(t, tc.check.Settings.Scripted.Script, p.module.Script.Script)
 		})
 	}
 }
@@ -73,7 +73,7 @@ func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 	return r
 }
 
-func (noopRunner) Run(ctx context.Context, script []byte) (*k6runner.RunResponse, error) {
+func (noopRunner) Run(ctx context.Context, script k6runner.Script) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
 }
 

@@ -1685,7 +1685,7 @@ type testRunner struct {
 
 var _ k6runner.Runner = &testRunner{}
 
-func (r *testRunner) Run(ctx context.Context, script []byte) (*k6runner.RunResponse, error) {
+func (r *testRunner) Run(ctx context.Context, script k6runner.Script) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{
 		Metrics: r.metrics,
 		Logs:    r.logs,

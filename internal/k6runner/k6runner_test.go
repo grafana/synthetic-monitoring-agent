@@ -37,12 +37,15 @@ func TestNew(t *testing.T) {
 
 func TestNewScript(t *testing.T) {
 	runner := New(RunnerOpts{Uri: "k6"})
-	src := []byte("test")
-	script, err := NewProcessor(src, runner)
+	script := Script{
+		Script: []byte("test"),
+	}
+
+	processor, err := NewProcessor(script, runner)
 	require.NoError(t, err)
-	require.NotNil(t, script)
-	require.Equal(t, src, script.script)
-	require.Equal(t, runner, script.runner)
+	require.NotNil(t, processor)
+	require.Equal(t, script, processor.script)
+	require.Equal(t, runner, processor.runner)
 }
 
 func TestScriptRun(t *testing.T) {
@@ -51,9 +54,9 @@ func TestScriptRun(t *testing.T) {
 		logs:    testhelper.MustReadFile(t, "testdata/test.log"),
 	}
 
-	script, err := NewProcessor(testhelper.MustReadFile(t, "testdata/test.js"), &runner)
+	processor, err := NewProcessor(Script{Script: testhelper.MustReadFile(t, "testdata/test.js")}, &runner)
 	require.NoError(t, err)
-	require.NotNil(t, script)
+	require.NotNil(t, processor)
 
 	var (
 		registry = prometheus.NewRegistry()
@@ -68,33 +71,28 @@ func TestScriptRun(t *testing.T) {
 	// We already know tha parsing the metrics and the logs is working, so
 	// we are only interested in verifying that the script runs without
 	// errors.
-	success, err := script.Run(ctx, registry, &logger, zlogger)
+	success, err := processor.Run(ctx, registry, &logger, zlogger)
 	require.NoError(t, err)
 	require.True(t, success)
 }
 
 func TestHttpRunnerRun(t *testing.T) {
-	scriptSrc := testhelper.MustReadFile(t, "testdata/test.js")
-	timeout := 1 * time.Second
+	script := Script{
+		Script: testhelper.MustReadFile(t, "testdata/test.js"),
+		Settings: Settings{
+			Timeout: 1000,
+		},
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodPost, r.Method)
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
-		var req RunRequest
+		var req Script
 		err := json.NewDecoder(r.Body).Decode(&req)
 		require.NoError(t, err)
-		require.Equal(t, scriptSrc, req.Script)
-		// The timeout in the request is not going to be exactly the
-		// original timeout because computers need some time to process
-		// data, and the timeout is set based on the remaining time
-		// until the deadline and the clock starts ticking as soon as
-		// the context is created. Check that the actual timeout is not
-		// greater than the expected value and that it's within 1% of
-		// the expected value.
-		require.LessOrEqual(t, req.Settings.Timeout, timeout.Milliseconds())
-		require.InEpsilon(t, timeout.Milliseconds(), req.Settings.Timeout, 0.01)
+		require.Equal(t, script, req)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -119,18 +117,17 @@ func TestHttpRunnerRun(t *testing.T) {
 	ctx, cancel := testhelper.Context(ctx, t)
 	t.Cleanup(cancel)
 
-	// By adding a timeout to the context passed to Run, the expectation is
-	// that the runner extracts the timeout from it and sets the
-	// corresponding field accordingly.
-	ctx, cancel = context.WithTimeout(ctx, timeout)
-	t.Cleanup(cancel)
-
-	_, err := runner.Run(ctx, scriptSrc)
+	_, err := runner.Run(ctx, script)
 	require.NoError(t, err)
 }
 
 func TestHttpRunnerRunError(t *testing.T) {
-	scriptSrc := testhelper.MustReadFile(t, "testdata/test.js")
+	script := Script{
+		Script: testhelper.MustReadFile(t, "testdata/test.js"),
+		Settings: Settings{
+			Timeout: 1000,
+		},
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
@@ -160,7 +157,7 @@ func TestHttpRunnerRunError(t *testing.T) {
 	ctx, cancel := testhelper.Context(context.Background(), t)
 	t.Cleanup(cancel)
 
-	_, err := runner.Run(ctx, scriptSrc)
+	_, err := runner.Run(ctx, script)
 	require.Error(t, err)
 }
 
@@ -278,7 +275,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			t.Cleanup(srv.Close)
 
 			runner := New(RunnerOpts{Uri: srv.URL + "/run"})
-			script, err := NewProcessor([]byte("tee-hee"), runner)
+			script, err := NewProcessor(Script{Script: []byte("tee-hee")}, runner)
 			require.NoError(t, err)
 
 			baseCtx, baseCancel := context.WithTimeout(context.Background(), time.Second)
@@ -307,7 +304,7 @@ type testRunner struct {
 
 var _ Runner = &testRunner{}
 
-func (r *testRunner) Run(ctx context.Context, script []byte) (*RunResponse, error) {
+func (r *testRunner) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	return &RunResponse{
 		Metrics: r.metrics,
 		Logs:    r.logs,

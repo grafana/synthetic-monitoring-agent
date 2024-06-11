@@ -131,8 +131,8 @@ func TestNewProber(t *testing.T) {
 			require.Equal(t, requestHeaders[0].Value, fmt.Sprintf("%d-%d", checkId, checkId))
 
 			require.NoError(t, err)
-			require.Equal(t, proberName, p.config.Prober)
-			require.Equal(t, 10*time.Second, p.config.Timeout)
+			require.Equal(t, proberName, p.module.Prober)
+			require.Equal(t, 10*time.Second, time.Duration(p.module.Script.Settings.Timeout)*time.Millisecond)
 			// TODO: check script
 		})
 	}
@@ -145,6 +145,6 @@ func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 	return r
 }
 
-func (noopRunner) Run(ctx context.Context, script []byte) (*k6runner.RunResponse, error) {
+func (noopRunner) Run(ctx context.Context, script k6runner.Script) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
 }

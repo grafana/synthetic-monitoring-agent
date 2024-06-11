@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
@@ -19,14 +18,14 @@ const proberName = "multihttp"
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Module struct {
-	Prober  string
-	Timeout time.Duration
+	Prober string
+	Script k6runner.Script
 }
 
 type Prober struct {
-	logger zerolog.Logger
-	config Module
-	script *k6runner.Processor
+	logger    zerolog.Logger
+	module    Module
+	processor *k6runner.Processor
 }
 
 func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header) (Prober, error) {
@@ -44,16 +43,23 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 		augmentHttpHeaders(&check, reservedHeaders)
 	}
 
-	p.config = settingsToModule(check.Settings.Multihttp)
-	timeout := time.Duration(check.Timeout) * time.Millisecond
-	p.config.Timeout = timeout
-
 	script, err := settingsToScript(check.Settings.Multihttp)
 	if err != nil {
 		return p, err
 	}
 
-	k6Script, err := k6runner.NewProcessor(script, runner)
+	p.module = Module{
+		Prober: sm.CheckTypeMultiHttp.String(),
+		Script: k6runner.Script{
+			Script: script,
+			Settings: k6runner.Settings{
+				Timeout: check.Timeout,
+			},
+			// TODO: Add metadata & features here.
+		},
+	}
+
+	processor, err := k6runner.NewProcessor(p.module.Script, runner)
 	if err != nil {
 		return p, err
 	}
@@ -66,7 +72,7 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 		Bytes("script", script).
 		Msg("created prober")
 
-	p.script = k6Script
+	p.processor = processor
 	p.logger = logger
 
 	return p, nil
@@ -77,21 +83,13 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
-	success, err := p.script.Run(ctx, registry, logger, p.logger)
+	success, err := p.processor.Run(ctx, registry, logger, p.logger)
 	if err != nil {
 		p.logger.Warn().Err(err).Msg("running probe")
 		return false
 	}
 
 	return success
-}
-
-func settingsToModule(settings *sm.MultiHttpSettings) Module {
-	var m Module
-
-	m.Prober = sm.CheckTypeMultiHttp.String()
-
-	return m
 }
 
 // Overrides any user-provided headers with our own augmented values

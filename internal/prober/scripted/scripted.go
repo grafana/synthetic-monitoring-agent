@@ -3,7 +3,6 @@ package scripted
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
@@ -17,15 +16,14 @@ const proberName = "scripted"
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Module struct {
-	Prober  string
-	Timeout time.Duration
-	Script  []byte
+	Prober string
+	Script k6runner.Script
 }
 
 type Prober struct {
-	logger zerolog.Logger
-	config Module
-	script *k6runner.Processor
+	logger    zerolog.Logger
+	module    Module
+	processor *k6runner.Processor
 }
 
 func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner) (Prober, error) {
@@ -35,16 +33,23 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 		return p, errUnsupportedCheck
 	}
 
-	p.config = settingsToModule(check.Settings.Scripted)
-	timeout := time.Duration(check.Timeout) * time.Millisecond
-	p.config.Timeout = timeout
+	p.module = Module{
+		Prober: sm.CheckTypeScripted.String(),
+		Script: k6runner.Script{
+			Script: check.Settings.Scripted.Script,
+			Settings: k6runner.Settings{
+				Timeout: check.Timeout,
+			},
+			// TODO: Add metadata & features here.
+		},
+	}
 
-	script, err := k6runner.NewProcessor(check.Settings.Scripted.Script, runner)
+	processor, err := k6runner.NewProcessor(p.module.Script, runner)
 	if err != nil {
 		return p, err
 	}
 
-	p.script = script
+	p.processor = processor
 	p.logger = logger
 
 	return p, nil
@@ -55,21 +60,11 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
-	success, err := p.script.Run(ctx, registry, logger, p.logger)
+	success, err := p.processor.Run(ctx, registry, logger, p.logger)
 	if err != nil {
 		p.logger.Warn().Err(err).Msg("running probe")
 		return false
 	}
 
 	return success
-}
-
-func settingsToModule(settings *sm.ScriptedSettings) Module {
-	var m Module
-
-	m.Prober = sm.CheckTypeScripted.String()
-
-	m.Script = settings.Script
-
-	return m
 }
