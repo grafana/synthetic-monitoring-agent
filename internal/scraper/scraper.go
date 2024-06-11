@@ -359,7 +359,8 @@ func tickWithOffset(
 	ctx context.Context,
 	stop <-chan struct{},
 	work, idle, cleanup func(context.Context, time.Time),
-	period, offset, maxIdle, minGap time.Duration) {
+	period, offset, maxIdle, minGap time.Duration,
+) {
 	// wait for up to offset duration, paying attention to cancellation signals.
 	offsetTimer := time.NewTimer(offset)
 
