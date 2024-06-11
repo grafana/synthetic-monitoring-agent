@@ -85,7 +85,7 @@ func (p Prober) Name() string {
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
 	success, err := p.processor.Run(ctx, registry, logger, p.logger)
 	if err != nil {
-		p.logger.Warn().Err(err).Msg("running probe")
+		p.logger.Error().Err(err).Msg("running probe")
 		return false
 	}
 
