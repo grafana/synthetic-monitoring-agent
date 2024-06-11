@@ -512,11 +512,23 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	sl := kitlog.With(bl, loggerLabels...)
 
+	var timeout time.Duration
+	switch s.CheckType() {
+	case sm.CheckTypeMultiHttp, sm.CheckTypeScripted, sm.CheckTypeBrowser:
+		// k6-backed checks have a more sophisticated handling of timeouts, where the k6 runner receives the check
+		// timeout from the specification and may implement a retrying mechanism. For this reason, we set the prober
+		// timeout to the check frequency instead, which is the hard limit at which no further retries are possible as
+		// the next execution is due.
+		timeout = time.Duration(s.check.Frequency) * time.Millisecond
+	default:
+		timeout = time.Duration(s.check.Timeout) * time.Millisecond
+	}
+
 	success, mfs, err := getProbeMetrics(
 		ctx,
 		s.prober,
 		target,
-		time.Duration(s.check.Timeout)*time.Millisecond,
+		timeout,
 		checkInfoLabels,
 		s.summaries, s.histograms,
 		sl,
