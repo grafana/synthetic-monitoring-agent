@@ -57,7 +57,7 @@ func New(opts RunnerOpts) Runner {
 			logger: &logger,
 		}
 	} else {
-		r = &LocalRunner{
+		r = LocalRunner{
 			k6path:        opts.Uri,
 			logger:        &logger,
 			blacklistedIP: opts.BlacklistedIP,
