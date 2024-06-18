@@ -25,7 +25,7 @@ import (
 func TestNew(t *testing.T) {
 	r1 := New(RunnerOpts{Uri: "k6"})
 	require.IsType(t, &LocalRunner{}, r1)
-	require.Equal(t, "10.0.0.0/8", r1.(*LocalRunner).blacklistedIP)
+	require.Equal(t, "", r1.(*LocalRunner).blacklistedIP)
 	r2 := New(RunnerOpts{Uri: "/usr/bin/k6", BlacklistedIP: "192.168.4.0/24"})
 	require.IsType(t, &LocalRunner{}, r2)
 	require.Equal(t, "192.168.4.0/24", r2.(*LocalRunner).blacklistedIP)
