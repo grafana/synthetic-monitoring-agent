@@ -24,11 +24,13 @@ import (
 
 func TestNew(t *testing.T) {
 	r1 := New(RunnerOpts{Uri: "k6"})
-	require.IsType(t, &LocalRunner{}, r1)
-	require.Equal(t, "", r1.(*LocalRunner).blacklistedIP)
+	require.IsType(t, LocalRunner{}, r1)
+	require.Equal(t, "", r1.(LocalRunner).blacklistedIP)
+
 	r2 := New(RunnerOpts{Uri: "/usr/bin/k6", BlacklistedIP: "192.168.4.0/24"})
-	require.IsType(t, &LocalRunner{}, r2)
-	require.Equal(t, "192.168.4.0/24", r2.(*LocalRunner).blacklistedIP)
+	require.IsType(t, LocalRunner{}, r2)
+	require.Equal(t, "192.168.4.0/24", r2.(LocalRunner).blacklistedIP)
+
 	r3 := New(RunnerOpts{Uri: "http://localhost:6565"})
 	require.IsType(t, &HttpRunner{}, r3)
 	r4 := New(RunnerOpts{Uri: "https://localhost:6565"})
