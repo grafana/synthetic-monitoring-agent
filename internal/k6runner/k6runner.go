@@ -60,20 +60,12 @@ func New(opts RunnerOpts) Runner {
 		r = &LocalRunner{
 			k6path:        opts.Uri,
 			logger:        &logger,
+			blacklistedIP: opts.BlacklistedIP,
 			fs:            afero.NewOsFs(),
-			blacklistedIP: "10.0.0.0/8",
 		}
-
-		r.(*LocalRunner).withOpts(opts)
 	}
 
 	return r
-}
-
-func (r *LocalRunner) withOpts(opts RunnerOpts) {
-	if opts.BlacklistedIP != "" {
-		r.blacklistedIP = opts.BlacklistedIP
-	}
 }
 
 // Processor runs a script with a runner and parses the k6 output.
