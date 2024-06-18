@@ -40,8 +40,16 @@ export const options = {
 	userAgent: 'synthetic-monitoring-agent/v0.14.3 (linux amd64; g64b8bab; +https://github.com/grafana/synthetic-monitoring-agent)',
 
 	maxRedirects: 10,
-	blacklistIPs: ['10.0.0.0/8'],
-	blockHostnames: ['*.cluster.local'],
+	blacklistIPs: [
+  {{- range .BlockNets }}
+    '{{ . }}',
+  {{- end }}
+  ],
+	blockHostnames: [
+  {{- range .BlockHostnames }}
+    '{{ . }}',
+  {{- end }}
+  ],
 
 	// k6 options
 	vus: 1,
@@ -88,7 +96,7 @@ export default function() {
 	{{ range $queries }}{{ . }};
 	{{ end -}}
 	{{- $method := .Request.Method.String }}
-	
+
 	body = {{ buildBody .Request.Body }};
 	{{- $bodyVars := interpolateBodyVars "body" .Request.Body }}
 	{{ range $bodyVars }}{{ . }};

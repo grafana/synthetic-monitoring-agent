@@ -832,7 +832,7 @@ func TestSettingsToScript(t *testing.T) {
 
 	require.NoError(t, settings.Validate())
 
-	actual, err := settingsToScript(settings)
+	actual, err := settingsToScript(settings, TmplOpts{})
 	require.NoError(t, err)
 	require.NotEmpty(t, actual)
 
