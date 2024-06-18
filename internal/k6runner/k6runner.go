@@ -393,11 +393,8 @@ type LocalRunner struct {
 }
 
 func (r LocalRunner) WithLogger(logger *zerolog.Logger) Runner {
-	return LocalRunner{
-		k6path: r.k6path,
-		fs:     r.fs,
-		logger: logger,
-	}
+	r.logger = logger
+	return r
 }
 
 func (r LocalRunner) Run(ctx context.Context, script Script) (*RunResponse, error) {
