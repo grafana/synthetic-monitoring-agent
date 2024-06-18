@@ -140,6 +140,9 @@ func TestHttpRunnerRunError(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(resp)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		t.Log("http runner called the wrong endpoint")
+		t.Fail()
+
 		w.WriteHeader(http.StatusBadRequest)
 		resp := requestError{
 			Err:     http.StatusText(http.StatusBadRequest),
