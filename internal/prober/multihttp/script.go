@@ -422,7 +422,24 @@ func buildVars(variable *sm.MultiHttpEntryVariable) string {
 	return b.String()
 }
 
-func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
+type TmplOpts struct {
+	BlockNets      []string
+	BlockHostnames []string
+}
+
+func (t TmplOpts) withDefaults() TmplOpts {
+	if len(t.BlockNets) == 0 {
+		t.BlockNets = append(t.BlockNets, "10.0.0.0/8")
+	}
+
+	if len(t.BlockHostnames) == 0 {
+		t.BlockHostnames = append(t.BlockHostnames, "*.cluster.local")
+	}
+
+	return t
+}
+
+func settingsToScript(settings *sm.MultiHttpSettings, opts TmplOpts) ([]byte, error) {
 	// Convert settings to script using a Go template
 	tmpl, err := template.
 		New("").
@@ -440,11 +457,16 @@ func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
 		return nil, fmt.Errorf("parsing script template: %w", err)
 	}
 
+	tmplData := struct {
+		*sm.MultiHttpSettings
+		TmplOpts
+	}{settings, opts}
+
 	var buf bytes.Buffer
 
 	// TODO(mem): figure out if we need to transform the data in some way
 	// before executing the template
-	if err := tmpl.ExecuteTemplate(&buf, "script.tmpl", settings); err != nil {
+	if err := tmpl.ExecuteTemplate(&buf, "script.tmpl", tmplData); err != nil {
 		return nil, fmt.Errorf("executing script template: %w", err)
 	}
 
