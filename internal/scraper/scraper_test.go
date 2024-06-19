@@ -25,6 +25,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/browser"
 	dnsProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	grpcProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
@@ -102,6 +103,9 @@ func TestValidateMetrics(t *testing.T) {
 		},
 		"grpc_ssl": {
 			setup: setupGRPCSSLProbe,
+		},
+		"browser": {
+			setup: setupBrowserProbe,
 		},
 	}
 
@@ -493,6 +497,46 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.C
 	)
 	if err != nil {
 		t.Fatalf("cannot create MultiHTTP prober: %s", err)
+	}
+
+	return prober, check, httpSrv.Close
+}
+
+func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	httpSrv.Start()
+
+	check := sm.Check{
+		Target:  httpSrv.URL,
+		Timeout: 2000,
+		Settings: sm.CheckSettings{
+			Browser: &sm.BrowserSettings{
+				Script: []byte(`export default function() {}`),
+			},
+		},
+	}
+
+	var runner k6runner.Runner
+
+	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
+		runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
+	} else {
+		runner = &testRunner{
+			metrics: testhelper.MustReadFile(t, "testdata/browser.dat"),
+			logs:    nil,
+		}
+	}
+
+	prober, err := browser.NewProber(
+		ctx,
+		check,
+		zerolog.New(zerolog.NewTestWriter(t)),
+		runner,
+	)
+	if err != nil {
+		t.Fatalf("cannot create scripted prober: %s", err)
 	}
 
 	return prober, check, httpSrv.Close

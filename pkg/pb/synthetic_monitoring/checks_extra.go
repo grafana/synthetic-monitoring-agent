@@ -212,6 +212,7 @@ const (
 	CheckTypeScripted   CheckType = 5
 	CheckTypeMultiHttp  CheckType = 6
 	CheckTypeGrpc       CheckType = 7
+	CheckTypeBrowser    CheckType = 8
 )
 
 func CheckTypeFromString(in string) (CheckType, bool) {
@@ -249,6 +250,9 @@ func (c Check) Type() CheckType {
 	case c.Settings.Grpc != nil:
 		return CheckTypeGrpc
 
+	case c.Settings.Browser != nil:
+		return CheckTypeBrowser
+
 	default:
 		panic("unhandled check type")
 	}
@@ -263,7 +267,7 @@ func (c CheckType) Class() CheckClass {
 	case CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute, CheckTypeGrpc:
 		return CheckClass_PROTOCOL
 
-	case CheckTypeScripted, CheckTypeMultiHttp:
+	case CheckTypeScripted, CheckTypeMultiHttp, CheckTypeBrowser: // TODO(mem): does browser belong here?
 		return CheckClass_SCRIPTED
 
 	default:
@@ -348,6 +352,9 @@ func (c Check) validateTarget() error {
 	case CheckTypeGrpc:
 		return validateHostPort(c.Target)
 
+	case CheckTypeBrowser:
+		return nil
+
 	default:
 		panic("unhandled check type")
 	}
@@ -367,7 +374,7 @@ func (c Check) validateFrequency() error {
 	case CheckTypeTraceroute:
 		minFrequency = minTracerouteFrequency
 
-	case CheckTypeScripted, CheckTypeMultiHttp:
+	case CheckTypeScripted, CheckTypeMultiHttp, CheckTypeBrowser:
 		minFrequency = minK6Frequency
 	}
 
@@ -429,6 +436,9 @@ func (c AdHocCheck) Type() CheckType {
 
 	case c.Settings.Grpc != nil:
 		return CheckTypeGrpc
+
+	case c.Settings.Browser != nil:
+		return CheckTypeScripted
 
 	default:
 		panic("unhandled check type")
@@ -497,6 +507,9 @@ func (c AdHocCheck) validateTarget() error {
 
 	case CheckTypeGrpc:
 		return validateHostPort(c.Target)
+
+	case CheckTypeBrowser:
+		return nil
 
 	default:
 		panic("unhandled check type")
@@ -698,6 +711,14 @@ func (s *MultiHttpSettings) Validate() error {
 }
 
 func (s *GrpcSettings) Validate() error {
+	return nil
+}
+
+func (s *BrowserSettings) Validate() error {
+	if len(s.Script) == 0 {
+		return ErrInvalidK6Script
+	}
+
 	return nil
 }
 
@@ -1389,7 +1410,7 @@ func validateTimeout(checkType CheckType, timeout, frequency int64) error {
 	case CheckTypeTraceroute:
 		minTimeout, maxTimeout = minTracerouteTimeout, min(frequency, maxTracerouteTimeout)
 
-	case CheckTypeScripted, CheckTypeMultiHttp:
+	case CheckTypeScripted, CheckTypeMultiHttp, CheckTypeBrowser:
 		// This is experimental. A large timeout means we have more
 		// checks lingering around. timeout must be less or equal than
 		// frequency (otherwise we can end up running overlapping

@@ -271,6 +271,31 @@ func getTestCases() map[string]struct {
 			},
 			class: "grpc_ssl_basic",
 		},
+		"browser": {
+			input: synthetic_monitoring.Check{
+				Target:  "http://127.0.0.1/",
+				Timeout: 2000,
+				Settings: synthetic_monitoring.CheckSettings{
+					Browser: &synthetic_monitoring.BrowserSettings{
+						Script: []byte(`export default function() {}`),
+					},
+				},
+			},
+			class: "browser",
+		},
+		"browser_basic": {
+			input: synthetic_monitoring.Check{
+				Target:           "http://127.0.0.1/",
+				Timeout:          2000,
+				BasicMetricsOnly: true,
+				Settings: synthetic_monitoring.CheckSettings{
+					Browser: &synthetic_monitoring.BrowserSettings{
+						Script: []byte(`export default function() {}`),
+					},
+				},
+			},
+			class: "browser_basic",
+		},
 	}
 }
 

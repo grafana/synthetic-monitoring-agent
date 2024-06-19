@@ -113,6 +113,20 @@ var validCheckCases = map[CheckType]Check{
 			Grpc: &GrpcSettings{},
 		},
 	},
+	CheckTypeBrowser: {
+		Id:        1,
+		TenantId:  1,
+		Target:    "http://www.example.org",
+		Job:       "job",
+		Frequency: 60000,
+		Timeout:   10000,
+		Probes:    []int64{1},
+		Settings: CheckSettings{
+			Browser: &BrowserSettings{
+				Script: []byte("// test"),
+			},
+		},
+	},
 }
 
 func TestCheckValidate(t *testing.T) {
@@ -598,6 +612,10 @@ func TestCheckClass(t *testing.T) {
 			input:    validCheckCases[CheckTypeGrpc],
 			expected: CheckClass_PROTOCOL,
 		},
+		CheckTypeBrowser.String(): {
+			input:    validCheckCases[CheckTypeBrowser],
+			expected: CheckClass_SCRIPTED, // Is this correct, or does this need to be CheckClass_Browser?
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -654,6 +672,10 @@ func TestCheckTypeString(t *testing.T) {
 			input:    CheckTypeMultiHttp,
 			expected: "multihttp",
 		},
+		"browser": {
+			input:    CheckTypeBrowser,
+			expected: "browser",
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -698,6 +720,10 @@ func TestCheckTypeClass(t *testing.T) {
 		CheckTypeGrpc.String(): {
 			input:    CheckTypeGrpc,
 			expected: CheckClass_PROTOCOL,
+		},
+		CheckTypeBrowser.String(): {
+			input:    CheckTypeBrowser,
+			expected: CheckClass_SCRIPTED, // TODO(mem): is this the correct value?
 		},
 	}
 
