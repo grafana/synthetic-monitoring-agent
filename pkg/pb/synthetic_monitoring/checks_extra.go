@@ -438,7 +438,7 @@ func (c AdHocCheck) Type() CheckType {
 		return CheckTypeGrpc
 
 	case c.Settings.Browser != nil:
-		return CheckTypeScripted
+		return CheckTypeBrowser
 
 	default:
 		panic("unhandled check type")
