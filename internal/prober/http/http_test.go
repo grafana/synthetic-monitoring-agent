@@ -523,7 +523,7 @@ func (m *testModule) setProxyUrl(u string) *testModule {
 }
 
 func (m *testModule) setProxyConnectHeaders(headers map[string]string) *testModule {
-	m.HTTP.HTTPClientConfig.ProxyConnectHeader = make(httpConfig.Header)
+	m.HTTP.HTTPClientConfig.ProxyConnectHeader = make(httpConfig.ProxyHeader)
 	for k, v := range headers {
 		m.HTTP.HTTPClientConfig.ProxyConnectHeader[k] = []httpConfig.Secret{httpConfig.Secret(v)}
 	}
