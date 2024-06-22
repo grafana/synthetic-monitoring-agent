@@ -277,6 +277,10 @@ message Check {
   string job = 11 [(gogoproto.jsontag) = "job"]; // name of job this check belongs to
   bool basicMetricsOnly = 12 [(gogoproto.jsontag) = "basicMetricsOnly"]; // include only basic metrics
   string alertSensitivity = 13 [(gogoproto.jsontag) = "alertSensitivity"];
+  CheckAlerts alerts = 14 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "alerts"
+  ];
 
   double created = 100 [(gogoproto.jsontag) = "created"]; // time the check was created
   double modified = 101 [(gogoproto.jsontag) = "modified"]; // last time modified
@@ -669,4 +673,44 @@ message CheckClassTelemetry {
 // PushTelemetryResponse represents a response for a push telemetry rpc call.
 message PushTelemetryResponse {
   Status status = 1 [(gogoproto.jsontag) = "status"];
+}
+
+// CheckAlerts specifies alerts for a check.
+// At most only one check type specific alerts field (besides CommonAlerts) can be set.
+message CheckAlerts {
+  CommonAlerts common = 1 [(gogoproto.jsontag) = "common,omitempty"];
+  PingAlerts ping = 2 [(gogoproto.jsontag) = "ping,omitempty"];
+  HttpAlerts http = 3 [(gogoproto.jsontag) = "http,omitempty"];
+}
+
+// CommonAlerts specifies alerts supported for every check type.
+message CommonAlerts {
+  Alert probeFailedExecutionsTooHigh = 1 [(gogoproto.jsontag) = "probeFailedExecutionsTooHigh,omitempty"];
+}
+
+// PingAlerts specifies alerts supported for the Ping check type.
+message PingAlerts {
+  Alert icmpDurationTooHighP50 = 1 [(gogoproto.jsontag) = "icmpDurationTooHighP50,omitempty"];
+  Alert icmpDurationTooHighP90 = 2 [(gogoproto.jsontag) = "icmpDurationTooHighP90,omitempty"];
+  Alert icmpDurationTooHighP95 = 3 [(gogoproto.jsontag) = "icmpDurationTooHighP95,omitempty"];
+  Alert icmpDurationTooHighP99 = 4 [(gogoproto.jsontag) = "icmpDurationTooHighP99,omitempty"];
+}
+
+// HttpAlerts specifies alerts supported for the HTTP check type.
+message HttpAlerts {
+  Alert requestDurationTooHighP50 = 1 [(gogoproto.jsontag) = "requestDurationTooHighP50,omitempty"];
+  Alert requestDurationTooHighP90 = 2 [(gogoproto.jsontag) = "requestDurationTooHighP90,omitempty"];
+  Alert requestDurationTooHighP95 = 3 [(gogoproto.jsontag) = "requestDurationTooHighP95,omitempty"];
+  Alert requestDurationTooHighP99 = 4 [(gogoproto.jsontag) = "requestDurationTooHighP99,omitempty"];  
+
+  Alert targetCertificateCloseToExpiring = 5 [(gogoproto.jsontag) = "targetCertificateCloseToExpiring,omitempty"];
+}
+
+// Alert represents an individual alert for a check.
+message Alert {
+  int64 id = 1 [(gogoproto.jsontag) = "id"]; // References the alert ID in the API.
+  double threshold = 2 [(gogoproto.jsontag) = "threshold"];
+
+  double created        = 100 [(gogoproto.jsontag) = "created"];
+  double modified       = 101 [(gogoproto.jsontag) = "modified"];
 }

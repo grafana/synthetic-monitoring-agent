@@ -528,6 +528,170 @@ func TestCheckValidate(t *testing.T) {
 			},
 			expectError: false,
 		},
+		"invalid alerts for check type": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "www.example.org",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Dns: &DnsSettings{
+						Server: "127.0.0.1",
+					},
+				},
+				Alerts: CheckAlerts{
+					Ping: &PingAlerts{},
+				},
+			},
+			expectError: true,
+		},
+		"valid common alerts": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "www.example.org",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Dns: &DnsSettings{
+						Server: "127.0.0.1",
+					},
+				},
+				Alerts: CheckAlerts{
+					Common: &CommonAlerts{
+						ProbeFailedExecutionsTooHigh: &Alert{
+							Threshold: 0.1,
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		"valid ping alerts": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "127.0.0.1",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Ping: &PingSettings{},
+				},
+				Alerts: CheckAlerts{
+					Ping: &PingAlerts{
+						IcmpDurationTooHighP90: &Alert{
+							Threshold: 400,
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		"valid http alerts": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "http://www.example.org",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{},
+				},
+				Alerts: CheckAlerts{
+					Http: &HttpAlerts{
+						RequestDurationTooHighP99: &Alert{
+							Threshold: 500,
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		"valid common and http alerts": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "http://www.example.org",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{},
+				},
+				Alerts: CheckAlerts{
+					Common: &CommonAlerts{
+						ProbeFailedExecutionsTooHigh: &Alert{
+							Threshold: 0.1,
+						},
+					},
+					Http: &HttpAlerts{
+						RequestDurationTooHighP99: &Alert{
+							Threshold: 500,
+						},
+					},
+				},
+			},
+			expectError: false,
+		},
+		"invalid multi type alerts": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "http://www.example.org",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{},
+				},
+				Alerts: CheckAlerts{
+					Ping: &PingAlerts{
+						IcmpDurationTooHighP90: &Alert{
+							Threshold: 400,
+						},
+					},
+					Http: &HttpAlerts{
+						RequestDurationTooHighP99: &Alert{
+							Threshold: 500,
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
+		"invalid alert threshold": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "http://www.example.org",
+				Job:       "job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{},
+				},
+				Alerts: CheckAlerts{
+					Http: &HttpAlerts{
+						RequestDurationTooHighP99: &Alert{
+							Threshold: -1,
+						},
+					},
+				},
+			},
+			expectError: true,
+		},
 	}
 
 	for name, testcase := range testcases {
