@@ -1,0 +1,54 @@
+# HELP probe_data_received_bytes 
+# TYPE probe_data_received_bytes gauge
+probe_data_received_bytes{scenario="default"} 0
+# HELP probe_data_sent_bytes 
+# TYPE probe_data_sent_bytes gauge
+probe_data_sent_bytes{scenario="default"} 0
+# HELP probe_duration_seconds Returns how long the probe took to complete in seconds
+# TYPE probe_duration_seconds gauge
+probe_duration_seconds 2.2846e-05
+# HELP probe_iteration_duration_seconds 
+# TYPE probe_iteration_duration_seconds gauge
+probe_iteration_duration_seconds{scenario="default"} 2.142e-05
+# HELP probe_success Displays whether or not the probe was a success
+# TYPE probe_success gauge
+probe_success 1
+# HELP sm_check_info Provides information about a single check configuration
+# TYPE sm_check_info gauge
+sm_check_info 1
+# HELP probe_all_duration_seconds Returns how long the probe took to complete in seconds (histogram)
+# TYPE probe_all_duration_seconds histogram
+probe_all_duration_seconds_bucket{le="0.005"} 1
+probe_all_duration_seconds_bucket{le="0.01"} 1
+probe_all_duration_seconds_bucket{le="0.025"} 1
+probe_all_duration_seconds_bucket{le="0.05"} 1
+probe_all_duration_seconds_bucket{le="0.1"} 1
+probe_all_duration_seconds_bucket{le="0.25"} 1
+probe_all_duration_seconds_bucket{le="0.5"} 1
+probe_all_duration_seconds_bucket{le="1"} 1
+probe_all_duration_seconds_bucket{le="2.5"} 1
+probe_all_duration_seconds_bucket{le="5"} 1
+probe_all_duration_seconds_bucket{le="10"} 1
+probe_all_duration_seconds_bucket{le="+Inf"} 1
+probe_all_duration_seconds_sum 2.2846e-05
+probe_all_duration_seconds_count 1
+# HELP probe_all_success Displays whether or not the probe was a success (summary)
+# TYPE probe_all_success summary
+probe_all_success_sum 1
+probe_all_success_count 1
+# HELP probe_iteration_all_duration_seconds  (histogram)
+# TYPE probe_iteration_all_duration_seconds histogram
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="0.005"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="0.01"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="0.025"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="0.05"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="0.1"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="0.25"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="0.5"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="1"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="2.5"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="5"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="10"} 1
+probe_iteration_all_duration_seconds_bucket{scenario="default",le="+Inf"} 1
+probe_iteration_all_duration_seconds_sum{scenario="default"} 2.142e-05
+probe_iteration_all_duration_seconds_count{scenario="default"} 1

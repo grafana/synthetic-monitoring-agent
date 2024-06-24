@@ -305,6 +305,7 @@ message CheckSettings {
   ScriptedSettings scripted = 6 [(gogoproto.jsontag) = "scripted,omitempty"]; // experimental
   MultiHttpSettings multihttp = 7 [(gogoproto.jsontag) = "multihttp,omitempty"]; // experimental
   GrpcSettings grpc = 8 [(gogoproto.jsontag) = "grpc,omitempty"]; // experimental
+  BrowserSettings browser = 9 [(gogoproto.jsontag) = "browser,omitempty"]; // experimental
 }
 
 // PingSettings provides the settings for a ping check.
@@ -629,6 +630,11 @@ message GrpcSettings {
   string service = 2 [(gogoproto.jsontag) = "service,omitempty"];
   bool tls = 3 [(gogoproto.jsontag) = "tls,omitempty"];
   TLSConfig tlsConfig = 4 [(gogoproto.jsontag) = "tlsConfig,omitempty"];
+}
+
+// BrowserSettings provides the settings for a browser check.
+message BrowserSettings {
+  bytes script = 1 [(gogoproto.jsontag) = "script"];
 }
 
 service Telemetry {

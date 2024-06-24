@@ -2,6 +2,8 @@
 package accounting
 
 var activeSeriesByCheckType = map[string]int{
+	"browser":          36,
+	"browser_basic":    22,
 	"dns":              85,
 	"dns_basic":        29,
 	"grpc":             73,
