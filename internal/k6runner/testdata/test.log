@@ -44,3 +44,4 @@ time="2023-06-01T13:40:26-06:00" level=debug msg=Stopping... component=metrics-e
 time="2023-06-01T13:40:26-06:00" level=debug msg="Stopped!" component=metrics-engine-ingester
 time="2023-06-01T13:40:26-06:00" level=debug msg="Generating the end-of-test summary..."
 time="2023-06-01T13:40:26-06:00" level=debug msg="Everything has finished, exiting k6 normally!"
+time="2023-06-01T13:40:26-06:00" level=test msg="Non-debug message, for testing!"
