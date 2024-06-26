@@ -194,6 +194,7 @@ func TestScriptHTTPRun(t *testing.T) {
 		statusCode    int
 		expectSuccess bool
 		expectError   error
+		expectErrorAs any // To accommodate return of unnamed errors. If set, expectError is ignored.
 		expectLogs    string
 	}{
 		{
@@ -241,6 +242,32 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusOK,
 			expectSuccess: false,
 			expectError:   nil,
+			expectLogs:    nonDebugLogLine,
+		},
+		{
+			name: "borked logs are sent best-effort",
+			response: &RunResponse{
+				Metrics:   testMetrics,
+				Logs:      []byte(`level=error foo="b` + "\n"),
+				Error:     "we killed k6",
+				ErrorCode: "user",
+			},
+			statusCode:    http.StatusUnprocessableEntity,
+			expectSuccess: false,
+			expectError:   nil,
+			expectLogs:    `level="error"` + "\n",
+		},
+		{
+			name: "logs are sent on borked metrics",
+			response: &RunResponse{
+				Metrics:   []byte("probe_succ{"),
+				Logs:      testLogs,
+				Error:     "we killed k6",
+				ErrorCode: "user",
+			},
+			statusCode:    http.StatusUnprocessableEntity,
+			expectSuccess: false,
+			expectErrorAs: &expfmt.ParseError{},
 			expectLogs:    nonDebugLogLine,
 		},
 		{
@@ -315,7 +342,11 @@ func TestScriptHTTPRun(t *testing.T) {
 			success, err := script.Run(ctx, registry, logger, zlogger)
 			require.Equal(t, tc.expectSuccess, success)
 			require.Equal(t, tc.expectLogs, logger.buf.String())
-			require.ErrorIs(t, err, tc.expectError)
+			if tc.expectErrorAs == nil {
+				require.ErrorIs(t, err, tc.expectError)
+			} else {
+				require.ErrorAs(t, err, tc.expectErrorAs)
+			}
 		})
 	}
 }
