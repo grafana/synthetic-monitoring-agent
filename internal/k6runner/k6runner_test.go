@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -177,7 +178,13 @@ func TestScriptHTTPRun(t *testing.T) {
 
 	var (
 		testMetrics = testhelper.MustReadFile(t, "testdata/test.out")
-		testLogs    = testhelper.MustReadFile(t, "testdata/test.log")
+		// testLogs is a file containing a bunch of log lines. All lines but one have level=debug, which are discarded
+		// by the loki submitter implementation.
+		testLogs = testhelper.MustReadFile(t, "testdata/test.log")
+		// nonkdebugLogLine is the only line on testLogs that does not have level=debug, therefore the only one that is
+		// actually submitted. We use it in the test table below as a sentinel to assert whether logs have been
+		// submitted or not.
+		nonDebugLogLine = `time="2023-06-01T13:40:26-06:00" level="test" msg="Non-debug message, for testing!"` + "\n"
 	)
 
 	for _, tc := range []struct {
@@ -187,6 +194,7 @@ func TestScriptHTTPRun(t *testing.T) {
 		statusCode    int
 		expectSuccess bool
 		expectError   error
+		expectLogs    string
 	}{
 		{
 			name: "all good",
@@ -197,6 +205,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusOK,
 			expectSuccess: true,
 			expectError:   nil,
+			expectLogs:    nonDebugLogLine,
 		},
 		{
 			// HTTP runner should report failure and an error when the upstream status is not recognized.
@@ -218,6 +227,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusOK,
 			expectSuccess: false,
 			expectError:   ErrFromRunner,
+			expectLogs:    nonDebugLogLine,
 		},
 		{
 			// HTTP runner should report failure but no error when the error is unknown.
@@ -231,6 +241,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusOK,
 			expectSuccess: false,
 			expectError:   nil,
+			expectLogs:    nonDebugLogLine,
 		},
 		{
 			name: "inconsistent runner response A",
@@ -243,6 +254,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
 			expectError:   ErrBuggyRunner,
+			expectLogs:    nonDebugLogLine,
 		},
 		{
 			name: "inconsistent runner response B",
@@ -255,6 +267,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
 			expectError:   ErrBuggyRunner,
+			expectLogs:    nonDebugLogLine,
 		},
 		{
 			name: "request timeout",
@@ -294,13 +307,14 @@ func TestScriptHTTPRun(t *testing.T) {
 
 			var (
 				registry = prometheus.NewRegistry()
-				logger   testLogger
-				buf      bytes.Buffer
-				zlogger  = zerolog.New(&buf)
+				logBuf   = bytes.Buffer{}
+				logger   = recordingLogger{buf: &logBuf}
+				zlogger  = zerolog.Nop()
 			)
 
-			success, err := script.Run(ctx, registry, &logger, zlogger)
+			success, err := script.Run(ctx, registry, logger, zlogger)
 			require.Equal(t, tc.expectSuccess, success)
+			require.Equal(t, tc.expectLogs, logger.buf.String())
 			require.ErrorIs(t, err, tc.expectError)
 		})
 	}
@@ -413,4 +427,31 @@ func (l *testLogger) Log(keyvals ...any) error {
 		return errors.New("empty log message")
 	}
 	return nil
+}
+
+type recordingLogger struct {
+	buf *bytes.Buffer
+}
+
+var _ logger.Logger = &recordingLogger{}
+
+func (l recordingLogger) Log(keyvals ...any) error {
+	if len(keyvals) == 0 {
+		return errors.New("empty log message")
+	}
+
+	if len(keyvals)%2 != 0 {
+		return errors.New("not the same number of keys and vals")
+	}
+
+	line := make([]string, 0, len(keyvals)/2)
+	for i := 0; i < len(keyvals); i += 2 {
+		key := keyvals[i]
+		val := keyvals[i+1]
+
+		line = append(line, fmt.Sprintf("%s=%q", key, val))
+	}
+
+	_, err := fmt.Fprintln(l.buf, strings.Join(line, " "))
+	return err
 }
