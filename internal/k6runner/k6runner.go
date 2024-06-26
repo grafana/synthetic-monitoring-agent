@@ -99,6 +99,14 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		return false, err
 	}
 
+	// Send logs before metrics to make sure logs are submitted even if the metrics output is not parsable.
+	if err := k6LogsToLogger(result.Logs, logger); err != nil {
+		internalLogger.Debug().
+			Err(err).
+			Msg("cannot load logs to logger")
+		return false, err
+	}
+
 	var (
 		collector       sampleCollector
 		resultCollector checkResultCollector
@@ -115,13 +123,6 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		internalLogger.Error().
 			Err(err).
 			Msg("cannot register collector")
-		return false, err
-	}
-
-	if err := k6LogsToLogger(result.Logs, logger); err != nil {
-		internalLogger.Debug().
-			Err(err).
-			Msg("cannot load logs to logger")
 		return false, err
 	}
 
