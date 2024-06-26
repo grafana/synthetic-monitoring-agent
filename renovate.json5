@@ -1,0 +1,19 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    ":semanticCommitsDisabled",
+  ],
+  "enabledManagers": ["custom.regex"], // We use renovate for things that dependabot cannot handle only.
+  "customManagers": [
+    {
+      "customType": "regex",
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "grafana/k6",
+      "fileMatch": [".*\\.mk"],
+      "matchStrings": [
+        'K6_VERSION\\s+:=\\s+(?<currentValue>.+)\\s*', // Use single quotes _and_ two backslashes.
+      ],
+    },
+  ],
+}
