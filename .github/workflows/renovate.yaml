@@ -2,6 +2,7 @@ name: Renovate
 on:
   schedule:
     - cron:  '0 */4 * * *'
+  workflow_dispatch:
 jobs:
   renovate:
     permissions:
@@ -16,8 +17,8 @@ jobs:
         uses: tibdex/github-app-token@3beb63f4bd073e61482598c45c71c1019b59b73a #v2.1.0
         with:
           revoke: true
-          app_id: ${{ secrets.RENOVATEGRAFANABOT_ID }}
-          private_key: ${{ secrets.RENOVATEGRAFANABOT_PEM }}
+          app_id: ${{ secrets.RENOVATEGRAFANA_ID }}
+          private_key: ${{ secrets.RENOVATEGRAFANA_PEM }}
       - name: Self-hosted Renovate
         uses: renovatebot/github-action@v39.0.5 #v.39.0.5
         with:
