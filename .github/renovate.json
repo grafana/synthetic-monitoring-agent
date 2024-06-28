@@ -6,15 +6,10 @@
   ],
 
   "branchPrefix": "grafanarenovatebot/",
-  "username": "GrafanaRenovateBot",
   "gitAuthor": "GrafanaRenovateBot <renovategrafana@grafana.com>",
   "platformCommit": true,
   "dependencyDashboard": false,
-  "platform": "github",
   "forkProcessing": "enabled",
-  "repositories": [
-    "grafana/synthetic-monitoring-agent"
-  ],
 
   "enabledManagers": ["custom.regex"],
   "customManagers": [
