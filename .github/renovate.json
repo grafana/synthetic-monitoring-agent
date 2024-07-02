@@ -11,12 +11,22 @@
   "platformCommit": true,
   "dependencyDashboard": false,
   "platform": "github",
-  "forkProcessing": "enabled",
+  "forkProcessing": "disabled",
+
   "repositories": [
     "grafana/synthetic-monitoring-agent"
   ],
 
-  "enabledManagers": ["custom.regex"],
+  "enabledManagers": ["custom.regex", "gomod"],
+
+  "gomod": {
+    "enabled": true
+  },
+
+  "postUpdateOptions": [
+    "gomodTidyE"
+  ],
+
   "customManagers": [
     {
       "customType": "regex",
@@ -25,6 +35,20 @@
       "fileMatch": [".*\\.mk"],
       "matchStrings": [
         "(?:^|\\n)[ \\t]*K6_VERSION\\s*:=\\s*(?<currentValue>\\S+)[ \\t]*(?:$|\\n)"
+      ]
+    },
+    {
+      "customType": "regex",
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "semver",
+      "fileMatch": [
+        "^\\.github/workflows/.*\\.ya?ml$",
+        "(^|/)Makefile$",
+        ".*\\.jsonnet$",
+        ".*\\.mk$"
+      ],
+      "matchStrings": [
+        "\\bghcr\\.io/(?<depName>grafana/grafana-build-tools):(?<currentValue>\\S+)\\b"
       ]
     }
   ]
