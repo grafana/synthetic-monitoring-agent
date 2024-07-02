@@ -3,7 +3,7 @@ module github.com/grafana/synthetic-monitoring-agent/scripts/go
 go 1.22
 
 require (
-	github.com/dmarkham/enumer v1.5.9
+	github.com/dmarkham/enumer v1.5.10
 	github.com/golangci/golangci-lint v1.55.2
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	github.com/securego/gosec v0.0.0-20200401082031-e946c8c39989
