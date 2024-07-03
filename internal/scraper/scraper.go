@@ -216,14 +216,8 @@ func (s *Scraper) Run(ctx context.Context) {
 	// TODO(mem): keep count of the number of successive errors and
 	// collect logs if threshold is reached.
 
-	var (
-		frequency = ms(s.check.Frequency)
-		offset    = ms(s.check.Offset)
-	)
-
-	if offset == 0 {
-		offset = randDuration(min(frequency, maxPublishInterval))
-	}
+	frequency := ms(s.check.Frequency)
+	offset := computeOffset(ms(s.check.Offset), frequency, timeFromNs(s.check.Created), time.Now())
 
 	scrapeHandler := scrapeHandler{scraper: s}
 
@@ -332,6 +326,48 @@ func (h *scrapeHandler) cleanup(ctx context.Context, t time.Time) {
 
 func ms(n int64) time.Duration {
 	return time.Duration(n) * time.Millisecond
+}
+
+func timeFromNs(ns float64) time.Time {
+	sec := int64(math.Floor(ns / 1e9))
+	nsec := int64(math.Mod(ns, 1e9))
+	return time.Unix(sec, nsec)
+}
+
+func computeOffset(offset, frequency time.Duration, t0, now time.Time) time.Duration {
+	if now.Sub(t0) < frequency {
+		// The check was created less than the frequency ago, we should
+		// starting running it right away.
+		if offset != 0 {
+			return offset
+		}
+
+		return randDuration(min(frequency, maxPublishInterval))
+	}
+
+	// The check was created more than the frequency ago, so we need to
+	// compute the time until the next time the check should run.
+	//
+	// Compute the number of runs since t0, add one for the next run and
+	// multiply by the frequency in order to obtain its timestamp. Finally,
+	// compute the remaining time until that timestamp.
+
+	runs := (now.UnixMilli() - t0.UnixMilli()) / frequency.Milliseconds()
+
+	timeUntilNextRun := t0.Add(time.Duration(runs+1) * frequency).Sub(now)
+
+	if timeUntilNextRun <= maxPublishInterval {
+		return timeUntilNextRun
+	}
+
+	// The reason why we need to ignore the computed offset is that the
+	// check ran in the past, and it's possible that it was filling the
+	// data with repeated samples that we no longer have access to. We
+	// cannot wait until the next run because that might be a long time
+	// from now, creating a gap in the data. Instead we wait for a random
+	// value that avoids creating gaps (assuming the last published sample
+	// was recent).
+	return randDuration(maxPublishInterval)
 }
 
 func randDuration(d time.Duration) time.Duration {
