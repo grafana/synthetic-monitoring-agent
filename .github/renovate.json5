@@ -37,7 +37,8 @@
     {
       // Update grafana-build-tools tags across the repository.
       "customType": "regex",
-      "datasourceTemplate": "github-tags",
+      "depNameTemplate": "ghcr.io/grafana/grafana-build-tools",
+      "datasourceTemplate": "docker",
       "versioningTemplate": "semver",
       "fileMatch": [
         "^\\.github/workflows/.*\\.ya?ml$",
@@ -46,7 +47,7 @@
         ".*\\.mk$"
       ],
       "matchStrings": [
-        "\\bghcr\\.io/(?<depName>grafana/grafana-build-tools):(?<currentValue>\\S+)\\b"
+        "ghcr.io/grafana/grafana-build-tools:(?<currentValue>\\S+)"
       ]
     }
   ]
