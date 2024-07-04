@@ -6,19 +6,15 @@
   ],
 
   "branchPrefix": "grafanarenovatebot/",
-  "username": "GrafanaRenovateBot",
   "gitAuthor": "GrafanaRenovateBot <renovategrafana@grafana.com>",
+  // Used when renovate runs as a github app.
+  // https://docs.renovatebot.com/configuration-options/#platformcommit
   "platformCommit": true,
   "dependencyDashboard": false,
-  "platform": "github",
   "forkProcessing": "disabled",
 
-  "repositories": [
-    "grafana/synthetic-monitoring-agent"
-  ],
-
+  // TODO: We should be able to use the defaults if we turn dependabot off.
   "enabledManagers": ["custom.regex", "gomod"],
-
   "gomod": {
     "enabled": true
   },
@@ -29,6 +25,7 @@
 
   "customManagers": [
     {
+      // Update k6 version in Dockerfiles.
       "customType": "regex",
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "grafana/k6",
@@ -38,6 +35,7 @@
       ]
     },
     {
+      // Update grafana-build-tools tags across the repository.
       "customType": "regex",
       "datasourceTemplate": "github-tags",
       "versioningTemplate": "semver",

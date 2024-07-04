@@ -1,0 +1,7 @@
+{
+  "username": "GrafanaRenovateBot",
+  "platform": "github",
+  "repositories": [
+    "grafana/synthetic-monitoring-agent"
+  ]
+}
