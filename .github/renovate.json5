@@ -77,8 +77,20 @@
       // Extracted "versions" include the package name, so here we strip that prefix using a regex.
       "extractVersionTemplate": "{{depName}}-(?<version>.+).apk",
     },
+    {
+      // Update renovate version in GHA workflow file.
+      "customType": "regex",
+      "depNameTemplate": "ghcr.io/renovatebot/renovate",
+      "datasourceTemplate": "docker",
+      "fileMatch": [
+        "^\\.github/workflows/.*\\.ya?ml$",
+      ],
+      "matchStrings": [
+        "renovate-version: (?<currentValue>\\S+)",
+        "RENOVATE_IMAGE=ghcr.io/renovatebot/renovate:(?<currentValue>\\S+)"
+      ]
+    }
   ],
-
   "customDatasources": {
     // Use alpine HTML mirror page as a repository. When using `html` format, renovate produces version strings from
     // all links present in the page. The version is extracted from that using extractVersionTemplate above.
