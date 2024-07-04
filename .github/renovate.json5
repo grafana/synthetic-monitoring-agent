@@ -5,10 +5,13 @@
     ":semanticCommitsDisabled"
   ],
 
+
   "branchPrefix": "grafanarenovatebot/",
-  "gitAuthor": "GrafanaRenovateBot <renovategrafana@grafana.com>",
   // Used when renovate runs as a github app.
   // https://docs.renovatebot.com/configuration-options/#platformcommit
+  // Setting platformCommit to `true`, as required by Grafana policy, seems to make renovate think all PRs are modified,
+  // as the dynamic author configured by github does not match the author set in `gitAuthor`. It is recommended to
+  // leave it unset: https://github.com/renovatebot/renovate/discussions/29106.
   "platformCommit": true,
   "dependencyDashboard": false,
   "forkProcessing": "disabled",
