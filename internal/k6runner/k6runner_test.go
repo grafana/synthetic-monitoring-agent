@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	"github.com/prometheus/client_golang/prometheus"
@@ -254,7 +255,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			},
 			statusCode:    http.StatusUnprocessableEntity,
 			expectSuccess: false,
-			expectError:   nil,
+			expectErrorAs: &logfmt.SyntaxError{},
 			expectLogs:    `level="error"` + "\n",
 		},
 		{
@@ -267,7 +268,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			},
 			statusCode:    http.StatusUnprocessableEntity,
 			expectSuccess: false,
-			expectErrorAs: &expfmt.ParseError{},
+			expectErrorAs: expfmt.ParseError{},
 			expectLogs:    nonDebugLogLine,
 		},
 		{
