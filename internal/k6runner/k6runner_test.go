@@ -345,7 +345,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			if tc.expectErrorAs == nil {
 				require.ErrorIs(t, err, tc.expectError)
 			} else {
-				require.ErrorAs(t, err, tc.expectErrorAs)
+				require.ErrorAs(t, err, &tc.expectErrorAs)
 			}
 		})
 	}
