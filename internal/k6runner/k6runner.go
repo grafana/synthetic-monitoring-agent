@@ -301,7 +301,7 @@ NEXT_RECORD:
 		_ = logger.Log(line...)
 	}
 
-	return nil
+	return dec.Err()
 }
 
 type HttpRunner struct {
