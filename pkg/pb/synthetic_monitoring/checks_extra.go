@@ -1440,3 +1440,139 @@ func validateTimeout(checkType CheckType, timeout, frequency int64) error {
 func inClosedRange[T constraints.Ordered](v, lower, upper T) bool {
 	return v >= lower && v <= upper
 }
+
+func GetCheckInstance(checkType CheckType) Check {
+	var validCheckCases = map[CheckType]Check{
+		CheckTypeDns: {
+			Id:        1,
+			TenantId:  1,
+			Target:    "www.example.org",
+			Job:       "job",
+			Frequency: 1000,
+			Timeout:   1000,
+			Probes:    []int64{1},
+			Settings: CheckSettings{
+				Dns: &DnsSettings{
+					Server: "127.0.0.1",
+				},
+			},
+		},
+		CheckTypeHttp: {
+			Id:        1,
+			TenantId:  1,
+			Target:    "http://www.example.org",
+			Job:       "job",
+			Frequency: 1000,
+			Timeout:   1000,
+			Probes:    []int64{1},
+			Settings: CheckSettings{
+				Http: &HttpSettings{},
+			},
+		},
+		CheckTypePing: {
+			Id:        1,
+			TenantId:  1,
+			Target:    "127.0.0.1",
+			Job:       "job",
+			Frequency: 1000,
+			Timeout:   1000,
+			Probes:    []int64{1},
+			Settings: CheckSettings{
+				Ping: &PingSettings{},
+			},
+		},
+		CheckTypeTcp: {
+			Id:        1,
+			TenantId:  1,
+			Target:    "127.0.0.1:9000",
+			Job:       "job",
+			Frequency: 1000,
+			Timeout:   1000,
+			Probes:    []int64{1},
+			Settings: CheckSettings{
+				Tcp: &TcpSettings{},
+			},
+		},
+		CheckTypeTraceroute: {
+			Id:        1,
+			TenantId:  1,
+			Target:    "127.0.0.1",
+			Job:       "job",
+			Frequency: 120000,
+			Timeout:   30000,
+			Probes:    []int64{1},
+			Settings: CheckSettings{
+				Traceroute: &TracerouteSettings{},
+			},
+		},
+		CheckTypeScripted: {
+			Id:        1,
+			TenantId:  1,
+			Target:    "http://www.example.org",
+			Job:       "job",
+			Frequency: 60000,
+			Timeout:   10000,
+			Probes:    []int64{1},
+			Settings: CheckSettings{
+				Scripted: &ScriptedSettings{
+					Script: []byte("// test"),
+				},
+			},
+		},
+		CheckTypeMultiHttp: {
+			Id:        1,
+			TenantId:  1,
+			Target:    "http://www.example.org",
+			Job:       "job",
+			Frequency: 60000,
+			Timeout:   10000,
+			Probes:    []int64{1},
+			Settings: CheckSettings{
+				Multihttp: &MultiHttpSettings{
+					Entries: []*MultiHttpEntry{
+						{
+							Request: &MultiHttpEntryRequest{
+								Method: HttpMethod_GET,
+								Url:    "http://www.example.org/",
+							},
+						},
+					},
+				},
+			},
+		},
+		CheckTypeGrpc: {
+			Id:        1,
+			TenantId:  1,
+			Target:    "127.0.0.1:9000",
+			Job:       "job",
+			Frequency: 60000,
+			Timeout:   10000,
+			Probes:    []int64{1},
+			Settings: CheckSettings{
+				Grpc: &GrpcSettings{},
+			},
+		},
+		CheckTypeBrowser: {
+			Id:        1,
+			TenantId:  1,
+			Target:    "http://www.example.org",
+			Job:       "job",
+			Frequency: 60000,
+			Timeout:   10000,
+			Probes:    []int64{1},
+			Settings: CheckSettings{
+				Browser: &BrowserSettings{
+					Script: []byte("// test"),
+				},
+			},
+		},
+	}
+
+	instance, known := validCheckCases[checkType]
+
+	if !known {
+		panic("unknown check type")
+	}
+
+	return instance
+}

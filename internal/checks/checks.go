@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	logproto "github.com/grafana/loki/pkg/push"
+	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
@@ -34,23 +35,11 @@ import (
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
-type Error string
+type Error = error_types.BasicError
 
-func (e Error) Error() string { return string(e) }
+type TransientError = error_types.TransientError
 
-// TransientError is an error that can be recovered.
-type TransientError Error
-
-func (e TransientError) Error() string { return string(e) }
-
-var _ error = TransientError("")
-
-// FatalError is an error that causes the program to terminate.
-type FatalError Error
-
-func (e FatalError) Error() string { return string(e) }
-
-var _ error = FatalError("")
+type FatalError = error_types.FatalError
 
 const (
 	errCapabilityK6Missing = FatalError("k6 is required for scripted check support - configure k6 or edit probe capabilities in the SM app")
