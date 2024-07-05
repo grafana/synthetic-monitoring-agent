@@ -37,7 +37,7 @@ require (
 	github.com/mccutchen/go-httpbin/v2 v2.14.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	github.com/spf13/afero v1.11.0
-	golang.org/x/exp v0.0.0-20240325151524-a685a6edb6d8
+	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.70
 )
 
