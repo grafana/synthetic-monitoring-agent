@@ -563,6 +563,11 @@ func (s CheckSettings) Validate() error {
 		validateFn = s.Grpc.Validate
 	}
 
+	if s.Browser != nil {
+		settingsCount++
+		validateFn = s.Browser.Validate
+	}
+
 	if settingsCount != 1 {
 		return ErrInvalidCheckSettings
 	}
