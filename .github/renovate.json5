@@ -26,6 +26,15 @@
     "gomodTidyE"
   ],
 
+  "packageRules" : [
+    {
+      // Non-versioned go modules are noisy, with almost daily updates. We throttle them a bit.
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["digest"],
+      "schedule": "on monday every 2 weeks",
+    },
+  ],
+
   "customManagers": [
     {
       // Update k6 version in Dockerfiles.
