@@ -13,7 +13,7 @@ ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
 
 COPY dist/${HOST_DIST}/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
-COPY dist/${HOST_DIST}/k6 /usr/local/bin/k6
+COPY dist/${HOST_DIST}/k6 /usr/local/bin/sm-k6
 COPY scripts/pre-stop.sh /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
