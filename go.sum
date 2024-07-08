@@ -73,8 +73,8 @@ github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeN
 github.com/google/uuid v1.2.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
 github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/grafana/loki/pkg/push v0.0.0-20240705144951-6da364e94f79 h1:ebAodGUl9OcriXt4AJQMS7asf07JVj5wfX7HjkNXACg=
-github.com/grafana/loki/pkg/push v0.0.0-20240705144951-6da364e94f79/go.mod h1:lJEF/Wh5MYlmBem6tOYAFObkLsuikfrEf8Iy9AdMPiQ=
+github.com/grafana/loki/pkg/push v0.0.0-20240708091922-7c86e651ac71 h1:eDxOD6U5BQloGZ7uMweRxgAqd1lD0glVhwoD9v4u4p4=
+github.com/grafana/loki/pkg/push v0.0.0-20240708091922-7c86e651ac71/go.mod h1:lJEF/Wh5MYlmBem6tOYAFObkLsuikfrEf8Iy9AdMPiQ=
 github.com/grafana/mtr v0.1.1-0.20221107202107-a9806fdda166 h1:COSDtVDArtLKK9p+mkUlPXCfWFslQFVVuQos39vxQrU=
 github.com/grafana/mtr v0.1.1-0.20221107202107-a9806fdda166/go.mod h1:qDO1rp1hUZzunyD0f38VNbY0j6k+ZFRNZkHl3jbn/MU=
 github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc h1:GN2Lv3MGO7AS6PrRoT6yV5+wkrOpcszoIsO4+4ds248=
