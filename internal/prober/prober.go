@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/browser"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
@@ -20,6 +22,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 )
+
+const unsupportedCheckType = error_types.BasicError("unsupported check type")
 
 type Prober interface {
 	Name() string
@@ -83,6 +87,17 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 			err = fmt.Errorf("k6 checks are not enabled")
 		}
 
+	case sm.CheckTypeBrowser:
+		// TODO(mem): we possibly need to extend the validation so that
+		// we know that the runner is actually able to handle browser
+		// checks.
+		if f.runner != nil {
+			p, err = browser.NewProber(ctx, check.Check, logger, f.runner)
+			target = check.Target
+		} else {
+			err = fmt.Errorf("k6 checks are not enabled")
+		}
+
 	case sm.CheckTypeMultiHttp:
 		if f.runner != nil {
 			reservedHeaders := f.getReservedHeaders(&check)
@@ -97,7 +112,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		target = check.Target
 
 	default:
-		return nil, "", fmt.Errorf("unsupported check type")
+		return nil, "", unsupportedCheckType
 	}
 
 	return p, target, err

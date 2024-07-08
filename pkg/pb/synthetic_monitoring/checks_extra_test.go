@@ -12,132 +12,13 @@ import (
 
 var testDebugOutput = flag.Bool("test.debug-output", false, "include test debug output")
 
-var validCheckCases = map[CheckType]Check{
-	CheckTypeDns: {
-		Id:        1,
-		TenantId:  1,
-		Target:    "www.example.org",
-		Job:       "job",
-		Frequency: 1000,
-		Timeout:   1000,
-		Probes:    []int64{1},
-		Settings: CheckSettings{
-			Dns: &DnsSettings{
-				Server: "127.0.0.1",
-			},
-		},
-	},
-	CheckTypeHttp: {
-		Id:        1,
-		TenantId:  1,
-		Target:    "http://www.example.org",
-		Job:       "job",
-		Frequency: 1000,
-		Timeout:   1000,
-		Probes:    []int64{1},
-		Settings: CheckSettings{
-			Http: &HttpSettings{},
-		},
-	},
-	CheckTypePing: {
-		Id:        1,
-		TenantId:  1,
-		Target:    "127.0.0.1",
-		Job:       "job",
-		Frequency: 1000,
-		Timeout:   1000,
-		Probes:    []int64{1},
-		Settings: CheckSettings{
-			Ping: &PingSettings{},
-		},
-	},
-	CheckTypeTcp: {
-		Id:        1,
-		TenantId:  1,
-		Target:    "127.0.0.1:9000",
-		Job:       "job",
-		Frequency: 1000,
-		Timeout:   1000,
-		Probes:    []int64{1},
-		Settings: CheckSettings{
-			Tcp: &TcpSettings{},
-		},
-	},
-	CheckTypeTraceroute: {
-		Id:        1,
-		TenantId:  1,
-		Target:    "127.0.0.1",
-		Job:       "job",
-		Frequency: 120000,
-		Timeout:   30000,
-		Probes:    []int64{1},
-		Settings: CheckSettings{
-			Traceroute: &TracerouteSettings{},
-		},
-	},
-	CheckTypeScripted: {
-		Id:        1,
-		TenantId:  1,
-		Target:    "http://www.example.org",
-		Job:       "job",
-		Frequency: 60000,
-		Timeout:   10000,
-		Probes:    []int64{1},
-		Settings: CheckSettings{
-			Scripted: &ScriptedSettings{
-				Script: []byte("// test"),
-			},
-		},
-	},
-	CheckTypeMultiHttp: {
-		Id:        1,
-		TenantId:  1,
-		Target:    "http://www.example.org",
-		Job:       "job",
-		Frequency: 60000,
-		Timeout:   10000,
-		Probes:    []int64{1},
-		Settings: CheckSettings{
-			Multihttp: &MultiHttpSettings{},
-		},
-	},
-	CheckTypeGrpc: {
-		Id:        1,
-		TenantId:  1,
-		Target:    "127.0.0.1:9000",
-		Job:       "job",
-		Frequency: 60000,
-		Timeout:   10000,
-		Probes:    []int64{1},
-		Settings: CheckSettings{
-			Grpc: &GrpcSettings{},
-		},
-	},
-	CheckTypeBrowser: {
-		Id:        1,
-		TenantId:  1,
-		Target:    "http://www.example.org",
-		Job:       "job",
-		Frequency: 60000,
-		Timeout:   10000,
-		Probes:    []int64{1},
-		Settings: CheckSettings{
-			Browser: &BrowserSettings{
-				Script: []byte("// test"),
-			},
-		},
-	},
-}
-
 func TestCheckValidate(t *testing.T) {
-	testcases := map[string]struct {
+	type TestCase struct {
 		input       Check
 		expectError bool
-	}{
-		"trivial ping": {
-			input:       validCheckCases[CheckTypePing],
-			expectError: false,
-		},
+	}
+
+	testcases := map[string]TestCase{
 		"invalid tenant": {
 			input: Check{
 				Id:        1,
@@ -544,6 +425,14 @@ func TestCheckValidate(t *testing.T) {
 		},
 	}
 
+	// add trivial cases for all check types
+	for _, checkType := range CheckTypeValues() {
+		testcases["valid "+checkType.String()] = TestCase{
+			input:       GetCheckInstance(checkType),
+			expectError: false,
+		}
+	}
+
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
 			err := testcase.input.Validate()
@@ -560,9 +449,9 @@ func TestCheckType(t *testing.T) {
 
 	testcases := make(map[string]testcase)
 
-	for checkType, check := range validCheckCases {
+	for _, checkType := range CheckTypeValues() {
 		testcases[checkType.String()] = testcase{
-			input:    check,
+			input:    GetCheckInstance(checkType),
 			expected: checkType,
 		}
 	}
@@ -581,39 +470,39 @@ func TestCheckClass(t *testing.T) {
 		expected CheckClass
 	}{
 		CheckTypeDns.String(): {
-			input:    validCheckCases[CheckTypeDns],
+			input:    GetCheckInstance(CheckTypeDns),
 			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeHttp.String(): {
-			input:    validCheckCases[CheckTypeHttp],
+			input:    GetCheckInstance(CheckTypeHttp),
 			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypePing.String(): {
-			input:    validCheckCases[CheckTypePing],
+			input:    GetCheckInstance(CheckTypePing),
 			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeTcp.String(): {
-			input:    validCheckCases[CheckTypeTcp],
+			input:    GetCheckInstance(CheckTypeTcp),
 			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeTraceroute.String(): {
-			input:    validCheckCases[CheckTypeTraceroute],
+			input:    GetCheckInstance(CheckTypeTraceroute),
 			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeScripted.String(): {
-			input:    validCheckCases[CheckTypeScripted],
+			input:    GetCheckInstance(CheckTypeScripted),
 			expected: CheckClass_SCRIPTED,
 		},
 		CheckTypeMultiHttp.String(): {
-			input:    validCheckCases[CheckTypeMultiHttp],
+			input:    GetCheckInstance(CheckTypeMultiHttp),
 			expected: CheckClass_SCRIPTED,
 		},
 		CheckTypeGrpc.String(): {
-			input:    validCheckCases[CheckTypeGrpc],
+			input:    GetCheckInstance(CheckTypeGrpc),
 			expected: CheckClass_PROTOCOL,
 		},
 		CheckTypeBrowser.String(): {
-			input:    validCheckCases[CheckTypeBrowser],
+			input:    GetCheckInstance(CheckTypeBrowser),
 			expected: CheckClass_SCRIPTED, // Is this correct, or does this need to be CheckClass_Browser?
 		},
 	}
@@ -2073,5 +1962,14 @@ func TestInClosedRange(t *testing.T) {
 	for name, tc := range testcases {
 		actual := inClosedRange(tc.value, tc.lower, tc.upper)
 		require.Equalf(t, tc.expected, actual, `%s`, name)
+	}
+}
+
+func TestGetCheckInstance(t *testing.T) {
+	for _, checkType := range CheckTypeValues() {
+		check := GetCheckInstance(checkType)
+		require.NotNil(t, check)
+		require.Equal(t, checkType, check.Type())
+		require.NoError(t, check.Validate())
 	}
 }
