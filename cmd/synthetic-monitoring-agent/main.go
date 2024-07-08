@@ -76,7 +76,7 @@ func run(args []string, stdout io.Writer) error {
 		}{
 			GrpcApiServerAddr: "localhost:4031",
 			HttpListenAddr:    "localhost:4050",
-			K6URI:             "k6",
+			K6URI:             defaultK6URI(), // sm-k6 if found, k6 otherwise.
 			K6BlacklistedIP:   "10.0.0.0/8",
 			SelectedPublisher: pusherV2.Name,
 			TelemetryTimeSpan: defTelemetryTimeSpan,
@@ -415,6 +415,23 @@ func validateK6URI(uri string) (string, error) {
 	return uri, nil
 }
 
+// defaultK6URI tries to find a k6 binary in the system PATH, looking up first for a sm-specific k6 and falling back to
+// the standard k6 binary name if it isn't found.
+func defaultK6URI() string {
+	// Name of the custom-build k6 we ship in our linux packages.
+	const bundledK6 = "sm-k6"
+	// Name of the k6 binary.
+	const k6 = "k6"
+
+	for _, binName := range []string{bundledK6, k6} {
+		if path, err := exec.LookPath(binName); err != nil {
+			return path
+		}
+	}
+
+	return ""
+}
+
 func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {
 	for _, ff := range []string{feature.K6, feature.Traceroute} {
 		if features.IsSet(ff) {
@@ -433,7 +450,6 @@ func setupGoMemLimit(ratio float64) error {
 			),
 		),
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to set GOMEMLIMIT: %w", err)
 	}
