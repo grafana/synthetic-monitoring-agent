@@ -76,7 +76,7 @@ func run(args []string, stdout io.Writer) error {
 		}{
 			GrpcApiServerAddr: "localhost:4031",
 			HttpListenAddr:    "localhost:4050",
-			K6URI:             "k6",
+			K6URI:             "sm-k6",
 			K6BlacklistedIP:   "10.0.0.0/8",
 			SelectedPublisher: pusherV2.Name,
 			TelemetryTimeSpan: defTelemetryTimeSpan,
@@ -433,7 +433,6 @@ func setupGoMemLimit(ratio float64) error {
 			),
 		),
 	)
-
 	if err != nil {
 		return fmt.Errorf("failed to set GOMEMLIMIT: %w", err)
 	}
