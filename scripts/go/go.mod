@@ -6,7 +6,7 @@ require (
 	github.com/dmarkham/enumer v1.5.10
 	github.com/golangci/golangci-lint v1.59.1
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
-	github.com/securego/gosec/v2 v2.20.1-0.20240525090044-5f0084eb01a9
+	github.com/securego/gosec v0.0.0-20200401082031-e946c8c39989
 	github.com/unknwon/bra v0.0.0-20200517080246-1e3013ecaff8
 	gotest.tools/gotestsum v1.12.0
 )
@@ -145,6 +145,7 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
 	github.com/sashamelentyev/interfacebloat v1.1.0 // indirect
 	github.com/sashamelentyev/usestdlibvars v1.26.0 // indirect
+	github.com/securego/gosec/v2 v2.20.1-0.20240708140012-87fcb9b95baf // indirect
 	github.com/shazow/go-diff v0.0.0-20160112020656-b6b7b6733b8c // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sivchari/containedctx v1.0.3 // indirect
@@ -187,12 +188,12 @@ require (
 	go.uber.org/zap v1.25.0 // indirect
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc // indirect
 	golang.org/x/exp/typeparams v0.0.0-20240314144324-c7f7c6466f7f // indirect
-	golang.org/x/mod v0.18.0 // indirect
+	golang.org/x/mod v0.19.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
-	golang.org/x/text v0.15.0 // indirect
-	golang.org/x/tools v0.22.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/tools v0.23.0 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/fsnotify/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
