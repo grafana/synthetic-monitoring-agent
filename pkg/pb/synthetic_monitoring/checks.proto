@@ -171,6 +171,7 @@ message TenantLimits {
   int64 maxScriptedChecks = 2 [(gogoproto.jsontag) = "maxScriptedChecks"];
   int64 maxMetricLabels = 3 [(gogoproto.jsontag) = "maxMetricLabels"];
   int64 maxLogLabels = 4 [(gogoproto.jsontag) = "maxLogLabels"];
+  int64 maxBrowserChecks = 5 [(gogoproto.jsontag) = "maxBrowserChecks"];
 }
 
 // Tenant represents a user of synthetic-monitoring.
@@ -647,6 +648,7 @@ service Telemetry {
 enum CheckClass {
   PROTOCOL = 0;
   SCRIPTED = 1;
+  BROWSER = 2;
 }
 
 // RegionTelemetry represents the telemetry data for a specific region.
