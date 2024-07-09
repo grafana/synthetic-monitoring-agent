@@ -64,30 +64,32 @@ func TestTelemeterAddExecution(t *testing.T) {
 	})
 
 	t.Run("should create a new region pusher", func(t *testing.T) {
-		tele.AddExecution(ee[0])
+		execution := getTestDataset(0).executions[0]
+		tele.AddExecution(execution)
 		verifyTelemeter(t, tele, 1)
-		verifyRegionPusher(t, tele, ee[0].RegionID, ee[0])
+		verifyRegionPusher(t, tele, execution.RegionID, execution)
 	})
 
 	t.Run("should add telemetry to current region pusher", func(t *testing.T) {
-		tele.AddExecution(ee[1])
-		tele.AddExecution(ee[2])
+		executions := getTestDataset(0).executions
+		tele.AddExecution(executions[1])
+		tele.AddExecution(executions[2])
 		verifyTelemeter(t, tele, 1)
-		verifyRegionPusher(t, tele, ee[0].RegionID, ee[:2]...)
+		verifyRegionPusher(t, tele, executions[0].RegionID, executions[:2]...)
 	})
 
 	t.Run("should add another region pusher", func(t *testing.T) {
-		e := ee[2]
-		e.RegionID = 1
-		tele.AddExecution(e)
-		e = ee[3]
-		e.RegionID = 1
-		tele.AddExecution(e)
+		executions := getTestDataset(0).executions
+		executions[2].RegionID = 1
+		tele.AddExecution(executions[2])
+		executions[3].RegionID = 1
+		tele.AddExecution(executions[3])
 		verifyTelemeter(t, tele, 2)
-		verifyRegionPusher(t, tele, e.RegionID, ee[2:4]...)
+		verifyRegionPusher(t, tele, executions[3].RegionID, executions[2:4]...)
 	})
 
 	t.Run("initial region pusher data should be intact", func(t *testing.T) {
-		verifyRegionPusher(t, tele, ee[0].RegionID, ee[:2]...)
+		executions := getTestDataset(0).executions
+		verifyRegionPusher(t, tele, executions[0].RegionID, executions[:2]...)
 	})
 }

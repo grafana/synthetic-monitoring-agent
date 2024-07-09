@@ -503,7 +503,7 @@ func TestCheckClass(t *testing.T) {
 		},
 		CheckTypeBrowser.String(): {
 			input:    GetCheckInstance(CheckTypeBrowser),
-			expected: CheckClass_SCRIPTED, // Is this correct, or does this need to be CheckClass_Browser?
+			expected: CheckClass_BROWSER,
 		},
 	}
 
@@ -612,7 +612,7 @@ func TestCheckTypeClass(t *testing.T) {
 		},
 		CheckTypeBrowser.String(): {
 			input:    CheckTypeBrowser,
-			expected: CheckClass_SCRIPTED, // TODO(mem): is this the correct value?
+			expected: CheckClass_BROWSER,
 		},
 	}
 
