@@ -1,6 +1,8 @@
 name: Validate renovate config
 on:
-  pull_request: {}
+  pull_request:
+    paths:
+      - '**renovate*.*'
 jobs:
   validate:
     runs-on: ubuntu-latest
