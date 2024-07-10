@@ -267,8 +267,11 @@ func (c CheckType) Class() CheckClass {
 	case CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute, CheckTypeGrpc:
 		return CheckClass_PROTOCOL
 
-	case CheckTypeScripted, CheckTypeMultiHttp, CheckTypeBrowser: // TODO(mem): does browser belong here?
+	case CheckTypeScripted, CheckTypeMultiHttp:
 		return CheckClass_SCRIPTED
+
+	case CheckTypeBrowser:
+		return CheckClass_BROWSER
 
 	default:
 		panic("unhandled check class")
@@ -1442,7 +1445,7 @@ func inClosedRange[T constraints.Ordered](v, lower, upper T) bool {
 }
 
 func GetCheckInstance(checkType CheckType) Check {
-	var validCheckCases = map[CheckType]Check{
+	validCheckCases := map[CheckType]Check{
 		CheckTypeDns: {
 			Id:        1,
 			TenantId:  1,
