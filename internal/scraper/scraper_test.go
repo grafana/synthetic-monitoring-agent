@@ -1561,6 +1561,11 @@ func TestScraperCollectData(t *testing.T) {
 						Created:          modifiedTs,
 						Modified:         modifiedTs,
 						Labels:           tc.checkLabels,
+						// [Check.Type] panics if all settings are nil. To work around that, we add an empty, non nil
+						// HTTP settings section.
+						Settings: sm.CheckSettings{
+							Http: &sm.HttpSettings{},
+						},
 					},
 				},
 				probe: sm.Probe{
