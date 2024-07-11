@@ -99,6 +99,31 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		return false, err
 	}
 
+	// If only one of Error and ErrorCode are non-empty, the proxy is misbehaving.
+	switch {
+	case result.Error == "" && result.ErrorCode != "":
+		fallthrough
+	case result.Error != "" && result.ErrorCode == "":
+		return false, fmt.Errorf(
+			"%w: only one of error (%q) and errorCode (%q) is non-empty",
+			ErrBuggyRunner, result.Error, result.ErrorCode,
+		)
+	}
+
+	// If the script was not successful, send a log line saying why.
+	// Do this in a deferred function to ensure that we send it both after script logs, and regardless of errors sending
+	// other logs.
+	if result.ErrorCode != "" {
+		defer func() {
+			err := logger.Log("msg", "script did not execute successfully", "error", result.Error, "errorCode", result.ErrorCode)
+			if err != nil {
+				internalLogger.Error().
+					Err(err).
+					Msg("sending diagnostic log")
+			}
+		}()
+	}
+
 	// Send logs before metrics to make sure logs are submitted even if the metrics output is not parsable.
 	if err := k6LogsToLogger(result.Logs, logger); err != nil {
 		internalLogger.Debug().
@@ -124,17 +149,6 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 			Err(err).
 			Msg("cannot register collector")
 		return false, err
-	}
-
-	// If only one of Error and ErrorCode are non-empty, the proxy is misbehaving.
-	switch {
-	case result.Error == "" && result.ErrorCode != "":
-		fallthrough
-	case result.Error != "" && result.ErrorCode == "":
-		return false, fmt.Errorf(
-			"%w: only one of error (%q) and errorCode (%q) is non-empty",
-			ErrBuggyRunner, result.Error, result.ErrorCode,
-		)
 	}
 
 	// https://github.com/grafana/sm-k6-runner/blob/b811839d444a7e69fd056b0a4e6ccf7e914197f3/internal/mq/runner.go#L51

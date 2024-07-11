@@ -229,7 +229,11 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusOK,
 			expectSuccess: false,
 			expectError:   ErrFromRunner,
-			expectLogs:    nonDebugLogLine,
+			expectLogs: nonDebugLogLine + fmt.Sprintf(
+				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				"something went wrong",
+				"something-wrong",
+			),
 		},
 		{
 			// HTTP runner should report failure but no error when the error is unknown.
@@ -243,7 +247,11 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusOK,
 			expectSuccess: false,
 			expectError:   nil,
-			expectLogs:    nonDebugLogLine,
+			expectLogs: nonDebugLogLine + fmt.Sprintf(
+				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				"syntax error somewhere or something",
+				"user",
+			),
 		},
 		{
 			name: "borked logs are sent best-effort",
@@ -256,7 +264,11 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusUnprocessableEntity,
 			expectSuccess: false,
 			expectErrorAs: &logfmt.SyntaxError{},
-			expectLogs:    `level="error"` + "\n",
+			expectLogs: `level="error"` + "\n" + fmt.Sprintf(
+				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				"we killed k6",
+				"user",
+			),
 		},
 		{
 			name: "logs are sent on borked metrics",
@@ -269,7 +281,11 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusUnprocessableEntity,
 			expectSuccess: false,
 			expectErrorAs: expfmt.ParseError{},
-			expectLogs:    nonDebugLogLine,
+			expectLogs: nonDebugLogLine + fmt.Sprintf(
+				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				"we killed k6",
+				"user",
+			),
 		},
 		{
 			name: "inconsistent runner response A",
@@ -282,7 +298,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
 			expectError:   ErrBuggyRunner,
-			expectLogs:    nonDebugLogLine,
+			expectLogs:    "",
 		},
 		{
 			name: "inconsistent runner response B",
@@ -295,7 +311,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
 			expectError:   ErrBuggyRunner,
-			expectLogs:    nonDebugLogLine,
+			expectLogs:    "",
 		},
 		{
 			name: "request timeout",
