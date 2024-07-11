@@ -7,10 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -173,11 +177,15 @@ func TestHttpRunnerRunError(t *testing.T) {
 	runner := New(RunnerOpts{Uri: srv.URL + "/run"})
 	require.IsType(t, &HttpRunner{}, runner)
 
-	ctx, cancel := testhelper.Context(context.Background(), t)
+	// HTTPRunner will retry until the context deadline is met, so we set a short one.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+
+	ctx, cancel = testhelper.Context(ctx, t)
 	t.Cleanup(cancel)
 
 	_, err := runner.Run(ctx, script)
-	require.Error(t, err)
+	require.ErrorIs(t, err, ErrUnexpectedStatus)
 }
 
 // TestScriptHTTPRun tests that Script reports what it should depending on the status code and responses of the HTTP
@@ -311,7 +319,7 @@ func TestScriptHTTPRun(t *testing.T) {
 				Metrics: testMetrics,
 				Logs:    testLogs,
 			},
-			delay:         2 * time.Second,
+			delay:         3 * time.Second, // Beyond timeout + graceTime.
 			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
 			expectError:   context.DeadlineExceeded,
@@ -332,7 +340,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 
-			runner := New(RunnerOpts{Uri: srv.URL + "/run"})
+			runner := HttpRunner{url: srv.URL + "/run", graceTime: time.Second, backoff: time.Second}
 			script, err := NewProcessor(Script{
 				Script: []byte("tee-hee"),
 				Settings: Settings{
@@ -341,7 +349,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			}, runner)
 			require.NoError(t, err)
 
-			baseCtx, baseCancel := context.WithTimeout(context.Background(), time.Second)
+			baseCtx, baseCancel := context.WithTimeout(context.Background(), 4*time.Second)
 			t.Cleanup(baseCancel)
 			ctx, cancel := testhelper.Context(baseCtx, t)
 			t.Cleanup(cancel)
@@ -363,6 +371,223 @@ func TestScriptHTTPRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHTTPProcessorRetries(t *testing.T) {
+	t.Parallel()
+
+	t.Run("status codes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name           string
+			handler        http.Handler
+			scriptTimeout  time.Duration
+			graceTime      time.Duration
+			globalTimeout  time.Duration
+			expectRequests int64
+			expectError    error
+		}{
+			{
+				name:          "no retries needed",
+				handler:       emptyJSON(http.StatusOK),
+				scriptTimeout: time.Second, graceTime: time.Second, globalTimeout: 5 * time.Second,
+				expectRequests: 1,
+				expectError:    nil,
+			},
+			{
+				name:          "does not retry 400",
+				handler:       emptyJSON(http.StatusBadRequest),
+				scriptTimeout: time.Second, graceTime: time.Second, globalTimeout: 5 * time.Second,
+				expectRequests: 1,
+				expectError:    ErrUnexpectedStatus,
+			},
+			{
+				name:          "does not retry 422",
+				handler:       emptyJSON(http.StatusUnprocessableEntity),
+				scriptTimeout: time.Second, graceTime: time.Second, globalTimeout: 5 * time.Second,
+				expectRequests: 1,
+				expectError:    nil,
+			},
+			{
+				name:          "does not retry 428",
+				handler:       emptyJSON(http.StatusRequestTimeout),
+				scriptTimeout: time.Second, graceTime: time.Second, globalTimeout: 5 * time.Second,
+				expectRequests: 1,
+				expectError:    nil,
+			},
+			{
+				name:          "does not retry 500",
+				handler:       emptyJSON(http.StatusInternalServerError),
+				scriptTimeout: time.Second, graceTime: time.Second, globalTimeout: 5 * time.Second,
+				expectRequests: 1,
+				expectError:    nil,
+			},
+			{
+				name:          "retries 503",
+				handler:       afterAttempts(emptyJSON(http.StatusServiceUnavailable), 1, emptyJSON(http.StatusOK)),
+				scriptTimeout: time.Second, graceTime: time.Second, globalTimeout: 5 * time.Second,
+				expectRequests: 2,
+				expectError:    nil,
+			},
+			{
+				name:          "retries 504",
+				handler:       afterAttempts(emptyJSON(http.StatusGatewayTimeout), 1, emptyJSON(http.StatusOK)),
+				scriptTimeout: time.Second, graceTime: time.Second, globalTimeout: 5 * time.Second,
+				expectRequests: 2,
+				expectError:    nil,
+			},
+			{
+				name:          "retries more than once",
+				handler:       afterAttempts(emptyJSON(http.StatusGatewayTimeout), 2, emptyJSON(http.StatusOK)),
+				scriptTimeout: time.Second, graceTime: time.Second, globalTimeout: 5 * time.Second,
+				expectRequests: 3,
+				expectError:    nil,
+			},
+			{
+				name:          "gives up eventually",
+				handler:       emptyJSON(http.StatusServiceUnavailable),
+				scriptTimeout: time.Second, graceTime: time.Second, globalTimeout: 5 * time.Second,
+				// Context is forced to timeout after 5 seconds. This means 3 requests, with delays of 0, [1-2), [2-3), as
+				// the fourth request would need to wait [3-4) seconds after [3-5) have passed, thus guaranteed to
+				// go beyond the 5s deadline.
+				expectRequests: 3,
+				expectError:    context.DeadlineExceeded,
+			},
+			{
+				name:          "gives up eventually when server hangs",
+				handler:       delay(10*time.Second, emptyJSON(http.StatusServiceUnavailable)),
+				scriptTimeout: time.Second, graceTime: time.Second, globalTimeout: 5 * time.Second,
+				// Requests have 2s timeout and 0s backoff after that (backoff includes timeout in
+				// this implementation), so that means requests are made at the 0s, 2s and 4s marks. A fourth request
+				// would happen beyond the 5s timeline.
+				expectRequests: 3,
+				expectError:    context.DeadlineExceeded,
+			},
+		} {
+			tc := tc
+
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				// Use atomic as we write to this in a handler and read from in on the test.
+				// go test -race trips if we use a regular int here.
+				var requests atomic.Int64
+
+				mux := http.NewServeMux()
+				mux.HandleFunc("/run", func(w http.ResponseWriter, r *http.Request) {
+					requests.Add(1)
+					tc.handler.ServeHTTP(w, r)
+				})
+				srv := httptest.NewServer(mux)
+				t.Cleanup(srv.Close)
+
+				runner := HttpRunner{url: srv.URL + "/run", graceTime: tc.graceTime, backoff: time.Second}
+				processor, err := NewProcessor(Script{Script: nil, Settings: Settings{tc.scriptTimeout.Milliseconds()}}, runner)
+				require.NoError(t, err)
+
+				baseCtx, baseCancel := context.WithTimeout(context.Background(), tc.globalTimeout)
+				t.Cleanup(baseCancel)
+				ctx, cancel := testhelper.Context(baseCtx, t)
+				t.Cleanup(cancel)
+
+				var (
+					registry = prometheus.NewRegistry()
+					logger   testLogger
+					zlogger  = zerolog.New(io.Discard)
+				)
+				success, err := processor.Run(ctx, registry, &logger, zlogger)
+				require.ErrorIs(t, err, tc.expectError)
+				require.Equal(t, tc.expectError == nil, success)
+				require.Equal(t, tc.expectRequests, requests.Load())
+			})
+		}
+	})
+
+	t.Run("retries network errors", func(t *testing.T) {
+		t.Parallel()
+
+		mux := http.NewServeMux()
+		mux.Handle("/run", emptyJSON(http.StatusOK))
+
+		// TODO: Hand-picking a random port instead of letting the OS allocate one is terrible practice. However,
+		// I haven't found a way to do this if we really want to know the address before something is listening on it.
+		addr := net.JoinHostPort("localhost", strconv.Itoa(30000+rand.Intn(35535)))
+		go func() {
+			time.Sleep(time.Second)
+
+			listener, err := net.Listen("tcp4", addr)
+			if err != nil {
+				t.Logf("failed to set up listener in a random port. You were really unlucky, run the test again. %v", err)
+				t.Fail()
+			}
+
+			err = http.Serve(listener, mux)
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				listener.Close()
+			})
+		}()
+
+		runner := HttpRunner{url: "http://" + addr + "/run", graceTime: time.Second, backoff: time.Second}
+		processor, err := NewProcessor(Script{Script: nil, Settings: Settings{Timeout: 1000}}, runner)
+		require.NoError(t, err)
+
+		baseCtx, baseCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		t.Cleanup(baseCancel)
+		ctx, cancel := testhelper.Context(baseCtx, t)
+		t.Cleanup(cancel)
+
+		var (
+			registry = prometheus.NewRegistry()
+			logger   testLogger
+			zlogger  = zerolog.New(io.Discard)
+		)
+		success, err := processor.Run(ctx, registry, &logger, zlogger)
+		require.NoError(t, err)
+		require.True(t, success)
+	})
+}
+
+func emptyJSON(status int) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte("{}"))
+	})
+}
+
+// afterAttempts invokes the first handler if strictly less than [afterAttempts] requests have been made before to it.
+// afterAttempts(a, 0, b) always invokes b.
+// afterAttempts(a, 1, b) always invokes a for the first request, then b for the subsequent ones.
+func afterAttempts(a http.Handler, afterAttempts int, b http.Handler) http.Handler {
+	pastAttempts := 0
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if pastAttempts >= afterAttempts {
+			b.ServeHTTP(w, r)
+			return
+		}
+
+		a.ServeHTTP(w, r)
+		pastAttempts++
+	})
+}
+
+// delay calls next after some time has passed. It watches for incoming request context cancellation to avoid leaking
+// connections.
+func delay(d time.Duration, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Fully consume the request body before waiting. If we do not do this, cancelling the request context will not
+		// close the network connection, and httptest.Server will complain.
+		_, _ = io.Copy(io.Discard, r.Body)
+
+		select {
+		case <-r.Context().Done():
+			// Abort waiting if the client closes the request. Again, if we don't, httptest.Server will complain.
+		case <-time.After(d):
+			next.ServeHTTP(w, r)
+		}
+	})
 }
 
 type testRunner struct {
