@@ -22,127 +22,171 @@ const (
 	regionID = 1
 )
 
-var (
-	ee = []Execution{
-		{
-			LocalTenantID: 1,
-			CheckClass:    sm.CheckClass_PROTOCOL,
-			Duration:      59 * time.Second,
-		},
-		{
-			LocalTenantID: 1,
-			CheckClass:    sm.CheckClass_PROTOCOL,
-			Duration:      60 * time.Second,
-		},
-		{
-			LocalTenantID: 2,
-			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      61 * time.Second,
-		},
-		{
-			LocalTenantID: 2,
-			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      30 * time.Second,
-		},
+type testData struct {
+	executions []Execution
+	message    sm.RegionTelemetry
+}
 
+func getTestDataset(idx int) testData {
+	data := []testData{
 		{
-			LocalTenantID: 1,
-			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      30 * time.Second,
-		},
-		{
-			LocalTenantID: 1,
-			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      59 * time.Second,
-		},
-		{
-			LocalTenantID: 1,
-			CheckClass:    sm.CheckClass_PROTOCOL,
-			Duration:      130 * time.Second,
-		},
-		{
-			LocalTenantID: 1,
-			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      60 * time.Second,
-		},
-		{
-			LocalTenantID: 2,
-			CheckClass:    sm.CheckClass_PROTOCOL,
-			Duration:      45 * time.Second,
-		},
-		{
-			LocalTenantID: 1,
-			CheckClass:    sm.CheckClass_SCRIPTED,
-			Duration:      65 * time.Second,
-		},
-	}
-
-	mm = []sm.RegionTelemetry{
-		// 0: this is the expected message for ee[0] -> ee[3] executions
-		{
-			Instance: instance,
-			RegionId: 1,
-			Telemetry: []*sm.TenantTelemetry{
+			executions: []Execution{
 				{
-					TenantId: 1,
-					Telemetry: []*sm.CheckClassTelemetry{
-						{
-							CheckClass:        sm.CheckClass_PROTOCOL,
-							Executions:        2,
-							Duration:          119,
-							SampledExecutions: 2,
-						},
-					},
+					LocalTenantID: 1,
+					CheckClass:    sm.CheckClass_PROTOCOL,
+					Duration:      59 * time.Second,
 				},
 				{
-					TenantId: 2,
-					Telemetry: []*sm.CheckClassTelemetry{
-						{
-							CheckClass:        sm.CheckClass_SCRIPTED,
-							Executions:        2,
-							Duration:          91,
-							SampledExecutions: 3,
+					LocalTenantID: 1,
+					CheckClass:    sm.CheckClass_PROTOCOL,
+					Duration:      60 * time.Second,
+				},
+				{
+					LocalTenantID: 2,
+					CheckClass:    sm.CheckClass_SCRIPTED,
+					Duration:      61 * time.Second,
+				},
+				{
+					LocalTenantID: 2,
+					CheckClass:    sm.CheckClass_SCRIPTED,
+					Duration:      30 * time.Second,
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      61 * time.Second,
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+				},
+			},
+			message: sm.RegionTelemetry{
+				Instance: instance,
+				RegionId: 1,
+				Telemetry: []*sm.TenantTelemetry{
+					{
+						TenantId: 1,
+						Telemetry: []*sm.CheckClassTelemetry{
+							{
+								CheckClass:        sm.CheckClass_PROTOCOL,
+								Executions:        2,
+								Duration:          119,
+								SampledExecutions: 2,
+							},
+						},
+					},
+					{
+						TenantId: 2,
+						Telemetry: []*sm.CheckClassTelemetry{
+							{
+								CheckClass:        sm.CheckClass_SCRIPTED,
+								Executions:        2,
+								Duration:          91,
+								SampledExecutions: 3,
+							},
+						},
+					},
+					{
+						TenantId: 3,
+						Telemetry: []*sm.CheckClassTelemetry{
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        2,
+								Duration:          91,
+								SampledExecutions: 3,
+							},
 						},
 					},
 				},
 			},
 		},
-		// 1: this is the expected message for ee[0] -> ee[9] executions
 		{
-			Instance: instance,
-			RegionId: 1,
-			Telemetry: []*sm.TenantTelemetry{
+			executions: []Execution{
 				{
-					TenantId: 1,
-					Telemetry: []*sm.CheckClassTelemetry{
-						{
-							CheckClass:        sm.CheckClass_PROTOCOL,
-							Executions:        3,
-							Duration:          249,
-							SampledExecutions: 5,
-						},
-						{
-							CheckClass:        sm.CheckClass_SCRIPTED,
-							Executions:        4,
-							Duration:          214,
-							SampledExecutions: 5,
-						},
-					},
+					LocalTenantID: 1,
+					CheckClass:    sm.CheckClass_SCRIPTED,
+					Duration:      30 * time.Second,
 				},
 				{
-					TenantId: 2,
-					Telemetry: []*sm.CheckClassTelemetry{
-						{
-							CheckClass:        sm.CheckClass_PROTOCOL,
-							Executions:        1,
-							Duration:          45,
-							SampledExecutions: 1,
+					LocalTenantID: 1,
+					CheckClass:    sm.CheckClass_SCRIPTED,
+					Duration:      59 * time.Second,
+				},
+				{
+					LocalTenantID: 1,
+					CheckClass:    sm.CheckClass_PROTOCOL,
+					Duration:      130 * time.Second,
+				},
+				{
+					LocalTenantID: 1,
+					CheckClass:    sm.CheckClass_SCRIPTED,
+					Duration:      60 * time.Second,
+				},
+				{
+					LocalTenantID: 2,
+					CheckClass:    sm.CheckClass_PROTOCOL,
+					Duration:      45 * time.Second,
+				},
+				{
+					LocalTenantID: 1,
+					CheckClass:    sm.CheckClass_SCRIPTED,
+					Duration:      65 * time.Second,
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      65 * time.Second,
+				},
+			},
+			message: sm.RegionTelemetry{
+				Instance: instance,
+				RegionId: 1,
+				Telemetry: []*sm.TenantTelemetry{
+					{
+						TenantId: 1,
+						Telemetry: []*sm.CheckClassTelemetry{
+							{
+								CheckClass:        sm.CheckClass_PROTOCOL,
+								Executions:        3,
+								Duration:          249,
+								SampledExecutions: 5,
+							},
+							{
+								CheckClass:        sm.CheckClass_SCRIPTED,
+								Executions:        4,
+								Duration:          214,
+								SampledExecutions: 5,
+							},
 						},
-						{
-							CheckClass:        sm.CheckClass_SCRIPTED,
-							Executions:        2,
-							Duration:          91,
-							SampledExecutions: 3,
+					},
+					{
+						TenantId: 2,
+						Telemetry: []*sm.CheckClassTelemetry{
+							{
+								CheckClass:        sm.CheckClass_PROTOCOL,
+								Executions:        1,
+								Duration:          45,
+								SampledExecutions: 1,
+							},
+							{
+								CheckClass:        sm.CheckClass_SCRIPTED,
+								Executions:        2,
+								Duration:          91,
+								SampledExecutions: 3,
+							},
+						},
+					},
+					{
+						TenantId: 3,
+						Telemetry: []*sm.CheckClassTelemetry{
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        3,   // 2 + 1
+								Duration:          156, // 61 + 30 + 65
+								SampledExecutions: 5,   // 2 + 1 + 2
+							},
 						},
 					},
 				},
@@ -150,14 +194,22 @@ var (
 		},
 	}
 
-	m = RegionMetrics{
-		pushRequestsActive:   prom.NewGauge(prom.GaugeOpts{}),
-		pushRequestsDuration: prom.NewHistogram(prom.HistogramOpts{}),
-		pushRequestsTotal:    prom.NewCounter(prom.CounterOpts{}),
-		pushRequestsError:    prom.NewCounter(prom.CounterOpts{}),
-		addExecutionDuration: prom.NewHistogram(prom.HistogramOpts{}),
+	// Why bother with a copy? For the same reason the above data is not a
+	// global variable: because we don't trust the caller to behave and not
+	// modify the data.
+	return testData{
+		executions: append([]Execution{}, data[idx].executions...),
+		message:    data[idx].message,
 	}
-)
+}
+
+var m = RegionMetrics{
+	pushRequestsActive:   prom.NewGauge(prom.GaugeOpts{}),
+	pushRequestsDuration: prom.NewHistogram(prom.HistogramOpts{}),
+	pushRequestsTotal:    prom.NewCounter(prom.CounterOpts{}),
+	pushRequestsError:    prom.NewCounter(prom.CounterOpts{}),
+	addExecutionDuration: prom.NewHistogram(prom.HistogramOpts{}),
+}
 
 func TestTenantPusher(t *testing.T) {
 	var (
@@ -184,9 +236,9 @@ func TestTenantPusher(t *testing.T) {
 		}
 	)
 
-	addExecutions := func(p *RegionPusher, from, to int) {
-		for i := from; i < to; i++ {
-			p.AddExecution(ee[i])
+	addExecutions := func(p *RegionPusher, executions []Execution) {
+		for _, execution := range executions {
+			p.AddExecution(execution)
 		}
 	}
 
@@ -229,7 +281,7 @@ func TestTenantPusher(t *testing.T) {
 		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, m, opt)
 
 		// Add some executions
-		addExecutions(pusher, 0, 4)
+		addExecutions(pusher, getTestDataset(0).executions)
 
 		// Set mock response for client
 		testClient.rr = testPushRespOK
@@ -238,7 +290,7 @@ func TestTenantPusher(t *testing.T) {
 		tickAndWait(ticker)
 
 		// Verify sent data
-		testClient.assert(t, []sm.RegionTelemetry{mm[0]})
+		testClient.assert(t, getTestDataset(0).message)
 	})
 
 	t.Run("should retry sending data once", func(t *testing.T) {
@@ -257,7 +309,7 @@ func TestTenantPusher(t *testing.T) {
 		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, m, opt)
 
 		// Add some executions
-		addExecutions(pusher, 0, 4)
+		addExecutions(pusher, getTestDataset(0).executions)
 
 		// Set mock response for client
 		testClient.rr = testPushRespKO
@@ -267,7 +319,7 @@ func TestTenantPusher(t *testing.T) {
 		tickAndWait(ticker)
 
 		// Verify sent data
-		testClient.assert(t, []sm.RegionTelemetry{mm[0], mm[0]})
+		testClient.assert(t, getTestDataset(0).message, getTestDataset(0).message)
 	})
 
 	t.Run("should retry and send more data", func(t *testing.T) {
@@ -286,24 +338,24 @@ func TestTenantPusher(t *testing.T) {
 		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, m, opt)
 
 		// Add some executions
-		addExecutions(pusher, 0, 4)
+		addExecutions(pusher, getTestDataset(0).executions)
 
 		// Set KO mock response for client and tick once
 		testClient.rr = testPushRespKO
 		tickAndWait(ticker)
 
 		// Send more executions
-		addExecutions(pusher, 4, 10)
+		addExecutions(pusher, getTestDataset(1).executions)
 
 		// Set OK mock response for client and tick again
 		testClient.rr = testPushRespOK
 		tickAndWait(ticker)
 
 		// Verify sent data
-		testClient.assert(t, []sm.RegionTelemetry{
-			mm[0], // First tick message
-			mm[1], // First message retry with newly accumulated data
-		})
+		testClient.assert(t,
+			getTestDataset(0).message, // First tick message
+			getTestDataset(1).message, // First message retry with newly accumulated data
+		)
 	})
 
 	t.Run("should push on context done", func(t *testing.T) {
@@ -317,7 +369,7 @@ func TestTenantPusher(t *testing.T) {
 		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, m, opt)
 
 		// Add some executions
-		addExecutions(pusher, 0, 4)
+		addExecutions(pusher, getTestDataset(0).executions)
 
 		// Set mock response for client
 		testClient.rr = testPushRespKO
@@ -326,10 +378,10 @@ func TestTenantPusher(t *testing.T) {
 		tickAndWait(ticker)
 
 		// Verify sent data
-		testClient.assert(t, []sm.RegionTelemetry{mm[0]})
+		testClient.assert(t, getTestDataset(0).message)
 
 		// Send more executions
-		addExecutions(pusher, 4, 10)
+		addExecutions(pusher, getTestDataset(1).executions)
 
 		// Cancel the context
 		// Which should make the pusher send
@@ -337,7 +389,7 @@ func TestTenantPusher(t *testing.T) {
 		shutdownAndWait(cancel)
 
 		// Verify sent data on exit
-		testClient.assert(t, []sm.RegionTelemetry{mm[1]})
+		testClient.assert(t, getTestDataset(1).message)
 	})
 
 	t.Run("should report push error", func(t *testing.T) {
@@ -367,13 +419,13 @@ func TestTenantPusher(t *testing.T) {
 		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, metrics, opt)
 
 		// Add some executions
-		addExecutions(pusher, 0, 4)
+		addExecutions(pusher, getTestDataset(0).executions)
 
 		// Tick once, which should make the push fail
 		tickAndWait(ticker)
 
 		// Verify sent data
-		testClient.assert(t, []sm.RegionTelemetry{mm[0]})
+		testClient.assert(t, getTestDataset(0).message)
 
 		// Verify error metric
 		errsMetric := getMetricFromCollector(t, metrics.pushRequestsError)
@@ -404,7 +456,7 @@ func TestTenantPusher(t *testing.T) {
 		pusher := NewRegionPusher(ctx, timeSpan, testClient, logger, instance, regionID, metrics, opt)
 
 		// Add some executions
-		addExecutions(pusher, 0, 4)
+		addExecutions(pusher, getTestDataset(0).executions)
 
 		// Set mock response for client
 		// with unexpected status code
@@ -414,7 +466,7 @@ func TestTenantPusher(t *testing.T) {
 		tickAndWait(ticker)
 
 		// Verify sent data
-		testClient.assert(t, []sm.RegionTelemetry{mm[0]})
+		testClient.assert(t, getTestDataset(0).message)
 
 		// Verify error metric
 		errsMetric := getMetricFromCollector(t, metrics.pushRequestsError)
@@ -459,7 +511,7 @@ func (tc *testTelemetryClient) PushTelemetry(
 	return tc.rr.tr, tc.rr.err
 }
 
-func (tc *testTelemetryClient) assert(t *testing.T, exp []sm.RegionTelemetry) {
+func (tc *testTelemetryClient) assert(t *testing.T, exp ...sm.RegionTelemetry) {
 	t.Helper()
 
 	defer func() {
@@ -475,13 +527,13 @@ func (tc *testTelemetryClient) assert(t *testing.T, exp []sm.RegionTelemetry) {
 
 func assertInfoData(t *testing.T, exp, got *sm.RegionTelemetry) {
 	t.Helper()
-	require.Equal(t, exp.Instance, got.Instance)
-	require.Equal(t, exp.RegionId, got.RegionId)
+	require.Equal(t, exp.Instance, got.Instance, "instances should match")
+	require.Equal(t, exp.RegionId, got.RegionId, "regions should match")
 }
 
 func assertRegionTelemetryData(t *testing.T, exp, got *sm.RegionTelemetry) {
 	t.Helper()
-	require.Equal(t, len(exp.Telemetry), len(got.Telemetry))
+	require.Equal(t, len(exp.Telemetry), len(got.Telemetry), "region telemetry length should match")
 	// Because the message is built in the pusher by iterating a map, the
 	// order is not deterministic, therefore we have to find each element
 LOOP:
@@ -493,13 +545,13 @@ LOOP:
 				continue LOOP
 			}
 		}
-		t.Fatalf("telemetry not found: %v", expTenantTele)
+		t.Fatalf("region telemetry not found: %v", expTenantTele)
 	}
 }
 
 func assertTenantTelemetryData(t *testing.T, exp, got *sm.TenantTelemetry) {
 	t.Helper()
-	require.Equal(t, len(exp.Telemetry), len(got.Telemetry))
+	require.Equal(t, len(exp.Telemetry), len(got.Telemetry), "tenant telemetry length should match")
 LOOP:
 	for _, expTele := range exp.Telemetry {
 		for j, gotTele := range got.Telemetry {
@@ -508,7 +560,7 @@ LOOP:
 				continue LOOP
 			}
 		}
-		t.Fatalf("telemetry not found: %v", expTele)
+		t.Fatalf("tenant telemetry not found: %v", expTele)
 	}
 }
 
