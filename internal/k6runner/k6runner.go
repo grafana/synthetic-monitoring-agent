@@ -345,10 +345,9 @@ type RunResponse struct {
 }
 
 func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
-	return HttpRunner{
-		url:    r.url,
-		logger: logger,
-	}
+	r.logger = logger
+
+	return r
 }
 
 var ErrUnexpectedStatus = errors.New("unexpected status code")
