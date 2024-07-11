@@ -351,6 +351,12 @@ func (r requestError) Error() string {
 	return fmt.Sprintf("%s: %s", r.Err, r.Message)
 }
 
+// HTTPRunRequest
+type HTTPRunRequest struct {
+	Script   Script    `json:",inline"`
+	NotAfter time.Time `json:"notAfter"`
+}
+
 type RunResponse struct {
 	Error     string `json:"error,omitempty"`
 	ErrorCode string `json:"errorCode,omitempty"`
@@ -449,7 +455,17 @@ func (r HttpRunner) request(ctx context.Context, script Script) (*RunResponse, e
 	ctx, cancel := context.WithDeadline(ctx, notAfter)
 	defer cancel()
 
-	reqBody, err := json.Marshal(script)
+	// Decorate the script request with the NotAfter hint.
+	// NotAfter hints runners when we're about to drop this request. Runners will refuse to start to run a script if
+	// this time is in the past, as it is guaranteed that we, the client, have already given up on the request.
+	// This allows runners to not waste time running scripts which will not complete before the client gives up on the
+	// request.
+	runRequest := HTTPRunRequest{
+		Script:   script,
+		NotAfter: notAfter,
+	}
+
+	reqBody, err := json.Marshal(runRequest)
 	if err != nil {
 		return nil, fmt.Errorf("encoding script: %w", err)
 	}
