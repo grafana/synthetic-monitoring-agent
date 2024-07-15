@@ -31,7 +31,7 @@
       // Non-versioned go modules are noisy, with almost daily updates. We throttle them a bit.
       "matchManagers": ["gomod"],
       "matchUpdateTypes": ["digest"],
-      "schedule": "on monday every 2 weeks",
+      "schedule": "before 8am on monday every 2 weeks",
     },
   ],
 
