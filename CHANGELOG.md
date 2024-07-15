@@ -2,8 +2,27 @@
 ## [Unreleased]
 
 
+<a name="v0.25.0"></a>
+## [v0.25.0] - 2024-07-15
+### Cmd
+- default to sm-k6 binary
+
+### Dockerfile
+- copy sm-specific k6 as sm-k6 instead of just k6
+
+### Grpc
+- nolint deprecated grpc options
+
+### Http
+- rename `promconfig.Header` to `promconfig.ProxyHeader`
+
+### K6runner
+- log errors encountered by logfmt parser
+- send logs even if metrics are malformed
+
+
 <a name="v0.24.3"></a>
-## [v0.24.3] - 2024-06-18
+## [v0.24.3] - 2024-06-19
 ### K6runner
 - prevent clearing ip denylist when calling WithLogger
 - use non-pointer LocalRunner everywhere
@@ -625,7 +644,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.3...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.25.0...HEAD
+[v0.25.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.3...v0.25.0
 [v0.24.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.2...v0.24.3
 [v0.24.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.1...v0.24.2
 [v0.24.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.0...v0.24.1
