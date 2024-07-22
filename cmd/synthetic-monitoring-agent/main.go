@@ -418,7 +418,7 @@ func validateK6URI(uri string) (string, error) {
 func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {
 	for _, ff := range []string{feature.K6, feature.Traceroute} {
 		if features.IsSet(ff) {
-			zl.Info().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the --feature flag without loss of functionality", ff)
+			zl.Info().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the -features flag without loss of functionality", ff)
 		}
 	}
 }
