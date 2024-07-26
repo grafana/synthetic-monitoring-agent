@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
@@ -14,7 +15,7 @@ func TestProberFactoryCoverage(t *testing.T) {
 	// This test will assert that the prober factory is handling all the
 	// known check types (as defined in the synthetic_monitoring package).
 
-	pf := NewProberFactory(nil, 0)
+	pf := NewProberFactory(nil, 0, feature.Collection{})
 	ctx := context.Background()
 	testLogger := zerolog.New(zerolog.NewTestWriter(t))
 

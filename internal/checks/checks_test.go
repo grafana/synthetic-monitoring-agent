@@ -388,9 +388,13 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 	return l.logLabelsLimit, nil
 }
 
-func testScraperFactory(ctx context.Context, check model.Check, publisher pusher.Publisher,
-	_ sm.Probe, logger zerolog.Logger, metrics scraper.Metrics,
-	k6Runner k6runner.Runner, labelsLimiter scraper.LabelsLimiter, telemeter *telemetry.Telemeter,
+func testScraperFactory(ctx context.Context, check model.Check, publisher pusher.Publisher, _ sm.Probe,
+	_ feature.Collection,
+	logger zerolog.Logger,
+	metrics scraper.Metrics,
+	k6Runner k6runner.Runner,
+	labelsLimiter scraper.LabelsLimiter,
+	telemeter *telemetry.Telemeter,
 ) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
@@ -405,6 +409,8 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 		},
 	)
 }
+
+var _ scraper.Factory = testScraperFactory
 
 type channelPublisher chan pusher.Payload
 

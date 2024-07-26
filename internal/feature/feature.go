@@ -10,8 +10,9 @@ import (
 
 // TODO: this doesn't seem like the right place for this
 const (
-	Traceroute = "traceroute"
-	K6         = "k6"
+	Traceroute            = "traceroute"
+	K6                    = "k6"
+	ExperimentalDnsProber = "experimental-dns-prober"
 )
 
 // ErrInvalidCollection is returned when you try to set a flag in an
