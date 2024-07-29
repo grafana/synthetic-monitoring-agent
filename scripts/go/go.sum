@@ -361,8 +361,8 @@ github.com/sashamelentyev/usestdlibvars v1.26.0 h1:LONR2hNVKxRmzIrZR0PhSF3mhCAzv
 github.com/sashamelentyev/usestdlibvars v1.26.0/go.mod h1:9nl0jgOfHKWNFS43Ojw0i7aRoS4j6EBye3YBhmAIRF8=
 github.com/securego/gosec v0.0.0-20200401082031-e946c8c39989 h1:rq2/kILQnPtq5oL4+IAjgVOjh5e2yj2aaCYi7squEvI=
 github.com/securego/gosec v0.0.0-20200401082031-e946c8c39989/go.mod h1:i9l/TNj+yDFh9SZXUTvspXTjbFXgZGP/UvhU1S65A4A=
-github.com/securego/gosec/v2 v2.20.1-0.20240715071359-4487a0c5a233 h1:z4O/gQi3s+9va5NEMqQfeY0PpytIYwsVTdlcPWf2fMU=
-github.com/securego/gosec/v2 v2.20.1-0.20240715071359-4487a0c5a233/go.mod h1:XcXnGqGw5ZGD70oflv1EVBDEKCjroWLaRqYaF3l9oKQ=
+github.com/securego/gosec/v2 v2.20.1-0.20240723094316-68424445af83 h1:VfTyZ4NXwdtnB3mDQ6gAhO4+WhmvgUAiEhVutwZiRKE=
+github.com/securego/gosec/v2 v2.20.1-0.20240723094316-68424445af83/go.mod h1:XcXnGqGw5ZGD70oflv1EVBDEKCjroWLaRqYaF3l9oKQ=
 github.com/shazow/go-diff v0.0.0-20160112020656-b6b7b6733b8c h1:W65qqJCIOVP4jpqPQ0YvHYKwcMEMVWIzWC5iNQQfBTU=
 github.com/shazow/go-diff v0.0.0-20160112020656-b6b7b6733b8c/go.mod h1:/PevMnwAxekIXwN8qQyfc5gl2NlkB3CQlkizAbOkeBs=
 github.com/shurcooL/go v0.0.0-20180423040247-9e1955d9fb6e/go.mod h1:TDJrrUr11Vxrven61rcy3hJMUqaf/CLWYhHNPmT14Lk=
