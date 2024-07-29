@@ -888,7 +888,9 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 	)
 
 	scraper, err := c.scraperFactory(
-		ctx, check, c.publisher, *c.probe, c.logger,
+		ctx, check, c.publisher, *c.probe,
+		c.features,
+		c.logger,
 		metrics,
 		c.k6Runner,
 		c.tenantLimits, c.telemeter,

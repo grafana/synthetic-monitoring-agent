@@ -6,18 +6,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns/internal/bbe/config"
+	bbeprober "github.com/grafana/synthetic-monitoring-agent/internal/prober/dns/internal/bbe/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
-	"github.com/prometheus/blackbox_exporter/config"
-	bbeprober "github.com/prometheus/blackbox_exporter/prober"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Prober struct {
-	target string
-	config config.Module
+	target       string
+	config       config.Module
+	experimental bool
 }
 
 func NewProber(check sm.Check) (Prober, error) {
@@ -34,16 +35,50 @@ func NewProber(check sm.Check) (Prober, error) {
 	}, nil
 }
 
+func NewExperimentalProber(check sm.Check) (Prober, error) {
+	p, err := NewProber(check)
+	if err != nil {
+		return p, err
+	}
+
+	p.experimental = true
+
+	return p, nil
+}
+
 func (p Prober) Name() string {
 	return "dns"
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+	cfg := p.config
+
+	if p.experimental {
+		const (
+			cutoff  = 15 * time.Second
+			retries = 3
+		)
+
+		if deadline, found := ctx.Deadline(); found {
+			budget := time.Until(deadline)
+			if budget >= cutoff {
+				cfg.DNS.Retries = retries
+				// Split 99% of the budget between three retries. For a
+				// budget of 15s, this allows for 150 ms per retry for
+				// other operations.
+				cfg.DNS.RetryTimeout = budget * 99 / (retries * 100)
+			}
+		}
+
+		_ = logger.Log("msg", "probing DNS", "target", target, "retries", cfg.DNS.Retries, "retry_timeout", cfg.DNS.RetryTimeout)
+	}
+
 	// The target of the BBE DNS check is the _DNS server_, while
 	// the target of the SM DNS check is the _query_, so we need
 	// pass the server as the target parameter, and ignore the
 	// _target_ paramater that is passed to this function.
-	return bbeprober.ProbeDNS(ctx, p.target, p.config, registry, logger)
+
+	return bbeprober.ProbeDNS(ctx, p.target, cfg, registry, logger)
 }
 
 func settingsToModule(settings *sm.DnsSettings, target string) config.Module {

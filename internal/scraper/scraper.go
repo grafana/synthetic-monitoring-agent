@@ -22,6 +22,7 @@ import (
 	"github.com/rs/zerolog"
 
 	logproto "github.com/grafana/loki/pkg/push"
+	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
@@ -77,8 +78,12 @@ type Scraper struct {
 }
 
 type Factory func(
-	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe, logger zerolog.Logger,
-	metrics Metrics, k6runner k6runner.Runner, labelsLimiter LabelsLimiter,
+	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe,
+	features feature.Collection,
+	logger zerolog.Logger,
+	metrics Metrics,
+	k6runner k6runner.Runner,
+	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 ) (*Scraper, error)
 
@@ -107,19 +112,25 @@ func (d *probeData) Tenant() model.GlobalID {
 
 func New(
 	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe,
-	logger zerolog.Logger, metrics Metrics,
-	k6runner k6runner.Runner, labelsLimiter LabelsLimiter, telemeter *telemetry.Telemeter,
+	features feature.Collection,
+	logger zerolog.Logger,
+	metrics Metrics,
+	k6runner k6runner.Runner,
+	labelsLimiter LabelsLimiter,
+	telemeter *telemetry.Telemeter,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
 		Publisher:     publisher,
 		Logger:        logger,
 		Metrics:       metrics,
-		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id),
+		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id, features),
 		LabelsLimiter: labelsLimiter,
 		Telemeter:     telemeter,
 	})
 }
+
+var _ Factory = New
 
 type ScraperOpts struct {
 	Probe         sm.Probe

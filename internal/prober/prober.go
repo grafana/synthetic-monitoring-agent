@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
+	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/browser"
@@ -39,14 +40,16 @@ type ProberFactory interface {
 }
 
 type proberFactory struct {
-	runner  k6runner.Runner
-	probeId int64
+	runner   k6runner.Runner
+	probeId  int64
+	features feature.Collection
 }
 
-func NewProberFactory(runner k6runner.Runner, probeId int64) ProberFactory {
+func NewProberFactory(runner k6runner.Runner, probeId int64, features feature.Collection) ProberFactory {
 	return proberFactory{
-		runner:  runner,
-		probeId: probeId,
+		runner:   runner,
+		probeId:  probeId,
+		features: features,
 	}
 }
 
@@ -68,7 +71,11 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		target = check.Target
 
 	case sm.CheckTypeDns:
-		p, err = dns.NewProber(check.Check)
+		if f.features.IsSet(feature.ExperimentalDnsProber) {
+			p, err = dns.NewExperimentalProber(check.Check)
+		} else {
+			p, err = dns.NewProber(check.Check)
+		}
 		target = check.Settings.Dns.Server
 
 	case sm.CheckTypeTcp:
