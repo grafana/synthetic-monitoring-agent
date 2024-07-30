@@ -470,8 +470,11 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 }
 
 func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities) error {
-	// k6 is only not required on this probe if explicitly disabled
-	requireK6 := capabilities == nil || !capabilities.DisableScriptedChecks
+	// k6 is required by default unless it has been explicitly disabled from
+	// the API side by forbidding scripted and browser checks execution.
+	requireK6 := capabilities == nil ||
+		!capabilities.DisableScriptedChecks ||
+		!capabilities.DisableBrowserChecks
 
 	if requireK6 && c.k6Runner == nil {
 		return errCapabilityK6Missing
