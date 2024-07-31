@@ -124,6 +124,7 @@ message RegisterProbeResult {
 message Probe {
   message Capabilities {
     bool disableScriptedChecks = 1 [(gogoproto.jsontag) = "disableScriptedChecks"]; // probe should not run scripted checks
+    bool disableBrowserChecks = 2 [(gogoproto.jsontag) = "disableBrowserChecks"]; // probe should not run browser checks
   }
 
   int64 id = 1 [(gogoproto.jsontag) = "id"]; // ID of the probe, assigned by the API
