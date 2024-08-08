@@ -61,6 +61,18 @@
       "matchStrings": [
         "ghcr.io/grafana/grafana-build-tools:(?<currentValue>\\S+)"
       ]
+    },
+    {
+      // Update renovate version in GHA workflow file.
+      "customType": "regex",
+      "depNameTemplate": "ghcr.io/renovatebot/renovate",
+      "datasourceTemplate": "docker",
+      "fileMatch": [
+        "^\\.github/workflows/.*\\.ya?ml$",
+      ],
+      "matchStrings": [
+        "renovate-version: (?<currentValue>\\S+)"
+      ]
     }
   ]
 }
