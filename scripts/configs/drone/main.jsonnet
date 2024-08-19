@@ -75,7 +75,7 @@ local vault_secret(name, vault_path, key) = {
   },
 };
 
-local docker_step(tag, os, arch, version='') =
+local docker_step(tag, os, arch, version='', with_browser=false) =
   // We can't use 'make docker' without making this repo priveleged in drone
   // so we will use the native docker plugin instead for security.
   local platform = std.join('/', [ os, arch, if std.length(version) > 0 then version ]);
@@ -87,24 +87,37 @@ local docker_step(tag, os, arch, version='') =
     settings: {
       repo: docker_repo,
       dry_run: 'true',
+      target: if with_browser then 'with-browser' else 'release',
       build_args: [
         'TARGETPLATFORM=' + platform,
         'TARGETOS=' + os,
         'TARGETARCH=' + arch,
       ] + if std.length(version) > 0 then [
         'TARGETVARIANT=' + version,
+      ] else []
+       + if with_browser then [
+        'WITH_BROWSER=true',
       ] else [],
     },
   };
 
-local docker_build(os, arch, version='') =
-  docker_step('docker build', os, arch, version)
+local docker_build(os, arch, version='', with_browser=false) =
+  local tag = if with_browser then
+      'docker build (with browser)'
+        else
+      'docker build';
+  docker_step(tag, os, arch, version, with_browser)
   + dependsOn([ 'build' ]);
 
 local docker_publish(repo, auth, tag, os, arch, version='') =
-  docker_step('docker publish to ' + tag, os, arch, version)
+  docker_step('docker publish to ' + tag, os, arch, version, false)
   + { settings: { repo: repo, dry_run: 'false' } + auth }
   + dependsOn([ 'test', 'docker build' ]);
+
+  local docker_publish_with_browser(repo, auth, tag, os, arch) =
+  docker_step('docker publish (with browser) to ' + tag, os, arch, '', true)
+  + { settings: { repo: repo, dry_run: 'false' } + auth }
+  + dependsOn([ 'docker publish (with browser) tags' ]); // step to update .tags file with browser-specific image tags
 
 [
   pipeline('build', [
@@ -141,9 +154,13 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
     docker_build('linux', 'amd64'),
     docker_build('linux', 'arm64', 'v8'),
 
+    // dry run build with browser
+    docker_build('linux', 'amd64', '', true),
+
     step('docker build', [ 'true' ], 'alpine')
     + dependsOn([
       'docker build (linux/amd64)',
+      'docker build (with browser) (linux/amd64)',
       'docker build (linux/arm64/v8)',
     ]),
 
@@ -171,6 +188,24 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
       'docker publish to docker (linux/amd64)',
       // 'docker publish to docker (linux/arm/v7)',
       // 'docker publish to docker (linux/arm64/v8)',
+    ])
+    + releaseOnly,
+
+    step(
+      'docker publish (with browser) tags',
+      [
+        '{ echo latest-with-browser,$(eval ./scripts/version)-with-browser ; } > .tags',  // use with-browser tags for docker plugin
+      ],
+      go_tools_image,
+    )
+    + dependsOn([ 'docker publish (release)' ]),
+
+    // publish image with chromium browser available
+    docker_publish_with_browser(docker_repo, docker_auth, 'docker', 'linux', 'amd64') + releaseOnly,
+
+    step('docker publish (with browser) (release)', [ 'true' ], 'alpine')
+    + dependsOn([
+      'docker publish (with browser) to docker (linux/amd64)',
     ])
     + releaseOnly,
 
