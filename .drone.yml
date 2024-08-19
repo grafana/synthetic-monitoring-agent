@@ -82,7 +82,6 @@ steps:
     - TARGETPLATFORM=linux/amd64
     - TARGETOS=linux
     - TARGETARCH=amd64
-    - WITH_BROWSER=true
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
     target: with-browser
@@ -150,7 +149,7 @@ steps:
     ref:
     - refs/tags/v*.*.*
 - commands:
-  - '{ echo latest-with-browser,$(eval ./scripts/version)-with-browser ; } > .tags'
+  - '{ echo latest-browser,$(eval ./scripts/version)-browser ; } > .tags'
   depends_on:
   - docker publish (release)
   image: ghcr.io/grafana/grafana-build-tools:v0.15.0

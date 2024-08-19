@@ -32,6 +32,18 @@ Please refer to [Private Probe docs](https://grafana.com/docs/grafana-cloud/synt
 
 See [examples/kubernetes](./examples/kubernetes) for the documentation and example yaml files
 
+
+Docker Images
+-------------
+We release 2 versions of the [Docker image](https://hub.docker.com/r/grafana/synthetic-monitoring-agent) for the agent, depending on whether or not Chromium is installed in the environment for use in browser checks.
+
+Variants with the browser installed are tagged with the suffix `*-browser`. These images are substantially larger and shouldn't be used unless you need the browser functionality to keep memory requirements minimal.
+
+These are built using the same multi-stage Dockerfile, so be aware that `Docker build` scripts failing to specify a build target will produce the larger image every time.
+* Without chromium: `docker build --target release .`
+* With chromium: `docker build .` or `docker build --target with-browser .`
+
+
 Signals
 -------
 

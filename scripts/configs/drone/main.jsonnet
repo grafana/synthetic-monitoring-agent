@@ -94,19 +94,16 @@ local docker_step(tag, os, arch, version='', with_browser=false) =
         'TARGETARCH=' + arch,
       ] + if std.length(version) > 0 then [
         'TARGETVARIANT=' + version,
-      ] else []
-       + if with_browser then [
-        'WITH_BROWSER=true',
       ] else [],
     },
   };
 
 local docker_build(os, arch, version='', with_browser=false) =
-  local tag = if with_browser then
+  local step = if with_browser then
       'docker build (with browser)'
         else
       'docker build';
-  docker_step(tag, os, arch, version, with_browser)
+  docker_step(step, os, arch, version, with_browser)
   + dependsOn([ 'build' ]);
 
 local docker_publish(repo, auth, tag, os, arch, version='') =
@@ -194,7 +191,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
     step(
       'docker publish (with browser) tags',
       [
-        '{ echo latest-with-browser,$(eval ./scripts/version)-with-browser ; } > .tags',  // use with-browser tags for docker plugin
+        '{ echo latest-browser,$(eval ./scripts/version)-browser ; } > .tags',  // use with-browser tags for docker plugin
       ],
       go_tools_image,
     )

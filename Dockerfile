@@ -22,14 +22,17 @@ ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
 # third stage with alpine base for better access to chromium
 FROM alpine:3.18 as with-browser
 
+RUN apk --no-cache add tini
 RUN apk --no-cache add chromium-swiftshader
-
-ENV SM_CHROME_BIN=/usr/bin/chromium-browser
-ENV SM_CHROME_PATH=/usr/lib/chromium/
+RUN adduser -D -u 12345 -g 12345 sm
 
 COPY --from=release /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
 COPY --from=release /usr/local/bin/sm-k6 /usr/local/bin/sm-k6
 COPY --from=release /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh
 COPY --from=release /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
-ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
+USER sm
+ENV SM_CHROME_BIN=/usr/bin/chromium-browser
+ENV SM_CHROME_PATH=/usr/lib/chromium/
+
+ENTRYPOINT ["tini", "--", "/usr/local/bin/synthetic-monitoring-agent"]
