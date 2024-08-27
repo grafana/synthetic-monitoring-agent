@@ -149,7 +149,7 @@ steps:
     ref:
     - refs/tags/v*.*.*
 - commands:
-  - '{ echo latest-browser,$(eval ./scripts/version)-browser ; } > .tags'
+  - '{ echo latest-browser,$(./scripts/version)-browser ; } > .tags'
   depends_on:
   - docker publish (release)
   image: ghcr.io/grafana/grafana-build-tools:v0.22.0
@@ -350,6 +350,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 55a0c26c9860a4ebe2f1164f10e1c5957f2b7a7d790b07c6f3d5cab063d7a770
+hmac: 677c4a6f87a3ba14883f4992d74eac7ece1b3a0bddcb3cfffb626988bf48b72f
 
 ...

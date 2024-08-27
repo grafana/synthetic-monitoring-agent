@@ -191,7 +191,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
     step(
       'docker publish (with browser) tags',
       [
-        '{ echo latest-browser,$(eval ./scripts/version)-browser ; } > .tags',  // use with-browser tags for docker plugin
+        '{ echo latest-browser,$(./scripts/version)-browser ; } > .tags',  // use with-browser tags for docker plugin
       ],
       go_tools_image,
     )
