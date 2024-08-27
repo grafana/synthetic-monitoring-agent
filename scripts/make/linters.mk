@@ -25,7 +25,7 @@ golangci-lint: $(if $(filter $(LOCAL_GOLANGCI_LINT),yes),$(GOLANGCI_LINT))
 	$(S) echo "lint via golangci-lint"
 	$(S) $(GOLANGCI_LINT) run \
 		$(GOLANGCI_LINT_MOD_FLAGS) \
-		--config ./scripts/configs/golangci.yml \
+		--config ./.golangci.yaml \
 		--verbose \
 		--verbose \
 		$(GO_PKGS)
