@@ -53,6 +53,7 @@ steps:
     - TARGETARCH=amd64
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
+    target: release
 - commands: []
   depends_on:
   - build
@@ -68,10 +69,27 @@ steps:
     - TARGETVARIANT=v8
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
+    target: release
+- commands: []
+  depends_on:
+  - build
+  environment:
+    DOCKER_BUILDKIT: "1"
+  image: plugins/docker
+  name: docker build (with browser) (linux/amd64)
+  settings:
+    build_args:
+    - TARGETPLATFORM=linux/amd64
+    - TARGETOS=linux
+    - TARGETARCH=amd64
+    dry_run: "true"
+    repo: grafana/synthetic-monitoring-agent
+    target: with-browser
 - commands:
   - "true"
   depends_on:
   - docker build (linux/amd64)
+  - docker build (with browser) (linux/amd64)
   - docker build (linux/arm64/v8)
   image: alpine
   name: docker build
@@ -127,6 +145,38 @@ steps:
   - docker publish to docker (linux/amd64)
   image: alpine
   name: docker publish (release)
+  when:
+    ref:
+    - refs/tags/v*.*.*
+- commands:
+  - echo "latest-browser,$(./scripts/version)-browser" > .tags
+  depends_on:
+  - docker publish (release)
+  image: ghcr.io/grafana/grafana-build-tools:v0.23.0
+  name: docker publish (with browser) tags
+- commands: []
+  depends_on:
+  - docker publish (with browser) tags
+  environment:
+    DOCKER_BUILDKIT: "1"
+  image: plugins/docker
+  name: docker publish (with browser) to docker (linux/amd64)
+  settings:
+    dry_run: "false"
+    password:
+      from_secret: docker_password
+    repo: grafana/synthetic-monitoring-agent
+    username:
+      from_secret: docker_username
+  when:
+    ref:
+    - refs/tags/v*.*.*
+- commands:
+  - "true"
+  depends_on:
+  - docker publish (with browser) to docker (linux/amd64)
+  image: alpine
+  name: docker publish (with browser) (release)
   when:
     ref:
     - refs/tags/v*.*.*
@@ -300,6 +350,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 698b37f156f33b7a50b91862c9fea26f77799ec55c1146bf8e4f16ac0c18e36d
+hmac: d4db61b261c83fd65b96a3ea5bec1f3a1d8a5a4e7e80619c8573e6fd5dc6bbbd
 
 ...
