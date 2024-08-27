@@ -30,6 +30,10 @@ golangci-lint: $(if $(filter $(LOCAL_GOLANGCI_LINT),yes),$(GOLANGCI_LINT))
 		--verbose \
 		$(GO_PKGS)
 
+.PHONY: golangci-lint-version
+golangci-lint-version:
+	$(S) $(GOLANGCI_LINT) version --format short
+
 .PHONY: go-vet
 go-vet:
 	$(S) echo "lint via go vet"
