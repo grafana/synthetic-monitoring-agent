@@ -59,19 +59,23 @@ jobs:
           make build-xk6-linux-amd64 # Tests require a valid k6 binary in dist/k6
           make test
 
-  golangci:
+  lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       # Get golangci-lint version that `make lint` uses.
-      - id: version
+      - name: Retrieve golangci-lint version
+        id: version
         run: |-
           echo "golangci=$(make golangci-lint-version)" >> $GITHUB_OUTPUT
       # Use the golangci-lint action, which provides Github-specific features such as diff annotations.
-      - name: golangci-lint
+      - name: Run golangi-lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: ${{ steps.version.outputs.golangci }}
           args: --timeout=5m # 1m is not enough, experimentally.
           only-new-issues: true
+      - name: Run the rest of the linters
+        run: |-
+          make lint GOLANGCI_LINT=/bin/true
