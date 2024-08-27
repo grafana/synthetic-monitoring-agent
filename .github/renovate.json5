@@ -59,7 +59,7 @@
         ".*\\.mk$"
       ],
       "matchStrings": [
-        "ghcr.io/grafana/grafana-build-tools:(?<currentValue>\\S+)"
+        "ghcr.io/grafana/grafana-build-tools:(?<currentValue>[\\w-+.]+)"
       ]
     }
   ]
