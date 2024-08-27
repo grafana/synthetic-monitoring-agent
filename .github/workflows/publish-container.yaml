@@ -1,0 +1,63 @@
+name: Publish container
+
+permissions:
+  # Needed to assume roles from Github's OIDC.
+  contents: read
+  id-token: write
+  # Needed to push to ghcr.
+  packages: write
+
+on:
+  push:
+    branches:
+      - 'main'
+      # FIXME: FOR TESTING ONLY. DELETE BEFORE MERGING.
+      - 'gha-publish-container'
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to DockerHub
+        uses: grafana/shared-workflows/actions/dockerhub-login@main
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Needed for the version script to work.
+      - name: Compute repo metadata
+        id: repo
+        run: |-
+          echo "name=$(basename '${{ github.repository }}')" >> $GITHUB_OUTPUT
+          echo "version=$(./scripts/version)" >> $GITHUB_OUTPUT
+          echo "version-short=$(./scripts/version short)" >> $GITHUB_OUTPUT
+          cat $GITHUB_OUTPUT
+      # TODO: Make Dockerfile selfcontained. For now we need to build binaries on the host.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build
+        run: |
+          make build
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push container
+        uses: docker/build-push-action@v6
+        with:
+          push: false # FIXME: For testing, should be `true`.
+          platforms: linux/amd64,linux/arm64
+          # Needed for this action to use local context incl. binaries built in the previous step.
+          # https://github.com/docker/build-push-action?tab=readme-ov-file#path-context
+          # TODO: Make docker build self-contained.
+          context: .
+          tags: |-
+            docker.io/${{ github.repository}}:latest
+            docker.io/${{ github.repository}}:${{ steps.repo.outputs.version }}
+            docker.io/${{ github.repository}}:${{ steps.repo.outputs.version-short }}
+            ghcr.io/${{ github.repository}}:${{ steps.repo.outputs.version-short }}
