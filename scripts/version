@@ -1,3 +1,8 @@
 #!/bin/sh
 
-git describe --dirty --tags --long --always
+args=""
+if [ "$1" != "short" ]; then
+  args="--long"
+fi
+
+git describe --dirty --tags --always $args
