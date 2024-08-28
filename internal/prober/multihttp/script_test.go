@@ -869,6 +869,68 @@ func TestSettingsToScript(t *testing.T) {
 	require.True(t, success)
 }
 
+func TestRedirectsArg(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		settings sm.MultiHttpSettings
+		assert   func(t *testing.T, script []byte)
+	}{
+		{
+			name: "no user-provided headers yields no redirects param",
+			settings: sm.MultiHttpSettings{
+				Entries: []*sm.MultiHttpEntry{
+					{
+						Request: &sm.MultiHttpEntryRequest{
+							Method:  sm.HttpMethod_GET,
+							Url:     "https://test.local",
+							Headers: []*sm.HttpHeader{}, // None specified.
+						},
+					},
+				},
+			},
+			assert: func(t *testing.T, script []byte) {
+				require.NotContains(t, string(script), "redirects:")
+			},
+		},
+		{
+			name: "user-provided headers yields redirects: 0",
+			settings: sm.MultiHttpSettings{
+				Entries: []*sm.MultiHttpEntry{
+					{
+						Request: &sm.MultiHttpEntryRequest{
+							Method: sm.HttpMethod_GET,
+							Url:    "https://test.local",
+							Headers: []*sm.HttpHeader{
+								{
+									Name:  "user-provided",
+									Value: "header",
+								},
+							}, // None specified.
+						},
+					},
+				},
+			},
+			assert: func(t *testing.T, script []byte) {
+				require.Contains(t, string(script), "redirects: 0")
+			},
+		},
+	} {
+		tc := tc
+
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.NoError(t, tc.settings.Validate())
+
+			script, err := settingsToScript(&tc.settings)
+			require.NoError(t, err)
+			tc.assert(t, script)
+		})
+	}
+}
+
 func TestReplaceVariablesInString(t *testing.T) {
 	testcases := map[string]struct {
 		input    string

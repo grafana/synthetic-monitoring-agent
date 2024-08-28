@@ -88,7 +88,7 @@ export default function() {
 	{{ range $queries }}{{ . }};
 	{{ end -}}
 	{{- $method := .Request.Method.String }}
-	
+
 	body = {{ buildBody .Request.Body }};
 	{{- $bodyVars := interpolateBodyVars "body" .Request.Body }}
 	{{ range $bodyVars }}{{ . }};
@@ -101,8 +101,10 @@ export default function() {
 		  name: '{{ $idx }}', // TODO(mem): give the user some control over this?
 		  __raw_url__: '{{ .Request.Url }}',
 		},
-		redirects: 0{{ if gt (len $headers) 0 }},
-		headers: {{ $headers }}{{ end }}
+		{{- if gt ($headers | len) 0 }}
+		redirects: 0,
+		headers: {{ $headers }}
+		{{- end }}
 	});
 	console.log("Response received from {{ .Request.Url }}, status", response.status);
 	if(logResponse) {
