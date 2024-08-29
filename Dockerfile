@@ -1,5 +1,5 @@
 # First stage obtains the list of certificates.
-FROM --platform=$BUILDPLATFORM debian:stable-slim AS build
+FROM --platform=$BUILDPLATFORM debian:stable-slim@sha256:382967fd7c35a0899ca3146b0b73d0791478fba2f71020c7aa8c27e3a4f26672 AS build
 RUN apt-get update && apt-get -y install ca-certificates
 
 # Second stage copies the binaries, configuration and also the
@@ -7,7 +7,7 @@ RUN apt-get update && apt-get -y install ca-certificates
 
 ARG TARGETPLATFORM
 
-FROM --platform=$TARGETPLATFORM debian:stable-slim as release
+FROM --platform=$TARGETPLATFORM debian:stable-slim@sha256:382967fd7c35a0899ca3146b0b73d0791478fba2f71020c7aa8c27e3a4f26672 as release
 ARG TARGETOS
 ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
