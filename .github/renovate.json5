@@ -16,12 +16,6 @@
   "dependencyDashboard": false,
   "forkProcessing": "disabled",
 
-  // TODO: We should be able to use the defaults if we turn dependabot off.
-  "enabledManagers": ["custom.regex", "gomod"],
-  "gomod": {
-    "enabled": true
-  },
-
   "postUpdateOptions": [
     "gomodTidyE"
   ],
