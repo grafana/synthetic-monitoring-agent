@@ -33,6 +33,12 @@
       "matchUpdateTypes": ["digest"],
       "schedule": "before 8am on monday every 2 weeks",
     },
+    {
+      // Group prometheus-go updates, so prometheus-common is in sync with client-go.
+      "matchManagers": ["gomod"],
+      "matchPackageNames": "github.com/prometheus/*",
+      "groupName": "prometheus-go"
+    },
   ],
 
   "customManagers": [
