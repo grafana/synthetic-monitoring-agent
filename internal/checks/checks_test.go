@@ -269,6 +269,8 @@ func TestHandleCheckOp(t *testing.T) {
 }
 
 func TestCheckHandlerProbeValidation(t *testing.T) {
+	t.Parallel()
+
 	testcases := map[string]struct {
 		opts          UpdaterOptions
 		probe         sm.Probe
@@ -417,6 +419,8 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 
 	for testName, tc := range testcases {
 		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+
 			u, err := NewUpdater(tc.opts)
 			require.NoError(t, err)
 
