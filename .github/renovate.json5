@@ -5,7 +5,6 @@
     ":semanticCommitsDisabled"
   ],
 
-
   "branchPrefix": "grafanarenovatebot/",
   // Used when renovate runs as a github app.
   // https://docs.renovatebot.com/configuration-options/#platformcommit
@@ -15,6 +14,7 @@
   "platformCommit": true,
   "dependencyDashboard": false,
   "forkProcessing": "disabled",
+  "labels": ["dependencies"],
 
   "postUpdateOptions": [
     "gomodTidyE"
