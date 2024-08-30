@@ -26,7 +26,7 @@ steps:
   - git status --porcelain --untracked-files=no
   - git diff --no-ext-diff --quiet
   - ./scripts/version
-  - '{ echo -n latest, ; ./scripts/version ; } > .tags'
+  - ./scripts/generate-tags > .tags
   - make build
   depends_on:
   - deps
@@ -149,7 +149,7 @@ steps:
     ref:
     - refs/tags/v*.*.*
 - commands:
-  - echo "latest-browser,$(./scripts/version)-browser" > .tags
+  - ./scripts/generate-tags browser > .tags
   depends_on:
   - docker publish (release)
   image: ghcr.io/grafana/grafana-build-tools:v0.23.0
@@ -350,6 +350,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: d4db61b261c83fd65b96a3ea5bec1f3a1d8a5a4e7e80619c8573e6fd5dc6bbbd
+hmac: f6c6e83ee34a0f724b7e3e0ca4fad4e202fee749da8997dc30aeaddae3ec9a9e
 
 ...
