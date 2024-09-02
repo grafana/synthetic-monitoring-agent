@@ -2,6 +2,33 @@
 ## [Unreleased]
 
 
+<a name="v0.26.0"></a>
+## [v0.26.0] - 2024-09-02
+### Dependabot
+- remove
+
+### Dockerfile
+- pin hash of debian:stable-slim image ([#828](https://github.com/grafana/synthetic-monitoring-agent/issues/828))
+
+### Drone
+- regenerate pipelines
+
+### Feat
+- Validate browser capability ([#809](https://github.com/grafana/synthetic-monitoring-agent/issues/809))
+
+### Go
+- upgrade to 1.23 ([#838](https://github.com/grafana/synthetic-monitoring-agent/issues/838))
+
+### K6runner
+- always log error code and string to user's logger
+
+### Renovate
+- add `dependencies` label to PRs
+- enable default managers
+- group prometheus-go updates
+- fix grafana-build-tools dependency regex
+
+
 <a name="v0.25.2"></a>
 ## [v0.25.2] - 2024-07-31
 
@@ -658,7 +685,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.25.2...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.26.0...HEAD
+[v0.26.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.25.2...v0.26.0
 [v0.25.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.25.1...v0.25.2
 [v0.25.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.25.0...v0.25.1
 [v0.25.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.3...v0.25.0
