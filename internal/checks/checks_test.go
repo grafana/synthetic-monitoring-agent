@@ -269,12 +269,14 @@ func TestHandleCheckOp(t *testing.T) {
 }
 
 func TestCheckHandlerProbeValidation(t *testing.T) {
+	t.Parallel()
+
 	testcases := map[string]struct {
 		opts          UpdaterOptions
 		probe         sm.Probe
 		expectedError error
 	}{
-		"has K6 when required": {
+		"has K6 when required for scripted checks": {
 			expectedError: nil,
 			opts: UpdaterOptions{
 				Conn:           new(grpc.ClientConn),
@@ -284,9 +286,12 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				Logger:         zerolog.Nop(),
 				K6Runner:       noopRunner{},
 			},
-			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: false}},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
+				DisableScriptedChecks: false,
+				DisableBrowserChecks:  true,
+			}},
 		},
-		"missing K6 when required": {
+		"missing K6 when required for scripted checks": {
 			expectedError: errCapabilityK6Missing,
 			opts: UpdaterOptions{
 				Conn:           new(grpc.ClientConn),
@@ -295,7 +300,68 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				TenantCh:       make(chan<- sm.Tenant),
 				Logger:         zerolog.Nop(),
 			},
-			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: false}},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
+				DisableScriptedChecks: false,
+				DisableBrowserChecks:  true,
+			}},
+		},
+		"has K6 when required for browser checks": {
+			expectedError: nil,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+				K6Runner:       noopRunner{},
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
+				DisableScriptedChecks: true,
+				DisableBrowserChecks:  false,
+			}},
+		},
+		"missing K6 when required for browser checks": {
+			expectedError: errCapabilityK6Missing,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
+				DisableScriptedChecks: true,
+				DisableBrowserChecks:  false,
+			}},
+		},
+		"has K6 when required for scripted and browser checks": {
+			expectedError: nil,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+				K6Runner:       noopRunner{},
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
+				DisableScriptedChecks: false,
+				DisableBrowserChecks:  false,
+			}},
+		},
+		"missing K6 when required for scripted and browser checks": {
+			expectedError: errCapabilityK6Missing,
+			opts: UpdaterOptions{
+				Conn:           new(grpc.ClientConn),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				TenantCh:       make(chan<- sm.Tenant),
+				Logger:         zerolog.Nop(),
+			},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
+				DisableScriptedChecks: false,
+				DisableBrowserChecks:  false,
+			}},
 		},
 		"has K6 but not required": {
 			expectedError: nil,
@@ -307,7 +373,10 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				Logger:         zerolog.Nop(),
 				K6Runner:       noopRunner{},
 			},
-			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: true}},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
+				DisableScriptedChecks: true,
+				DisableBrowserChecks:  true,
+			}},
 		},
 		"missing K6 but not required": {
 			expectedError: nil,
@@ -318,7 +387,10 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				TenantCh:       make(chan<- sm.Tenant),
 				Logger:         zerolog.Nop(),
 			},
-			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{DisableScriptedChecks: true}},
+			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
+				DisableScriptedChecks: true,
+				DisableBrowserChecks:  true,
+			}},
 		},
 		"missing K6 when required by default": {
 			expectedError: errCapabilityK6Missing,
@@ -345,17 +417,21 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 		},
 	}
 
-	for _, tc := range testcases {
-		u, err := NewUpdater(tc.opts)
-		require.NoError(t, err)
+	for testName, tc := range testcases {
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
 
-		err = u.validateProbeCapabilities(tc.probe.Capabilities)
-
-		if tc.expectedError != nil {
-			require.Error(t, err, tc.expectedError)
-		} else {
+			u, err := NewUpdater(tc.opts)
 			require.NoError(t, err)
-		}
+
+			err = u.validateProbeCapabilities(tc.probe.Capabilities)
+
+			if tc.expectedError != nil {
+				require.Error(t, err, tc.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
 	}
 }
 
