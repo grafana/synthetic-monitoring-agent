@@ -100,9 +100,9 @@ local docker_step(tag, os, arch, version='', with_browser=false) =
 
 local docker_build(os, arch, version='', with_browser=false) =
   local step = if with_browser then
-      'docker build (with browser)'
-        else
-      'docker build';
+    'docker build (with browser)'
+  else
+    'docker build';
   docker_step(step, os, arch, version, with_browser)
   + dependsOn([ 'build' ]);
 
@@ -111,10 +111,10 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
   + { settings: { repo: repo, dry_run: 'false' } + auth }
   + dependsOn([ 'test', 'docker build' ]);
 
-  local docker_publish_with_browser(repo, auth, tag, os, arch) =
+local docker_publish_with_browser(repo, auth, tag, os, arch) =
   docker_step('docker publish (with browser) to ' + tag, os, arch, '', true)
   + { settings: { repo: repo, dry_run: 'false' } + auth }
-  + dependsOn([ 'docker publish (with browser) tags' ]); // step to update .tags file with browser-specific image tags
+  + dependsOn([ 'docker publish (with browser) tags' ]);  // step to update .tags file with browser-specific image tags
 
 [
   pipeline('build', [
@@ -138,7 +138,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
         'git status --porcelain --untracked-files=no',
         'git diff --no-ext-diff --quiet',  // fail if the workspace has modified files
         './scripts/version',
-        '{ echo -n latest, ; ./scripts/version ; } > .tags',  // save version in special file for docker plugin
+        './scripts/generate-tags > .tags',  // save version in special file for docker plugin
         'make build',
       ],
       go_tools_image,
@@ -191,7 +191,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
     step(
       'docker publish (with browser) tags',
       [
-        'echo "latest-browser,$(./scripts/version)-browser" > .tags',  // use with-browser tags for docker plugin
+        './scripts/generate-tags browser > .tags',
       ],
       go_tools_image,
     )

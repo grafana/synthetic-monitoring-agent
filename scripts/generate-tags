@@ -1,0 +1,24 @@
+#!/bin/sh
+
+set -e
+set -u
+
+# If an optional suffix is provided, append it to all the tags as `-suffix`.
+# Note that this breaks the semver format, because appending -foobar means it's
+# a pre-release version, not a "flavor" as some people claim. The more
+# appropriate way to express this would be to use `+suffix`, but we'll defer
+# that until we have fixed the different places where this might be used.
+suffix=${1:+-}${1:-}
+
+rootdir=$(git rev-parse --show-toplevel)
+version=$("${rootdir}/scripts/version")
+
+version_base=$(echo "${version}" | cut -d- -f1)
+version_seq=$(echo "${version}" | cut -d- -f2)
+
+printf "%s," "latest${suffix}"
+printf "%s" "${version}${suffix}"
+if [ "${version_seq}" = "0" ]; then
+  # Strip the additional -0-* suffix to generate a additional tag that looks like vX.Y.Z
+  printf ",%s" "${version_base}${suffix}"
+fi
