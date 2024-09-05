@@ -1,13 +1,13 @@
 # First stage obtains the list of certificates.
-FROM --platform=$BUILDPLATFORM debian:stable-slim@sha256:64bc71feaa7ec2ac758a6a3a37c0f0d6ebccf0a45e3f5af1f1d3b5d4cb316b29 AS build
-RUN apt-get update && apt-get -y install ca-certificates
+FROM --platform=$BUILDPLATFORM alpine:3.20 AS build
+RUN apk --no-cache add ca-certificates
 
 # Second stage copies the binaries, configuration and also the
 # certificates from the first stage.
 
 ARG TARGETPLATFORM
 
-FROM --platform=$TARGETPLATFORM debian:stable-slim@sha256:64bc71feaa7ec2ac758a6a3a37c0f0d6ebccf0a45e3f5af1f1d3b5d4cb316b29 as release
+FROM --platform=$TARGETPLATFORM alpine:3.20 as release
 ARG TARGETOS
 ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
