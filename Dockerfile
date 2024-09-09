@@ -1,6 +1,5 @@
 # First stage copies the binaries, configuration and installs the
 # certificates for the base agent.
-
 ARG TARGETPLATFORM
 
 FROM --platform=$TARGETPLATFORM alpine:3.20.3 as release
