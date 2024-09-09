@@ -8,7 +8,7 @@ require (
 	github.com/dmarkham/enumer v1.5.10
 	github.com/golangci/golangci-lint v1.60.3
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
-	github.com/securego/gosec/v2 v2.20.1-0.20240822074752-ab3f6c1c83a0
+	github.com/securego/gosec/v2 v2.21.1
 	github.com/unknwon/bra v0.0.0-20200517080246-1e3013ecaff8
 	gotest.tools/gotestsum v1.12.0
 )
@@ -122,7 +122,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moricho/tparallel v0.3.2 // indirect
 	github.com/nakabonne/nestif v0.3.1 // indirect
-	github.com/nbutton23/zxcvbn-go v0.0.0-20210217022336-fa2cb2858354 // indirect
 	github.com/nishanths/exhaustive v0.12.0 // indirect
 	github.com/nishanths/predeclared v0.2.2 // indirect
 	github.com/nunnatsa/ginkgolinter v0.16.2 // indirect
@@ -186,11 +185,11 @@ require (
 	go.uber.org/automaxprocs v1.5.3 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.25.0 // indirect
-	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
+	golang.org/x/exp v0.0.0-20240904232852-e7e105dedf7e // indirect
 	golang.org/x/exp/typeparams v0.0.0-20240314144324-c7f7c6466f7f // indirect
-	golang.org/x/mod v0.20.0 // indirect
+	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.23.0 // indirect
+	golang.org/x/sys v0.24.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.17.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
