@@ -33,7 +33,7 @@ require (
 	github.com/go-kit/log v0.2.1
 	github.com/go-ping/ping v1.1.0
 	github.com/gogo/status v1.1.1
-	github.com/grafana/loki/pkg/push v0.0.0-20240822152437-246a1dfbe24a
+	github.com/grafana/loki/pkg/push v0.0.0-20240906201625-0780456662b6
 	github.com/jpillora/backoff v1.0.0
 	github.com/mccutchen/go-httpbin/v2 v2.14.1
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
