@@ -51,9 +51,9 @@ steps:
     - TARGETPLATFORM=linux/amd64
     - TARGETOS=linux
     - TARGETARCH=amd64
+    dockerfile: Dockerfile
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
-    target: release
 - commands: []
   depends_on:
   - build
@@ -67,9 +67,9 @@ steps:
     - TARGETOS=linux
     - TARGETARCH=arm64
     - TARGETVARIANT=v8
+    dockerfile: Dockerfile
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
-    target: release
 - commands: []
   depends_on:
   - build
@@ -82,9 +82,9 @@ steps:
     - TARGETPLATFORM=linux/amd64
     - TARGETOS=linux
     - TARGETARCH=amd64
+    dockerfile: browser.Dockerfile
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
-    target: with-browser
 - commands:
   - "true"
   depends_on:
@@ -350,6 +350,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: f6c6e83ee34a0f724b7e3e0ca4fad4e202fee749da8997dc30aeaddae3ec9a9e
+hmac: b5ee6b1d887d33ce574bb7a29ac1f0b61a60a8b2d17e201f72fd23031da6a655
 
 ...

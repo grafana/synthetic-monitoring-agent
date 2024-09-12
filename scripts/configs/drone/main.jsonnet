@@ -86,8 +86,8 @@ local docker_step(tag, os, arch, version='', with_browser=false) =
     },
     settings: {
       repo: docker_repo,
+      dockerfile: if with_browser then 'browser.Dockerfile' else 'Dockerfile',
       dry_run: 'true',
-      target: if with_browser then 'with-browser' else 'release',
       build_args: [
         'TARGETPLATFORM=' + platform,
         'TARGETOS=' + os,
