@@ -51,9 +51,9 @@ steps:
     - TARGETPLATFORM=linux/amd64
     - TARGETOS=linux
     - TARGETARCH=amd64
-    dockerfile: Dockerfile
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
+    target: release
 - commands: []
   depends_on:
   - build
@@ -67,9 +67,9 @@ steps:
     - TARGETOS=linux
     - TARGETARCH=arm64
     - TARGETVARIANT=v8
-    dockerfile: Dockerfile
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
+    target: release
 - commands: []
   depends_on:
   - build
@@ -82,9 +82,9 @@ steps:
     - TARGETPLATFORM=linux/amd64
     - TARGETOS=linux
     - TARGETARCH=amd64
-    dockerfile: browser.Dockerfile
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
+    target: with-browser
 - commands:
   - "true"
   depends_on:
@@ -160,22 +160,6 @@ steps:
   environment:
     DOCKER_BUILDKIT: "1"
   image: plugins/docker
-  name: docker publish (with browser) to gcr.io (linux/amd64)
-  settings:
-    config:
-      from_secret: docker_config_json
-    dry_run: "false"
-    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
-- commands: []
-  depends_on:
-  - docker publish (with browser) tags
-  environment:
-    DOCKER_BUILDKIT: "1"
-  image: plugins/docker
   name: docker publish (with browser) to docker (linux/amd64)
   settings:
     dry_run: "false"
@@ -190,17 +174,6 @@ steps:
 - commands:
   - "true"
   depends_on:
-  - docker publish (with browser) to gcr.io (linux/amd64)
-  image: alpine
-  name: docker publish (with browser) (dev)
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
-- commands:
-  - "true"
-  depends_on:
-  - docker publish (with browser) to gcr.io (linux/amd64)
   - docker publish (with browser) to docker (linux/amd64)
   image: alpine
   name: docker publish (with browser) (release)
@@ -377,6 +350,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: f7266279e2cc15d10f9d7ec1047259521eec2736daa080f1fa6caf01cc0815be
+hmac: f6c6e83ee34a0f724b7e3e0ca4fad4e202fee749da8997dc30aeaddae3ec9a9e
 
 ...
