@@ -109,6 +109,9 @@ rwildcard_helper = $(wildcard $(addsuffix $(strip $2), $(strip $1))) \
 
 DRONE_SOURCE_FILES := $(call rwildcard, $(ROOTDIR)/scripts/configs/drone/*.jsonnet) $(call rwildcard, $(ROOTDIR)/scripts/configs/drone/*.libsonnet)
 
+$(ROOTDIR)/scripts/configs/drone/go-tools-image.libsonnet: $(ROOTDIR)/.gbt.mk
+	echo '"$(GBT_IMAGE)"' > $@
+
 .drone.yml: $(DRONE_SOURCE_FILES)
 	$(S) echo 'Regenerating $@...'
 ifneq ($(origin DRONE_TOKEN),environment)
@@ -119,7 +122,7 @@ else
 endif
 	$(S) false
 endif
-	$(V) ./scripts/generate-drone-yaml "$(GBT_IMAGE)" "$(GH_REPO_NAME)" "$(ROOTDIR)/.drone.yml" "$(ROOTDIR)/scripts/configs/drone/main.jsonnet"
+	$(V) ./scripts/generate-drone-yaml "$(GH_REPO_NAME)" "$(ROOTDIR)/.drone.yml" "$(ROOTDIR)/scripts/configs/drone/main.jsonnet"
 
 .PHONY: dronefmt
 dronefmt: ## Format drone jsonnet files

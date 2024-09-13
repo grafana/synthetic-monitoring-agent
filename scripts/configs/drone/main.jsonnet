@@ -1,4 +1,4 @@
-local go_tools_image = 'ghcr.io/grafana/grafana-build-tools:v0.23.0';
+local go_tools_image = (import 'go-tools-image.libsonnet');
 
 local step(name, commands, image=go_tools_image) = {
   name: name,
@@ -113,7 +113,7 @@ local docker_publish(repo, auth, tag, os, arch, version='') =
 
 local docker_publish_with_browser(repo, auth, tag, os, arch) =
   docker_step('docker publish (with browser) to ' + tag, os, arch, '', true)
-  + { settings: { repo: repo, dry_run: 'false', target:'with-browser' } + auth }
+  + { settings: { repo: repo, dry_run: 'false', target: 'with-browser' } + auth }
   + dependsOn([ 'docker publish (with browser) tags' ]);  // step to update .tags file with browser-specific image tags
 
 [
