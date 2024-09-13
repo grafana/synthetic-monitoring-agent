@@ -1,4 +1,4 @@
-local go_tools_image = 'ghcr.io/grafana/grafana-build-tools:v0.23.0';
+local go_tools_image = 'ghcr.io/grafana/grafana-build-tools:v0.23.1';
 
 local step(name, commands, image=go_tools_image) = {
   name: name,
