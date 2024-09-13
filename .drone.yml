@@ -13,13 +13,13 @@ steps:
   - ./scripts/enforce-clean
   depends_on:
   - runner identification
-  image: ghcr.io/grafana/grafana-build-tools:v0.23.0
+  image: ghcr.io/grafana/grafana-build-tools:v0.23.1
   name: deps
 - commands:
   - make lint
   depends_on:
   - deps
-  image: ghcr.io/grafana/grafana-build-tools:v0.23.0
+  image: ghcr.io/grafana/grafana-build-tools:v0.23.1
   name: lint
 - commands:
   - git fetch origin --tags
@@ -30,14 +30,14 @@ steps:
   - make build
   depends_on:
   - deps
-  image: ghcr.io/grafana/grafana-build-tools:v0.23.0
+  image: ghcr.io/grafana/grafana-build-tools:v0.23.1
   name: build
 - commands:
   - make test
   depends_on:
   - lint
   - build
-  image: ghcr.io/grafana/grafana-build-tools:v0.23.0
+  image: ghcr.io/grafana/grafana-build-tools:v0.23.1
   name: test
 - commands: []
   depends_on:
@@ -154,7 +154,7 @@ steps:
   - ./scripts/generate-tags browser > .tags
   depends_on:
   - docker publish (release)
-  image: ghcr.io/grafana/grafana-build-tools:v0.23.0
+  image: ghcr.io/grafana/grafana-build-tools:v0.23.1
   name: docker publish (with browser) tags
 - commands: []
   depends_on:
@@ -256,7 +256,7 @@ steps:
     NFPM_SIGNING_KEY:
       from_secret: gpg_private_key
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: ghcr.io/grafana/grafana-build-tools:v0.23.0
+  image: ghcr.io/grafana/grafana-build-tools:v0.23.1
   name: write-key
 - commands:
   - make release-snapshot
@@ -264,7 +264,7 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: ghcr.io/grafana/grafana-build-tools:v0.23.0
+  image: ghcr.io/grafana/grafana-build-tools:v0.23.1
   name: test release
 - commands:
   - ./scripts/package/verify-deb-install.sh
@@ -290,7 +290,7 @@ steps:
     NFPM_DEFAULT_PASSPHRASE:
       from_secret: gpg_passphrase
     NFPM_SIGNING_KEY_FILE: /drone/src/release-private-key.key
-  image: ghcr.io/grafana/grafana-build-tools:v0.23.0
+  image: ghcr.io/grafana/grafana-build-tools:v0.23.1
   name: release
   when:
     ref:
@@ -353,6 +353,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 5e75a9684299530d27f11ab90b2aa7cd6a23c2dfb3bf3fda31c9294a94f9535c
+hmac: fb6181d2e3ef001ea0acd701f07f9a8e1b6f45494773392ecb99cce3a229cd78
 
 ...
