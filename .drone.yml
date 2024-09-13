@@ -162,23 +162,6 @@ steps:
   environment:
     DOCKER_BUILDKIT: "1"
   image: plugins/docker
-  name: docker publish (with browser) to gcr.io (linux/amd64)
-  settings:
-    config:
-      from_secret: docker_config_json
-    dry_run: "false"
-    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
-    target: with-browser
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
-- commands: []
-  depends_on:
-  - docker publish (with browser) tags
-  environment:
-    DOCKER_BUILDKIT: "1"
-  image: plugins/docker
   name: docker publish (with browser) to docker (linux/amd64)
   settings:
     dry_run: "false"
@@ -194,17 +177,6 @@ steps:
 - commands:
   - "true"
   depends_on:
-  - docker publish (with browser) to gcr.io (linux/amd64)
-  image: alpine
-  name: docker publish (with browser) (dev)
-  when:
-    ref:
-    - refs/heads/main
-    - refs/tags/v*.*.*
-- commands:
-  - "true"
-  depends_on:
-  - docker publish (with browser) to gcr.io (linux/amd64)
   - docker publish (with browser) to docker (linux/amd64)
   image: alpine
   name: docker publish (with browser) (release)
@@ -381,6 +353,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: dddab5db05deff6b1564ece0ebc144694729fc1d1052d1595d84a73a7b9760f6
+hmac: 5e75a9684299530d27f11ab90b2aa7cd6a23c2dfb3bf3fda31c9294a94f9535c
 
 ...

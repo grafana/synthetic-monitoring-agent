@@ -197,20 +197,11 @@ local docker_publish_with_browser(repo, auth, tag, os, arch) =
     )
     + dependsOn([ 'docker publish (release)' ]),
 
-    // TODO(the-9880): remove after release fix confirmed
-    docker_publish_with_browser(gcrio_repo, grcio_auth, 'gcr.io', 'linux', 'amd64') + devAndRelease,
     // publish image with chromium browser available
     docker_publish_with_browser(docker_repo, docker_auth, 'docker', 'linux', 'amd64') + releaseOnly,
 
-    step('docker publish (with browser) (dev)', [ 'true' ], 'alpine')
-    + dependsOn([
-      'docker publish (with browser) to gcr.io (linux/amd64)',
-    ])
-    + devAndRelease,
-
     step('docker publish (with browser) (release)', [ 'true' ], 'alpine')
     + dependsOn([
-      'docker publish (with browser) to gcr.io (linux/amd64)',
       'docker publish (with browser) to docker (linux/amd64)',
     ])
     + releaseOnly,
