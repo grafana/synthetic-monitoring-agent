@@ -106,6 +106,7 @@ steps:
       from_secret: docker_config_json
     dry_run: "false"
     repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
+    target: release
   when:
     ref:
     - refs/heads/main
@@ -123,6 +124,7 @@ steps:
     password:
       from_secret: docker_password
     repo: grafana/synthetic-monitoring-agent
+    target: release
     username:
       from_secret: docker_username
   when:
@@ -160,12 +162,30 @@ steps:
   environment:
     DOCKER_BUILDKIT: "1"
   image: plugins/docker
+  name: docker publish (with browser) to gcr.io (linux/amd64)
+  settings:
+    config:
+      from_secret: docker_config_json
+    dry_run: "false"
+    repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
+    target: with-browser
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
+- commands: []
+  depends_on:
+  - docker publish (with browser) tags
+  environment:
+    DOCKER_BUILDKIT: "1"
+  image: plugins/docker
   name: docker publish (with browser) to docker (linux/amd64)
   settings:
     dry_run: "false"
     password:
       from_secret: docker_password
     repo: grafana/synthetic-monitoring-agent
+    target: with-browser
     username:
       from_secret: docker_username
   when:
@@ -174,6 +194,17 @@ steps:
 - commands:
   - "true"
   depends_on:
+  - docker publish (with browser) to gcr.io (linux/amd64)
+  image: alpine
+  name: docker publish (with browser) (dev)
+  when:
+    ref:
+    - refs/heads/main
+    - refs/tags/v*.*.*
+- commands:
+  - "true"
+  depends_on:
+  - docker publish (with browser) to gcr.io (linux/amd64)
   - docker publish (with browser) to docker (linux/amd64)
   image: alpine
   name: docker publish (with browser) (release)
@@ -350,6 +381,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: f6c6e83ee34a0f724b7e3e0ca4fad4e202fee749da8997dc30aeaddae3ec9a9e
+hmac: dddab5db05deff6b1564ece0ebc144694729fc1d1052d1595d84a73a7b9760f6
 
 ...
