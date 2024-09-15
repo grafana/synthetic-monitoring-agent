@@ -61,6 +61,34 @@
       "matchStrings": [
         "ghcr.io/grafana/grafana-build-tools:(?<currentValue>[\\w-+.]+)"
       ]
-    }
-  ]
+    },
+    {
+      // Update pinned alpine packages in Dockerfile.
+      "customType": "regex",
+      "fileMatch": [ "Dockerfile" ],
+      "matchStrings": [
+        // Lines that loosely look like "apk add --repository community something=version".
+        // To keep this regex simple, only one package per "apk add" is supported.
+        "apk.+?add.+?(--repository|-X)[= ](?<alpineRepo>[a-z]+).+?(?<depName>[a-z0-9-]+)=(?<currentValue>[a-z0-9-.]+)"
+      ],
+      "versioningTemplate": "loose", // The most lenient versioning renovate supports.
+      // We use two different datasources for main and community, as alpine serves them in different URLs.
+      "datasourceTemplate": "custom.alpine-{{alpineRepo}}",
+      // Extracted "versions" include the package name, so here we strip that prefix using a regex.
+      "extractVersionTemplate": "{{depName}}-(?<version>.+).apk",
+    },
+  ],
+
+  "customDatasources": {
+    // Use alpine HTML mirror page as a repository. When using `html` format, renovate produces version strings from
+    // all links present in the page. The version is extracted from that using extractVersionTemplate above.
+    "alpine-main": {
+      "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/x86_64/",
+      "format": "html",
+    },
+    "alpine-community": {
+      "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/latest-stable/community/x86_64/",
+      "format": "html",
+    },
+  },
 }
