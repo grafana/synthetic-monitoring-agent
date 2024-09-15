@@ -1,13 +1,13 @@
 # First stage obtains the list of certificates.
-FROM --platform=$BUILDPLATFORM debian:stable-slim@sha256:64bc71feaa7ec2ac758a6a3a37c0f0d6ebccf0a45e3f5af1f1d3b5d4cb316b29 AS build
-RUN apt-get update && apt-get -y install ca-certificates
+FROM --platform=$BUILDPLATFORM alpine:3.20.3 AS build
+RUN apk --no-cache add ca-certificates-bundle
 
 # Second stage copies the binaries, configuration and also the
 # certificates from the first stage.
 
 ARG TARGETPLATFORM
 
-FROM --platform=$TARGETPLATFORM debian:stable-slim@sha256:64bc71feaa7ec2ac758a6a3a37c0f0d6ebccf0a45e3f5af1f1d3b5d4cb316b29 as release
+FROM --platform=$TARGETPLATFORM alpine:3.20.3 AS release
 ARG TARGETOS
 ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
@@ -19,8 +19,9 @@ COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 
 ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
 
-# third stage with alpine base for better access to chromium
-FROM alpine:3.20@sha256:beefdbd8a1da6d2915566fde36db9db0b524eb737fc57cd1367effd16dc0d06d as with-browser
+# Third stage copies the setup from the base agent and
+# additionally installs Chromium to support browser checks.
+FROM --platform=$TARGETPLATFORM alpine:3.20.3 AS with-browser
 
 RUN apk --no-cache add tini
 RUN apk --no-cache add chromium-swiftshader
