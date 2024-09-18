@@ -69,7 +69,7 @@
       "matchStrings": [
         // Lines that loosely look like "apk add --repository community something=version".
         // To keep this regex simple, only one package per "apk add" is supported.
-        "apk.+?add.+?(--repository|-X)[= ](?<alpineRepo>[a-z]+).+?(?<depName>[a-z0-9-]+)=(?<currentValue>[a-z0-9-.]+)"
+        "\\bapk\\b.+?\\badd\\b.+?(--repository|-X)[ =\\t]+(?<alpineRepo>[a-z]+)\\s+(?<depName>[-\\w]+?)=(?<currentValue>[-.\\w]+)"
       ],
       "versioningTemplate": "loose", // The most lenient versioning renovate supports.
       // We use two different datasources for main and community, as alpine serves them in different URLs.
