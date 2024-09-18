@@ -97,6 +97,7 @@ var (
 func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) (bool, error) {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
+	// TODO: This error message is okay to be Debug for local k6 execution, but should be Error for remote runners.
 	result, err := k6runner.Run(ctx, r.script)
 	if err != nil {
 		internalLogger.Debug().
@@ -399,20 +400,24 @@ func (r HttpRunner) Run(ctx context.Context, script Script) (*RunResponse, error
 		}
 
 		if !errors.Is(err, errRetryable) {
+			// TODO: Log the returned error in the Processor instead.
+			r.logger.Error().Err(err).Msg("non-retryable error running k6")
 			return nil, err
 		}
 
 		// Wait, but subtract the amount of time we've already waited as part of the request timeout.
-		// We do this because these requests have huge timeouts, and by the nature of the system running these request,
+		// We do this because these requests have huge timeouts, and by the nature of the system running these requests,
 		// we expect the most common error to be a timeout, so we avoid waiting even more on top of an already large
 		// value.
 		waitRemaining := max(0, wait-time.Since(start))
-		r.logger.Debug().Err(err).Dur("after", waitRemaining).Msg("retrying retryable error")
+		r.logger.Warn().Err(err).Dur("after", waitRemaining).Msg("retrying retryable error")
 
 		waitTimer := time.NewTimer(waitRemaining)
 		select {
 		case <-ctx.Done():
 			waitTimer.Stop()
+			// TODO: Log the returned error in the Processor instead.
+			r.logger.Error().Err(err).Msg("retries exhausted")
 			return nil, fmt.Errorf("cannot retry further: %w", errors.Join(err, ctx.Err()))
 		case <-waitTimer.C:
 		}
