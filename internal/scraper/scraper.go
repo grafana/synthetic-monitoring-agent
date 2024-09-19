@@ -668,9 +668,13 @@ func runProber(
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	success := prober.Probe(checkCtx, target, registry, logger)
+	success, duration := prober.Probe(checkCtx, target, registry, logger)
 
-	duration := time.Since(start).Seconds()
+	probeDuration := time.Since(start).Seconds()
+
+	if duration == 0 { // If the prober did not provide their own duration, fallback to probeDuration.
+		duration = probeDuration
+	}
 
 	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: ProbeSuccessMetricName,
@@ -694,10 +698,10 @@ func runProber(
 
 	if success {
 		probeSuccessGauge.Set(1)
-		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", duration)
+		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", probeDuration)
 	} else {
 		probeSuccessGauge.Set(0)
-		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", duration)
+		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", probeDuration)
 	}
 
 	smCheckInfo.Set(1)

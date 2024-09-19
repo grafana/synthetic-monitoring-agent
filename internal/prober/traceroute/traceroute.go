@@ -53,7 +53,7 @@ func (p Prober) Name() string {
 	return "traceroute"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
 	m, ch, err := mtr.NewMTR(
 		target,
 		p.config.srcAddr,
@@ -70,9 +70,9 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		logErr := logger.Log(err)
 		if logErr != nil {
 			p.logger.Error().Err(logErr).Msg("logging error")
-			return false
+			return false, 0
 		}
-		return false
+		return false, 0
 	}
 
 	go func(ch <-chan struct{}) {
@@ -130,7 +130,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	_, err = traceHash.Write([]byte(hostsString))
 	if err != nil {
 		p.logger.Error().Err(err).Msg("computing trace hash")
-		return false
+		return false, 0
 	}
 
 	var traceHashGauge = prometheus.NewGauge(prometheus.GaugeOpts{
@@ -158,7 +158,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	overallPacketLoss := totalPacketsLost / totalPacketsSent
 	overallPacketLossGauge.Set(overallPacketLoss)
 
-	return success
+	return success, 0
 }
 
 func settingsToModule(settings *sm.TracerouteSettings) Module {

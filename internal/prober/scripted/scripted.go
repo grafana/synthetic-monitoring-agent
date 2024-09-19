@@ -59,12 +59,13 @@ func (p Prober) Name() string {
 	return proberName
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
 	success, err := p.processor.Run(ctx, registry, logger, p.logger)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("running probe")
-		return false
+		return false, 0
 	}
 
-	return success
+	// TODO(mem): implement custom duration extraction.
+	return success, 0
 }
