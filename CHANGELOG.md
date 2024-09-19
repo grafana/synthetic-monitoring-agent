@@ -2,6 +2,15 @@
 ## [Unreleased]
 
 
+<a name="v0.28.0"></a>
+## [v0.28.0] - 2024-09-19
+### Feature
+- add retries to ICMP prober ([#896](https://github.com/grafana/synthetic-monitoring-agent/issues/896))
+
+### Fix
+- allow probers to provide a duration value ([#898](https://github.com/grafana/synthetic-monitoring-agent/issues/898))
+
+
 <a name="v0.27.0"></a>
 ## [v0.27.0] - 2024-09-19
 ### K6runner
@@ -105,7 +114,6 @@
 ## [v0.24.0] - 2024-04-30
 ### Feature
 - automatically set up GOMEMLIMIT ([#691](https://github.com/grafana/synthetic-monitoring-agent/issues/691))
-- upgrade k6 to v0.50.0 ([#681](https://github.com/grafana/synthetic-monitoring-agent/issues/681))
 
 ### Fix
 - use uniform timeout validation logic ([#693](https://github.com/grafana/synthetic-monitoring-agent/issues/693))
@@ -114,6 +122,12 @@
 ### K6runner
 - inspect errors and propagate unexpected ones to the probe
 - handle errors reported by http runners
+
+
+<a name="v0.23.4"></a>
+## [v0.23.4] - 2024-04-17
+### Feature
+- upgrade k6 to v0.50.0 ([#681](https://github.com/grafana/synthetic-monitoring-agent/issues/681))
 
 
 <a name="v0.23.3"></a>
@@ -153,6 +167,11 @@
 
 ### Fix
 - missing http check regex validations ([#612](https://github.com/grafana/synthetic-monitoring-agent/issues/612))
+
+
+<a name="v0.20.1"></a>
+## [v0.20.1] - 2024-02-12
+### Fix
 - add test for HTTP check with a long URL
 
 
@@ -693,7 +712,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.27.0...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.28.0...HEAD
+[v0.28.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.27.0...v0.28.0
 [v0.27.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.26.0...v0.27.0
 [v0.26.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.25.2...v0.26.0
 [v0.25.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.25.1...v0.25.2
@@ -702,13 +722,15 @@
 [v0.24.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.2...v0.24.3
 [v0.24.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.1...v0.24.2
 [v0.24.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.24.0...v0.24.1
-[v0.24.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.3...v0.24.0
+[v0.24.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.4...v0.24.0
+[v0.23.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.3...v0.23.4
 [v0.23.3]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.2...v0.23.3
 [v0.23.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.1...v0.23.2
 [v0.23.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.0...v0.23.1
 [v0.23.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.22.0...v0.23.0
 [v0.22.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.21.0...v0.22.0
-[v0.21.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.21.0
+[v0.21.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.1...v0.21.0
+[v0.20.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.20.1
 [v0.19.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.5...v0.19.6
 [v0.19.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.4...v0.19.5
 [v0.19.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.3...v0.19.4
