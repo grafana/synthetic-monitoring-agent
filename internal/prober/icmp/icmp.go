@@ -16,11 +16,13 @@ import (
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Module struct {
-	Prober      string
-	Timeout     time.Duration
-	PacketCount int64
-	ICMP        config.ICMPProbe
-	Privileged  bool
+	Prober            string
+	Timeout           time.Duration
+	PacketCount       int64
+	ReqSuccessCount   int64
+	MaxResolveRetries int64
+	ICMP              config.ICMPProbe
+	Privileged        bool
 }
 
 type Prober struct {
@@ -62,11 +64,16 @@ func settingsToModule(settings *sm.PingSettings) Module {
 
 	m.ICMP.DontFragment = settings.DontFragment
 
-	if settings.PacketCount <= 1 {
-		m.PacketCount = 1
+	if settings.PacketCount == 0 {
+		m.PacketCount = 3
+		m.ReqSuccessCount = 1
 	} else {
 		m.PacketCount = settings.PacketCount
+		m.ReqSuccessCount = settings.PacketCount // TODO(mem): expose this setting
 	}
+
+	// TODO(mem): add a setting for this
+	m.MaxResolveRetries = 3
 
 	return m
 }

@@ -34,10 +34,62 @@ func TestNewProber(t *testing.T) {
 			},
 			expected: Prober{
 				config: Module{
-					Prober:      "ping",
-					Timeout:     0,
-					PacketCount: 1,
-					Privileged:  isPrivilegedRequired(),
+					Prober:            "ping",
+					Timeout:           0,
+					PacketCount:       3,
+					ReqSuccessCount:   1,
+					MaxResolveRetries: 3,
+					Privileged:        isPrivilegedRequired(),
+					ICMP: config.ICMPProbe{
+						IPProtocol:         "ip6",
+						IPProtocolFallback: true,
+					},
+				},
+			},
+			ExpectError: false,
+		},
+		"1 packet": {
+			input: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Ping: &sm.PingSettings{
+						PacketCount: 1,
+					},
+				},
+			},
+			expected: Prober{
+				config: Module{
+					Prober:            "ping",
+					Timeout:           0,
+					PacketCount:       1,
+					ReqSuccessCount:   1,
+					MaxResolveRetries: 3,
+					Privileged:        isPrivilegedRequired(),
+					ICMP: config.ICMPProbe{
+						IPProtocol:         "ip6",
+						IPProtocolFallback: true,
+					},
+				},
+			},
+			ExpectError: false,
+		},
+		"2 packets": {
+			input: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Ping: &sm.PingSettings{
+						PacketCount: 2,
+					},
+				},
+			},
+			expected: Prober{
+				config: Module{
+					Prober:            "ping",
+					Timeout:           0,
+					PacketCount:       2,
+					ReqSuccessCount:   2,
+					MaxResolveRetries: 3,
+					Privileged:        isPrivilegedRequired(),
 					ICMP: config.ICMPProbe{
 						IPProtocol:         "ip6",
 						IPProtocolFallback: true,
@@ -50,7 +102,7 @@ func TestNewProber(t *testing.T) {
 			input: sm.Check{
 				Target: "www.grafana.com",
 				Settings: sm.CheckSettings{
-					Http: nil,
+					Ping: nil,
 				},
 			},
 			expected:    Prober{},
@@ -79,9 +131,11 @@ func TestSettingsToModule(t *testing.T) {
 		"default": {
 			input: sm.PingSettings{},
 			expected: Module{
-				Prober:      "ping",
-				Timeout:     0,
-				PacketCount: 1,
+				Prober:            "ping",
+				Timeout:           0,
+				PacketCount:       3,
+				ReqSuccessCount:   1,
+				MaxResolveRetries: 3,
 				ICMP: config.ICMPProbe{
 					IPProtocol:         "ip6",
 					IPProtocolFallback: true,
@@ -94,9 +148,11 @@ func TestSettingsToModule(t *testing.T) {
 				SourceIpAddress: "0.0.0.0",
 			},
 			expected: Module{
-				Prober:      "ping",
-				Timeout:     0,
-				PacketCount: 1,
+				Prober:            "ping",
+				Timeout:           0,
+				PacketCount:       3,
+				ReqSuccessCount:   1,
+				MaxResolveRetries: 3,
 				ICMP: config.ICMPProbe{
 					IPProtocol:         "ip4",
 					IPProtocolFallback: false,
@@ -110,9 +166,11 @@ func TestSettingsToModule(t *testing.T) {
 				PacketCount: 1,
 			},
 			expected: Module{
-				Prober:      "ping",
-				Timeout:     0,
-				PacketCount: 1,
+				Prober:            "ping",
+				Timeout:           0,
+				PacketCount:       1,
+				ReqSuccessCount:   1,
+				MaxResolveRetries: 3,
 				ICMP: config.ICMPProbe{
 					IPProtocol:         "ip4",
 					IPProtocolFallback: false,
@@ -125,9 +183,11 @@ func TestSettingsToModule(t *testing.T) {
 				PacketCount: 2,
 			},
 			expected: Module{
-				Prober:      "ping",
-				Timeout:     0,
-				PacketCount: 2,
+				Prober:            "ping",
+				Timeout:           0,
+				PacketCount:       2,
+				ReqSuccessCount:   2,
+				MaxResolveRetries: 3,
 				ICMP: config.ICMPProbe{
 					IPProtocol:         "ip4",
 					IPProtocolFallback: false,

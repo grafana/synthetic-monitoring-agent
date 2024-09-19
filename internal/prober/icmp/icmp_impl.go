@@ -61,9 +61,9 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 	registry.MustRegister(packetsSentGauge)
 	registry.MustRegister(packetsReceivedGauge)
 
-	dstIPAddr, lookupTime, err := chooseProtocol(ctx, module.ICMP.IPProtocol, module.ICMP.IPProtocolFallback, target, registry, logger)
+	dstIPAddr, lookupTime, err := chooseProtocol(ctx, module.ICMP.IPProtocol, module.ICMP.IPProtocolFallback, target, int(module.MaxResolveRetries), registry, logger)
 	if err != nil {
-		_ = level.Warn(logger).Log("msg", "Error resolving address", "err", err)
+		_ = level.Error(logger).Log("msg", "Error resolving address", "err", err)
 		return false
 	}
 
@@ -74,7 +74,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 	pinger.SetPrivileged(module.Privileged)
 
 	if err := pinger.Resolve(); err != nil {
-		// This should never happe, the address is already resolved.
+		// This should never happen, the address is already resolved.
 		_ = level.Error(logger).Log("msg", "Error resolving address", "err", err)
 		return false
 	}
@@ -151,7 +151,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 		return false
 	}
 
-	return pinger.Count == pinger.PacketsSent && pinger.PacketsRecv == pinger.PacketsSent
+	return pinger.PacketsSent >= int(module.ReqSuccessCount) && pinger.PacketsRecv >= int(module.ReqSuccessCount)
 }
 
 type icmpLogger struct {
