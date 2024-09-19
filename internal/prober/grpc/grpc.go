@@ -41,8 +41,8 @@ func (p Prober) Name() string {
 	return "grpc"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
-	return bbeprober.ProbeGRPC(ctx, target, p.config, registry, logger)
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+	return bbeprober.ProbeGRPC(ctx, target, p.config, registry, logger), 0
 }
 
 func settingsToModule(ctx context.Context, settings *sm.GrpcSettings, logger zerolog.Logger) (config.Module, error) {

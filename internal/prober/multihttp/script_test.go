@@ -862,11 +862,12 @@ func TestSettingsToScript(t *testing.T) {
 	userLogger := level.NewFilter(kitlog.NewLogfmtLogger(&buf), level.AllowInfo(), level.SquelchNoLevel(false))
 	require.NotNil(t, userLogger)
 
-	success := prober.Probe(ctx, check.Target, reg, userLogger)
+	success, duration := prober.Probe(ctx, check.Target, reg, userLogger)
 
 	t.Log("Log entries:\n" + buf.String())
 
 	require.True(t, success)
+	require.Equal(t, float64(0), duration)
 }
 
 func TestReplaceVariablesInString(t *testing.T) {

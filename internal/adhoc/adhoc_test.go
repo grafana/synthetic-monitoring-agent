@@ -337,7 +337,7 @@ func (p *testProber) Name() string {
 	return "test"
 }
 
-func (p *testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+func (p *testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
 	p.logger.Info().Str("func", "Probe").Caller(0).Send()
 	g := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "test",
@@ -345,5 +345,5 @@ func (p *testProber) Probe(ctx context.Context, target string, registry *prometh
 	g.Set(1)
 	registry.MustRegister(g)
 	_ = logger.Log("msg", "test")
-	return true
+	return true, 1
 }

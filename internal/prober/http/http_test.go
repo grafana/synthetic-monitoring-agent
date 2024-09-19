@@ -231,7 +231,10 @@ func TestProbe(t *testing.T) {
 
 			prober, err := NewProber(ctx, check, zl, http.Header{})
 			require.NoError(t, err)
-			require.Equal(t, tc.expectFailure, !prober.Probe(ctx, check.Target, registry, kl))
+
+			success, duration := prober.Probe(ctx, check.Target, registry, kl)
+			require.Equal(t, tc.expectFailure, !success)
+			require.Equal(t, float64(0), duration)
 
 			mfs, err := registry.Gather()
 			require.NoError(t, err)

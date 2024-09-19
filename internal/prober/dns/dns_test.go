@@ -252,9 +252,10 @@ func TestProberRetries(t *testing.T) {
 	logger := log.NewLogfmtLogger(&buf)
 
 	t0 := time.Now()
-	success := p.Probe(ctx, p.target, registry, logger)
+	success, duration := p.Probe(ctx, p.target, registry, logger)
 	t.Log(success, time.Since(t0))
 	require.True(t, success)
+	require.Equal(t, 0, duration)
 
 	mfs, err := registry.Gather()
 	require.NoError(t, err)

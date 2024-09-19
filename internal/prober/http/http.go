@@ -55,13 +55,13 @@ func (p Prober) Name() string {
 	return "http"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
 	if p.cacheBustingQueryParamName != "" {
 		// FIXME(mem): the second target argument should be the probe's name
 		target = addCacheBustParam(target, p.cacheBustingQueryParamName, target)
 	}
 
-	return bbeprober.ProbeHTTP(ctx, target, p.config, registry, logger)
+	return bbeprober.ProbeHTTP(ctx, target, p.config, registry, logger), 0
 }
 
 func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger) (config.Module, error) {

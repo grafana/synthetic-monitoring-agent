@@ -47,7 +47,7 @@ func (p Prober) Name() string {
 	return "ping"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
 	return probeICMP(ctx, target, p.config, registry, logger)
 }
 
@@ -108,7 +108,7 @@ func isPrivilegedRequired() bool {
 		}
 	)
 
-	success := probeICMP(ctx, target, config, registry, logger)
+	success, _ := probeICMP(ctx, target, config, registry, logger)
 
 	privilegedRequired = !success
 	privilegedCheckDone = true

@@ -12,7 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func probeICMP(ctx context.Context, target string, module Module, registry *prometheus.Registry, logger log.Logger) (success bool) {
+func probeICMP(ctx context.Context, target string, module Module, registry *prometheus.Registry, logger log.Logger) (success bool, duration float64) {
 	var (
 		durationGaugeVec = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "probe_icmp_duration_seconds",
@@ -64,10 +64,11 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 	dstIPAddr, lookupTime, err := chooseProtocol(ctx, module.ICMP.IPProtocol, module.ICMP.IPProtocolFallback, target, int(module.MaxResolveRetries), registry, logger)
 	if err != nil {
 		_ = level.Error(logger).Log("msg", "Error resolving address", "err", err)
-		return false
+		return false, 0
 	}
 
 	durationGaugeVec.WithLabelValues("resolve").Add(lookupTime)
+	duration += lookupTime
 
 	pinger := ping.New(dstIPAddr.String())
 
@@ -76,7 +77,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 	if err := pinger.Resolve(); err != nil {
 		// This should never happen, the address is already resolved.
 		_ = level.Error(logger).Log("msg", "Error resolving address", "err", err)
-		return false
+		return false, 0
 	}
 
 	pinger.Timeout = module.Timeout
@@ -90,7 +91,9 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	pinger.OnSetup = func() {
 		if !setupDone {
-			durationGaugeVec.WithLabelValues("setup").Add(time.Since(setupStart).Seconds())
+			setupDuration := time.Since(setupStart).Seconds()
+			durationGaugeVec.WithLabelValues("setup").Add(setupDuration)
+			duration += setupDuration
 			setupDone = true
 		}
 		_ = level.Info(logger).Log("msg", "Using source address", "srcIP", pinger.Source)
@@ -116,6 +119,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	pinger.OnFinish = func(stats *ping.Statistics) {
 		durationGaugeVec.WithLabelValues("rtt").Set(stats.AvgRtt.Seconds())
+		duration += stats.AvgRtt.Seconds()
 		durationMaxGauge.Set(stats.MaxRtt.Seconds())
 		durationMinGauge.Set(stats.MinRtt.Seconds())
 		durationStddevGauge.Set(stats.StdDevRtt.Seconds())
@@ -148,10 +152,10 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	if err := pinger.Run(); err != nil {
 		_ = level.Info(logger).Log("msg", "failed to run ping", "err", err.Error())
-		return false
+		return false, 0
 	}
 
-	return pinger.PacketsSent >= int(module.ReqSuccessCount) && pinger.PacketsRecv >= int(module.ReqSuccessCount)
+	return pinger.PacketsSent >= int(module.ReqSuccessCount) && pinger.PacketsRecv >= int(module.ReqSuccessCount), duration
 }
 
 type icmpLogger struct {

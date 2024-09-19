@@ -472,13 +472,19 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 	rCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
-	if r.prober.Probe(rCtx, r.target, registry, logger) {
+	success, duration := r.prober.Probe(rCtx, r.target, registry, logger)
+
+	if success {
 		successGauge.Set(1)
 	} else {
 		successGauge.Set(0)
 	}
 
-	durationGauge.Set(float64(time.Since(start).Microseconds()) / 1e6)
+	if duration != 0 {
+		durationGauge.Set(duration)
+	} else {
+		durationGauge.Set(float64(time.Since(start).Microseconds()) / 1e6)
+	}
 
 	mfs, err := registry.Gather()
 

@@ -1259,14 +1259,14 @@ func (p testProber) Name() string {
 	return "test prober"
 }
 
-func (p testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+func (p testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
 	counter := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "test_counter",
 	})
 	registry.MustRegister(counter)
 	counter.Inc()
 
-	return true
+	return true, 1
 }
 
 type testLabelsLimiter struct {
@@ -1778,15 +1778,15 @@ func (p testProberB) Name() string {
 	return "test prober"
 }
 
-func (p *testProberB) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) bool {
+func (p *testProberB) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
 	p.execCount++
 
 	if p.failureCount < p.wantedFailures {
 		p.failureCount++
-		return false
+		return false, 0
 	}
 
-	return true
+	return true, 1
 }
 
 type testProbeFactory struct {
