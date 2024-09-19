@@ -2,6 +2,19 @@
 ## [Unreleased]
 
 
+<a name="v0.27.0"></a>
+## [v0.27.0] - 2024-09-19
+### K6runner
+- promote log messages surfacing errors to warning level
+- error if script timeout is not set
+
+### Scraper
+- use check frequency as the context deadline for k6 checks
+
+### Scripts
+- update go to 1.23
+
+
 <a name="v0.26.0"></a>
 ## [v0.26.0] - 2024-09-02
 ### Dependabot
@@ -140,11 +153,6 @@
 
 ### Fix
 - missing http check regex validations ([#612](https://github.com/grafana/synthetic-monitoring-agent/issues/612))
-
-
-<a name="v0.20.1"></a>
-## [v0.20.1] - 2024-02-12
-### Fix
 - add test for HTTP check with a long URL
 
 
@@ -685,7 +693,8 @@
 <a name="v0.0.1"></a>
 ## v0.0.1 - 2020-06-24
 
-[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.26.0...HEAD
+[Unreleased]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.27.0...HEAD
+[v0.27.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.26.0...v0.27.0
 [v0.26.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.25.2...v0.26.0
 [v0.25.2]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.25.1...v0.25.2
 [v0.25.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.25.0...v0.25.1
@@ -699,8 +708,7 @@
 [v0.23.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.23.0...v0.23.1
 [v0.23.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.22.0...v0.23.0
 [v0.22.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.21.0...v0.22.0
-[v0.21.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.20.1...v0.21.0
-[v0.20.1]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.20.1
+[v0.21.0]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.6...v0.21.0
 [v0.19.6]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.5...v0.19.6
 [v0.19.5]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.4...v0.19.5
 [v0.19.4]: https://github.com/grafana/synthetic-monitoring-agent/compare/v0.19.3...v0.19.4
