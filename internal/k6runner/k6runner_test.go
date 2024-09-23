@@ -21,6 +21,7 @@ import (
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -47,7 +48,7 @@ func TestNew(t *testing.T) {
 	require.IsType(t, &HttpRunner{}, r4)
 }
 
-func TestNewScript(t *testing.T) {
+func TestNewWithScript(t *testing.T) {
 	runner := New(RunnerOpts{Uri: "k6"})
 	script := Script{
 		Script: []byte("test"),
@@ -61,6 +62,48 @@ func TestNewScript(t *testing.T) {
 	require.NotNil(t, processor)
 	require.Equal(t, script, processor.script)
 	require.Equal(t, runner, processor.runner)
+}
+
+func TestNewScript(t *testing.T) {
+	check := sm.Check{
+		Id:       1,
+		TenantId: 2,
+		Timeout:  1000,
+		Settings: sm.CheckSettings{
+			Scripted: &sm.ScriptedSettings{
+				Script: []byte("test"),
+			},
+		},
+	}
+
+	// Note that NewScript doesn't know how to get the script out of the
+	// sm.Check (because that depends on the specific type of check), so we
+	// are only testing that it uses the correct information from the
+	// provided check and that it places the script in the correct field.
+
+	script := NewScript(check.Settings.Scripted.Script, check)
+	require.Equal(t, check.Settings.Scripted.Script, script.Script)
+	require.Equal(t, check.Timeout, script.Settings.Timeout)
+	require.Len(t, script.Metadata, 3) // If more metadata is added, this test needs to be updated.
+	require.Equal(t, check.Type().String(), script.Metadata["type"])
+	require.Equal(t, strconv.FormatInt(check.Id, 10), script.Metadata["check_id"])
+	require.Equal(t, strconv.FormatInt(check.TenantId, 10), script.Metadata["tenant_id"])
+
+	// Validate that there are no new fields by marshalling to JSON and
+	// unmarshalling back to map[string]interface{}. It's easier to do it
+	// like this instead of using reflection.
+
+	data, err := json.Marshal(script)
+	require.NoError(t, err)
+
+	var m map[string]interface{}
+	err = json.Unmarshal(data, &m)
+	require.NoError(t, err)
+
+	require.Len(t, m, 3) // If more fields are added, this test needs to be updated.
+	require.Contains(t, m, "script")
+	require.Contains(t, m, "settings")
+	require.Contains(t, m, "metadata")
 }
 
 func TestScriptRun(t *testing.T) {

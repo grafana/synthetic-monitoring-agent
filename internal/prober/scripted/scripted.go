@@ -35,13 +35,7 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 
 	p.module = Module{
 		Prober: sm.CheckTypeScripted.String(),
-		Script: k6runner.Script{
-			Script: check.Settings.Scripted.Script,
-			Settings: k6runner.Settings{
-				Timeout: check.Timeout,
-			},
-			// TODO: Add metadata & features here.
-		},
+		Script: k6runner.NewScript(check.Settings.Scripted.Script, check),
 	}
 
 	processor, err := k6runner.NewProcessor(p.module.Script, runner)

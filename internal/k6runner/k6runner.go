@@ -10,11 +10,13 @@ import (
 	"math/rand"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -25,8 +27,9 @@ import (
 
 // Script is a k6 script that a runner is able to run, with some added instructions for that runner to act on.
 type Script struct {
-	Script   []byte   `json:"script"`
-	Settings Settings `json:"settings"`
+	Script   []byte            `json:"script"`
+	Settings Settings          `json:"settings"`
+	Metadata map[string]string `json:"metadata"`
 	// TODO: Add Metadata and Features.
 }
 
@@ -36,6 +39,24 @@ type Settings struct {
 	// requests to remote runners may take longer than this value due to network and other latencies, and thus clients
 	// should wait additional time before aborting outgoing requests.
 	Timeout int64 `json:"timeout"`
+}
+
+// NewScript creates a new Script for the specified script, using settings and
+// metadata from the provided check.
+func NewScript(script []byte, check sm.Check) Script {
+	return Script{
+		Script: script,
+		Settings: Settings{
+			Timeout: check.Timeout,
+		},
+		// TODO: Add metadata & features here.
+		Metadata: map[string]string{
+			"type":      check.Type().String(),
+			"check_id":  strconv.FormatInt(check.Id, 10),
+			"tenant_id": strconv.FormatInt(check.TenantId, 10),
+			// TODO(mem): Add region ID.
+		},
+	}
 }
 
 // ErrNoTimeout is returned by [Runner] implementations if the supplied script has a timeout of zero.
