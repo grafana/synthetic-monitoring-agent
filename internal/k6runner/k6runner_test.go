@@ -696,12 +696,33 @@ func buildId(name string, m *dto.Metric) string {
 }
 
 func TestK6LogsToLogger(t *testing.T) {
-	data := testhelper.MustReadFile(t, "testdata/test.log")
+	t.Parallel()
 
-	var logger testLogger
+	for _, tc := range []struct {
+		name     string
+		filename string
+	}{
+		{
+			name:     "Valid logs",
+			filename: "testdata/test.log",
+		},
+		{
+			name:     "truncated logs",
+			filename: "testdata/test-truncated.log",
+		},
+	} {
+		tc := tc
 
-	err := k6LogsToLogger(data, &logger)
-	require.NoError(t, err)
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			data := testhelper.MustReadFile(t, tc.filename)
+
+			var logger testLogger
+
+			err := k6LogsToLogger(data, &logger)
+			require.NoError(t, err)
+		})
+	}
 }
 
 type testLogger struct{}
