@@ -392,13 +392,23 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 		return nil, err
 	}
 
+	// Ad-hoc checks that rely on k6 runners need some grace time to give the runner time to communicate a timeout back
+	// to us, instead of both us and the runner timing out at the same time and missing the runner's response. We define
+	// that grace time to be 20 seconds, to be consistent with the grace time used for k6, non ad-hoc checks.
+	timeout := time.Duration(check.Timeout) * time.Millisecond
+	switch check.Type() {
+	case sm.CheckTypeMultiHttp, sm.CheckTypeScripted, sm.CheckTypeBrowser:
+		const k6AdhocGraceTime = 20 * time.Second
+		timeout += k6AdhocGraceTime
+	}
+
 	return &runner{
 		logger:  h.logger,
 		prober:  p,
 		id:      req.AdHocCheck.Id,
 		target:  target,
 		probe:   h.probe.Name,
-		timeout: time.Duration(req.AdHocCheck.Timeout) * time.Millisecond,
+		timeout: timeout,
 	}, nil
 }
 
@@ -531,8 +541,10 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		Msg("ad-hoc result sent to publisher")
 }
 
-type TimeSeries = []prompb.TimeSeries
-type Streams = []logproto.Stream
+type (
+	TimeSeries = []prompb.TimeSeries
+	Streams    = []logproto.Stream
+)
 
 type adhocData struct {
 	tenantId model.GlobalID
