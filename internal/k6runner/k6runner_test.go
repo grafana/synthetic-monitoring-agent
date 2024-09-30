@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -29,6 +30,8 @@ import (
 )
 
 func TestNew(t *testing.T) {
+	t.Parallel()
+
 	r1 := New(RunnerOpts{Uri: "k6"})
 	require.IsType(t, LocalRunner{}, r1)
 	require.Equal(t, "", r1.(LocalRunner).blacklistedIP)
@@ -48,6 +51,8 @@ func TestNew(t *testing.T) {
 }
 
 func TestNewScript(t *testing.T) {
+	t.Parallel()
+
 	runner := New(RunnerOpts{Uri: "k6"})
 	script := Script{
 		Script: []byte("test"),
@@ -64,6 +69,8 @@ func TestNewScript(t *testing.T) {
 }
 
 func TestScriptRun(t *testing.T) {
+	t.Parallel()
+
 	runner := testRunner{
 		metrics: testhelper.MustReadFile(t, "testdata/test.out"),
 		logs:    testhelper.MustReadFile(t, "testdata/test.log"),
@@ -97,6 +104,8 @@ func TestScriptRun(t *testing.T) {
 }
 
 func TestHttpRunnerRun(t *testing.T) {
+	t.Parallel()
+
 	script := Script{
 		Script: testhelper.MustReadFile(t, "testdata/test.js"),
 		Settings: Settings{
@@ -109,10 +118,28 @@ func TestHttpRunnerRun(t *testing.T) {
 		require.Equal(t, http.MethodPost, r.Method)
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
-		var req Script
+		var req HTTPRunRequest
 		err := json.NewDecoder(r.Body).Decode(&req)
-		require.NoError(t, err)
-		require.Equal(t, script, req)
+		if err != nil {
+			t.Logf("decoding body: %v", err)
+			t.Fail()
+			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
+			return
+		}
+
+		if !reflect.DeepEqual(script, req.Script) {
+			t.Log("unexpected script in request")
+			t.Fail()
+			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
+			return
+		}
+
+		if time.Since(req.NotAfter) > time.Hour || time.Until(req.NotAfter) > time.Hour {
+			t.Log("unexpected value for NotAfter too far from the present")
+			t.Fail()
+			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -142,6 +169,8 @@ func TestHttpRunnerRun(t *testing.T) {
 }
 
 func TestHttpRunnerRunError(t *testing.T) {
+	t.Parallel()
+
 	script := Script{
 		Script: testhelper.MustReadFile(t, "testdata/test.js"),
 		Settings: Settings{
