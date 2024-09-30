@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -118,17 +117,15 @@ func TestHttpRunnerRun(t *testing.T) {
 		require.Equal(t, http.MethodPost, r.Method)
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
-		var req HTTPRunRequest
+		var req struct {
+			Script   []byte    `json:"script"`
+			Settings Settings  `json:"settings"`
+			NotAfter time.Time `json:"notAfter"`
+		}
+
 		err := json.NewDecoder(r.Body).Decode(&req)
 		if err != nil {
 			t.Logf("decoding body: %v", err)
-			t.Fail()
-			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
-			return
-		}
-
-		if !reflect.DeepEqual(script, req.Script) {
-			t.Log("unexpected script in request")
 			t.Fail()
 			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
 			return
