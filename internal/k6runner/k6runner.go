@@ -353,7 +353,7 @@ func (r requestError) Error() string {
 
 // HTTPRunRequest
 type HTTPRunRequest struct {
-	Script   Script    `json:",inline"`
+	Script   `json:",inline"`
 	NotAfter time.Time `json:"notAfter"`
 }
 
