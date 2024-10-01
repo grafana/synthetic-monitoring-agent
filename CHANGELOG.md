@@ -1,7 +1,3 @@
-<a name="unreleased"></a>
-## [Unreleased]
-
-
 <a name="v0.28.0"></a>
 ## [v0.28.0] - 2024-09-19
 ### Feature

@@ -1,0 +1,49 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve release app credentials
+        id: get-secrets
+        uses: grafana/shared-workflows/actions/get-vault-secrets@main
+        with:
+          repo_secrets: |
+            GITHUB_APP_ID=github-app:app-id
+            GITHUB_APP_INSTALLATION_ID=github-app:app-installation-id
+            GITHUB_APP_PRIVATE_KEY=github-app:private-key
+
+      - name: Get repository name
+        env:
+          REPOSITORY: ${{ github.repository }}
+        id: info
+        run: echo "repository_name=${REPOSITORY#*/}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@3378cda945da322a8db4b193e19d46352ebe2de5 # v1
+        with:
+          app-id: ${{ env.GITHUB_APP_ID }}
+          private-key: ${{ env.GITHUB_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.info.outputs.repository_name }}
+
+      - name: Release
+        id: release
+        uses: googleapis/release-please-action@7987652d64b4581673a76e33ad5e98e3dd56832f # v4
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          target-branch: main
+          config-file: .github/release-please/release-please-config.json
+          manifest-file: .github/release-please/.release-please-manifest.json
