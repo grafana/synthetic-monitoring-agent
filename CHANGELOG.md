@@ -1,4 +1,11 @@
 <a name="v0.28.0"></a>
+## [0.28.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.28.0...v0.28.1) (2024-10-01)
+
+
+### Release
+
+* internal release ([#918](https://github.com/grafana/synthetic-monitoring-agent/issues/918)) ([60727a5](https://github.com/grafana/synthetic-monitoring-agent/commit/60727a54971e13f4f46f90f65db2e4253c9f6e00))
+
 ## [v0.28.0] - 2024-09-19
 ### Feature
 - add retries to ICMP prober ([#896](https://github.com/grafana/synthetic-monitoring-agent/issues/896))
