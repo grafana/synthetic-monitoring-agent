@@ -16,6 +16,8 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Script is a k6 script that a runner is able to run, with some added instructions for that runner to act on.
@@ -92,14 +94,26 @@ var (
 func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) (bool, error) {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
-	// TODO: This error message is okay to be Debug for local k6 execution, but should be Error for remote runners.
-	result, err := k6runner.Run(ctx, r.script)
+	k6Ctx, k6Span := trace.SpanFromContext(ctx).TracerProvider().Tracer("").Start(ctx, "k6 processor")
+	result, err := k6runner.Run(k6Ctx, r.script)
 	if err != nil {
+		// TODO: This error message is okay to be Debug for local k6 execution, but should be Error for remote runners.
 		internalLogger.Debug().
 			Err(err).
 			Msg("k6 script exited with error code")
+		k6Span.RecordError(err)
+		k6Span.End()
 		return false, err
 	}
+
+	k6Span.SetAttributes(
+		attribute.String("error", result.Error),
+		attribute.String("errorCode", result.ErrorCode),
+		attribute.Int("metricsSizeBytes", len(result.Metrics)),
+		attribute.Int("logsSizeBytes", len(result.Logs)),
+	)
+
+	k6Span.End()
 
 	// If only one of Error and ErrorCode are non-empty, the proxy is misbehaving.
 	switch {
@@ -126,11 +140,15 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		}()
 	}
 
+	_, reportTelemetrySpan := trace.SpanFromContext(ctx).TracerProvider().Tracer("").Start(ctx, "report telemetry")
+
 	// Send logs before metrics to make sure logs are submitted even if the metrics output is not parsable.
 	if err := k6LogsToLogger(result.Logs, logger); err != nil {
 		internalLogger.Debug().
 			Err(err).
 			Msg("cannot load logs to logger")
+		reportTelemetrySpan.RecordError(err)
+		reportTelemetrySpan.End()
 		return false, err
 	}
 
@@ -143,6 +161,8 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		internalLogger.Debug().
 			Err(err).
 			Msg("cannot extract metric samples")
+		reportTelemetrySpan.RecordError(err)
+		reportTelemetrySpan.End()
 		return false, err
 	}
 
@@ -150,8 +170,12 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		internalLogger.Error().
 			Err(err).
 			Msg("cannot register collector")
+		reportTelemetrySpan.RecordError(err)
+		reportTelemetrySpan.End()
 		return false, err
 	}
+
+	reportTelemetrySpan.End()
 
 	// https://github.com/grafana/sm-k6-runner/blob/b811839d444a7e69fd056b0a4e6ccf7e914197f3/internal/mq/runner.go#L51
 	switch result.ErrorCode {
