@@ -20,6 +20,8 @@ import (
 	prom "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	logproto "github.com/grafana/loki/pkg/push"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
@@ -61,26 +63,28 @@ type Telemeter interface {
 }
 
 type Scraper struct {
-	publisher     pusher.Publisher
-	cancel        context.CancelFunc
-	checkName     string
-	target        string
-	logger        zerolog.Logger
-	check         model.Check
-	probe         sm.Probe
-	prober        prober.Prober
-	labelsLimiter LabelsLimiter
-	stop          chan struct{}
-	metrics       Metrics
-	summaries     map[uint64]prometheus.Summary
-	histograms    map[uint64]prometheus.Histogram
-	telemeter     Telemeter
+	publisher      pusher.Publisher
+	cancel         context.CancelFunc
+	checkName      string
+	target         string
+	logger         zerolog.Logger
+	tracerProvider trace.TracerProvider
+	check          model.Check
+	probe          sm.Probe
+	prober         prober.Prober
+	labelsLimiter  LabelsLimiter
+	stop           chan struct{}
+	metrics        Metrics
+	summaries      map[uint64]prometheus.Summary
+	histograms     map[uint64]prometheus.Histogram
+	telemeter      Telemeter
 }
 
 type Factory func(
 	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe,
 	features feature.Collection,
 	logger zerolog.Logger,
+	tracerProvider trace.TracerProvider,
 	metrics Metrics,
 	k6runner k6runner.Runner,
 	labelsLimiter LabelsLimiter,
@@ -114,32 +118,35 @@ func New(
 	ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe,
 	features feature.Collection,
 	logger zerolog.Logger,
+	tracerProvider trace.TracerProvider,
 	metrics Metrics,
 	k6runner k6runner.Runner,
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
-		Probe:         probe,
-		Publisher:     publisher,
-		Logger:        logger,
-		Metrics:       metrics,
-		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id, features),
-		LabelsLimiter: labelsLimiter,
-		Telemeter:     telemeter,
+		Probe:          probe,
+		Publisher:      publisher,
+		Logger:         logger,
+		TracerProvider: tracerProvider,
+		Metrics:        metrics,
+		ProbeFactory:   prober.NewProberFactory(k6runner, probe.Id, features),
+		LabelsLimiter:  labelsLimiter,
+		Telemeter:      telemeter,
 	})
 }
 
 var _ Factory = New
 
 type ScraperOpts struct {
-	Probe         sm.Probe
-	Publisher     pusher.Publisher
-	Logger        zerolog.Logger
-	Metrics       Metrics
-	ProbeFactory  prober.ProberFactory
-	LabelsLimiter LabelsLimiter
-	Telemeter     Telemeter
+	Probe          sm.Probe
+	Publisher      pusher.Publisher
+	Logger         zerolog.Logger
+	TracerProvider trace.TracerProvider
+	Metrics        Metrics
+	ProbeFactory   prober.ProberFactory
+	LabelsLimiter  LabelsLimiter
+	Telemeter      Telemeter
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
@@ -163,20 +170,21 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 	}
 
 	return &Scraper{
-		publisher:     opts.Publisher,
-		cancel:        cancel,
-		checkName:     checkName,
-		target:        target,
-		logger:        logger,
-		check:         check,
-		probe:         opts.Probe,
-		prober:        smProber,
-		labelsLimiter: opts.LabelsLimiter,
-		stop:          make(chan struct{}),
-		metrics:       opts.Metrics,
-		summaries:     make(map[uint64]prometheus.Summary),
-		histograms:    make(map[uint64]prometheus.Histogram),
-		telemeter:     opts.Telemeter,
+		publisher:      opts.Publisher,
+		cancel:         cancel,
+		checkName:      checkName,
+		target:         target,
+		logger:         logger,
+		tracerProvider: opts.TracerProvider,
+		check:          check,
+		probe:          opts.Probe,
+		prober:         smProber,
+		labelsLimiter:  opts.LabelsLimiter,
+		stop:           make(chan struct{}),
+		metrics:        opts.Metrics,
+		summaries:      make(map[uint64]prometheus.Summary),
+		histograms:     make(map[uint64]prometheus.Histogram),
+		telemeter:      opts.Telemeter,
 	}, nil
 }
 
@@ -524,6 +532,16 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		timeout = time.Duration(s.check.Timeout) * time.Millisecond
 	}
 
+	ctx, checkSpan := s.tracerProvider.Tracer("").Start(ctx, "check")
+	defer checkSpan.End()
+	checkSpan.SetAttributes(
+		attribute.String("type", s.prober.Name()),
+		attribute.Int("regionId", s.check.RegionId),
+		attribute.Int64("tenantId", s.check.TenantId),
+		attribute.String("instance", s.check.Target),
+		attribute.String("job", s.check.Job),
+	)
+
 	success, mfs, err := getProbeMetrics(
 		ctx,
 		s.prober,
@@ -662,6 +680,9 @@ func runProber(
 	logger kitlog.Logger,
 ) bool {
 	start := time.Now()
+	ctx, runSpan := trace.SpanFromContext(ctx).TracerProvider().Tracer("").Start(ctx, "check run")
+	defer runSpan.End()
+	runSpan.SetAttributes(attribute.String("type", prober.Name()))
 
 	_ = level.Info(logger).Log("msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
 
@@ -669,6 +690,7 @@ func runProber(
 	defer cancel()
 
 	success, duration := prober.Probe(checkCtx, target, registry, logger)
+	runSpan.SetAttributes(attribute.Bool("success", success), attribute.Float64("durationSeconds", duration))
 
 	probeDuration := time.Since(start).Seconds()
 
