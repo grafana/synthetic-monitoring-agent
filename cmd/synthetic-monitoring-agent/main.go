@@ -20,6 +20,12 @@ import (
 	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/grpclog"
 
@@ -152,13 +158,7 @@ func run(args []string, stdout io.Writer) error {
 		return fmt.Errorf("invalid API token")
 	}
 
-	baseCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	g, ctx := errgroup.WithContext(baseCtx)
-
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
-
 	zl := zerolog.New(stdout).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
 
 	switch {
@@ -175,6 +175,21 @@ func run(args []string, stdout io.Writer) error {
 	default:
 		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
 	}
+
+	baseCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var tracerProvider trace.TracerProvider = noop.NewTracerProvider()
+	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
+		var err error
+		tracerProvider, err = newTracerProvider(baseCtx)
+		if err != nil {
+			zl.Err(err).Msg("could not configure tracer provider, disabling tracing functionality")
+			tracerProvider = noop.NewTracerProvider()
+		}
+	}
+
+	g, ctx := errgroup.WithContext(baseCtx)
 
 	g.Go(func() error {
 		return signalHandler(ctx, zl.With().Str("subsystem", "signal handler").Logger())
@@ -299,6 +314,7 @@ func run(args []string, stdout io.Writer) error {
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:           conn,
 		Logger:         zl.With().Str("subsystem", "updater").Logger(),
+		TracerProvider: tracerProvider,
 		Backoff:        newConnectionBackoff(),
 		Publisher:      publisher,
 		TenantCh:       tenantCh,
@@ -321,6 +337,7 @@ func run(args []string, stdout io.Writer) error {
 	adhocHandler, err := adhoc.NewHandler(adhoc.HandlerOpts{
 		Conn:           conn,
 		Logger:         zl.With().Str("subsystem", "adhoc").Logger(),
+		TracerProvider: tracerProvider,
 		Backoff:        newConnectionBackoff(),
 		Publisher:      publisher,
 		TenantCh:       tenantCh,
@@ -438,4 +455,32 @@ func setupGoMemLimit(ratio float64) error {
 	}
 
 	return nil
+}
+
+// newTracerProvider creates a TracerProvider configured with the relevant resource attributes, configured to export
+// traces over OTLP+HTTP to the URL defined in the conventional environment variables.
+// Callers should check that either OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT are defined,
+// otherwise otel will return a broken tracer.
+func newTracerProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
+	te, err := otlptracehttp.New(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("starting otelhttp trace exporter: %w", err)
+	}
+
+	res, err := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName("synthetic-monitoring-agent"),
+			semconv.ServiceVersion(version.Short()),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating otel resources: %w", err)
+	}
+
+	return sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(te),
+		sdktrace.WithResource(res),
+	), nil
 }
