@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/rand"
 )
 
@@ -110,8 +113,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script) (*RunResponse, error
 		select {
 		case <-ctx.Done():
 			waitTimer.Stop()
-			// TODO: Log the returned error in the Processor instead.
-			r.logger.Error().Err(err).Msg("retries exhausted")
+			r.logger.Error().Err(err).Msg("retries exhausted") // TODO: Log the returned error in the Processor instead.
 			return nil, fmt.Errorf("cannot retry further: %w", errors.Join(err, ctx.Err()))
 		case <-waitTimer.C:
 		}
@@ -165,7 +167,21 @@ func (r HttpRunner) request(ctx context.Context, script Script) (*RunResponse, e
 
 	req.Header.Add("content-type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	// Build a tracing-enabled http client.
+	httpClient := http.Client{
+		Transport: otelhttp.NewTransport(
+			http.DefaultTransport,
+			otelhttp.WithTracerProvider(trace.SpanFromContext(ctx).TracerProvider()),
+			// Span names do not include method and path by default to avoid cardinality explosion with paths containing
+			// IDs. As this is not the case with this endpoint, we use a custom formatter that includes both.
+			otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+				return fmt.Sprintf("%s %s", r.Method, r.URL.Path)
+			}),
+			otelhttp.WithPropagators(propagation.TraceContext{}), // Send TraceIDs in outgoing requests.
+		),
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		r.logger.Error().Err(err).Msg("sending request")
 

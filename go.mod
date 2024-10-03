@@ -38,6 +38,7 @@ require (
 	github.com/mccutchen/go-httpbin/v2 v2.15.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	github.com/spf13/afero v1.11.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0
 	go.opentelemetry.io/otel v1.30.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.30.0
 	go.opentelemetry.io/otel/sdk v1.30.0
