@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-logfmt/logfmt"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -20,17 +21,50 @@ import (
 
 // Script is a k6 script that a runner is able to run, with some added instructions for that runner to act on.
 type Script struct {
-	Script   []byte   `json:"script"`
+	// Script is the blob of bytes that is to be run.
+	Script []byte `json:"script"`
+	// Settings is a common representation of the fields common to all implementation-specific check settings that the
+	// runners are interested about.
 	Settings Settings `json:"settings"`
-	// TODO: Add Metadata and Features.
+	// CheckInfo holds information about the SM check that triggered this script.
+	CheckInfo CheckInfo `json:"check"`
+	// TODO: Add features.
 }
 
+// Settings is a common representation of the fields common to all implementation-specific check settings that the
+// runners are interested about.
 type Settings struct {
 	// Timeout for k6 run, in milliseconds. This value is a configuration value for remote runners, which will instruct
 	// them to return an error if the operation takes longer than this time to complete. Clients should expect that
 	// requests to remote runners may take longer than this value due to network and other latencies, and thus clients
 	// should wait additional time before aborting outgoing requests.
 	Timeout int64 `json:"timeout"`
+}
+
+// CheckInfo holds information about the SM check that triggered this script.
+type CheckInfo struct {
+	// Type is the string representation of the check type this script belongs to (browser, scripted, multihttp, etc.)
+	Type string `json:"type"`
+	// Metadata is a collection of key/value pairs containing information about this check, such as check and tenant ID.
+	// It is loosely typed on purpose: Metadata should only be used for informational properties that will make its way
+	// into telemetry, and not for making decision on it.
+	Metadata map[string]any `json:"metadata"`
+}
+
+// CheckInfoFromSM returns a CheckInfo from the information of the given SM check.
+func CheckInfoFromSM(smc sm.Check) CheckInfo {
+	ci := CheckInfo{
+		Metadata: map[string]any{},
+	}
+
+	ci.Type = smc.Type().String()
+	ci.Metadata["id"] = smc.Id
+	ci.Metadata["tenantID"] = smc.TenantId
+	ci.Metadata["regionID"] = smc.RegionId
+	ci.Metadata["created"] = smc.Created
+	ci.Metadata["modified"] = smc.Modified
+
+	return ci
 }
 
 // ErrNoTimeout is returned by [Runner] implementations if the supplied script has a timeout of zero.
