@@ -28,7 +28,7 @@ require (
 
 require (
 	github.com/KimMachineGun/automemlimit v0.6.1
-	github.com/alecthomas/units v0.0.0-20240626203959-61d1e3462e30
+	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/go-kit/log v0.2.1
 	github.com/go-ping/ping v1.1.0
