@@ -191,7 +191,7 @@ steps:
   settings:
     add_ci_labels: true
     command: 'submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name
-      deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter mode=dev
+      deploy-synthetic-monitoring-agent-dev-$(./scripts/version) --parameter mode=dev
       --parameter dockertag=$(./scripts/version) --parameter commit=${DRONE_COMMIT}
       --parameter commit_author=${DRONE_COMMIT_AUTHOR} --parameter commit_link=${DRONE_COMMIT_LINK} '
     namespace: synthetic-monitoring-cd
@@ -208,7 +208,7 @@ steps:
   settings:
     add_ci_labels: true
     command: 'submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name
-      deploy-synthetic-monitoring-agent-$(./scripts/version) --parameter mode=release
+      deploy-synthetic-monitoring-agent-release-$(./scripts/version) --parameter mode=release
       --parameter dockertag=$(./scripts/version) --parameter commit=${DRONE_COMMIT}
       --parameter commit_author=${DRONE_COMMIT_AUTHOR} --parameter commit_link=${DRONE_COMMIT_LINK} '
     namespace: synthetic-monitoring-cd
