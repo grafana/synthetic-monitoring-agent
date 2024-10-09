@@ -40,7 +40,7 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 			Settings: k6runner.Settings{
 				Timeout: check.Timeout,
 			},
-			CheckInfo: k6runner.CheckInfo{}.FromSM(check),
+			CheckInfo: k6runner.CheckInfoFromSM(check),
 		},
 	}
 
