@@ -26,8 +26,8 @@ type Script struct {
 	// Settings is a common representation of the fields common to all implementation-specific check settings that the
 	// runners are interested about.
 	Settings Settings `json:"settings"`
-	// Check holds information about the SM check that triggered this script.
-	Check CheckInfo `json:"check"`
+	// CheckInfo holds information about the SM check that triggered this script.
+	CheckInfo CheckInfo `json:"check"`
 	// TODO: Add features.
 }
 
