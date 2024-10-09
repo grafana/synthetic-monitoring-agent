@@ -51,19 +51,19 @@ type CheckInfo struct {
 	Metadata map[string]any `json:"metadata"`
 }
 
-// FromSM populates the given Check from the information of the SM check. Existing fields are overwritten.
-func (c CheckInfo) FromSM(smc sm.Check) CheckInfo {
-	c.Type = smc.Type().String()
-
-	if c.Metadata == nil {
-		c.Metadata = map[string]any{}
+// CheckInfoFromSM returns a CheckInfo from the information of the given SM check.
+func CheckInfoFromSM(smc sm.Check) CheckInfo {
+	ci := CheckInfo{
+		Metadata: map[string]any{},
 	}
-	c.Metadata["id"] = smc.Id
-	c.Metadata["tenantID"] = smc.TenantId
-	c.Metadata["created"] = smc.Created
-	c.Metadata["modified"] = smc.Modified
 
-	return c
+	ci.Type = smc.Type().String()
+	ci.Metadata["id"] = smc.Id
+	ci.Metadata["tenantID"] = smc.TenantId
+	ci.Metadata["created"] = smc.Created
+	ci.Metadata["modified"] = smc.Modified
+
+	return ci
 }
 
 // ErrNoTimeout is returned by [Runner] implementations if the supplied script has a timeout of zero.

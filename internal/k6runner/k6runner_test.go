@@ -107,7 +107,7 @@ func TestCheckInfoFromSM(t *testing.T) {
 		},
 	}
 
-	ci := CheckInfo{}.FromSM(check)
+	ci := CheckInfoFromSM(check)
 
 	require.Equal(t, sm.CheckTypeBrowser.String(), ci.Type)
 	require.Equal(t, map[string]any{
