@@ -11,6 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
@@ -32,6 +34,7 @@ import (
 type Handler struct {
 	api                          apiInfo
 	logger                       zerolog.Logger
+	tracerProvider               trace.TracerProvider
 	features                     feature.Collection
 	backoff                      Backoffer
 	probe                        *sm.Probe
@@ -101,6 +104,7 @@ func (b constantBackoff) Duration() time.Duration { return time.Duration(b) }
 type HandlerOpts struct {
 	Conn           ClientConn
 	Logger         zerolog.Logger
+	TracerProvider trace.TracerProvider
 	Backoff        Backoffer
 	Publisher      pusher.Publisher
 	TenantCh       chan<- sm.Tenant
@@ -133,6 +137,7 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 
 	h := &Handler{
 		logger:                       opts.Logger,
+		tracerProvider:               opts.TracerProvider,
 		features:                     opts.Features,
 		backoff:                      opts.Backoff,
 		publisher:                    opts.Publisher,
@@ -349,6 +354,15 @@ func (h *Handler) processAdHocChecks(ctx context.Context, client sm.AdHocChecks_
 }
 
 func (h *Handler) handleAdHocCheck(ctx context.Context, ahReq *sm.AdHocRequest) error {
+	ctx, adHocSpan := h.tracerProvider.Tracer("").Start(ctx, "adHoc check")
+	defer adHocSpan.End()
+	adHocSpan.SetAttributes(
+		attribute.String("type", ahReq.AdHocCheck.Type().String()),
+		attribute.Int64("tenantId", ahReq.AdHocCheck.TenantId),
+		attribute.String("id", ahReq.AdHocCheck.Id),
+	)
+	adHocSpan.SetAttributes(attribute.String("type", ahReq.AdHocCheck.Type().String()))
+
 	h.logger.Debug().Interface("request", ahReq).Msg("got ad-hoc check request")
 
 	h.metrics.opsCounter.WithLabelValues(ahReq.AdHocCheck.Type().String()).Inc()
@@ -479,10 +493,14 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 
 	start := time.Now()
 
+	ctx, runSpan := trace.SpanFromContext(ctx).TracerProvider().Tracer("").Start(ctx, "adHoc run")
+	defer runSpan.End()
+
 	rCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
 	success, duration := r.prober.Probe(rCtx, r.target, registry, logger)
+	runSpan.SetAttributes(attribute.Bool("success", success), attribute.Float64("durationSeconds", duration))
 
 	if success {
 		successGauge.Set(1)
