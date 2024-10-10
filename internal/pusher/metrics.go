@@ -30,9 +30,9 @@ type Metrics struct {
 }
 
 var (
-	labelsWithTenantType       = []string{"regionID", "tenantID", "type"}
-	labelsWithTenantTypeStatus = []string{"regionID", "tenantID", "type", "status"}
-	labelsWithTenantTypeReason = []string{"regionID", "tenantID", "type", "reason"}
+	labelsWithTenantType       = []string{"regionId", "tenantId", "type"}
+	labelsWithTenantTypeStatus = []string{"regionId", "tenantId", "type", "status"}
+	labelsWithTenantTypeReason = []string{"regionId", "tenantId", "type", "reason"}
 )
 
 // NewMetrics returns a new set of publisher metrics registered in the given registerer.
@@ -132,8 +132,8 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 // already included.
 func (m Metrics) WithTenant(localID int64, regionID int) Metrics {
 	labels := prometheus.Labels{
-		"regionID": strconv.FormatInt(int64(regionID), 10),
-		"tenantID": strconv.FormatInt(localID, 10),
+		"regionId": strconv.FormatInt(int64(regionID), 10),
+		"tenantId": strconv.FormatInt(localID, 10),
 	}
 	return Metrics{
 		PushCounter:       m.PushCounter.MustCurryWith(labels),
