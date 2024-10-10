@@ -55,7 +55,7 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 			Settings: k6runner.Settings{
 				Timeout: check.Timeout,
 			},
-			// TODO: Add metadata & features here.
+			CheckInfo: k6runner.CheckInfoFromSM(check),
 		},
 	}
 
