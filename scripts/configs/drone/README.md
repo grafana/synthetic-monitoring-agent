@@ -1,6 +1,6 @@
 # Drone's Configuration
 
-The configuration is signed to prevent tampering from non-Grafana employees ([ref](https://github.com/grafana/deployment_tools/blob/master/docs/infrastructure/drone/signing.md)).
+The configuration is signed to prevent tampering from non-Grafana employees ([ref](https://github.com/grafana/deployment_tools/blob/master/docs/platform/drone/signing.md)).
 
 To modify the Drone definition:
 
