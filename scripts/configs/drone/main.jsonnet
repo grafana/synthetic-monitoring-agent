@@ -213,7 +213,7 @@ local docker_publish_with_browser(repo, auth, tag, os, arch) =
         token: { from_secret: 'argo_token' },
         command: std.strReplace(|||
           submit --from workflowtemplate/deploy-synthetic-monitoring-agent
-          --name deploy-synthetic-monitoring-agent-$(./scripts/version)
+          --name deploy-synthetic-monitoring-agent-dev-$(./scripts/version)
           --parameter mode=dev
           --parameter dockertag=$(./scripts/version)
           --parameter commit=${DRONE_COMMIT}
@@ -234,7 +234,7 @@ local docker_publish_with_browser(repo, auth, tag, os, arch) =
         token: { from_secret: 'argo_token' },
         command: std.strReplace(|||
           submit --from workflowtemplate/deploy-synthetic-monitoring-agent
-          --name deploy-synthetic-monitoring-agent-$(./scripts/version)
+          --name deploy-synthetic-monitoring-agent-release-$(./scripts/version)
           --parameter mode=release
           --parameter dockertag=$(./scripts/version)
           --parameter commit=${DRONE_COMMIT}
