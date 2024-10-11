@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
 	"github.com/rs/zerolog"
@@ -19,15 +20,17 @@ func TestName(t *testing.T) {
 
 func TestNewProber(t *testing.T) {
 	testcases := map[string]struct {
-		input       sm.Check
+		input       model.Check
 		expected    Prober
 		ExpectError bool
 	}{
 		"default": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Tcp: &sm.TcpSettings{},
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Tcp: &sm.TcpSettings{},
+					},
 				},
 			},
 			expected: Prober{
@@ -44,10 +47,12 @@ func TestNewProber(t *testing.T) {
 			ExpectError: false,
 		},
 		"no-settings": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Tcp: nil,
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Tcp: nil,
+					},
 				},
 			},
 			expected:    Prober{},

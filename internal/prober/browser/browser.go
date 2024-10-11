@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,7 +27,7 @@ type Prober struct {
 	processor *k6runner.Processor
 }
 
-func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Browser == nil {

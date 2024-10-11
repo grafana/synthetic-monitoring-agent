@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http/testserver"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -28,12 +29,12 @@ func TestName(t *testing.T) {
 
 func TestNewProber(t *testing.T) {
 	testcases := map[string]struct {
-		input       sm.Check
+		input       model.Check
 		expected    Prober
 		ExpectError bool
 	}{
 		"default": {
-			input: sm.Check{
+			input: model.Check{Check: sm.Check{
 				Id:     3,
 				Target: "www.grafana.com",
 				Settings: sm.CheckSettings{
@@ -43,7 +44,7 @@ func TestNewProber(t *testing.T) {
 						},
 					},
 				},
-			},
+			}},
 			expected: Prober{
 				config: getDefaultModule().
 					addHttpHeader("X-Sm-Id", "3-3"). // is checkId twice since probeId is unavailable here
@@ -52,26 +53,28 @@ func TestNewProber(t *testing.T) {
 			ExpectError: false,
 		},
 		"no-settings": {
-			input: sm.Check{
+			input: model.Check{Check: sm.Check{
 				Id:     1,
 				Target: "www.grafana.com",
 				Settings: sm.CheckSettings{
 					Http: nil,
 				},
-			},
+			}},
 			expected:    Prober{},
 			ExpectError: true,
 		},
 		"headers": {
-			input: sm.Check{
-				Id:     5,
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Http: &sm.HttpSettings{
-						Headers: []string{
-							"uSeR-aGeNt: test-user-agent",
-							"some-header: some-value",
-							"x-SM-iD: 3232-32",
+			input: model.Check{
+				Check: sm.Check{
+					Id:     5,
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Http: &sm.HttpSettings{
+							Headers: []string{
+								"uSeR-aGeNt: test-user-agent",
+								"some-header: some-value",
+								"x-SM-iD: 3232-32",
+							},
 						},
 					},
 				},
@@ -207,19 +210,21 @@ func TestProbe(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			target := tc.srvSettings.URL(srv.Listener.Addr().String())
-			check := sm.Check{
-				Id:        1,
-				TenantId:  1,
-				Frequency: 10000,
-				Timeout:   1000,
-				Enabled:   true,
-				Settings: sm.CheckSettings{
-					Http: &tc.settings,
+			check := model.Check{
+				Check: sm.Check{
+					Id:        1,
+					TenantId:  1,
+					Frequency: 10000,
+					Timeout:   1000,
+					Enabled:   true,
+					Settings: sm.CheckSettings{
+						Http: &tc.settings,
+					},
+					Probes:           []int64{1},
+					Target:           target,
+					Job:              "test",
+					BasicMetricsOnly: true,
 				},
-				Probes:           []int64{1},
-				Target:           target,
-				Job:              "test",
-				BasicMetricsOnly: true,
 			}
 
 			t.Log(check.Target)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tls"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -20,7 +21,7 @@ type Prober struct {
 	config config.Module
 }
 
-func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger) (Prober, error) {
 	if check.Settings.Tcp == nil {
 		return Prober{}, errUnsupportedCheck
 	}

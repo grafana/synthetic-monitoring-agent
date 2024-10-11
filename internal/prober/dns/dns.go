@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns/internal/bbe/config"
 	bbeprober "github.com/grafana/synthetic-monitoring-agent/internal/prober/dns/internal/bbe/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
@@ -21,7 +22,7 @@ type Prober struct {
 	experimental bool
 }
 
-func NewProber(check sm.Check) (Prober, error) {
+func NewProber(check model.Check) (Prober, error) {
 	if check.Settings.Dns == nil {
 		return Prober{}, errUnsupportedCheck
 	}
@@ -35,7 +36,7 @@ func NewProber(check sm.Check) (Prober, error) {
 	}, nil
 }
 
-func NewExperimentalProber(check sm.Check) (Prober, error) {
+func NewExperimentalProber(check model.Check) (Prober, error) {
 	p, err := NewProber(check)
 	if err != nil {
 		return p, err

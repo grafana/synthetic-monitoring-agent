@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -97,13 +98,16 @@ func TestScriptRun(t *testing.T) {
 func TestCheckInfoFromSM(t *testing.T) {
 	t.Parallel()
 
-	check := sm.Check{
-		Id:       69,
-		TenantId: 1234,
-		Created:  1234.5,
-		Modified: 12345.6,
-		Settings: sm.CheckSettings{
-			Browser: &sm.BrowserSettings{}, // Make it non-nil so type is Browser.
+	check := model.Check{
+		RegionId: 4,
+		Check: sm.Check{
+			Id:       69,
+			TenantId: 1234,
+			Created:  1234.5,
+			Modified: 12345.6,
+			Settings: sm.CheckSettings{
+				Browser: &sm.BrowserSettings{}, // Make it non-nil so type is Browser.
+			},
 		},
 	}
 
@@ -113,6 +117,7 @@ func TestCheckInfoFromSM(t *testing.T) {
 	require.Equal(t, map[string]any{
 		"id":       check.Id,
 		"tenantID": check.TenantId,
+		"regionID": check.RegionId,
 		"created":  check.Created,
 		"modified": check.Modified,
 	}, ci.Metadata)
