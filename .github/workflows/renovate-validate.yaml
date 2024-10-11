@@ -10,5 +10,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@8ade135a41bc03ea155e62e844d188df1ea18608 # v4.1.0
-      - run: |-
-          docker run -i --rm -v $(realpath .):/repo -w /repo --entrypoint renovate-config-validator ghcr.io/renovatebot/renovate --strict
+      - name: Renovate config validator
+        run: |-
+          # Renovate updates the line below. Please keep its formatting as it is.
+          export RENOVATE_IMAGE=ghcr.io/renovatebot/renovate:37.420.1@sha256:528f003c9aa77f6e916e3f9f5cc2fb9ae16fcf285af66f412a34325124f4a00e
+          docker run -i --rm -v $(realpath .):/repo -w /repo --entrypoint renovate-config-validator "$RENOVATE_IMAGE" --strict
