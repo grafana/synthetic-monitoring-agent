@@ -86,8 +86,8 @@
         "^\\.github/workflows/.*\\.ya?ml$",
       ],
       "matchStrings": [
-        "renovate-version: (?<currentValue>\\S+)",
-        "RENOVATE_IMAGE=ghcr.io/renovatebot/renovate:(?<currentValue>\\S+)"
+        "renovate-version: (?<currentValue>[^@\\s]+)(?:@(?<currentDigest>\\S+))?",
+        "RENOVATE_IMAGE=ghcr.io/renovatebot/renovate:(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>\\S+))?"
       ]
     }
   ],
