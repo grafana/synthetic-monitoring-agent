@@ -20,6 +20,7 @@ import (
 	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
+	otelGlobal "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -79,6 +80,7 @@ func run(args []string, stdout io.Writer) error {
 			AutoMemLimit         bool
 			MemLimitRatio        float64
 			DisableK6            bool
+			OTLPEndpoint         string
 		}{
 			GrpcApiServerAddr: "localhost:4031",
 			HttpListenAddr:    "localhost:4050",
@@ -110,6 +112,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.DisableK6, "disable-k6", config.DisableK6, "disables running k6 checks on this probe")
 	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
 	flags.Var(&features, "features", "optional feature flags")
+	flags.StringVar(&config.OTLPEndpoint, "otlp-endpoint", config.OTLPEndpoint, "OTLP endpoint for OTEL exporter")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -179,16 +182,6 @@ func run(args []string, stdout io.Writer) error {
 	baseCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var tracerProvider trace.TracerProvider = noop.NewTracerProvider()
-	if os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT") != "" || os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") != "" {
-		var err error
-		tracerProvider, err = newTracerProvider(baseCtx)
-		if err != nil {
-			zl.Err(err).Msg("could not configure tracer provider, disabling tracing functionality")
-			tracerProvider = noop.NewTracerProvider()
-		}
-	}
-
 	g, ctx := errgroup.WithContext(baseCtx)
 
 	g.Go(func() error {
@@ -222,6 +215,15 @@ func run(args []string, stdout io.Writer) error {
 	} else {
 		zl.Info().Msg("disabling k6 checks")
 	}
+
+	tracerProvider, err := newTracerProvider(ctx, config.OTLPEndpoint, flags.Name())
+	if err != nil {
+		zl.Warn().Err(err).Msg("could not configure tracer provider, disabling tracing functionality")
+		tracerProvider = noop.NewTracerProvider()
+	}
+
+	// Set the global tracer provider to no-op, in case some library tries to obtain one that way.
+	otelGlobal.SetTracerProvider(noop.NewTracerProvider())
 
 	promRegisterer := prometheus.NewRegistry()
 
@@ -457,26 +459,44 @@ func setupGoMemLimit(ratio float64) error {
 	return nil
 }
 
-// newTracerProvider creates a TracerProvider configured with the relevant resource attributes, configured to export
-// traces over OTLP+HTTP to the URL defined in the conventional environment variables.
-// Callers should check that either OTEL_EXPORTER_OTLP_ENDPOINT or OTEL_EXPORTER_OTLP_TRACES_ENDPOINT are defined,
-// otherwise otel will return a broken tracer.
-func newTracerProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
-	te, err := otlptracehttp.New(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("starting otelhttp trace exporter: %w", err)
+// newTracerProvider creates a TracerProvider configured with the relevant
+// resource attributes, configured to export traces over OTLP+HTTP to the
+// specified endpoint. The provided name will be used to identify the service
+// in traces.
+//
+// The context is needed so that the exporter can be stopped when the context
+// is cancelled, so it's probably a good idea to use a context that is
+// cancelled when the program is shutting down.
+//
+// If no endpoint is provided, a no-op tracer provider is returned and no error
+// is reported.
+//
+// After this function returns successfully, the tracer exporter would have
+// been started.
+func newTracerProvider(ctx context.Context, endpoint, name string) (trace.TracerProvider, error) {
+	if endpoint == "" {
+		return noop.NewTracerProvider(), nil
+	}
+
+	if _, err := url.Parse(endpoint); err != nil {
+		return nil, fmt.Errorf("invalid OTLP endpoint URL: %w", err)
 	}
 
 	res, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceName("synthetic-monitoring-agent"),
+			semconv.ServiceName(name),
 			semconv.ServiceVersion(version.Short()),
 		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("creating otel resources: %w", err)
+	}
+
+	te, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(endpoint))
+	if err != nil {
+		return nil, fmt.Errorf("starting otelhttp trace exporter: %w", err)
 	}
 
 	return sdktrace.NewTracerProvider(
