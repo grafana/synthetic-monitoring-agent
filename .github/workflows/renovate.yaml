@@ -20,7 +20,7 @@ jobs:
           app_id: ${{ secrets.RENOVATEGRAFANA_ID }}
           private_key: ${{ secrets.RENOVATEGRAFANA_PEM }}
       - name: Self-hosted Renovate
-        uses: renovatebot/github-action@7743ec9e19ceeb61a3862c5d4131e6710195af11 # v40.3.3
+        uses: renovatebot/github-action@80eaf969abf68ad62aa94d9ab392421b31621634 # v40.3.4
         with:
           renovate-version: 37.420.1@sha256:528f003c9aa77f6e916e3f9f5cc2fb9ae16fcf285af66f412a34325124f4a00e
           configurationFile: .github/renovate-selfhosted.json
