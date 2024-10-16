@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/rand"
 )
 
 func TestHttpRunnerRun(t *testing.T) {
@@ -473,24 +471,23 @@ func TestHTTPProcessorRetries(t *testing.T) {
 		mux := http.NewServeMux()
 		mux.Handle("/run", emptyJSON(http.StatusOK))
 
-		// TODO: Hand-picking a random port instead of letting the OS allocate one is terrible practice. However,
-		// I haven't found a way to do this if we really want to know the address before something is listening on it.
-		addr := net.JoinHostPort("localhost", strconv.Itoa(30000+rand.Intn(35535)))
-		go func() {
-			time.Sleep(time.Second)
+		listenerCh := make(chan string)
 
-			listener, err := net.Listen("tcp4", addr)
-			if err != nil {
-				t.Logf("failed to set up listener in a random port. You were really unlucky, run the test again. %v", err)
-				t.Fail()
-			}
+		go func() {
+			listener, err := net.Listen("tcp4", "localhost:")
+			require.NoError(t, err)
+
+			listenerCh <- listener.Addr().String()
 
 			err = http.Serve(listener, mux)
 			require.NoError(t, err)
+
 			t.Cleanup(func() {
 				listener.Close()
 			})
 		}()
+
+		addr := <-listenerCh
 
 		runner := HttpRunner{url: "http://" + addr + "/run", graceTime: time.Second, backoff: time.Second}
 		processor, err := NewProcessor(Script{Script: nil, Settings: Settings{Timeout: 1000}}, runner)
