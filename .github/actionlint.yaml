@@ -1,0 +1,11 @@
+self-hosted-runner:
+  labels:
+    - ubuntu-amd64
+    - ubuntu-arm64
+    - github-hosted-ubuntu-arm64
+
+# Configuration variables in array of strings defined in your repository or
+# organization. `null` means disabling configuration variables check.
+# Empty array means no configuration variable is allowed.
+# config-variables: null
+# config-variables: []

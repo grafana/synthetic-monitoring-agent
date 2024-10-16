@@ -4,6 +4,10 @@ GO_TEST_ARGS ?= $(GO_PKGS)
 
 TEST_OUTPUT := $(DISTDIR)/test
 
+ifeq ($(CI),true)
+GOTESTSUM ?= gotestsum
+endif
+
 ifeq ($(origin GOTESTSUM),undefined)
 ifneq ($(LOCAL_GOTESTSUM),yes)
 GOTESTSUM ?= $(ROOTDIR)/scripts/docker-run gotestsum

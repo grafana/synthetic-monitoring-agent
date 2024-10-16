@@ -1,0 +1,17 @@
+name: 'Save Go cache'
+description: 'Save Go cache to be used in future runs'
+inputs:
+  key:
+    description: "The key to use when updating the cache"
+    required: true
+  path:
+    description: "The path or paths to be added to the cache"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Save Go cache
+      uses: actions/cache/save@v4.1.1
+      with:
+        key: ${{ inputs.key }}
+        path: ${{ inputs.path }}

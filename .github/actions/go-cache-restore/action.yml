@@ -1,0 +1,34 @@
+name: 'Restore Go cache'
+description: 'Restore Go cache from previous runs'
+outputs:
+  key:
+    description: "The key to use when restoring the cache"
+    value: ${{ steps.restore-go-cache.outputs.cache-primary-key }}
+  path:
+    description: "The path or paths added to the cache"
+    value: ${{ steps.compute-cache-info.outputs.path }}
+runs:
+  using: "composite"
+  steps:
+    - name: Compute cache info
+      id: compute-cache-info
+      shell: bash
+      run: |
+        cat <<EOT >> "$GITHUB_OUTPUT"
+        key=$(./scripts/get-go-cache-key "${{ github.base_ref }}")
+        base_key=$(./scripts/get-go-cache-key "${{ github.base_ref }}" | sed -E -e 's,-[^-]+$,-,')
+        path<<EOS
+        $(go env GOCACHE)
+        $(go env GOMODCACHE)
+        $(golangci-lint cache status | grep ^Dir: | cut -d' ' -f2)
+        EOS
+        EOT
+
+    - name: Restore Go cache
+      id: restore-go-cache
+      uses: actions/cache/restore@v4.1.1
+      with:
+        key: go-cache-${{ steps.compute-cache-info.outputs.key }}
+        path: ${{ steps.compute-cache-info.outputs.path }}
+        restore-keys: |
+          go-cache-${{ steps.compute-cache-info.outputs.base_key }}

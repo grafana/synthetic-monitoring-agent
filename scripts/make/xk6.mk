@@ -5,6 +5,10 @@ K6_VERSION  := v0.54.0
 
 LOCAL_GOPATH ?= $(shell go env GOPATH)
 
+ifeq ($(CI),true)
+XK6 ?= xk6
+endif
+
 ifeq ($(origin XK6),undefined)
 XK6 ?= $(ROOTDIR)/scripts/docker-run xk6
 endif
@@ -81,3 +85,4 @@ endif
 
 .PHONY: native-k6
 native-k6: build-xk6-$(HOST_OS)-$(HOST_ARCH)
+build-native: native-k6

@@ -1,6 +1,12 @@
 ##@ Linting
 
 SH_FILES ?= $(shell $(ROOTDIR)/scripts/list-sh-scripts)
+BASH_FILES ?= $(shell $(ROOTDIR)/scripts/list-sh-scripts -sbash)
+
+ifeq ($(CI),true)
+GOLANGCI_LINT ?= golangci-lint
+SHELLCHECK ?= shellcheck
+endif
 
 ifeq ($(origin GOLANGCI_LINT),undefined)
 ifneq ($(LOCAL_GOLANGCI_LINT),yes)
@@ -44,4 +50,5 @@ lint: lint-go lint-sh ## Run all code checks.
 .PHONY: lint-sh
 lint-sh: ## Run all shell code checks.
 	$(S) echo "lint via shellcheck"
-	$(S) $(SHELLCHECK) -a --color=auto --shell=sh $(SH_FILES)
+	$(S) if test -n "$(SH_FILES)" ; then $(SHELLCHECK) -a --color=auto --shell=sh $(SH_FILES) ; fi
+	$(S) if test -n "$(BASH_FILES)" ; then $(SHELLCHECK) -a --color=auto --shell=bash $(BASH_FILES) ; fi

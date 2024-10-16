@@ -1,0 +1,20 @@
+#!/bin/sh
+
+GOOS=$(go env GOOS)
+GOARCH=$(go env GOARCH)
+
+case "$1" in
+	"")
+		base_ref=HEAD
+		;;
+	*/*)
+		base_ref=$1
+		;;
+	*)
+		base_ref=refs/remotes/origin/$1
+		;;
+esac
+
+base_hash=$(git rev-parse "${base_ref}")
+
+echo "${GOOS}-${GOARCH}-${base_hash}"

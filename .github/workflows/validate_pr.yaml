@@ -1,0 +1,82 @@
+name: validate pull request
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    name: validate
+    strategy:
+      matrix:
+        runner: [ ubuntu-latest, github-hosted-ubuntu-arm64 ]
+    runs-on: ${{ matrix.runner }}
+
+    # The service is needed so that we can run docker in order to create
+    # images. Since we are already running in a container, we need to run
+    # docker in docker.
+    services:
+      docker:
+        image: docker:20.10.8-dind
+        options: --privileged
+        ports:
+          - 2375:2375
+
+    container:
+      image: ghcr.io/grafana/grafana-build-tools:v0.24.0@sha256:309c71f542b53fcb5fbc9042ec45cbab881a3b310c3a57b843d8ffe979bfa951
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up global git config
+        run: |
+          # The directory where the code has been checked out ends up belonging
+          # to a different user, so git complains about permissions. Indicate
+          # that it's safe to ignore.
+          git config --global --add safe.directory "$PWD"
+
+      - name: Restore Go cache
+        id: restore-go-cache
+        uses: ./.github/actions/go-cache-restore
+
+      - name: build info
+        id: build-info
+        run: |
+          echo "os=$(go env GOOS)" >> "$GITHUB_OUTPUT"
+          echo "arch=$(go env GOARCH)" >> "$GITHUB_OUTPUT"
+
+      - name: ensure dependencies are up-to-date
+        run: |
+          make deps
+          scripts/enforce-clean
+
+      - name: version
+        id: version
+        run: |
+          make version
+          echo "value=$(cat dist/version)" >> "$GITHUB_OUTPUT"
+
+      - name: build
+        run: make build-native
+
+      - name: lint
+        run: make lint
+
+      - name: test
+        run: make test
+
+      - name: test docker build
+        uses: grafana/shared-workflows/actions/build-push-to-dockerhub@f0dd3480fa3e657d741dd9e8d9b999cfb61fc713
+        with:
+          push: false
+          platforms: |-
+            ${{ steps.build-info.outputs.os }}/${{ steps.build-info.outputs.arch }}
+          tags: |-
+            type=raw,value=${{ steps.version.outputs.value }}
+            type=sha,prefix=sha-,format=short
+            latest

@@ -1,0 +1,17 @@
+name: validate and publish commit to dev
+
+on:
+  push:
+    branches:
+      - main
+
+# This is needed so that pushing to GAR works.
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  call_build_and_publish:
+    uses: ./.github/workflows/build_and_publish.yaml
+    with:
+      mode: dev
