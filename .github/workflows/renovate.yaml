@@ -1,27 +1,48 @@
 name: Renovate
 on:
   schedule:
-    - cron:  '0 */4 * * *'
+    - cron:  '16 */4 * * *'
   workflow_dispatch:
+
 jobs:
   renovate:
     permissions:
-      contents: read
+      contents: read        # needed to read the contents of the repository
+      id-token: write       # needed to create a GitHub App token
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Checkout Code
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-      - name: Generate token
-        id: generate-token
-        uses: tibdex/github-app-token@3beb63f4bd073e61482598c45c71c1019b59b73a #v2.1.0
+
+      - name: retrieve secrets
+        id: get-secrets
+        uses: grafana/shared-workflows/actions/get-vault-secrets@f0dd3480fa3e657d741dd9e8d9b999cfb61fc713
         with:
-          revoke: true
-          app_id: ${{ secrets.RENOVATEGRAFANA_ID }}
-          private_key: ${{ secrets.RENOVATEGRAFANA_PEM }}
+          common_secrets: |
+            GRAFANA_RENOVATE_APP_ID=grafana-renovate-app:app-id
+            GRAFANA_RENOVATE_PRIVATE_KEY=grafana-renovate-app:private-key
+
+      - name: create GitHub app token
+        id: app-token
+        # Beware that the token generated here has elevated permissions wrt to
+        # the ones set in the action. In particular, it will be able to write
+        # to the repository (e.g. create branches) and create pull requests.
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ env.GRAFANA_RENOVATE_APP_ID }}
+          private-key: ${{ env.GRAFANA_RENOVATE_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+
       - name: Self-hosted Renovate
         uses: renovatebot/github-action@7743ec9e19ceeb61a3862c5d4131e6710195af11 # v40.3.3
         with:
           renovate-version: 37.420.1@sha256:528f003c9aa77f6e916e3f9f5cc2fb9ae16fcf285af66f412a34325124f4a00e
-          configurationFile: .github/renovate-selfhosted.json
-          token: '${{ steps.generate-token.outputs.token }}'
+          configurationFile: .github/renovate-app.json
+          token: '${{ steps.app-token.outputs.token }}'
+        env:
+          LOG_LEVEL: debug
+          RENOVATE_PLATFORM: github
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+          RENOVATE_USERNAME: GrafanaRenovateBot

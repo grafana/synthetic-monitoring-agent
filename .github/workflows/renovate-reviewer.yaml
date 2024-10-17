@@ -1,0 +1,12 @@
+name: Renovate reviewer
+
+on: pull_request_target
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  call-workflow-passing-data:
+    uses: grafana/security-github-actions/.github/workflows/dependabot-automerge.yaml@main
+    secrets: inherit

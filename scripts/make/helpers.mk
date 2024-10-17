@@ -39,6 +39,11 @@ distclean: clean ## Clean up all build artifacts.
 	$(S) echo "Cleaning all build artifacts..."
 	$(V) git clean -Xf
 
+.PHONY: version
+version: ## Create version information file.
+	$(S) mkdir -p $(DISTDIR)
+	$(S) ./scripts/version | tee $(DISTDIR)/version
+
 .PHONY: update-tools
 update-tools: ## Update tools
 	$(S) echo "Updating tools..."

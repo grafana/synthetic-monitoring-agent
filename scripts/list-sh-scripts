@@ -1,6 +1,41 @@
 #!/bin/sh
 
+type='sh'
+
+while true ; do
+	[ "$#" -eq 0 ] && break
+
+	getopts 's:' opt
+
+	case $opt in
+		s)
+			type="$OPTARG"
+			shift
+			;;
+		*)
+			echo "Usage: $0 -s<shell>"
+			exit 1
+			;;
+	esac
+done
+
+case $type in
+	sh)
+		pat='^\s*#!\s*/bin/sh'
+		;;
+	bash)
+		pat='^\s*#!\s*(/usr/bin/env bash|/bin/bash)'
+		;;
+	*)
+		echo "Unknown shell: $type"
+		exit 1
+		;;
+esac
+
 git ls-files -z |
 	xargs -r0 file --no-pad --mime-type |
 	grep ': text/x-shellscript' |
-	cut -d: -f1
+	cut -d: -f1 |
+while read -r script; do
+	grep -qE "${pat}" "$script" && echo "$script"
+done
