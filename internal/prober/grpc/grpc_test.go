@@ -5,6 +5,7 @@ import (
 	"io"
 	"testing"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
 	promcfg "github.com/prometheus/common/config"
@@ -19,15 +20,17 @@ func TestName(t *testing.T) {
 
 func TestNewProber(t *testing.T) {
 	testcases := map[string]struct {
-		input       sm.Check
+		input       model.Check
 		expected    Prober
 		ExpectError bool
 	}{
 		"default": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Grpc: &sm.GrpcSettings{},
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Grpc: &sm.GrpcSettings{},
+					},
 				},
 			},
 			expected: Prober{
@@ -42,10 +45,12 @@ func TestNewProber(t *testing.T) {
 			},
 		},
 		"no-settings": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Grpc: nil,
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Grpc: nil,
+					},
 				},
 			},
 			ExpectError: true,

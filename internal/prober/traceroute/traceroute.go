@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
@@ -36,7 +37,7 @@ type Prober struct {
 	logger zerolog.Logger
 }
 
-func NewProber(check sm.Check, logger zerolog.Logger) (Prober, error) {
+func NewProber(check model.Check, logger zerolog.Logger) (Prober, error) {
 	if check.Settings.Traceroute == nil {
 		return Prober{}, errUnsupportedCheck
 	}
@@ -65,7 +66,6 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		p.config.ringBufferSize,
 		p.config.ptrLookup,
 	)
-
 	if err != nil {
 		logErr := logger.Log(err)
 		if logErr != nil {
@@ -83,9 +83,8 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 			}
 		}
 	}(ch)
-	var success = true
+	success := true
 	err = m.RunWithContext(ctx, p.config.count)
-
 	if err != nil {
 		err = logger.Log("Level", "error", "msg", err.Error())
 		if err != nil {
@@ -96,7 +95,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	tracerouteID := uuid.New()
 	totalPacketsLost := float64(0)
 	totalPacketsSent := float64(0)
-	var hosts = make(map[int]string)
+	hosts := make(map[int]string)
 	for ttl, hop := range m.Statistic {
 		totalPacketsLost += float64(hop.Lost)
 		totalPacketsSent += float64(hop.Sent)
@@ -133,17 +132,17 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		return false, 0
 	}
 
-	var traceHashGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+	traceHashGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_traceroute_route_hash",
 		Help: "Hash of all the hosts in a traceroute path. Used to determine route volatility.",
 	})
 
-	var totalHopsGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+	totalHopsGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_traceroute_total_hops",
 		Help: "Total hops to reach a traceroute destination",
 	})
 
-	var overallPacketLossGauge = prometheus.NewGauge(prometheus.GaugeOpts{
+	overallPacketLossGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_traceroute_packet_loss_percent",
 		Help: "Overall percentage of packet loss during the traceroute",
 	})

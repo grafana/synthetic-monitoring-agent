@@ -69,7 +69,7 @@ var updateGolden = flag.Bool("update-golden", false, "update golden files")
 // go test -v -race -run TestValidateMetrics ./internal/scraper/
 func TestValidateMetrics(t *testing.T) {
 	testcases := map[string]struct {
-		setup func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func())
+		setup func(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func())
 	}{
 		"ping": {
 			setup: setupPingProbe,
@@ -129,7 +129,7 @@ func TestValidateMetrics(t *testing.T) {
 func verifyProberMetrics(
 	t *testing.T,
 	name string,
-	setup func(context.Context, *testing.T) (prober.Prober, sm.Check, func()),
+	setup func(context.Context, *testing.T) (prober.Prober, model.Check, func()),
 	basicMetricsOnly bool,
 ) {
 	timeout := 10 * time.Second
@@ -237,13 +237,15 @@ func readGoldenFile(fn string) (map[string]struct{}, error) {
 	}
 }
 
-func setupPingProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-	check := sm.Check{
-		Target:  "127.0.0.1",
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			Ping: &sm.PingSettings{
-				IpVersion: sm.IpVersion_V4,
+func setupPingProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
+	check := model.Check{
+		Check: sm.Check{
+			Target:  "127.0.0.1",
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				Ping: &sm.PingSettings{
+					IpVersion: sm.IpVersion_V4,
+				},
 			},
 		},
 	}
@@ -256,49 +258,19 @@ func setupPingProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check,
 	return prober, check, func() {}
 }
 
-func setupHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+func setupHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
 	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	httpSrv.Start()
 
-	check := sm.Check{
-		Target:  httpSrv.URL,
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			Http: &sm.HttpSettings{
-				IpVersion: sm.IpVersion_V4,
-			},
-		},
-	}
-
-	prober, err := httpProber.NewProber(
-		ctx,
-		check,
-		zerolog.New(io.Discard),
-		http.Header{},
-	)
-	if err != nil {
-		t.Fatalf("cannot create HTTP prober: %s", err)
-	}
-
-	return prober, check, httpSrv.Close
-}
-
-func setupHTTPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	httpSrv.StartTLS()
-
-	check := sm.Check{
-		Target:  httpSrv.URL,
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			Http: &sm.HttpSettings{
-				IpVersion: sm.IpVersion_V4,
-				TlsConfig: &sm.TLSConfig{
-					InsecureSkipVerify: true,
+	check := model.Check{
+		Check: sm.Check{
+			Target:  httpSrv.URL,
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				Http: &sm.HttpSettings{
+					IpVersion: sm.IpVersion_V4,
 				},
 			},
 		},
@@ -317,17 +289,53 @@ func setupHTTPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Che
 	return prober, check, httpSrv.Close
 }
 
-func setupDNSProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+func setupHTTPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
+	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	httpSrv.StartTLS()
+
+	check := model.Check{
+		Check: sm.Check{
+			Target:  httpSrv.URL,
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				Http: &sm.HttpSettings{
+					IpVersion: sm.IpVersion_V4,
+					TlsConfig: &sm.TLSConfig{
+						InsecureSkipVerify: true,
+					},
+				},
+			},
+		},
+	}
+
+	prober, err := httpProber.NewProber(
+		ctx,
+		check,
+		zerolog.New(io.Discard),
+		http.Header{},
+	)
+	if err != nil {
+		t.Fatalf("cannot create HTTP prober: %s", err)
+	}
+
+	return prober, check, httpSrv.Close
+}
+
+func setupDNSProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
 	srv, clean := setupDNSServer(t)
-	check := sm.Check{
-		Target:  "example.org",
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			// target is "example.com"
-			Dns: &sm.DnsSettings{
-				Server:    srv,
-				IpVersion: sm.IpVersion_V4,
-				Protocol:  sm.DnsProtocol_UDP,
+	check := model.Check{
+		Check: sm.Check{
+			Target:  "example.org",
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				// target is "example.com"
+				Dns: &sm.DnsSettings{
+					Server:    srv,
+					IpVersion: sm.IpVersion_V4,
+					Protocol:  sm.DnsProtocol_UDP,
+				},
 			},
 		},
 	}
@@ -339,39 +347,15 @@ func setupDNSProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, 
 	return prober, check, clean
 }
 
-func setupTCPProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+func setupTCPProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
 	srv, clean := setupTCPServer(t)
-	check := sm.Check{
-		Target:  srv,
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			Tcp: &sm.TcpSettings{
-				IpVersion: sm.IpVersion_V4,
-			},
-		},
-	}
-	prober, err := tcp.NewProber(
-		ctx,
-		check,
-		zerolog.New(io.Discard))
-	if err != nil {
-		clean()
-		t.Fatalf("cannot create TCP prober: %s", err)
-	}
-	return prober, check, clean
-}
-
-func setupTCPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
-	srv, clean := setupTCPServerWithSSL(t)
-	check := sm.Check{
-		Target:  srv,
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			Tcp: &sm.TcpSettings{
-				IpVersion: sm.IpVersion_V4,
-				Tls:       true,
-				TlsConfig: &sm.TLSConfig{
-					InsecureSkipVerify: true,
+	check := model.Check{
+		Check: sm.Check{
+			Target:  srv,
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				Tcp: &sm.TcpSettings{
+					IpVersion: sm.IpVersion_V4,
 				},
 			},
 		},
@@ -387,7 +371,35 @@ func setupTCPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Chec
 	return prober, check, clean
 }
 
-func setupTracerouteProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+func setupTCPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
+	srv, clean := setupTCPServerWithSSL(t)
+	check := model.Check{
+		Check: sm.Check{
+			Target:  srv,
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				Tcp: &sm.TcpSettings{
+					IpVersion: sm.IpVersion_V4,
+					Tls:       true,
+					TlsConfig: &sm.TLSConfig{
+						InsecureSkipVerify: true,
+					},
+				},
+			},
+		},
+	}
+	prober, err := tcp.NewProber(
+		ctx,
+		check,
+		zerolog.New(io.Discard))
+	if err != nil {
+		clean()
+		t.Fatalf("cannot create TCP prober: %s", err)
+	}
+	return prober, check, clean
+}
+
+func setupTracerouteProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
 	checkCap := func(set *cap.Set, v cap.Value) {
 		if permitted, err := set.GetFlag(cap.Permitted, v); err != nil {
 			t.Fatalf("cannot get %s flag: %s", v, err)
@@ -399,10 +411,12 @@ func setupTracerouteProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.
 	checkCap(c, cap.NET_ADMIN)
 	checkCap(c, cap.NET_RAW)
 
-	check := sm.Check{
-		Target: "127.0.0.1",
-		Settings: sm.CheckSettings{
-			Traceroute: &sm.TracerouteSettings{},
+	check := model.Check{
+		Check: sm.Check{
+			Target: "127.0.0.1",
+			Settings: sm.CheckSettings{
+				Traceroute: &sm.TracerouteSettings{},
+			},
 		},
 	}
 
@@ -414,18 +428,20 @@ func setupTracerouteProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.
 	return p, check, func() {}
 }
 
-func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
 	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	httpSrv.Start()
 
-	check := sm.Check{
-		Target:  httpSrv.URL,
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			Scripted: &sm.ScriptedSettings{
-				Script: []byte(`export default function() {}`),
+	check := model.Check{
+		Check: sm.Check{
+			Target:  httpSrv.URL,
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				Scripted: &sm.ScriptedSettings{
+					Script: []byte(`export default function() {}`),
+				},
 			},
 		},
 	}
@@ -454,22 +470,24 @@ func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Ch
 	return prober, check, httpSrv.Close
 }
 
-func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
 	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	httpSrv.Start()
 
-	check := sm.Check{
-		Target:  httpSrv.URL,
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			Multihttp: &sm.MultiHttpSettings{
-				Entries: []*sm.MultiHttpEntry{
-					{
-						Request: &sm.MultiHttpEntryRequest{
-							Method: sm.HttpMethod_GET,
-							Url:    httpSrv.URL,
+	check := model.Check{
+		Check: sm.Check{
+			Target:  httpSrv.URL,
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				Multihttp: &sm.MultiHttpSettings{
+					Entries: []*sm.MultiHttpEntry{
+						{
+							Request: &sm.MultiHttpEntryRequest{
+								Method: sm.HttpMethod_GET,
+								Url:    httpSrv.URL,
+							},
 						},
 					},
 				},
@@ -502,18 +520,20 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.C
 	return prober, check, httpSrv.Close
 }
 
-func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
 	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	httpSrv.Start()
 
-	check := sm.Check{
-		Target:  httpSrv.URL,
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			Browser: &sm.BrowserSettings{
-				Script: []byte(`export default function() {}`),
+	check := model.Check{
+		Check: sm.Check{
+			Target:  httpSrv.URL,
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				Browser: &sm.BrowserSettings{
+					Script: []byte(`export default function() {}`),
+				},
 			},
 		},
 	}
@@ -542,14 +562,16 @@ func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Che
 	return prober, check, httpSrv.Close
 }
 
-func setupGRPCProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+func setupGRPCProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
 	srv, clean := setupGRPCServer(t)
-	check := sm.Check{
-		Target:  srv,
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			Grpc: &sm.GrpcSettings{
-				IpVersion: sm.IpVersion_V4,
+	check := model.Check{
+		Check: sm.Check{
+			Target:  srv,
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				Grpc: &sm.GrpcSettings{
+					IpVersion: sm.IpVersion_V4,
+				},
 			},
 		},
 	}
@@ -564,17 +586,19 @@ func setupGRPCProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check,
 	return prober, check, clean
 }
 
-func setupGRPCSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func()) {
+func setupGRPCSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
 	srv, clean := setupGRPCServerWithSSL(t)
-	check := sm.Check{
-		Target:  srv,
-		Timeout: 2000,
-		Settings: sm.CheckSettings{
-			Grpc: &sm.GrpcSettings{
-				IpVersion: sm.IpVersion_V4,
-				Tls:       true,
-				TlsConfig: &sm.TLSConfig{
-					InsecureSkipVerify: true,
+	check := model.Check{
+		Check: sm.Check{
+			Target:  srv,
+			Timeout: 2000,
+			Settings: sm.CheckSettings{
+				Grpc: &sm.GrpcSettings{
+					IpVersion: sm.IpVersion_V4,
+					Tls:       true,
+					TlsConfig: &sm.TLSConfig{
+						InsecureSkipVerify: true,
+					},
 				},
 			},
 		},
@@ -815,7 +839,7 @@ func setupGRPCServerWithSSL(t *testing.T) (string, func()) {
 // be set without exceeding the Mimir and Loki limits.
 func TestValidateLabels(t *testing.T) {
 	testCases := map[string]struct {
-		setup func(ctx context.Context, t *testing.T) (prober.Prober, sm.Check, func())
+		setup func(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func())
 	}{
 		"ping": {
 			setup: setupPingProbe,
@@ -937,9 +961,7 @@ func TestValidateLabels(t *testing.T) {
 				},
 				summaries:  make(map[uint64]prometheus.Summary),
 				histograms: make(map[uint64]prometheus.Histogram),
-				check: model.Check{
-					Check: check,
-				},
+				check:      check,
 				probe: sm.Probe{
 					Id:        100,
 					TenantId:  200,

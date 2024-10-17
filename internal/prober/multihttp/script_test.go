@@ -12,6 +12,7 @@ import (
 	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mccutchen/go-httpbin/v2/httpbin"
@@ -836,12 +837,14 @@ func TestSettingsToScript(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, actual)
 
-	check := sm.Check{
-		Target:  settings.Entries[0].Request.Url,
-		Job:     "test",
-		Timeout: 10000,
-		Settings: sm.CheckSettings{
-			Multihttp: settings,
+	check := model.Check{
+		Check: sm.Check{
+			Target:  settings.Entries[0].Request.Url,
+			Job:     "test",
+			Timeout: 10000,
+			Settings: sm.CheckSettings{
+				Multihttp: settings,
+			},
 		},
 	}
 
