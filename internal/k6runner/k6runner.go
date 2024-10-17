@@ -158,7 +158,8 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 	case "":
 		// No error, all good.
 		return true, nil
-	case "timeout", "killed", "user", "failed":
+	// TODO: Remove "user" from this list, which has been renamed to "aborted".
+	case "timeout", "killed", "user", "failed", "aborted":
 		// These are user errors. The probe failed, but we don't return an error.
 		return false, nil
 	default:
