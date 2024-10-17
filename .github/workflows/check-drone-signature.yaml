@@ -10,4 +10,4 @@ on:
 
 jobs:
   drone-signature-check:
-    uses: grafana/shared-workflows/.github/workflows/check-drone-signature.yaml@0a5f29d2476d296c9f127e05690a9f2af67a97b0
+    uses: grafana/shared-workflows/.github/workflows/check-drone-signature.yaml@b183aaddace903b558adf075d6d977085a4df848
