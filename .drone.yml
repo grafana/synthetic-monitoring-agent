@@ -2,7 +2,7 @@
 image_pull_secrets:
 - docker_config_json
 kind: pipeline
-name: build
+name: buildd
 steps:
 - commands:
   - echo $DRONE_RUNNER_NAME
