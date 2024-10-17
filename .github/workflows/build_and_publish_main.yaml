@@ -1,7 +1,10 @@
 name: validate and publish commit to dev
 
 on:
-  push:
+  #push:
+  #  branches:
+  #    - main
+  pull_request:
     branches:
       - main
 

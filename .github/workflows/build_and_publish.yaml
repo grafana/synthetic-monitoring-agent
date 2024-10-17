@@ -31,31 +31,27 @@ jobs:
     if: ${{ always() && needs.preflight.result == 'success' }}
     strategy:
       matrix:
-        arch: [ x64-small, arm64 ]
+        arch: [ x64-large, arm64 ]
     runs-on: github-hosted-ubuntu-${{ matrix.arch }}
+
     container:
       image: ghcr.io/grafana/grafana-build-tools:v0.24.0@sha256:309c71f542b53fcb5fbc9042ec45cbab881a3b310c3a57b843d8ffe979bfa951
-      # --user is needed so that it's possible to access the git directory.
-      # --group-add is needed so that it's possible to access the docker socket.
-      #
-      # ubuntu-latest and github-hosted-ubuntu-arm64 have different group ids for the docker socket.
-      #
-      # This works for GitHub runners
-      options: --user 1001:118 --group-add 116
-      # This works for self-hosted runners; 126 is the group for the docker socket.
-      # options: --user 1000:126
-      volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
-        - /etc/passwd:/etc/passwd:ro
-        - /etc/group:/etc/group:ro
     outputs:
       version: ${{ steps.version.outputs.value }}
+
     steps:
       - name: checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Set up global git config
+        run: |
+          # The directory where the code has been checked out ends up belonging
+          # to a different user, so git complains about permissions. Indicate
+          # that it's safe to ignore.
+          git config --global --add safe.directory '*'
 
       - name: Restore Go cache
         id: restore-go-cache
@@ -87,30 +83,64 @@ jobs:
       - name: test
         run: make test
 
-      - name: test docker build
+      - name: test docker build (no browser)
         uses: grafana/shared-workflows/actions/build-push-to-dockerhub@f0dd3480fa3e657d741dd9e8d9b999cfb61fc713
         with:
           push: false
+          images: ${{ needs.preflight.outputs.repo_name }}
           platforms: |-
             ${{ steps.build-info.outputs.os }}/${{ steps.build-info.outputs.arch }}
           tags: |-
             type=raw,value=${{ steps.version.outputs.value }}
             type=sha,prefix=sha-,format=short
             latest
+          target: release
+
+      - name: test docker build (browser)
+        uses: grafana/shared-workflows/actions/build-push-to-dockerhub@f0dd3480fa3e657d741dd9e8d9b999cfb61fc713
+        with:
+          push: false
+          images: ${{ needs.preflight.outputs.repo_name }}
+          platforms: |-
+            ${{ steps.build-info.outputs.os }}/${{ steps.build-info.outputs.arch }}
+          tags: |-
+            type=raw,value=${{ steps.version.outputs.value }}-browser
+            type=sha,prefix=sha-,suffix=-browser,format=short
+            latest-browser
+          target: with-browser
+
+      - name: list images
+        run: |
+          echo ==== docker images
+          docker images
+          echo ==== docker container ls
+          docker container ls
+          echo ==== docker ps -a
+          docker ps -a
 
       - name: create build artifacts
         run: |
           # Create a tarball of the build artifacts to preserve permissions and
           # the directory structure. The actions/upload-artifact action will
           # create a zip file, which cannot preserve all this information.
-          tar -C dist -cf 'dist/build-artifacts-${{ steps.build-info.outputs.arch }}.tar' 'linux-${{ steps.build-info.outputs.arch }}'
+          tar -C dist -cf 'dist/build-artifacts-bin-${{ steps.build-info.outputs.arch }}.tar' 'linux-${{ steps.build-info.outputs.arch }}'
+
+          BASENAME="${{ needs.preflight.outputs.repo_name }}-linux-${{ steps.build-info.outputs.arch }}"
+
+          # Create a tarball for the regular docker image.
+          ./scripts/export-docker-image '${{ needs.preflight.outputs.repo_name }}:latest' 'dist/build-artifacts-image-${{ steps.build-info.outputs.arch }}.tar'
+
+          # Create a tarball for the browser docker image.
+          ./scripts/export-docker-image '${{ needs.preflight.outputs.repo_name }}:latest-browser' 'dist/build-artifacts-image-browser-${{ steps.build-info.outputs.arch }}.tar'
 
       - name: upload build artifacts
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4
         with:
           name: build-artifacts-${{ steps.build-info.outputs.arch }}
-          path: dist/build-artifacts-${{ steps.build-info.outputs.arch }}.tar
+          path: dist/build-artifacts-*.tar
           retention-days: 1
+          if-no-files-found: error
+          overwrite: false
 
       - name: Save Go cache
         id: save-go-cache
@@ -135,6 +165,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up global git config
+        run: |
+          # The directory where the code has been checked out ends up belonging
+          # to a different user, so git complains about permissions. Indicate
+          # that it's safe to ignore.
+          git config --global --add safe.directory '*'
+
       - name: download build artifacts
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
         with:
@@ -145,39 +182,35 @@ jobs:
         id: extract-build-artifacts
         # Note that the download-artifact action will create a directory for
         # each artifact that it downloads, named afer the artifact's name.
-        # That's the `build-artifacts-*` portion of the path. The wildcard
-        # refers to the architecture of the binaries. The artifact itself
-        # consists of a single file, a tarball, and it's also named
-        # `build-artifacts-*`. The tarball contains the linux-arch directory,
-        # so everything is extracted directly to the dist directory.
+        # That's the `build-artifacts-*` portion of the path.
+        #
+        # There are two sets of artifacts: binaries and images. The first one
+        # is named build-artifacts-bin-*, the wildcard refers to the
+        # architecture of the binaries. The artifact itself consists of a
+        # single file, a tarball, and it's also named `build-artifacts-bin-*`.
+        # The tarball contains the linux-arch directory, so everything is
+        # extracted directly to the dist directory.
+        #
+        # For images, the artifact is named build-artifacts-image-*. This
+        # contains a tarball with the docker image. Move it to the dist
+        # directory to make things easier.
         #
         # After extracting all the artifacts, this builds an output named
         # `platforms` that lists all the platforms that are available. This is
         # used by the step that builds the docker images to tell it what
         # platforms should be included.
         run: |
-          find dist/build-artifacts-*/build-artifacts-*.tar -print0 | xargs -r0 -n1 -I{} tar -xvpf {} -C dist
+          find dist/build-artifacts-*/build-artifacts-bin-*.tar -print0 | xargs -r0 -n1 -I{} tar -xvpf {} -C dist
+
           {
             echo 'platforms<<EOT'
             find dist/linux-* -maxdepth 0 -type d -print0 | xargs -r0 -n1 basename | tr - /
             echo 'EOT'
           } >> "$GITHUB_OUTPUT"
 
-      - name: Get repository name
-        env:
-          REPOSITORY: ${{ github.repository }}
-        id: info
-        run: |
-          case ${{ inputs.mode }} in
-            dev)
-              echo "tag=sha-${{ github.sha }}" >> "$GITHUB_OUTPUT"
-              ;;
-            prod)
-              echo "tag=latest" >> "$GITHUB_OUTPUT"
-              ;;
-          esac
+          mv dist/build-artifacts-image-*/build-artifacts-image-*.tar dist/
 
-      - name: push container images to GAR
+      - name: push container images to GAR (no browser)
         id: push-to-gar
         uses: grafana/shared-workflows/actions/push-to-gar-docker@f0dd3480fa3e657d741dd9e8d9b999cfb61fc713
         with:
@@ -189,6 +222,22 @@ jobs:
             type=raw,value=${{ needs.validate.outputs.version }}
             type=sha,prefix=sha-,format=short
             latest
+          file: Dockerfile.build
+          target: release
+
+      - name: push container images to GAR (browser)
+        uses: grafana/shared-workflows/actions/push-to-gar-docker@f0dd3480fa3e657d741dd9e8d9b999cfb61fc713
+        with:
+          environment: ${{ inputs.mode }}
+          image_name: ${{ needs.preflight.outputs.repo_name }}
+          push: true
+          platforms: ${{ steps.extract-build-artifacts.outputs.platforms }}
+          tags: |-
+            type=raw,value=${{ needs.validate.outputs.version }}-browser
+            type=sha,prefix=sha-,suffix=-browser,format=short
+            latest-browser
+          file: Dockerfile.build
+          target: with-browser
 
       - name: extract image metadata
         id: extract-image-metadata

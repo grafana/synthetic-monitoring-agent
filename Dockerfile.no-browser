@@ -1,0 +1,8 @@
+FROM --platform=$TARGETOS/$TARGETARCH scratch AS release
+
+ARG TARGETOS
+ARG TARGETARCH
+
+ADD ./dist/build-artifacts-image-${TARGETARCH}.tar /
+
+ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]

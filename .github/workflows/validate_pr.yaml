@@ -13,16 +13,6 @@ jobs:
         runner: [ ubuntu-latest, github-hosted-ubuntu-arm64 ]
     runs-on: ${{ matrix.runner }}
 
-    # The service is needed so that we can run docker in order to create
-    # images. Since we are already running in a container, we need to run
-    # docker in docker.
-    services:
-      docker:
-        image: docker:20.10.8-dind
-        options: --privileged
-        ports:
-          - 2375:2375
-
     container:
       image: ghcr.io/grafana/grafana-build-tools:v0.24.0@sha256:309c71f542b53fcb5fbc9042ec45cbab881a3b310c3a57b843d8ffe979bfa951
 
@@ -38,7 +28,7 @@ jobs:
           # The directory where the code has been checked out ends up belonging
           # to a different user, so git complains about permissions. Indicate
           # that it's safe to ignore.
-          git config --global --add safe.directory "$PWD"
+          git config --global --add safe.directory '*'
 
       - name: Restore Go cache
         id: restore-go-cache
