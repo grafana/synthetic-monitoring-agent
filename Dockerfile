@@ -5,9 +5,7 @@ RUN apk --no-cache add ca-certificates-bundle
 # Second stage copies the binaries, configuration and also the
 # certificates from the first stage.
 
-ARG TARGETPLATFORM
-
-FROM --platform=$TARGETPLATFORM alpine:3.20.3 AS release
+FROM alpine:3.20.3 AS release
 ARG TARGETOS
 ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
@@ -21,7 +19,7 @@ ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
 
 # Third stage copies the setup from the base agent and
 # additionally installs Chromium to support browser checks.
-FROM --platform=$TARGETPLATFORM alpine:3.20.3 AS with-browser
+FROM alpine:3.20.3 AS with-browser
 
 # Renovate updates the pinned packages below.
 # The --repository arg is required for renovate to know which alpine repo it should look for updates in.
