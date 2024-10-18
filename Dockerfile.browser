@@ -3,7 +3,7 @@ FROM --platform=$TARGETOS/$TARGETARCH scratch
 ARG TARGETOS
 ARG TARGETARCH
 
-ADD ./dist/build-artifacts-image-browser-${TARGETARCH}.tar /
+ADD ./dist/container-image-browser-${TARGETOS}-${TARGETARCH}.tar /
 
 ENV K6_BROWSER_ARGS=no-sandbox,disable-dev-shm-usage
 
