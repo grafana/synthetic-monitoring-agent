@@ -92,7 +92,7 @@ jobs:
           context: .
           push: false
           target: release
-          outputs: type=tar,dest=dist/container-image-${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar
+          outputs: type=tar,dest=dist/container-image.no-browser.${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -102,21 +102,21 @@ jobs:
           context: .
           push: false
           target: with-browser
-          outputs: type=tar,dest=dist/container-image-browser-${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar
+          outputs: type=tar,dest=dist/container-image.browser.${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: create build artfact
         run: |
-          tar cf dist/build-artifacts-${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar \
-            dist/container-image-*.tar \
-            dist/linux-${{ steps.build-info.outputs.arch }}
+          tar cf dist/build-artifacts.${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar \
+            dist/container-image.*.*.tar \
+            dist/${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}
 
       - name: upload build artifact
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4
         with:
           name: build-artifacts-${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}
-          path: dist/build-artifacts-${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar
+          path: dist/build-artifacts.${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar
           retention-days: 1
           if-no-files-found: error
           overwrite: false
@@ -168,16 +168,17 @@ jobs:
         # used by the step that builds the docker images to tell it what
         # platforms should be included.
         run: |
-          find dist/build-artifacts-*/build-artifacts-*.tar -print0 |
+          find dist/build-artifacts-*/build-artifacts.*.tar -print0 |
             xargs -r0 -I{} tar -xvpf {}
 
           {
             echo 'platforms<<EOT'
-            find dist/linux-* -maxdepth 0 -type d -print0 | xargs -r0 -n1 basename | tr - /
+            find dist/ -maxdepth 1 -name 'container-image.*.*.tar' -print0 |
+              xargs -r0 -n1 basename |
+              cut -d. -f3 |
+              tr - /
             echo 'EOT'
           } >> "$GITHUB_OUTPUT"
-
-          mv dist/build-artifacts-image-*/build-artifacts-image-*.tar dist/
 
       - name: push container images to GAR (no browser)
         id: push-to-gar
