@@ -1,0 +1,9 @@
+#!/bin/sh
+
+data=$(mktemp)
+trap 'rm -f $data' EXIT
+
+cat "$1" > "$data"
+
+echo "image=$(jq -r '.target["docker-metadata-action"].args.DOCKER_META_IMAGES' < "$data")"
+echo "tag=$(jq -r '.target["docker-metadata-action"].args.DOCKER_META_VERSION' < "$data")"
