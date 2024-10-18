@@ -20,6 +20,13 @@ import (
 	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
+	otelGlobal "go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/grpclog"
 
@@ -73,6 +80,7 @@ func run(args []string, stdout io.Writer) error {
 			AutoMemLimit         bool
 			MemLimitRatio        float64
 			DisableK6            bool
+			OTLPEndpoint         string
 		}{
 			GrpcApiServerAddr: "localhost:4031",
 			HttpListenAddr:    "localhost:4050",
@@ -104,6 +112,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.DisableK6, "disable-k6", config.DisableK6, "disables running k6 checks on this probe")
 	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
 	flags.Var(&features, "features", "optional feature flags")
+	flags.StringVar(&config.OTLPEndpoint, "otlp-endpoint", config.OTLPEndpoint, "OTLP endpoint for OTEL exporter")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -152,13 +161,7 @@ func run(args []string, stdout io.Writer) error {
 		return fmt.Errorf("invalid API token")
 	}
 
-	baseCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	g, ctx := errgroup.WithContext(baseCtx)
-
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
-
 	zl := zerolog.New(stdout).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
 
 	switch {
@@ -175,6 +178,11 @@ func run(args []string, stdout io.Writer) error {
 	default:
 		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
 	}
+
+	baseCtx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	g, ctx := errgroup.WithContext(baseCtx)
 
 	g.Go(func() error {
 		return signalHandler(ctx, zl.With().Str("subsystem", "signal handler").Logger())
@@ -207,6 +215,15 @@ func run(args []string, stdout io.Writer) error {
 	} else {
 		zl.Info().Msg("disabling k6 checks")
 	}
+
+	tracerProvider, err := newTracerProvider(ctx, config.OTLPEndpoint, flags.Name())
+	if err != nil {
+		zl.Warn().Err(err).Msg("could not configure tracer provider, disabling tracing functionality")
+		tracerProvider = noop.NewTracerProvider()
+	}
+
+	// Set the global tracer provider to no-op, in case some library tries to obtain one that way.
+	otelGlobal.SetTracerProvider(noop.NewTracerProvider())
 
 	promRegisterer := prometheus.NewRegistry()
 
@@ -299,6 +316,7 @@ func run(args []string, stdout io.Writer) error {
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:           conn,
 		Logger:         zl.With().Str("subsystem", "updater").Logger(),
+		TracerProvider: tracerProvider,
 		Backoff:        newConnectionBackoff(),
 		Publisher:      publisher,
 		TenantCh:       tenantCh,
@@ -321,6 +339,7 @@ func run(args []string, stdout io.Writer) error {
 	adhocHandler, err := adhoc.NewHandler(adhoc.HandlerOpts{
 		Conn:           conn,
 		Logger:         zl.With().Str("subsystem", "adhoc").Logger(),
+		TracerProvider: tracerProvider,
 		Backoff:        newConnectionBackoff(),
 		Publisher:      publisher,
 		TenantCh:       tenantCh,
@@ -438,4 +457,50 @@ func setupGoMemLimit(ratio float64) error {
 	}
 
 	return nil
+}
+
+// newTracerProvider creates a TracerProvider configured with the relevant
+// resource attributes, configured to export traces over OTLP+HTTP to the
+// specified endpoint. The provided name will be used to identify the service
+// in traces.
+//
+// The context is needed so that the exporter can be stopped when the context
+// is cancelled, so it's probably a good idea to use a context that is
+// cancelled when the program is shutting down.
+//
+// If no endpoint is provided, a no-op tracer provider is returned and no error
+// is reported.
+//
+// After this function returns successfully, the tracer exporter would have
+// been started.
+func newTracerProvider(ctx context.Context, endpoint, name string) (trace.TracerProvider, error) {
+	if endpoint == "" {
+		return noop.NewTracerProvider(), nil
+	}
+
+	if _, err := url.Parse(endpoint); err != nil {
+		return nil, fmt.Errorf("invalid OTLP endpoint URL: %w", err)
+	}
+
+	res, err := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceName(name),
+			semconv.ServiceVersion(version.Short()),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("creating otel resources: %w", err)
+	}
+
+	te, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(endpoint))
+	if err != nil {
+		return nil, fmt.Errorf("starting otelhttp trace exporter: %w", err)
+	}
+
+	return sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(te),
+		sdktrace.WithResource(res),
+	), nil
 }

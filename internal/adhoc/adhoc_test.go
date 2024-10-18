@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
@@ -29,6 +30,7 @@ func TestNewHandler(t *testing.T) {
 	opts := HandlerOpts{
 		Conn:           nil,
 		Logger:         zerolog.New(io.Discard),
+		TracerProvider: noop.NewTracerProvider(),
 		Publisher:      channelPublisher(make(chan pusher.Payload)),
 		TenantCh:       make(chan sm.Tenant),
 		PromRegisterer: prometheus.NewPedanticRegistry(),
@@ -63,6 +65,7 @@ func TestHandlerRun(t *testing.T) {
 
 	opts := HandlerOpts{
 		Logger:         logger,
+		TracerProvider: noop.NewTracerProvider(),
 		Publisher:      channelPublisher(publishCh),
 		TenantCh:       make(chan sm.Tenant),
 		PromRegisterer: prometheus.NewPedanticRegistry(),
@@ -132,8 +135,7 @@ func (testBackoff) Duration() time.Duration {
 
 func (testBackoff) Reset() {}
 
-type grpcTestConn struct {
-}
+type grpcTestConn struct{}
 
 func (grpcTestConn) GetState() connectivity.State {
 	return connectivity.Ready
@@ -189,6 +191,7 @@ func TestHandlerRunErrors(t *testing.T) {
 			opts := HandlerOpts{
 				Conn:           &grpcTestConn{},
 				Logger:         logger,
+				TracerProvider: noop.NewTracerProvider(),
 				Publisher:      channelPublisher(publishCh),
 				Backoff:        testBackoff{},
 				TenantCh:       make(chan sm.Tenant),

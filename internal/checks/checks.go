@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -67,6 +68,7 @@ type Backoffer interface {
 type Updater struct {
 	api            apiInfo
 	logger         zerolog.Logger
+	tracerProvider trace.TracerProvider
 	features       feature.Collection
 	backoff        Backoffer
 	publisher      pusher.Publisher
@@ -104,6 +106,7 @@ type (
 type UpdaterOptions struct {
 	Conn           *grpc.ClientConn
 	Logger         zerolog.Logger
+	TracerProvider trace.TracerProvider
 	Backoff        Backoffer
 	Publisher      pusher.Publisher
 	TenantCh       chan<- sm.Tenant
@@ -226,6 +229,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 			conn: opts.Conn,
 		},
 		logger:         opts.Logger,
+		tracerProvider: opts.TracerProvider,
 		features:       opts.Features,
 		backoff:        opts.Backoff,
 		publisher:      opts.Publisher,
@@ -894,6 +898,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		ctx, check, c.publisher, *c.probe,
 		c.features,
 		c.logger,
+		c.tracerProvider,
 		metrics,
 		c.k6Runner,
 		c.tenantLimits, c.telemeter,

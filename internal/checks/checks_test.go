@@ -12,6 +12,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
@@ -467,6 +468,7 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 func testScraperFactory(ctx context.Context, check model.Check, publisher pusher.Publisher, _ sm.Probe,
 	_ feature.Collection,
 	logger zerolog.Logger,
+	tracerProvider trace.TracerProvider,
 	metrics scraper.Metrics,
 	k6Runner k6runner.Runner,
 	labelsLimiter scraper.LabelsLimiter,
