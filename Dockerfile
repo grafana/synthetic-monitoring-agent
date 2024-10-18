@@ -24,8 +24,8 @@ FROM alpine:3.20.3 AS with-browser
 # Renovate updates the pinned packages below.
 # The --repository arg is required for renovate to know which alpine repo it should look for updates in.
 # To keep the renovate regex simple, only keep one package installation per line.
-RUN apk --no-cache add --repository community tini=0.19.0-r3 && \
-  apk --no-cache add --repository community chromium-swiftshader=129.0.6668.89-r0
+RUN apk --no-cache add --repository community tini=0.19.0-r3
+RUN apk --no-cache add --repository community chromium-swiftshader=129.0.6668.89-r0
 
 COPY --from=release /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
 COPY --from=release /usr/local/bin/sm-k6 /usr/local/bin/sm-k6
