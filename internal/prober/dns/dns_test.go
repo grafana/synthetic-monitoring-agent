@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns/internal/bbe/config"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/miekg/dns"
@@ -27,17 +28,17 @@ func TestName(t *testing.T) {
 
 func TestNewProber(t *testing.T) {
 	testcases := map[string]struct {
-		input       sm.Check
+		input       model.Check
 		expected    Prober
 		ExpectError bool
 	}{
 		"default": {
-			input: sm.Check{
+			input: model.Check{Check: sm.Check{
 				Target: "www.grafana.com",
 				Settings: sm.CheckSettings{
 					Dns: &sm.DnsSettings{},
 				},
-			},
+			}},
 			expected: Prober{
 				config: config.Module{
 					Prober:  "dns",
@@ -55,10 +56,12 @@ func TestNewProber(t *testing.T) {
 			ExpectError: false,
 		},
 		"no-settings": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Dns: nil,
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Dns: nil,
+					},
 				},
 			},
 			expected:    Prober{},
@@ -221,15 +224,17 @@ func TestProberRetries(t *testing.T) {
 		}
 	}()
 
-	p, err := NewExperimentalProber(sm.Check{
-		Target:  "www.grafana.com",
-		Timeout: 20000,
-		Settings: sm.CheckSettings{
-			Dns: &sm.DnsSettings{
-				Server:     l.LocalAddr().String(),
-				RecordType: sm.DnsRecordType_A,
-				Protocol:   sm.DnsProtocol_UDP,
-				IpVersion:  sm.IpVersion_V4,
+	p, err := NewExperimentalProber(model.Check{
+		Check: sm.Check{
+			Target:  "www.grafana.com",
+			Timeout: 20000,
+			Settings: sm.CheckSettings{
+				Dns: &sm.DnsSettings{
+					Server:     l.LocalAddr().String(),
+					RecordType: sm.DnsRecordType_A,
+					Protocol:   sm.DnsProtocol_UDP,
+					IpVersion:  sm.IpVersion_V4,
+				},
 			},
 		},
 	})

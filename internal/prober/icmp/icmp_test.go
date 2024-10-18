@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
 	bbeprober "github.com/prometheus/blackbox_exporter/prober"
@@ -21,15 +22,17 @@ func TestName(t *testing.T) {
 
 func TestNewProber(t *testing.T) {
 	testcases := map[string]struct {
-		input       sm.Check
+		input       model.Check
 		expected    Prober
 		ExpectError bool
 	}{
 		"default": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Ping: &sm.PingSettings{},
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Ping: &sm.PingSettings{},
+					},
 				},
 			},
 			expected: Prober{
@@ -49,11 +52,13 @@ func TestNewProber(t *testing.T) {
 			ExpectError: false,
 		},
 		"1 packet": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Ping: &sm.PingSettings{
-						PacketCount: 1,
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Ping: &sm.PingSettings{
+							PacketCount: 1,
+						},
 					},
 				},
 			},
@@ -74,11 +79,13 @@ func TestNewProber(t *testing.T) {
 			ExpectError: false,
 		},
 		"2 packets": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Ping: &sm.PingSettings{
-						PacketCount: 2,
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Ping: &sm.PingSettings{
+							PacketCount: 2,
+						},
 					},
 				},
 			},
@@ -99,10 +106,12 @@ func TestNewProber(t *testing.T) {
 			ExpectError: false,
 		},
 		"no-settings": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Ping: nil,
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Ping: nil,
+					},
 				},
 			},
 			expected:    Prober{},
@@ -213,13 +222,15 @@ func TestProber(t *testing.T) {
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
 
-	prober, err := NewProber(sm.Check{
-		Target:  "127.0.0.1",
-		Timeout: 1000,
-		Settings: sm.CheckSettings{
-			Ping: &sm.PingSettings{
-				IpVersion:   sm.IpVersion_V4,
-				PacketCount: 1,
+	prober, err := NewProber(model.Check{
+		Check: sm.Check{
+			Target:  "127.0.0.1",
+			Timeout: 1000,
+			Settings: sm.CheckSettings{
+				Ping: &sm.PingSettings{
+					IpVersion:   sm.IpVersion_V4,
+					PacketCount: 1,
+				},
 			},
 		},
 	})

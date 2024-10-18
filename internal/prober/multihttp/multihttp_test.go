@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
@@ -21,28 +22,30 @@ func TestNewProber(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 
 	testcases := map[string]struct {
-		check         sm.Check
+		check         model.Check
 		expectFailure bool
 	}{
 		"valid": {
 			expectFailure: false,
-			check: sm.Check{
-				Id:        1,
-				Target:    "http://www.example.org",
-				Job:       "test",
-				Frequency: 10 * 1000,
-				Timeout:   10 * 1000,
-				Probes:    []int64{1},
-				Settings: sm.CheckSettings{
-					Multihttp: &sm.MultiHttpSettings{
-						Entries: []*sm.MultiHttpEntry{
-							{
-								Request: &sm.MultiHttpEntryRequest{
-									Url: "http://www.example.org",
-									QueryFields: []*sm.QueryField{
-										{
-											Name:  "q",
-											Value: "${v}",
+			check: model.Check{
+				Check: sm.Check{
+					Id:        1,
+					Target:    "http://www.example.org",
+					Job:       "test",
+					Frequency: 10 * 1000,
+					Timeout:   10 * 1000,
+					Probes:    []int64{1},
+					Settings: sm.CheckSettings{
+						Multihttp: &sm.MultiHttpSettings{
+							Entries: []*sm.MultiHttpEntry{
+								{
+									Request: &sm.MultiHttpEntryRequest{
+										Url: "http://www.example.org",
+										QueryFields: []*sm.QueryField{
+											{
+												Name:  "q",
+												Value: "${v}",
+											},
 										},
 									},
 								},
@@ -54,18 +57,20 @@ func TestNewProber(t *testing.T) {
 		},
 		"settings must be valid": {
 			expectFailure: true,
-			check: sm.Check{
-				Id:        2,
-				Target:    "http://www.example.org",
-				Job:       "test",
-				Frequency: 10 * 1000,
-				Timeout:   10 * 1000,
-				Probes:    []int64{1},
-				Settings: sm.CheckSettings{
-					Multihttp: &sm.MultiHttpSettings{
-						Entries: []*sm.MultiHttpEntry{
-							// This is invalid because the requsest does not have a URL
-							{},
+			check: model.Check{
+				Check: sm.Check{
+					Id:        2,
+					Target:    "http://www.example.org",
+					Job:       "test",
+					Frequency: 10 * 1000,
+					Timeout:   10 * 1000,
+					Probes:    []int64{1},
+					Settings: sm.CheckSettings{
+						Multihttp: &sm.MultiHttpSettings{
+							Entries: []*sm.MultiHttpEntry{
+								// This is invalid because the requsest does not have a URL
+								{},
+							},
 						},
 					},
 				},
@@ -73,35 +78,39 @@ func TestNewProber(t *testing.T) {
 		},
 		"must contain multihttp settings": {
 			expectFailure: true,
-			check: sm.Check{
-				Id:        3,
-				Target:    "http://www.example.org",
-				Job:       "test",
-				Frequency: 10 * 1000,
-				Timeout:   10 * 1000,
-				Probes:    []int64{1},
-				Settings: sm.CheckSettings{
-					// The settings are valid for ping, but not for multihttp
-					Ping: &sm.PingSettings{},
+			check: model.Check{
+				Check: sm.Check{
+					Id:        3,
+					Target:    "http://www.example.org",
+					Job:       "test",
+					Frequency: 10 * 1000,
+					Timeout:   10 * 1000,
+					Probes:    []int64{1},
+					Settings: sm.CheckSettings{
+						// The settings are valid for ping, but not for multihttp
+						Ping: &sm.PingSettings{},
+					},
 				},
 			},
 		},
 		"header overwrite protection is case-insensitive": {
 			expectFailure: false,
-			check: sm.Check{
-				Id:        4,
-				Target:    "http://www.example.org",
-				Job:       "test",
-				Frequency: 10 * 1000,
-				Timeout:   10 * 1000,
-				Probes:    []int64{1},
-				Settings: sm.CheckSettings{
-					Multihttp: &sm.MultiHttpSettings{
-						Entries: []*sm.MultiHttpEntry{
-							{
-								Request: &sm.MultiHttpEntryRequest{
-									Url:     "http://www.example.org",
-									Headers: []*sm.HttpHeader{{Name: "X-sM-Id", Value: "9880-9880"}},
+			check: model.Check{
+				Check: sm.Check{
+					Id:        4,
+					Target:    "http://www.example.org",
+					Job:       "test",
+					Frequency: 10 * 1000,
+					Timeout:   10 * 1000,
+					Probes:    []int64{1},
+					Settings: sm.CheckSettings{
+						Multihttp: &sm.MultiHttpSettings{
+							Entries: []*sm.MultiHttpEntry{
+								{
+									Request: &sm.MultiHttpEntryRequest{
+										Url:     "http://www.example.org",
+										Headers: []*sm.HttpHeader{{Name: "X-sM-Id", Value: "9880-9880"}},
+									},
 								},
 							},
 						},

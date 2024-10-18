@@ -6,7 +6,8 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
-	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
@@ -18,33 +19,37 @@ func TestNewProber(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 
 	testcases := map[string]struct {
-		check         synthetic_monitoring.Check
+		check         model.Check
 		expectFailure bool
 	}{
 		"valid": {
 			expectFailure: false,
-			check: synthetic_monitoring.Check{
-				Target:    "http://www.example.org",
-				Job:       "test",
-				Frequency: 10 * 1000,
-				Timeout:   10 * 1000,
-				Probes:    []int64{1},
-				Settings: synthetic_monitoring.CheckSettings{
-					Scripted: &synthetic_monitoring.ScriptedSettings{
-						Script: []byte("// test"),
+			check: model.Check{
+				Check: sm.Check{
+					Target:    "http://www.example.org",
+					Job:       "test",
+					Frequency: 10 * 1000,
+					Timeout:   10 * 1000,
+					Probes:    []int64{1},
+					Settings: sm.CheckSettings{
+						Scripted: &sm.ScriptedSettings{
+							Script: []byte("// test"),
+						},
 					},
 				},
 			},
 		},
 		"invalid": {
 			expectFailure: true,
-			check: synthetic_monitoring.Check{
-				Target:    "http://www.example.org",
-				Job:       "test",
-				Frequency: 10 * 1000,
-				Timeout:   10 * 1000,
-				Probes:    []int64{1},
-				Settings:  synthetic_monitoring.CheckSettings{},
+			check: model.Check{
+				Check: sm.Check{
+					Target:    "http://www.example.org",
+					Job:       "test",
+					Frequency: 10 * 1000,
+					Timeout:   10 * 1000,
+					Probes:    []int64{1},
+					Settings:  sm.CheckSettings{},
+				},
 			},
 		},
 	}
