@@ -203,7 +203,7 @@ func TestScriptHTTPRun(t *testing.T) {
 				Metrics:   testMetrics,
 				Logs:      testLogs,
 				Error:     "syntax error somewhere or something",
-				ErrorCode: "user",
+				ErrorCode: "aborted",
 			},
 			statusCode:    http.StatusOK,
 			expectSuccess: false,
@@ -211,7 +211,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
 				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
 				"syntax error somewhere or something",
-				"user",
+				"aborted",
 			),
 		},
 		{
@@ -220,7 +220,7 @@ func TestScriptHTTPRun(t *testing.T) {
 				Metrics:   testMetrics,
 				Logs:      []byte(`level=error foo="b` + "\n"),
 				Error:     "we killed k6",
-				ErrorCode: "user",
+				ErrorCode: "aborted",
 			},
 			statusCode:    http.StatusUnprocessableEntity,
 			expectSuccess: false,
@@ -228,7 +228,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectLogs: `level="error"` + "\n" + fmt.Sprintf(
 				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
 				"we killed k6",
-				"user",
+				"aborted",
 			),
 		},
 		{
@@ -237,7 +237,7 @@ func TestScriptHTTPRun(t *testing.T) {
 				Metrics:   []byte("probe_succ{"),
 				Logs:      testLogs,
 				Error:     "we killed k6",
-				ErrorCode: "user",
+				ErrorCode: "aborted",
 			},
 			statusCode:    http.StatusUnprocessableEntity,
 			expectSuccess: false,
@@ -245,7 +245,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
 				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
 				"we killed k6",
-				"user",
+				"aborted",
 			),
 		},
 		{
