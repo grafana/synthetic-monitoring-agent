@@ -1,0 +1,8 @@
+FROM --platform=$TARGETOS/$TARGETARCH scratch
+
+ARG TARGETOS
+ARG TARGETARCH
+
+ADD ./dist/container-image.no-browser.${TARGETOS}-${TARGETARCH}.tar /
+
+ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
