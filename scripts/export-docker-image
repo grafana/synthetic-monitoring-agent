@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -e
+set -u
+
+image_name=$1
+output=$2
+
+container_id=$(docker container create "${image_name}")
+trap 'docker container rm "${container_id}"' EXIT
+docker container export -o "${output}" "${container_id}"
