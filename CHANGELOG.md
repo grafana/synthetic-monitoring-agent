@@ -1,4 +1,12 @@
 <a name="v0.28.0"></a>
+## [0.28.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.28.1...v0.28.2) (2024-10-19)
+
+
+### Fixes
+
+* Drone jsonnet source files ([#937](https://github.com/grafana/synthetic-monitoring-agent/issues/937)) ([1fa3a9d](https://github.com/grafana/synthetic-monitoring-agent/commit/1fa3a9dd2c3beb7a22de12c242c48b935745e0d1))
+* **drone:** Resign .drone.yml file ([#935](https://github.com/grafana/synthetic-monitoring-agent/issues/935)) ([8c0bd2f](https://github.com/grafana/synthetic-monitoring-agent/commit/8c0bd2ffd788792aaea6dca2c55a162ff3333ae0))
+
 ## [0.28.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.28.0...v0.28.1) (2024-10-01)
 
 
