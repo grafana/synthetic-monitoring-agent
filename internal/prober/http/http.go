@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tls"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
@@ -29,13 +30,13 @@ type Prober struct {
 	cacheBustingQueryParamName string
 }
 
-func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, reservedHeaders http.Header) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, reservedHeaders http.Header) (Prober, error) {
 	if check.Settings.Http == nil {
 		return Prober{}, errUnsupportedCheck
 	}
 
 	if len(reservedHeaders) > 0 {
-		augmentHttpHeaders(&check, reservedHeaders)
+		augmentHttpHeaders(&check.Check, reservedHeaders)
 	}
 
 	cfg, err := settingsToModule(ctx, check.Settings.Http, logger)

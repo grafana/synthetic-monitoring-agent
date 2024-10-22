@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -18,15 +19,17 @@ func TestName(t *testing.T) {
 func TestNewProber(t *testing.T) {
 	logger := zerolog.New(io.Discard)
 	testcases := map[string]struct {
-		input       sm.Check
+		input       model.Check
 		expected    Prober
 		ExpectError bool
 	}{
 		"default": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Traceroute: &sm.TracerouteSettings{},
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Traceroute: &sm.TracerouteSettings{},
+					},
 				},
 			},
 			expected: Prober{
@@ -47,10 +50,12 @@ func TestNewProber(t *testing.T) {
 			ExpectError: false,
 		},
 		"no-settings": {
-			input: sm.Check{
-				Target: "www.grafana.com",
-				Settings: sm.CheckSettings{
-					Tcp: nil,
+			input: model.Check{
+				Check: sm.Check{
+					Target: "www.grafana.com",
+					Settings: sm.CheckSettings{
+						Tcp: nil,
+					},
 				},
 			},
 			expected:    Prober{},

@@ -62,33 +62,33 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 
 	switch checkType := check.Type(); checkType {
 	case sm.CheckTypePing:
-		p, err = icmp.NewProber(check.Check)
+		p, err = icmp.NewProber(check)
 		target = check.Target
 
 	case sm.CheckTypeHttp:
 		reservedHeaders := f.getReservedHeaders(&check)
-		p, err = httpProber.NewProber(ctx, check.Check, logger, reservedHeaders)
+		p, err = httpProber.NewProber(ctx, check, logger, reservedHeaders)
 		target = check.Target
 
 	case sm.CheckTypeDns:
 		if f.features.IsSet(feature.ExperimentalDnsProber) {
-			p, err = dns.NewExperimentalProber(check.Check)
+			p, err = dns.NewExperimentalProber(check)
 		} else {
-			p, err = dns.NewProber(check.Check)
+			p, err = dns.NewProber(check)
 		}
 		target = check.Settings.Dns.Server
 
 	case sm.CheckTypeTcp:
-		p, err = tcp.NewProber(ctx, check.Check, logger)
+		p, err = tcp.NewProber(ctx, check, logger)
 		target = check.Target
 
 	case sm.CheckTypeTraceroute:
-		p, err = traceroute.NewProber(check.Check, logger)
+		p, err = traceroute.NewProber(check, logger)
 		target = check.Target
 
 	case sm.CheckTypeScripted:
 		if f.runner != nil {
-			p, err = scripted.NewProber(ctx, check.Check, logger, f.runner)
+			p, err = scripted.NewProber(ctx, check, logger, f.runner)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
@@ -99,7 +99,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		// we know that the runner is actually able to handle browser
 		// checks.
 		if f.runner != nil {
-			p, err = browser.NewProber(ctx, check.Check, logger, f.runner)
+			p, err = browser.NewProber(ctx, check, logger, f.runner)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
@@ -108,14 +108,14 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 	case sm.CheckTypeMultiHttp:
 		if f.runner != nil {
 			reservedHeaders := f.getReservedHeaders(&check)
-			p, err = multihttp.NewProber(ctx, check.Check, logger, f.runner, reservedHeaders)
+			p, err = multihttp.NewProber(ctx, check, logger, f.runner, reservedHeaders)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
 		}
 
 	case sm.CheckTypeGrpc:
-		p, err = grpc.NewProber(ctx, check.Check, logger)
+		p, err = grpc.NewProber(ctx, check, logger)
 		target = check.Target
 
 	default:

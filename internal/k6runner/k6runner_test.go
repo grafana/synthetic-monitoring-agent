@@ -10,8 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -91,6 +93,34 @@ func TestScriptRun(t *testing.T) {
 	success, err := processor.Run(ctx, registry, &logger, zlogger)
 	require.NoError(t, err)
 	require.True(t, success)
+}
+
+func TestCheckInfoFromSM(t *testing.T) {
+	t.Parallel()
+
+	check := model.Check{
+		RegionId: 4,
+		Check: sm.Check{
+			Id:       69,
+			TenantId: 1234,
+			Created:  1234.5,
+			Modified: 12345.6,
+			Settings: sm.CheckSettings{
+				Browser: &sm.BrowserSettings{}, // Make it non-nil so type is Browser.
+			},
+		},
+	}
+
+	ci := CheckInfoFromSM(check)
+
+	require.Equal(t, sm.CheckTypeBrowser.String(), ci.Type)
+	require.Equal(t, map[string]any{
+		"id":       check.Id,
+		"tenantID": check.TenantId,
+		"regionID": check.RegionId,
+		"created":  check.Created,
+		"modified": check.Modified,
+	}, ci.Metadata)
 }
 
 type testRunner struct {

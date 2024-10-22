@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,7 +29,7 @@ type Prober struct {
 	processor *k6runner.Processor
 }
 
-func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Multihttp == nil {
@@ -40,7 +41,7 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 	}
 
 	if len(reservedHeaders) > 0 {
-		augmentHttpHeaders(&check, reservedHeaders)
+		augmentHttpHeaders(&check.Check, reservedHeaders)
 	}
 
 	script, err := settingsToScript(check.Settings.Multihttp)
@@ -55,7 +56,7 @@ func NewProber(ctx context.Context, check sm.Check, logger zerolog.Logger, runne
 			Settings: k6runner.Settings{
 				Timeout: check.Timeout,
 			},
-			// TODO: Add metadata & features here.
+			CheckInfo: k6runner.CheckInfoFromSM(check),
 		},
 	}
 

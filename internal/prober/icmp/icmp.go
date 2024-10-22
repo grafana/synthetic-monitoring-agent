@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-kit/log"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
@@ -29,7 +30,7 @@ type Prober struct {
 	config Module
 }
 
-func NewProber(check sm.Check) (Prober, error) {
+func NewProber(check model.Check) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Ping == nil {
