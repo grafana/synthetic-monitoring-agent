@@ -49,6 +49,7 @@ import (
 	"github.com/prometheus/prometheus/promql/parser"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/trace/noop"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	grpchealth "google.golang.org/grpc/health/grpc_health_v1"
@@ -951,10 +952,11 @@ func TestValidateLabels(t *testing.T) {
 			check.AlertSensitivity = "low" // Force sm_check_info metric to include alert sensitivity label
 
 			s := Scraper{
-				checkName: "check name",
-				target:    check.Target,
-				logger:    zerolog.Nop(),
-				prober:    prober,
+				checkName:      "check name",
+				target:         check.Target,
+				logger:         zerolog.Nop(),
+				tracerProvider: noop.NewTracerProvider(),
+				prober:         prober,
 				labelsLimiter: testLabelsLimiter{
 					maxMetricLabels: 100,
 					maxLogLabels:    100,
@@ -1560,10 +1562,11 @@ func TestScraperCollectData(t *testing.T) {
 		tc := tc
 		t.Run(name, func(t *testing.T) {
 			s := Scraper{
-				checkName: checkName,
-				target:    "test target",
-				logger:    zerolog.Nop(),
-				prober:    testProber{},
+				checkName:      checkName,
+				target:         "test target",
+				logger:         zerolog.Nop(),
+				tracerProvider: noop.NewTracerProvider(),
+				prober:         testProber{},
 				labelsLimiter: testLabelsLimiter{
 					maxMetricLabels: tc.maxMetricLabels,
 					maxLogLabels:    tc.maxLogLabels,
@@ -1864,10 +1867,11 @@ func TestScraperRun(t *testing.T) {
 	metrics := NewMetrics(&counter, &errCounter)
 
 	s, err := NewWithOpts(ctx, check, ScraperOpts{
-		Metrics:      metrics,
-		ProbeFactory: testProbeFactory{builder: func() prober.Prober { return testProber }},
-		Logger:       zerolog.New(zerolog.NewTestWriter(t)),
-		Publisher:    &testPublisher{},
+		Metrics:        metrics,
+		ProbeFactory:   testProbeFactory{builder: func() prober.Prober { return testProber }},
+		Logger:         zerolog.New(zerolog.NewTestWriter(t)),
+		TracerProvider: noop.NewTracerProvider(),
+		Publisher:      &testPublisher{},
 		LabelsLimiter: testLabelsLimiter{
 			maxMetricLabels: 20,
 			maxLogLabels:    15,
