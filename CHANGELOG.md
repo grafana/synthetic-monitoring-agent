@@ -1,4 +1,11 @@
 <a name="v0.28.0"></a>
+## [0.29.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.0...v0.29.1) (2024-10-28)
+
+
+### Release
+
+* Internal release ([#962](https://github.com/grafana/synthetic-monitoring-agent/issues/962)) ([074c575](https://github.com/grafana/synthetic-monitoring-agent/commit/074c57590d546ab46d2f7497533eeaf77e27b411))
+
 ## [0.29.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.28.2...v0.29.0) (2024-10-25)
 
 
