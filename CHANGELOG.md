@@ -1,4 +1,11 @@
 <a name="v0.28.0"></a>
+## [0.29.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.28.2...v0.29.0) (2024-10-25)
+
+
+### Features
+
+* k6runner: add check metadata and type to remote runner requests ([#928](https://github.com/grafana/synthetic-monitoring-agent/issues/928)) ([ce37f32](https://github.com/grafana/synthetic-monitoring-agent/commit/ce37f326c839e57795b7f98beecb593f0a83076a))
+
 ## [0.28.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.28.1...v0.28.2) (2024-10-19)
 
 
