@@ -10,8 +10,8 @@ ARG TARGETOS
 ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
 
+ADD --chmod=0555 https://github.com/grafana/xk6-sm/releases/download/v0.0.3-pre/sm-k6-${TARGETOS}-${TARGETARCH} /usr/local/bin/sm-k6
 COPY dist/${HOST_DIST}/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
-COPY dist/${HOST_DIST}/k6 /usr/local/bin/sm-k6
 COPY scripts/pre-stop.sh /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
