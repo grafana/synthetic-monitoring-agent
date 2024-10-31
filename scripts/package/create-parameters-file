@@ -1,0 +1,53 @@
+#!/bin/sh
+
+if [ "$#" -ne 6 ] ; then
+	cat 1>&2 <<-EOT
+	E: Incorrect number of parameters.
+
+	$0 DEST OS ARCH VERSION DISTDIR ROOTDIR
+	EOT
+
+	exit 1
+fi
+
+for p in "$@" ; do
+	if [ -z "$p" ] ; then
+		cat 1>&2 <<-EOT
+		E: Invalid parameters.
+
+		Got:
+		    $0 $@
+
+		Want:
+		    $0 DEST OS ARCH VERSION DISTDIR ROOTDIR
+		EOT
+
+		exit 1
+	fi
+done
+
+dstfile=$1
+
+shift
+
+tmpfile=$(mktemp)
+
+trap 'rm -f "${tmpfile}"' EXIT
+
+full_version=$3
+ROOTDIR=$4
+DISTDIR=$5
+
+version=$(echo "${full_version}" | cut -d- -f1)
+release=$(echo "${full_version}" | cut -d- -f2)
+
+cat > "${tmpfile}" <<-EOT
+	Os: "$1"
+	Arch: "$2"
+	Version: "$version"
+	Release: "$release"
+	ROOTDIR: "$ROOTDIR"
+	DISTDIR: "$DISTDIR"
+EOT
+
+mv "${tmpfile}" "${dstfile}"

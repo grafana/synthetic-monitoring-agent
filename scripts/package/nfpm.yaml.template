@@ -1,0 +1,27 @@
+name: "synthetic-monitoring-agent"
+arch: "{{ .Arch }}"
+platform: "{{ .Os }}"
+version: "{{ .Version }}"
+release: "{{ .Release }}"
+section: "net"
+priority: "optional"
+maintainer: Grafana Labs <support@grafana.com>
+description: Synthetic Monitoring Agent
+vendor: Grafana Labs Inc
+homepage: https://grafana.com/products/cloud/features/#synthetic-monitoring
+license: Apache2.0
+changelog: {{.DISTDIR}}/changelog.yaml
+contents:
+- src: {{.DISTDIR}}/{{.Os}}-{{.Arch}}/synthetic-monitoring-agent
+  dst: /usr/bin/synthetic-monitoring-agent
+- src: ./scripts/package/config/systemd/synthetic-monitoring-agent.conf
+  dst: /etc/synthetic-monitoring/synthetic-monitoring-agent.conf
+  type: 'config|noreplace'
+- src: ./scripts/package/config/systemd/synthetic-monitoring-agent.service
+  dst: /etc/systemd/system/synthetic-monitoring-agent.service
+
+# Copy k6 as sm-k6 to prevent clashing with k6 if it's installed.
+- src: {{.DISTDIR}}/{{.Os}}-{{.Arch}}/k6
+  dst: /usr/bin/sm-k6
+rpm:
+deb:
