@@ -35,7 +35,7 @@ jobs:
     runs-on: github-hosted-ubuntu-${{ matrix.arch }}
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v0.24.0@sha256:309c71f542b53fcb5fbc9042ec45cbab881a3b310c3a57b843d8ffe979bfa951
+      image: ghcr.io/grafana/grafana-build-tools:v0.29.1@sha256:c8728b51147a55389149fef94e6f6ae0ffd3ce08f85dea95716864c42f869fb1
     outputs:
       version: ${{ steps.version.outputs.value }}
 
@@ -82,6 +82,9 @@ jobs:
 
       - name: test
         run: make test
+
+      - name: build packages
+        run: make package-native
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1

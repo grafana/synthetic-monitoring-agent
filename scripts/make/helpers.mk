@@ -41,8 +41,16 @@ distclean: clean ## Clean up all build artifacts.
 
 .PHONY: version
 version: ## Create version information file.
+version: $(DISTDIR)/version.new
+	# Look at the new version file and replace it only if it has changed.
+	$(S) cmp -s $(DISTDIR)/version.new $(DISTDIR)/version && \
+		rm $(DISTDIR)/version.new || \
+		mv $(DISTDIR)/version.new $(DISTDIR)/version
+	$(S) cat $(DISTDIR)/version
+
+$(DISTDIR)/version $(DISTDIR)/version.new:
 	$(S) mkdir -p $(DISTDIR)
-	$(S) ./scripts/version | tee $(DISTDIR)/version
+	$(S) ./scripts/version > $@
 
 .PHONY: update-tools
 update-tools: ## Update tools
@@ -71,6 +79,7 @@ docker-image: docker-build
 
 .PHONY: docker-push
 docker-push:  docker
+
 	$(S) docker push $(DOCKER_TAG)
 	$(S) docker tag $(DOCKER_TAG) $(DOCKER_TAG):$(BUILD_VERSION)
 	$(S) docker push $(DOCKER_TAG):$(BUILD_VERSION)
