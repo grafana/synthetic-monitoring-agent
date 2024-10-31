@@ -1,1 +1,1 @@
-"ghcr.io/grafana/grafana-build-tools:v0.29.1"
+"ghcr.io/grafana/grafana-build-tools:v0.30.0"
