@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v0.29.1@sha256:c8728b51147a55389149fef94e6f6ae0ffd3ce08f85dea95716864c42f869fb1
+      image: ghcr.io/grafana/grafana-build-tools:v0.30.0@sha256:3e9d25e770f9c11d35df577141845e892e1a4ec13ca20461a4d7d6cf98156688
 
     steps:
       - name: checkout
@@ -59,6 +59,9 @@ jobs:
 
       - name: test
         run: make test
+
+      - name: build packages
+        run: make package-native
 
       - name: test docker build (no browser)
         uses: grafana/shared-workflows/actions/build-push-to-dockerhub@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
