@@ -35,7 +35,7 @@ jobs:
     runs-on: github-hosted-ubuntu-${{ matrix.arch }}
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v0.30.0@sha256:3e9d25e770f9c11d35df577141845e892e1a4ec13ca20461a4d7d6cf98156688
+      image: ghcr.io/grafana/grafana-build-tools:v0.31.1@sha256:576971e115fdb8def851e8d4141388262e2c9d6c23e6c00c5d584d8c06943bcf
     outputs:
       version: ${{ steps.version.outputs.value }}
 
@@ -144,6 +144,24 @@ jobs:
       image_name: ${{ steps.extract-image-metadata.outputs.image }}
       image_version: ${{ steps.extract-image-metadata.outputs.tag }}
     steps:
+      - name: Retrieve release app credentials
+        id: get-secrets
+        uses: grafana/shared-workflows/actions/get-vault-secrets@7d18a46aafb8b875ed76a0bc98852d74b91e7f91  # v1.0.0
+        with:
+          vault_instance: prod
+          repo_secrets: |
+            SM_RELEASE_APP_ID=github-app:app-id
+            SM_RELEASE_APP_PRIVATE_KEY=github-app:private-key
+
+      - name: Generate release app token
+        id: sm-release-app
+        uses: actions/create-github-app-token@5d869da34e18e7287c1daad50e0b8ea0f506ce69 # v1
+        with:
+          app-id: ${{ env.SM_RELEASE_APP_ID }}
+          private-key: ${{ env.SM_RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ needs.preflight.outputs.repo_name }}
+
       - name: checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
         with:
@@ -221,8 +239,21 @@ jobs:
           ./scripts/extract-image-info "${DOCKER_METADATA_OUTPUT_BAKE_FILE_TAGS}"
           ./scripts/extract-image-info "${DOCKER_METADATA_OUTPUT_BAKE_FILE_TAGS}" >> "$GITHUB_OUTPUT"
 
-  release:
-    name: release
+      # Add packages to release, but only in production mode, because dev mode doesn't have a tag.
+      - name: add packages to release
+        id: add-packages-to-release
+        env:
+          GH_TOKEN: ${{ steps.sm-release-app.outputs.token }}
+        if: ${{ always() && inputs.mode == 'prod' }}
+        run: |
+          tag=${GITHUB_REF##*/}
+          # Make sure this is a tag. The following command will fail otherwise.
+          git rev-parse "refs/tags/$tag"
+          find dist/ -mindepth 2 -maxdepth 2 -type f \( -name \*.rpm -o -name \*.deb \) -print0 |
+            xargs -r0 gh release upload "$tag"
+
+  deploy:
+    name: deploy
     needs:
       - preflight
       - publish_images
