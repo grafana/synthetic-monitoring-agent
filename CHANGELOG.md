@@ -1,4 +1,18 @@
 <a name="v0.28.0"></a>
+## [0.29.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.2...v0.29.3) (2024-11-04)
+
+
+### Release
+
+* Internal release ([#972](https://github.com/grafana/synthetic-monitoring-agent/issues/972)) ([c5c11ae](https://github.com/grafana/synthetic-monitoring-agent/commit/c5c11ae72b7284786648e87cfd79b8eaa9fdfe97))
+
+## [0.29.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.1...v0.29.2) (2024-11-01)
+
+
+### Fixes
+
+* rework package creation ([#967](https://github.com/grafana/synthetic-monitoring-agent/issues/967)) ([9ec7359](https://github.com/grafana/synthetic-monitoring-agent/commit/9ec7359e5a799c2421e74fe406a27e178f63df40))
+
 ## [0.29.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.0...v0.29.1) (2024-10-28)
 
 
