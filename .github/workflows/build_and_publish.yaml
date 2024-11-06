@@ -148,7 +148,7 @@ jobs:
         id: get-secrets
         uses: grafana/shared-workflows/actions/get-vault-secrets@7d18a46aafb8b875ed76a0bc98852d74b91e7f91  # v1.0.0
         with:
-          vault_instance: prod
+          vault_instance: ops
           repo_secrets: |
             SM_RELEASE_APP_ID=github-app:app-id
             SM_RELEASE_APP_PRIVATE_KEY=github-app:private-key
