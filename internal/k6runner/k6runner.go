@@ -174,7 +174,7 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 	)
 
 	if err := extractMetricSamples(result.Metrics, internalLogger, collector.process, resultCollector.process); err != nil {
-		internalLogger.Debug().
+		internalLogger.Error().
 			Err(err).
 			Msg("cannot extract metric samples")
 		return false, err
