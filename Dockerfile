@@ -27,7 +27,7 @@ FROM --platform=$TARGETPLATFORM alpine:3.20.3 AS with-browser
 # The --repository arg is required for renovate to know which alpine repo it should look for updates in.
 # To keep the renovate regex simple, only keep one package installation per line.
 RUN apk --no-cache add --repository community tini=0.19.0-r3 && \
-  apk --no-cache add --repository community chromium-swiftshader=130.0.6723.91-r0
+  apk --no-cache add --repository community chromium-swiftshader=130.0.6723.116-r0
 
 COPY --from=release /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
 COPY --from=release /usr/local/bin/sm-k6 /usr/local/bin/sm-k6
