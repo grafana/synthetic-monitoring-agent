@@ -1,14 +1,14 @@
 name: Renovate
 on:
   schedule:
-    - cron:  '16 */4 * * *'
+    - cron: "16 */4 * * *"
   workflow_dispatch:
 
 jobs:
   renovate:
     permissions:
-      contents: read        # needed to read the contents of the repository
-      id-token: write       # needed to create a GitHub App token
+      contents: read # needed to read the contents of the repository
+      id-token: write # needed to create a GitHub App token
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -34,13 +34,12 @@ jobs:
           private-key: ${{ env.GRAFANA_RENOVATE_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
 
-
       - name: Self-hosted Renovate
         uses: renovatebot/github-action@7743ec9e19ceeb61a3862c5d4131e6710195af11 # v40.3.3
         with:
           renovate-version: 37.440.7@sha256:1ee424e0ed4d8e64e5bb2d442d6bc72b3809bb9d0cf804f4b7180caa47d6002a
           configurationFile: .github/renovate-app.json
-          token: '${{ steps.app-token.outputs.token }}'
+          token: "${{ steps.app-token.outputs.token }}"
         env:
           LOG_LEVEL: debug
           RENOVATE_PLATFORM: github
