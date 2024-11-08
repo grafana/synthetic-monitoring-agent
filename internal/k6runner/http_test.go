@@ -191,7 +191,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectError:   ErrFromRunner,
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
-				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				"level=\"error\" msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
 				"something went wrong",
 				"something-wrong",
 			),
@@ -209,7 +209,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectError:   nil,
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
-				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				"level=\"error\" msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
 				"syntax error somewhere or something",
 				"aborted",
 			),
@@ -226,7 +226,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectErrorAs: &logfmt.SyntaxError{},
 			expectLogs: `level="error"` + "\n" + fmt.Sprintf(
-				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				"level=\"error\" msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
 				"we killed k6",
 				"aborted",
 			),
@@ -243,7 +243,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectErrorAs: expfmt.ParseError{},
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
-				"msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				"level=\"error\" msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
 				"we killed k6",
 				"aborted",
 			),
