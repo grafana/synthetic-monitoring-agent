@@ -151,7 +151,12 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 	// other logs.
 	if result.ErrorCode != "" {
 		defer func() {
-			err := logger.Log("msg", "script did not execute successfully", "error", result.Error, "errorCode", result.ErrorCode)
+			err := logger.Log(
+				"level", "error",
+				"msg", "script did not execute successfully",
+				"error", result.Error,
+				"errorCode", result.ErrorCode,
+			)
 			if err != nil {
 				internalLogger.Error().
 					Err(err).
