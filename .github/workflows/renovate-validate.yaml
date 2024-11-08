@@ -13,5 +13,5 @@ jobs:
       - name: Renovate config validator
         run: |
           # Renovate updates the line below. Please keep its formatting as it is.
-          export RENOVATE_IMAGE=ghcr.io/renovatebot/renovate:37.420.1@sha256:528f003c9aa77f6e916e3f9f5cc2fb9ae16fcf285af66f412a34325124f4a00e
+          export RENOVATE_IMAGE=ghcr.io/renovatebot/renovate:37.440.7@sha256:1ee424e0ed4d8e64e5bb2d442d6bc72b3809bb9d0cf804f4b7180caa47d6002a
           docker run -i --rm -v "$(realpath .):/repo" -w /repo --entrypoint renovate-config-validator "$RENOVATE_IMAGE" --strict
