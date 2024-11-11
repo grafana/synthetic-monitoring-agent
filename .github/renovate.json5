@@ -1,110 +1,109 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:best-practices",
-    ":semanticCommitsDisabled"
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:best-practices',
+    ':semanticCommitsDisabled',
   ],
-
-  "branchPrefix": "grafanarenovatebot/",
-  "commitMessagePrefix": "Chore: ",
-  "platformCommit": true,
-  "dependencyDashboard": false,
-  "forkProcessing": "disabled",
-  "rebaseWhen": "behind-base-branch",
-  "prHourlyLimit": 0,
-  "prConcurrentLimit": 10,
-  "branchConcurrentLimit": 10,
-
-  "enabledManagers": ["custom.regex", "gomod"],
-
-  "labels": ["dependencies"],
-
-  "gomod": {
-    "enabled": true
+  branchPrefix: 'grafanarenovatebot/',
+  commitMessagePrefix: 'Chore: ',
+  platformCommit: 'enabled',
+  dependencyDashboard: false,
+  forkProcessing: 'disabled',
+  rebaseWhen: 'behind-base-branch',
+  prHourlyLimit: 0,
+  prConcurrentLimit: 10,
+  branchConcurrentLimit: 10,
+  enabledManagers: [
+    'custom.regex',
+    'gomod',
+  ],
+  labels: [
+    'dependencies',
+  ],
+  gomod: {
+    enabled: true,
   },
-
-  "postUpdateOptions": [
-    "gomodTidyE"
+  postUpdateOptions: [
+    'gomodTidyE',
   ],
-
-  "packageRules": [
+  packageRules: [
     {
-      "matchManagers": ["gomod"],
-      "matchUpdateTypes": ["digest"],
-      "schedule": "before 8am on monday every 2 weeks"
+      matchManagers: [
+        'gomod',
+      ],
+      matchUpdateTypes: [
+        'digest',
+      ],
+      schedule: 'before 8am on monday every 2 weeks',
     },
     {
-      "matchManagers": ["gomod"],
-      "matchPackageNames": "github.com/prometheus/*",
-      "groupName": "prometheus-go"
-    }
+      matchManagers: [
+        'gomod',
+      ],
+      matchPackageNames: 'github.com/prometheus/*',
+      groupName: 'prometheus-go',
+    },
   ],
-
-  "customManagers": [
+  customManagers: [
     {
-      "customType": "regex",
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "semver",
-      "registryUrlTemplate": "https://ghcr.io",
-      "fileMatch": [
-        "(^|/)Makefile$",
-        ".*\\.jsonnet$",
-        ".*\\.mk$",
-        "^\\.github/workflows/.*\\.ya?ml$"
+      customType: 'regex',
+      datasourceTemplate: 'docker',
+      versioningTemplate: 'semver',
+      registryUrlTemplate: 'https://ghcr.io',
+      fileMatch: [
+        '(^|/)Makefile$',
+        '.*\\.jsonnet$',
+        '.*\\.mk$',
+        '^\\.github/workflows/.*\\.ya?ml$',
       ],
-      "matchStrings": [
-        "\\bghcr\\.io/(?<depName>grafana/grafana-build-tools):(?<currentValue>v\\d+\\.\\d+\\.\\d+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\\b"
-      ]
+      matchStrings: [
+        '\\bghcr\\.io/(?<depName>grafana/grafana-build-tools):(?<currentValue>v\\d+\\.\\d+\\.\\d+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\\b',
+      ],
     },
     {
-      // Update k6 version in Dockerfiles.
-      "customType": "regex",
-      "datasourceTemplate": "github-releases",
-      "depNameTemplate": "grafana/k6",
-      "fileMatch": [".*\\.mk"],
-      "matchStrings": [
-        "(?:^|\\n)[ \\t]*K6_VERSION\\s*:=\\s*(?<currentValue>\\S+)[ \\t]*(?:$|\\n)"
-      ]
+      customType: 'regex',
+      datasourceTemplate: 'github-releases',
+      depNameTemplate: 'grafana/k6',
+      fileMatch: [
+        '.*\\.mk',
+      ],
+      matchStrings: [
+        '(?:^|\\n)[ \\t]*K6_VERSION\\s*:=\\s*(?<currentValue>\\S+)[ \\t]*(?:$|\\n)',
+      ],
     },
     {
-      // Update pinned alpine packages in Dockerfile.
-      "customType": "regex",
-      "fileMatch": [ "Dockerfile" ],
-      "matchStrings": [
-        // Lines that loosely look like "apk add --repository community something=version".
-        // To keep this regex simple, only one package per "apk add" is supported.
-        "\\bapk\\b.+?\\badd\\b.+?(--repository|-X)[ =\\t]+(?<alpineRepo>[a-z]+)\\s+(?<depName>[-\\w]+?)=(?<currentValue>[-.\\w]+)"
+      customType: 'regex',
+      fileMatch: [
+        'Dockerfile',
       ],
-      "versioningTemplate": "loose", // The most lenient versioning renovate supports.
-      // We use two different datasources for main and community, as alpine serves them in different URLs.
-      "datasourceTemplate": "custom.alpine-{{alpineRepo}}",
-      // Extracted "versions" include the package name, so here we strip that prefix using a regex.
-      "extractVersionTemplate": "{{depName}}-(?<version>.+).apk",
+      matchStrings: [
+        '\\bapk\\b.+?\\badd\\b.+?(--repository|-X)[ =\\t]+(?<alpineRepo>[a-z]+)\\s+(?<depName>[-\\w]+?)=(?<currentValue>[-.\\w]+)',
+      ],
+      versioningTemplate: 'loose',
+      datasourceTemplate: 'custom.alpine-{{alpineRepo}}',
+      extractVersionTemplate: '{{depName}}-(?<version>.+).apk',
     },
     {
-      // Update renovate version in GHA workflow file.
-      "customType": "regex",
-      "depNameTemplate": "ghcr.io/renovatebot/renovate",
-      "datasourceTemplate": "docker",
-      "fileMatch": [
-        "^\\.github/workflows/.*\\.ya?ml$",
+      customType: 'regex',
+      depNameTemplate: 'ghcr.io/renovatebot/renovate',
+      datasourceTemplate: 'docker',
+      fileMatch: [
+        '^\\.github/workflows/.*\\.ya?ml$',
       ],
-      "matchStrings": [
-        "renovate-version: (?<currentValue>[^@\\s]+)(?:@(?<currentDigest>\\S+))?",
-        "RENOVATE_IMAGE=ghcr.io/renovatebot/renovate:(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>\\S+))?"
-      ]
-    }
+      matchStrings: [
+        'renovate-version: (?<currentValue>[^@\\s]+)(?:@(?<currentDigest>\\S+))?',
+        'RENOVATE_IMAGE=ghcr.io/renovatebot/renovate:(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>\\S+))?',
+      ],
+    },
   ],
-  "customDatasources": {
-    // Use alpine HTML mirror page as a repository. When using `html` format, renovate produces version strings from
-    // all links present in the page. The version is extracted from that using extractVersionTemplate above.
-    "alpine-main": {
-      "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/x86_64/",
-      "format": "html",
+  customDatasources: {
+    'alpine-main': {
+      defaultRegistryUrlTemplate: 'https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/x86_64/',
+      format: 'html',
     },
-    "alpine-community": {
-      "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/latest-stable/community/x86_64/",
-      "format": "html",
+    'alpine-community': {
+      defaultRegistryUrlTemplate: 'https://dl-cdn.alpinelinux.org/alpine/latest-stable/community/x86_64/',
+      format: 'html',
     },
   },
 }
