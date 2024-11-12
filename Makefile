@@ -25,4 +25,3 @@ include $(ROOTDIR)/scripts/make/linters.mk
 include $(ROOTDIR)/scripts/make/release.mk
 include $(ROOTDIR)/scripts/make/sm-k6.mk
 include $(ROOTDIR)/scripts/make/helpers.mk
-include $(ROOTDIR)/scripts/make/xk6.mk
