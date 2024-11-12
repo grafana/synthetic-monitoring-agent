@@ -7,7 +7,7 @@
 
   "branchPrefix": "grafanarenovatebot/",
   "commitMessagePrefix": "Chore: ",
-  "platformCommit": true,
+  "platformCommit": "enabled",
   "dependencyDashboard": false,
   "forkProcessing": "disabled",
   "rebaseWhen": "behind-base-branch",
