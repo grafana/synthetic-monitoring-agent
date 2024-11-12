@@ -25,5 +25,4 @@ ifeq ($(USE_LOCAL_TOOLS),true)
 GOLANGCI_LINT := golangci-lint
 GOTESTSUM     := gotestsum
 SHELLCHECK    := shellcheck
-XK6           := xk6
 endif
