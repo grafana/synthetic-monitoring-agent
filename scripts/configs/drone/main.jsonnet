@@ -132,6 +132,12 @@ local docker_publish_with_browser(repo, auth, tag, os, arch) =
     + dependsOn([ 'deps' ]),
 
     step(
+      'sm-k6',
+      [ 'make sm-k6-native' ],
+      go_tools_image,
+    ),
+
+    step(
       'build',
       [
         'git fetch origin --tags',
@@ -146,7 +152,7 @@ local docker_publish_with_browser(repo, auth, tag, os, arch) =
     + dependsOn([ 'deps' ]),
 
     step('test', [ 'make test' ])
-    + dependsOn([ 'lint', 'build' ]),
+    + dependsOn([ 'lint', 'build', 'sm-k6' ]),
 
     docker_build('linux', 'amd64'),
     docker_build('linux', 'arm64', 'v8'),

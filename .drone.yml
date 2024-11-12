@@ -22,6 +22,10 @@ steps:
   image: ghcr.io/grafana/grafana-build-tools:v0.31.1
   name: lint
 - commands:
+  - make sm-k6-native
+  image: ghcr.io/grafana/grafana-build-tools:v0.31.1
+  name: sm-k6
+- commands:
   - git fetch origin --tags
   - git status --porcelain --untracked-files=no
   - git diff --no-ext-diff --quiet
@@ -37,6 +41,7 @@ steps:
   depends_on:
   - lint
   - build
+  - sm-k6
   image: ghcr.io/grafana/grafana-build-tools:v0.31.1
   name: test
 - commands: []
@@ -336,6 +341,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: ebba11ba346f14c3e83c6ed062a09e816f74e904269e3191d9863961f86c27d8
+hmac: 3d1cac6d5c0cbffb92770bf7c46f31c3505152e1d41f4c07617e2bfa689118df
 
 ...
