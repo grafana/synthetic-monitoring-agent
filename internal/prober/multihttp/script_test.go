@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -852,7 +853,8 @@ func TestSettingsToScript(t *testing.T) {
 	t.Cleanup(cancel)
 	// logger := zerolog.New(zerolog.NewTestWriter(t))
 	logger := zerolog.Nop()
-	k6path := filepath.Join(testhelper.ModuleDir(t), "dist", "k6")
+	k6path := filepath.Join(testhelper.ModuleDir(t), "dist", runtime.GOOS+"-"+runtime.GOARCH, "sm-k6")
+	t.Log(k6path)
 	runner := k6runner.New(k6runner.RunnerOpts{Uri: k6path})
 
 	prober, err := NewProber(ctx, check, logger, runner, http.Header{})
