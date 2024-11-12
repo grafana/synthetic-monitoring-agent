@@ -10,7 +10,7 @@ jobs:
     name: validate
     strategy:
       matrix:
-        runner: [ ubuntu-latest, github-hosted-ubuntu-arm64 ]
+        runner: [ubuntu-latest, github-hosted-ubuntu-arm64]
     runs-on: ${{ matrix.runner }}
 
     container:
@@ -53,6 +53,9 @@ jobs:
 
       - name: build
         run: make build-native
+
+      - name: Download sm-k6
+        run: make sm-k6-native
 
       - name: lint
         run: make lint
