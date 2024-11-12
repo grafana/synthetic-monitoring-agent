@@ -26,6 +26,7 @@
       "versioningTemplate": "semver",
       "fileMatch": [
         "Dockerfile",
+        "scripts/make/sm-k6.mk"
       ],
       "matchStrings": [
         "https://github.com/grafana/xk6-sm/releases/download/(?<currentValue>[^/]+)/"
