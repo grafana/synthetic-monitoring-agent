@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
 )
@@ -70,16 +71,11 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	ctx, cancel = context.WithTimeout(ctx, checkTimeout)
 	defer cancel()
 
-	// #nosec G204 -- the variables are not user-controlled
-	cmd := exec.CommandContext(
-		ctx,
-		k6Path,
+	args := []string{
 		"run",
-		"--out", "sm="+metricsFn,
+		"--out", "sm=" + metricsFn,
 		"--log-format", "logfmt",
-		"--log-output", "file="+logsFn,
-		"--vus", "1",
-		"--iterations", "1",
+		"--log-output", "file=" + logsFn,
 		"--max-redirects", "10",
 		"--batch", "10",
 		"--batch-per-host", "4",
@@ -94,7 +90,21 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 		"--no-color",
 		"--no-summary",
 		"--verbose",
-		scriptFn,
+	}
+
+	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
+		args = append(args,
+			"--vus", "1",
+			"--iterations", "1",
+		)
+	}
+
+	args = append(args, scriptFn)
+
+	cmd := exec.CommandContext(
+		ctx,
+		k6Path,
+		args...,
 	)
 
 	var stdout, stderr bytes.Buffer
