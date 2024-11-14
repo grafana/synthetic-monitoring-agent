@@ -37,6 +37,10 @@
       "matchManagers": ["gomod"],
       "matchPackageNames": "github.com/prometheus/*",
       "groupName": "prometheus-go"
+    },
+    {
+      "matchPackageNames": "**/renovate",
+      "extends": ["schedule:weekly"]
     }
   ],
 
