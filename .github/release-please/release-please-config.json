@@ -8,8 +8,7 @@
         { "type": "feat", "section": "Features" },
         { "type": "fix", "section": "Fixes" },
         { "type": "docs", "section": "Documentation" },
-        { "type": "chore", "section": "Miscellaneous Chores" },
-        { "type": "release", "section": "Release"}
+        { "type": "chore", "section": "Miscellaneous Chores" }
       ]
     }
   },
