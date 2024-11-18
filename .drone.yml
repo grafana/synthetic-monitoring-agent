@@ -53,7 +53,7 @@ steps:
     - TARGETARCH=amd64
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
-    target: release
+    target: ""
 - commands: []
   depends_on:
   - build
@@ -69,7 +69,7 @@ steps:
     - TARGETVARIANT=v8
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
-    target: release
+    target: ""
 - commands: []
   depends_on:
   - build
@@ -84,7 +84,7 @@ steps:
     - TARGETARCH=amd64
     dry_run: "true"
     repo: grafana/synthetic-monitoring-agent
-    target: with-browser
+    target: browser
 - commands:
   - "true"
   depends_on:
@@ -106,7 +106,7 @@ steps:
       from_secret: docker_config_json
     dry_run: "false"
     repo: us.gcr.io/kubernetes-dev/synthetic-monitoring-agent
-    target: release
+    target: ""
   when:
     ref:
     - refs/heads/main
@@ -124,7 +124,7 @@ steps:
     password:
       from_secret: docker_password
     repo: grafana/synthetic-monitoring-agent
-    target: release
+    target: ""
     username:
       from_secret: docker_username
   when:
@@ -168,7 +168,7 @@ steps:
     password:
       from_secret: docker_password
     repo: grafana/synthetic-monitoring-agent
-    target: with-browser
+    target: browser
     username:
       from_secret: docker_username
   when:
@@ -353,6 +353,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 363b099264e7e2a4a3b840857d963aa0a79968952eac8cd40edadbda755b3b54
+hmac: f18a9ebff78adc595111948fe106b7057dd36fe44559a015bb155f74b2fd91fc
 
 ...

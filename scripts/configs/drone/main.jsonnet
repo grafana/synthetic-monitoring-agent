@@ -87,7 +87,7 @@ local docker_step(tag, os, arch, version='', with_browser=false) =
     settings: {
       repo: docker_repo,
       dry_run: 'true',
-      target: if with_browser then 'with-browser' else 'release',
+      target: if with_browser then 'browser' else '',
       build_args: [
         'TARGETPLATFORM=' + platform,
         'TARGETOS=' + os,
@@ -108,12 +108,12 @@ local docker_build(os, arch, version='', with_browser=false) =
 
 local docker_publish(repo, auth, tag, os, arch, version='') =
   docker_step('docker publish to ' + tag, os, arch, version, false)
-  + { settings: { repo: repo, dry_run: 'false', target: 'release' } + auth }
+  + { settings: { repo: repo, dry_run: 'false', target: '' } + auth }
   + dependsOn([ 'test', 'docker build' ]);
 
 local docker_publish_with_browser(repo, auth, tag, os, arch) =
   docker_step('docker publish (with browser) to ' + tag, os, arch, '', true)
-  + { settings: { repo: repo, dry_run: 'false', target: 'with-browser' } + auth }
+  + { settings: { repo: repo, dry_run: 'false', target: 'browser' } + auth }
   + dependsOn([ 'docker publish (with browser) tags' ]);  // step to update .tags file with browser-specific image tags
 
 [
