@@ -8,6 +8,26 @@
 * k6runner: add level=error to deferred log reporting code from runner ([dde3046](https://github.com/grafana/synthetic-monitoring-agent/commit/dde3046bfb7b611f9896c2a86a17598a6364ae87))
 * simplify TestTenantPusher ([#979](https://github.com/grafana/synthetic-monitoring-agent/issues/979)) ([ae46ff3](https://github.com/grafana/synthetic-monitoring-agent/commit/ae46ff352dbcaae1e0934cc4e954d13e8d2af56c))
 
+## [0.29.5](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.4...v0.29.5) (2024-11-18)
+
+
+### Fixes
+
+* Do not specify `--vus` or `--iterations` for browser checks ([a23d5fa](https://github.com/grafana/synthetic-monitoring-agent/commit/a23d5fa087718c2cc4c70d740f6c0025c1cafd41))
+* use different chromium versions for different architectures ([#1053](https://github.com/grafana/synthetic-monitoring-agent/issues/1053)) ([14b309d](https://github.com/grafana/synthetic-monitoring-agent/commit/14b309d8317369f2dfea60ceee285ea2d6dbf6eb))
+
+
+### Miscellaneous Chores
+
+* Add support for chore commits in release-please ([#1046](https://github.com/grafana/synthetic-monitoring-agent/issues/1046)) ([807ac78](https://github.com/grafana/synthetic-monitoring-agent/commit/807ac78238953512d5808a55496098eb4f3c20f8))
+* change release commit title ([#1039](https://github.com/grafana/synthetic-monitoring-agent/issues/1039)) ([79f6aca](https://github.com/grafana/synthetic-monitoring-agent/commit/79f6acae1a6c4fb2644b5417f6b4abc70da708fa))
+* move named anchor in changelog ([#1040](https://github.com/grafana/synthetic-monitoring-agent/issues/1040)) ([c186092](https://github.com/grafana/synthetic-monitoring-agent/commit/c186092687d8bfea14d05f74d70a3938cbd9e02e))
+* Throttle renovate updates ([599f0a6](https://github.com/grafana/synthetic-monitoring-agent/commit/599f0a607ebf32fee294d38f3e251c07c71ed00c))
+* Update ghcr.io/renovatebot/renovate Docker tag to v39.10.2 ([365693f](https://github.com/grafana/synthetic-monitoring-agent/commit/365693fdfdda667fcf933a610cb6e8440314556d))
+* Update ghcr.io/renovatebot/renovate Docker tag to v39.11.7 ([238ec5a](https://github.com/grafana/synthetic-monitoring-agent/commit/238ec5a564b2384d4c4e2b79de04897fc982ebc9))
+* Update ghcr.io/renovatebot/renovate Docker tag to v39.14.1 ([522e0d1](https://github.com/grafana/synthetic-monitoring-agent/commit/522e0d184a82e6ac4626c62420dff2b9018af18b))
+* Update module github.com/golangci/golangci-lint to v1.62.0 ([138ce6c](https://github.com/grafana/synthetic-monitoring-agent/commit/138ce6c5b6a84f18eca1b7d0a133d31df3ea1b45))
+
 ## [0.29.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.2...v0.29.3) (2024-11-04)
 
 
