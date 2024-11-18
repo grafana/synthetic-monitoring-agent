@@ -17,7 +17,7 @@ FROM base AS browser
 # The --repository arg is required for renovate to know which alpine repo it should look for updates in.
 # To keep the renovate regex simple, only keep one package installation per line.
 RUN apk --no-cache add --repository community tini=0.19.0-r3
-RUN apk --no-cache add --repository community chromium-swiftshader=130.0.6723.116-r0
+RUN apk --no-cache add --repository community chromium-swiftshader=131.0.6778.69-r0
 
 ENV K6_BROWSER_ARGS=no-sandbox,disable-dev-shm-usage
 
