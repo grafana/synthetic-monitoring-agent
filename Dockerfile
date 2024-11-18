@@ -23,11 +23,16 @@ ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
 # additionally installs Chromium to support browser checks.
 FROM --platform=$TARGETPLATFORM alpine:3.20.3 AS with-browser
 
+ARG TARGETARCH
+
 # Renovate updates the pinned packages below.
 # The --repository arg is required for renovate to know which alpine repo it should look for updates in.
 # To keep the renovate regex simple, only keep one package installation per line.
-RUN apk --no-cache add --repository community tini=0.19.0-r3 && \
-  apk --no-cache add --repository community chromium-swiftshader=130.0.6723.116-r0
+# Furthermore, we split this into two lines to allow for the arm64 and amd64 versions of chromium to be different, as 
+# they have drifted in the past.
+RUN apk --no-cache add --repository community tini=0.19.0-r3
+RUN [[ "$TARGETARCH" != "amd64" ]] || apk --no-cache add --repository community --arch x86_64 chromium-swiftshader=131.0.6778.69-r0
+RUN [[ "$TARGETARCH" != "arm64" ]] || apk --no-cache add --repository community --arch aarch64 chromium-swiftshader=130.0.6723.116-r0
 
 COPY --from=release /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
 COPY --from=release /usr/local/bin/sm-k6 /usr/local/bin/sm-k6
