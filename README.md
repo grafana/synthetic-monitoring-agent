@@ -35,13 +35,13 @@ See [examples/kubernetes](./examples/kubernetes) for the documentation and examp
 
 Docker Images
 -------------
-We release 2 versions of the [Docker image](https://hub.docker.com/r/grafana/synthetic-monitoring-agent) for the agent, depending on whether or not Chromium is installed in the environment for use in browser checks.
+We release two versions of the [Docker image](https://hub.docker.com/r/grafana/synthetic-monitoring-agent) for the agent, one with Chromium (suffixed `-browser`), and one without (no suffix). Variants with Chromium installed are substantially larger, but allow running [k6 browser checks](https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/create-checks/checks/k6-browser/). We recommend using the images without Chromium if you are not interested in running browser checks. If at some point you need to do so, you can switch to the `-browser` image without having to do anything else.
 
-Variants with the browser installed are tagged with the suffix `*-browser`. These images are substantially larger and shouldn't be used unless you need the browser functionality to keep memory requirements minimal.
+## Building the images
 
-These are built using the same multi-stage Dockerfile, so be aware that `Docker build` scripts failing to specify a build target will produce the larger image every time.
-* Without chromium: `docker build --target release .`
-* With chromium: `docker build .` or `docker build --target with-browser .`
+Both images (with and without Chromium) are built using the same multi-stage `Dockerfile`:
+* To build the container image *without* the Chromium web browser included, do not specify any `--target`: `docker build . -t synthetic-monitoring-agent:latest`
+* To build the container image *with* the Chromium web browser included, specify `--target browser`: `docker build . --target browser -t synthetic-monitoring-agent:latest-browser`
 
 
 Signals
