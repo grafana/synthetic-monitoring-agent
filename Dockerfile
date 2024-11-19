@@ -32,7 +32,7 @@ ARG TARGETARCH
 # they have drifted in the past.
 RUN apk --no-cache add --repository community tini=0.19.0-r3
 RUN [[ "$TARGETARCH" != "amd64" ]] || apk --no-cache add --repository community --arch x86_64 chromium-swiftshader=131.0.6778.69-r0
-RUN [[ "$TARGETARCH" != "arm64" ]] || apk --no-cache add --repository community --arch aarch64 chromium-swiftshader=130.0.6723.116-r0
+RUN [[ "$TARGETARCH" != "arm64" ]] || apk --no-cache add --repository community --arch aarch64 chromium-swiftshader=131.0.6778.69-r0
 
 COPY --from=release /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
 COPY --from=release /usr/local/bin/sm-k6 /usr/local/bin/sm-k6
