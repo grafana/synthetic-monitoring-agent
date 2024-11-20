@@ -75,14 +75,13 @@
       "customType": "regex",
       "fileMatch": [ "Dockerfile", "Dockerfile.build" ],
       "matchStrings": [
-        // Lines that loosely look like "apk add --repository community --arch value something=version".
+        // Lines that loosely look like "apk add --repository community something=version".
         // To keep this regex simple, only one package per "apk add" is supported.
-        "\\bapk\\b.+?\\badd\\b.+?(--repository|-X)[ =\\t]+(?<alpineRepo>[a-z]+)\\s+(--arch[ =\\t]+(?<arch>\\w+)\\s+)?(?<depName>[-\\w]+?)=(?<currentValue>[-.\\w]+)"
+        "\\bapk\\b.+?\\badd\\b.+?(--repository|-X)[ =\\t]+(?<alpineRepo>[a-z]+)\\s+(?<depName>[-\\w]+?)=(?<currentValue>[-.\\w]+)"
       ],
       "versioningTemplate": "loose", // The most lenient versioning renovate supports.
-      // We use different datasources for main and community, as alpine serves them in different URLs.
-      // Specifying --arch is optional, if not found it will default to x86_64.
-      "datasourceTemplate": "custom.alpine-{{alpineRepo}}-{{#if arch}}{{arch}}{{else}}x86_64{{/if}}",
+      // We use two different datasources for main and community, as alpine serves them in different URLs.
+      "datasourceTemplate": "custom.alpine-{{alpineRepo}}",
       // Extracted "versions" include the package name, so here we strip that prefix using a regex.
       "extractVersionTemplate": "{{depName}}-(?<version>.+).apk",
     },
@@ -103,20 +102,12 @@
   "customDatasources": {
     // Use alpine HTML mirror page as a repository. When using `html` format, renovate produces version strings from
     // all links present in the page. The version is extracted from that using extractVersionTemplate above.
-    "alpine-main-x86_64": {
+    "alpine-main": {
       "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/x86_64/",
       "format": "html",
     },
-    "alpine-community-x86_64": {
+    "alpine-community": {
       "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/latest-stable/community/x86_64/",
-      "format": "html",
-    },
-    "alpine-main-aarch64": {
-      "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/aarch64/",
-      "format": "html",
-    },
-    "alpine-community-aarch64": {
-      "defaultRegistryUrlTemplate": "https://dl-cdn.alpinelinux.org/alpine/latest-stable/community/aarch64/",
       "format": "html",
     },
   },
