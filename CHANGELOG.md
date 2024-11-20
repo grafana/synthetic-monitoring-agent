@@ -8,6 +8,13 @@
 * k6runner: add level=error to deferred log reporting code from runner ([dde3046](https://github.com/grafana/synthetic-monitoring-agent/commit/dde3046bfb7b611f9896c2a86a17598a6364ae87))
 * simplify TestTenantPusher ([#979](https://github.com/grafana/synthetic-monitoring-agent/issues/979)) ([ae46ff3](https://github.com/grafana/synthetic-monitoring-agent/commit/ae46ff352dbcaae1e0934cc4e954d13e8d2af56c))
 
+## [0.29.6](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.5...v0.29.6) (2024-11-20)
+
+
+### Miscellaneous Chores
+
+* Update dependency chromium-swiftshader to v131 ([4c44fa9](https://github.com/grafana/synthetic-monitoring-agent/commit/4c44fa95f2e2701cbef6eafdcc405b0c2edd467c))
+
 ## [0.29.5](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.4...v0.29.5) (2024-11-18)
 
 
