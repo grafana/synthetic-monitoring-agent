@@ -5,9 +5,7 @@ RUN apk --no-cache add ca-certificates-bundle
 # Second stage copies the binaries, configuration and also the
 # certificates from the first stage.
 
-ARG TARGETPLATFORM
-
-FROM --platform=$TARGETPLATFORM alpine:3.20.3 AS release
+FROM alpine:3.20.3 AS release
 ARG TARGETOS
 ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
@@ -21,18 +19,9 @@ ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
 
 # Third stage copies the setup from the base agent and
 # additionally installs Chromium to support browser checks.
-FROM --platform=$TARGETPLATFORM alpine:3.20.3 AS with-browser
+FROM ghcr.io/grafana/chromium-swiftshader-alpine:131.0.6778.85-r0-3.20.3 AS with-browser
 
-ARG TARGETARCH
-
-# Renovate updates the pinned packages below.
-# The --repository arg is required for renovate to know which alpine repo it should look for updates in.
-# To keep the renovate regex simple, only keep one package installation per line.
-# Furthermore, we split this into two lines to allow for the arm64 and amd64 versions of chromium to be different, as 
-# they have drifted in the past.
-RUN apk --no-cache add --repository community tini=0.19.0-r3
-RUN [[ "$TARGETARCH" != "amd64" ]] || apk --no-cache add --repository community --arch x86_64 chromium-swiftshader=131.0.6778.69-r0
-RUN [[ "$TARGETARCH" != "arm64" ]] || apk --no-cache add --repository community --arch aarch64 chromium-swiftshader=131.0.6778.69-r0
+RUN apk --no-cache add --repository community tini
 
 COPY --from=release /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
 COPY --from=release /usr/local/bin/sm-k6 /usr/local/bin/sm-k6

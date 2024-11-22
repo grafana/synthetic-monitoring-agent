@@ -19,21 +19,9 @@ ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
 
 # Third stage copies the setup from the base agent and
 # additionally installs Chromium to support browser checks.
-FROM alpine:3.20.3 AS with-browser
-ARG TARGETOS
-ARG TARGETARCH
+FROM ghcr.io/grafana/chromium-swiftshader-alpine:131.0.6778.85-r0-3.20.3 AS with-browser
 
-# Renovate updates the pinned packages below.
-# The --repository arg is required for renovate to know which alpine repo it should look for updates in.
-# The --arch flag is necessary so that it knows which architecture to target.
-# To keep the renovate regex simple, only keep one package installation per line.
-#
-# Alpine does not have a consistent set of packages across all the
-# architectures, so we have to install different versions depending on which
-# one we are targeting.
-RUN apk --no-cache add --repository community tini=0.19.0-r3
-RUN if test "$TARGETARCH" = "amd64" ; then apk --no-cache add --repository community --arch x86_64  chromium-swiftshader=131.0.6778.69-r0 ; fi
-RUN if test "$TARGETARCH" = "arm64" ; then apk --no-cache add --repository community --arch aarch64 chromium-swiftshader=131.0.6778.69-r0 ; fi
+RUN apk --no-cache add --repository community tini
 
 COPY --from=release /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
 COPY --from=release /usr/local/bin/sm-k6 /usr/local/bin/sm-k6
