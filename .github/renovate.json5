@@ -41,7 +41,16 @@
     {
       "matchPackageNames": "**/renovate",
       "extends": ["schedule:weekly"]
-    }
+    },
+    {
+      // The default "docker" versioning will try to restrict upgrades to versions that do not change everything after
+      // a dash (-) for the current tag, as this typically indicates the "flavor" (e.g. postgresql:17.1-alpine will not
+      // be upgraded to postgresql:17.2-debian).
+      // This image in particular has lots of dashes and does not follow this convention, so we force "loose"
+      // versioning which is pretty much an alphabetical sort.
+      "matchPackageNames": ["ghcr.io/grafana/chromium-swiftshader-alpine"],
+      "versioning": "loose",
+    },
   ],
 
   "customManagers": [
