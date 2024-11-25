@@ -1,9 +1,12 @@
 package k6runner
 
 import (
+	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os/exec"
 	"time"
 
@@ -25,6 +28,8 @@ func (r Local) WithLogger(logger *zerolog.Logger) Runner {
 }
 
 func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
+	logger := r.logger.With().Object("checkInfo", &script.CheckInfo).Logger()
+
 	afs := afero.Afero{Fs: r.fs}
 
 	checkTimeout := time.Duration(script.Settings.Timeout) * time.Millisecond
@@ -39,7 +44,7 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 
 	defer func() {
 		if err := r.fs.RemoveAll(workdir); err != nil {
-			r.logger.Error().Err(err).Str("severity", "critical").Msg("cannot remove temporary directory")
+			logger.Error().Err(err).Str("severity", "critical").Msg("cannot remove temporary directory")
 		}
 	}()
 
@@ -115,36 +120,68 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	cmd.Stderr = &stderr
 
 	start := time.Now()
-
-	r.logger.Info().Str("command", cmd.String()).Bytes("script", script.Script).Msg("running k6 script")
-
-	if err := cmd.Run(); err != nil {
-		r.logger.Error().Err(err).Str("stdout", stdout.String()).Str("stderr", stderr.String()).Msg("k6 exited with error")
-		return nil, fmt.Errorf("cannot execute k6 script: %w", err)
-	}
+	logger.Info().Str("command", cmd.String()).Bytes("script", script.Script).Msg("running k6 script")
+	err = cmd.Run()
 
 	duration := time.Since(start)
 
-	r.logger.Debug().Str("stdout", stdout.String()).Str("stderr", stderr.String()).Dur("duration", duration).Msg("ran k6 script")
-	r.logger.Info().Dur("duration", duration).Msg("ran k6 script")
+	// If context error is non-nil, incorporate it into err.
+	// This brings context to log lines and plays well with both errors.Is and errors.As.
+	err = errors.Join(err, ctx.Err())
 
-	var result RunResponse
+	if err != nil && !isUserError(err) {
+		logger.Error().
+			Err(err).
+			Dur("duration", duration).
+			Msg("cannot run k6")
 
-	result.Metrics, err = afs.ReadFile(metricsFn)
-	if err != nil {
-		r.logger.Error().Err(err).Str("filename", metricsFn).Msg("cannot read metrics file")
-		return nil, fmt.Errorf("cannot read metrics: %w", err)
+		dumpK6OutputStream(r.logger, zerolog.ErrorLevel, &stdout, "stream", "stdout")
+		dumpK6OutputStream(r.logger, zerolog.ErrorLevel, &stderr, "stream", "stderr")
+
+		logs, _ := afs.ReadFile(logsFn)
+		dumpK6OutputStream(r.logger, zerolog.InfoLevel, bytes.NewReader(logs), "stream", "logs")
+
+		return nil, fmt.Errorf("executing k6 script: %w", err)
 	}
 
-	result.Logs, err = afs.ReadFile(logsFn)
+	// 256KiB is the maximum payload size for Loki. Set our limit slightly below that to avoid tripping the limit in
+	// case we inject some messages down the line.
+	const maxLogsSizeBytes = 255 * 1024
+
+	// Mimir can also ingest up to 256KiB, but that's JSON-encoded, not promhttp encoded.
+	// To be safe, we limit it to 100KiB promhttp-encoded, hoping than the more verbose json encoding overhead is less
+	// than 2.5x.
+	const maxMetricsSizeBytes = 100 * 1024
+
+	logs, truncated, err := readFileLimit(afs.Fs, logsFn, maxLogsSizeBytes)
 	if err != nil {
-		r.logger.Error().Err(err).Str("filename", logsFn).Msg("cannot read metrics file")
-		return nil, fmt.Errorf("cannot read logs: %w", err)
+		return nil, fmt.Errorf("reading k6 logs: %w", err)
+	}
+	if truncated {
+		logger.Warn().
+			Str("filename", logsFn).
+			Int("limitBytes", maxLogsSizeBytes).
+			Msg("Logs output larger than limit, truncating")
+
+		// Leave a truncation notice at the end.
+		fmt.Fprintf(logs, `level=error msg="Log output truncated at %d bytes"`+"\n", maxLogsSizeBytes)
 	}
 
-	r.logger.Debug().Bytes("metrics", result.Metrics).Bytes("logs", result.Logs).Msg("k6 result")
+	metrics, truncated, err := readFileLimit(afs.Fs, metricsFn, maxMetricsSizeBytes)
+	if err != nil {
+		return nil, fmt.Errorf("reading k6 metrics: %w", err)
+	}
+	if truncated {
+		logger.Warn().
+			Str("filename", metricsFn).
+			Int("limitBytes", maxMetricsSizeBytes).
+			Msg("Metrics output larger than limit, truncating")
 
-	return &result, nil
+		// If we truncate metrics, also leave a truncation notice at the end of the logs.
+		fmt.Fprintf(logs, `level=error msg="Metrics output truncated at %d bytes"`+"\n", maxMetricsSizeBytes)
+	}
+
+	return &RunResponse{Metrics: metrics.Bytes(), Logs: logs.Bytes()}, errors.Join(err, errorFromLogs(logs.Bytes()))
 }
 
 func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
@@ -156,4 +193,69 @@ func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
 		return "", fmt.Errorf("cannot close temporary file: %w", err)
 	}
 	return f.Name(), nil
+}
+
+func dumpK6OutputStream(logger *zerolog.Logger, lvl zerolog.Level, stream io.Reader, fields ...any) {
+	scanner := bufio.NewScanner(stream)
+
+	for scanner.Scan() {
+		logger.WithLevel(lvl).Fields(fields).Str("line", scanner.Text()).Msg("k6 output")
+	}
+
+	if err := scanner.Err(); err != nil {
+		logger.Error().Fields(fields).Err(err).Msg("reading k6 output")
+	}
+}
+
+// isUserError returns whether we attribute this error to the user, i.e. to a combination of the k6 script contents and
+// settings. This includes timeouts and exit codes returned by k6.
+func isUserError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	if exitErr := (&exec.ExitError{}); errors.As(err, &exitErr) && exitErr.ExitCode() < 127 {
+		// If this is an ExitError and the result code is < 127, this is a user error.
+		// https://github.com/grafana/k6/blob/v0.50.0/errext/exitcodes/codes.go
+		return true
+	}
+
+	return false
+}
+
+// readFileLimit reads up to limit bytes from the specified file using the specified FS. The limit respects newline
+// boundaries: If the limit is reached, the portion between the last '\n' character and the limit will not be returned.
+// A boolean is returned indicating whether the limit was reached.
+func readFileLimit(f afero.Fs, name string, limit int64) (*bytes.Buffer, bool, error) {
+	file, err := f.Open(name)
+	if err != nil {
+		return nil, false, fmt.Errorf("opening file: %w", err)
+	}
+	defer file.Close()
+
+	buf := &bytes.Buffer{}
+	copied, err := io.Copy(buf, io.LimitReader(file, limit))
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, false, fmt.Errorf("reading file: %w", err)
+	}
+
+	if copied < limit {
+		// Copied less than budget, we haven't truncated anything.
+		return buf, false, nil
+	}
+
+	peek := make([]byte, 1)
+	_, err = file.Read(peek)
+	if errors.Is(err, io.EOF) {
+		// Jackpot, file fit exactly within the limit.
+		return buf, false, nil
+	}
+
+	// Rewind until last newline
+	lastNewline := bytes.LastIndexByte(buf.Bytes(), '\n')
+	if lastNewline != -1 {
+		buf.Truncate(lastNewline + 1)
+	}
+
+	return buf, true, nil
 }
