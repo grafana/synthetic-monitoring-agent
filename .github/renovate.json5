@@ -1,47 +1,12 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:best-practices",
-    ":semanticCommitsDisabled"
+    "github>grafana/sm-renovate//presets/grafana.json5",
+    "github>grafana/sm-renovate//presets/synthetic-monitoring.json5",
+    "github>grafana/sm-renovate//presets/go.json5",
+    "github>grafana/sm-renovate//presets/grafana-build-tools.json5"
   ],
-
-  "branchPrefix": "grafanarenovatebot/",
-  "commitMessagePrefix": "Chore: ",
-  "platformCommit": "enabled",
-  "dependencyDashboard": false,
-  "forkProcessing": "disabled",
-  "rebaseWhen": "behind-base-branch",
-  "prHourlyLimit": 0,
-  "prConcurrentLimit": 10,
-  "branchConcurrentLimit": 10,
-
-  "enabledManagers": ["custom.regex", "gomod"],
-
-  "labels": ["dependencies"],
-
-  "gomod": {
-    "enabled": true
-  },
-
-  "postUpdateOptions": [
-    "gomodTidyE"
-  ],
-
   "packageRules": [
-    {
-      "matchManagers": ["gomod"],
-      "matchUpdateTypes": ["digest"],
-      "schedule": "before 8am on monday every 2 weeks"
-    },
-    {
-      "matchManagers": ["gomod"],
-      "matchPackageNames": "github.com/prometheus/*",
-      "groupName": "prometheus-go"
-    },
-    {
-      "matchPackageNames": "**/renovate",
-      "extends": ["schedule:weekly"]
-    },
     {
       // The default "docker" versioning will try to restrict upgrades to versions that do not change everything after
       // a dash (-) for the current tag, as this typically indicates the "flavor" (e.g. postgresql:17.1-alpine will not
@@ -49,26 +14,10 @@
       // This image in particular has lots of dashes and does not follow this convention, so we force "loose"
       // versioning which is pretty much an alphabetical sort.
       "matchPackageNames": ["ghcr.io/grafana/chromium-swiftshader-alpine"],
-      "versioning": "loose",
-    },
+      "versioning": "loose"
+    }
   ],
-
   "customManagers": [
-    {
-      "customType": "regex",
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "semver",
-      "registryUrlTemplate": "https://ghcr.io",
-      "fileMatch": [
-        "(^|/)Makefile$",
-        ".*\\.jsonnet$",
-        ".*\\.mk$",
-        "^\\.github/workflows/.*\\.ya?ml$"
-      ],
-      "matchStrings": [
-        "\\bghcr\\.io/(?<depName>grafana/grafana-build-tools):(?<currentValue>v\\d+\\.\\d+\\.\\d+)(?:@(?<currentDigest>sha256:[a-f0-9]+))?\\b"
-      ]
-    },
     {
       // Update k6 version in Dockerfiles.
       "customType": "regex",
@@ -77,19 +26,6 @@
       "fileMatch": [".*\\.mk"],
       "matchStrings": [
         "(?:^|\\n)[ \\t]*K6_VERSION\\s*:=\\s*(?<currentValue>\\S+)[ \\t]*(?:$|\\n)"
-      ]
-    },
-    {
-      // Update renovate version in GHA workflow file.
-      "customType": "regex",
-      "depNameTemplate": "ghcr.io/renovatebot/renovate",
-      "datasourceTemplate": "docker",
-      "fileMatch": [
-        "^\\.github/workflows/.*\\.ya?ml$",
-      ],
-      "matchStrings": [
-        "renovate-version: (?<currentValue>[^@\\s]+)(?:@(?<currentDigest>\\S+))?",
-        "RENOVATE_IMAGE=ghcr.io/renovatebot/renovate:(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>\\S+))?"
       ]
     }
   ]
