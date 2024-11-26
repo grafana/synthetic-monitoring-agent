@@ -8,6 +8,17 @@
 * k6runner: add level=error to deferred log reporting code from runner ([dde3046](https://github.com/grafana/synthetic-monitoring-agent/commit/dde3046bfb7b611f9896c2a86a17598a6364ae87))
 * simplify TestTenantPusher ([#979](https://github.com/grafana/synthetic-monitoring-agent/issues/979)) ([ae46ff3](https://github.com/grafana/synthetic-monitoring-agent/commit/ae46ff352dbcaae1e0934cc4e954d13e8d2af56c))
 
+## [0.29.7](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.6...v0.29.7) (2024-11-26)
+
+
+### Miscellaneous Chores
+
+* Dockerfile: build browser image from chromium-swiftshader-alpine ([b8ff6ad](https://github.com/grafana/synthetic-monitoring-agent/commit/b8ff6ad807c35ad09b730f054b923c51b97af285))
+* renovate: remove config related to alpine packages ([2aefb4c](https://github.com/grafana/synthetic-monitoring-agent/commit/2aefb4c3fadbc8423d3927117fd30789c6540456))
+* renovate: use loose versioning for chromium-swiftshader-alpine image ([82eef25](https://github.com/grafana/synthetic-monitoring-agent/commit/82eef258750a8662c2bd4403cc1ba43073f42516))
+* Update module github.com/golangci/golangci-lint to v1.62.2 ([1dc57ad](https://github.com/grafana/synthetic-monitoring-agent/commit/1dc57ad07f8cb6d26cf8f11418582cdb98ddd00a))
+* Update module github.com/stretchr/testify to v1.10.0 ([926d2ee](https://github.com/grafana/synthetic-monitoring-agent/commit/926d2eef71170d7c1f20ff145dabd773a8a2d998))
+
 ## [0.29.6](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.5...v0.29.6) (2024-11-20)
 
 
