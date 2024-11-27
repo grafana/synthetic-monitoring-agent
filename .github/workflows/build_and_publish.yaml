@@ -275,7 +275,9 @@ jobs:
           go-version-file: ./go.mod
 
       - name: Trigger argo workflow
-        uses: grafana/shared-workflows/actions/trigger-argo-workflow@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
+        # trigger-argo-workflow hasn't been released yet, so we're using a
+        # commit hash to reference it that has no associated version.
+        uses: grafana/shared-workflows/actions/trigger-argo-workflow@c109200e75988e55efce6149e403fe8910b8eda1
         with:
           namespace: synthetic-monitoring-cd
           workflow_template: deploy-${{ needs.preflight.outputs.repo_name }}
