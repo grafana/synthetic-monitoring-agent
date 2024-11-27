@@ -185,23 +185,6 @@ steps:
     - refs/tags/v*.*.*
 - commands: []
   depends_on:
-  - docker publish (dev)
-  image: us.gcr.io/kubernetes-dev/drone/plugins/argo-cli
-  name: trigger argo workflow (dev)
-  settings:
-    add_ci_labels: true
-    command: 'submit --from workflowtemplate/deploy-synthetic-monitoring-agent --name
-      deploy-synthetic-monitoring-agent-dev-$(./scripts/version) --parameter mode=dev
-      --parameter dockertag=$(./scripts/version) --parameter commit=${DRONE_COMMIT}
-      --parameter commit_author=${DRONE_COMMIT_AUTHOR} --parameter commit_link=${DRONE_COMMIT_LINK} '
-    namespace: synthetic-monitoring-cd
-    token:
-      from_secret: argo_token
-  when:
-    ref:
-    - refs/heads/main
-- commands: []
-  depends_on:
   - docker publish (release)
   image: us.gcr.io/kubernetes-dev/drone/plugins/argo-cli
   name: trigger argo workflow (release)
@@ -353,6 +336,6 @@ kind: secret
 name: gpg_private_key
 ---
 kind: signature
-hmac: 363b099264e7e2a4a3b840857d963aa0a79968952eac8cd40edadbda755b3b54
+hmac: ebba11ba346f14c3e83c6ed062a09e816f74e904269e3191d9863961f86c27d8
 
 ...

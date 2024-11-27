@@ -274,19 +274,18 @@ jobs:
         with:
           go-version-file: ./go.mod
 
-    # Commented out until we know it's working.
-    # - name: Trigger argo workflow
-    #   uses: grafana/shared-workflows/actions/trigger-argo-workflow@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
-    #   with:
-    #     namespace: synthetic-monitoring-cd
-    #     workflow_template: deploy-${{ needs.preflight.outputs.repo_name }}
-    #     extra_args: "--generate-name deploy-${{ needs.preflight.outputs.repo_name }}-"
-    #     parameters: |
-    #       mode=${{ (inputs.mode == 'prod' && 'release') || (inputs.mode == 'dev' && 'dev') }}
-    #       image=${{ needs.publish_images.outputs.image_name }}:${{ needs.publish_images.outputs.image_version }}
-    #       image_name=${{ needs.publish_images.outputs.image_name }}
-    #       image_version=${{ needs.publish_images.outputs.image_version }}
-    #       dockertag=${{ needs.publish_images.outputs.image_version }}
-    #       commit=${{ github.sha }}
-    #       commit_author=${{ github.actor }}
-    #       commit_link=${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+      - name: Trigger argo workflow
+        uses: grafana/shared-workflows/actions/trigger-argo-workflow@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
+        with:
+          namespace: synthetic-monitoring-cd
+          workflow_template: deploy-${{ needs.preflight.outputs.repo_name }}
+          extra_args: "--generate-name deploy-${{ needs.preflight.outputs.repo_name }}-"
+          parameters: |
+            mode=${{ (inputs.mode == 'prod' && 'release') || (inputs.mode == 'dev' && 'dev') }}
+            image=${{ needs.publish_images.outputs.image_name }}:${{ needs.publish_images.outputs.image_version }}
+            image_name=${{ needs.publish_images.outputs.image_name }}
+            image_version=${{ needs.publish_images.outputs.image_version }}
+            dockertag=${{ needs.publish_images.outputs.image_version }}
+            commit=${{ github.sha }}
+            commit_author=${{ github.actor }}
+            commit_link=${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}

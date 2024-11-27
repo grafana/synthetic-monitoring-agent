@@ -206,26 +206,26 @@ local docker_publish_with_browser(repo, auth, tag, os, arch) =
     ])
     + releaseOnly,
 
-    step('trigger argo workflow (dev)', [])
-    + {
-      settings: {
-        namespace: 'synthetic-monitoring-cd',
-        token: { from_secret: 'argo_token' },
-        command: std.strReplace(|||
-          submit --from workflowtemplate/deploy-synthetic-monitoring-agent
-          --name deploy-synthetic-monitoring-agent-dev-$(./scripts/version)
-          --parameter mode=dev
-          --parameter dockertag=$(./scripts/version)
-          --parameter commit=${DRONE_COMMIT}
-          --parameter commit_author=${DRONE_COMMIT_AUTHOR}
-          --parameter commit_link=${DRONE_COMMIT_LINK}
-        |||, '\n', ' '),
-        add_ci_labels: true,
-      },
-      image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli',
-    }
-    + dependsOn([ 'docker publish (dev)' ])
-    + devOnly,
+    // step('trigger argo workflow (dev)', [])
+    // + {
+    //   settings: {
+    //     namespace: 'synthetic-monitoring-cd',
+    //     token: { from_secret: 'argo_token' },
+    //     command: std.strReplace(|||
+    //       submit --from workflowtemplate/deploy-synthetic-monitoring-agent
+    //       --name deploy-synthetic-monitoring-agent-dev-$(./scripts/version)
+    //       --parameter mode=dev
+    //       --parameter dockertag=$(./scripts/version)
+    //       --parameter commit=${DRONE_COMMIT}
+    //       --parameter commit_author=${DRONE_COMMIT_AUTHOR}
+    //       --parameter commit_link=${DRONE_COMMIT_LINK}
+    //     |||, '\n', ' '),
+    //     add_ci_labels: true,
+    //   },
+    //   image: 'us.gcr.io/kubernetes-dev/drone/plugins/argo-cli',
+    // }
+    // + dependsOn([ 'docker publish (dev)' ])
+    // + devOnly,
 
     step('trigger argo workflow (release)', [])
     + {
