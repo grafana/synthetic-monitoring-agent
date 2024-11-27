@@ -141,8 +141,8 @@ jobs:
     if: ${{ always() && needs.validate.result == 'success' && needs.preflight.result == 'success' }}
     runs-on: github-hosted-ubuntu-x64-small
     outputs:
-      image_name: ${{ steps.extract-image-metadata.outputs.image }}
-      image_version: ${{ steps.extract-image-metadata.outputs.tag }}
+      image_name: ${{ steps.extract-image-metadata-no-browser.outputs.image }}
+      image_version: ${{ steps.extract-image-metadata-no-browser.outputs.tag }}
     steps:
       - name: Retrieve release app credentials
         id: get-secrets
@@ -217,6 +217,15 @@ jobs:
             latest
           file: Dockerfile.no-browser
 
+      - name: extract image metadata (no browser)
+        id: extract-image-metadata-no-browser
+        run: |
+          # Note that the variable DOCKER_METADATA_OUTPUT_BAKE_FILE_TAGS
+          # already contains the name of the variables. It has the form
+          # key=value\nkey=value\n...
+          ./scripts/extract-image-info "${DOCKER_METADATA_OUTPUT_BAKE_FILE_TAGS}"
+          ./scripts/extract-image-info "${DOCKER_METADATA_OUTPUT_BAKE_FILE_TAGS}" >> "$GITHUB_OUTPUT"
+
       - name: push container images to GAR (browser)
         uses: grafana/shared-workflows/actions/push-to-gar-docker@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
         with:
@@ -230,8 +239,8 @@ jobs:
             latest-browser
           file: Dockerfile.browser
 
-      - name: extract image metadata
-        id: extract-image-metadata
+      - name: extract image metadata (browser)
+        id: extract-image-metadata-browser
         run: |
           # Note that the variable DOCKER_METADATA_OUTPUT_BAKE_FILE_TAGS
           # already contains the name of the variables. It has the form
