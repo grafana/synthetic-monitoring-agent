@@ -522,7 +522,7 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		tenantId: tenantId,
 		streams: Streams{
 			{
-				Labels: fmt.Sprintf(`{probe="%s",source="synthetic-monitoring",type="adhoc"}`, r.probe),
+				Labels: fmt.Sprintf(`{probe=%q,source="synthetic-monitoring",type="adhoc"}`, r.probe),
 				Entries: []logproto.Entry{
 					{
 						Timestamp: start,

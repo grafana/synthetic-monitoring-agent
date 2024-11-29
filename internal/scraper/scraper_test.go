@@ -204,7 +204,7 @@ func addMetricToIndex(mf *dto.MetricFamily, index map[string]struct{}) {
 	for _, metric := range mf.GetMetric() {
 		labels := make([]string, 0, len(metric.GetLabel()))
 		for _, label := range metric.GetLabel() {
-			labels = append(labels, fmt.Sprintf(`"%s"="%s"`, label.GetName(), label.GetValue()))
+			labels = append(labels, fmt.Sprintf(`%q=%q`, label.GetName(), label.GetValue()))
 		}
 		sort.Strings(labels)
 		index[mf.GetName()+"{"+strings.Join(labels, ",")+"}"] = struct{}{}
