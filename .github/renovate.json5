@@ -91,6 +91,20 @@
         "renovate-version: (?<currentValue>[^@\\s]+)(?:@(?<currentDigest>\\S+))?",
         "RENOVATE_IMAGE=ghcr.io/renovatebot/renovate:(?<currentValue>[^@\\s]+)(?:@(?<currentDigest>\\S+))?"
       ]
+    },
+    {
+      // Update xk6-sm
+      "customType": "regex",
+      "depNameTemplate": "grafana/xk6-sm",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+      "fileMatch": [
+        "Dockerfile",
+        "scripts/make/sm-k6.mk"
+      ],
+      "matchStrings": [
+        "https://github.com/grafana/xk6-sm/releases/download/(?<currentValue>[^/]+)/"
+      ]
     }
   ]
 }

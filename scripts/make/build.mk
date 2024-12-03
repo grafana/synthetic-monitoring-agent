@@ -25,7 +25,8 @@ build-go: $(BUILD_GO_TARGETS) ## Build all Go binaries.
 	$(S) echo Done.
 
 .PHONY: build
-build: build-go ## Build everything.
+# FIXME: The dependency on sm-k6 was here to satisfy goreleaser. It can be removed when we ditch it.
+build: build-go sm-k6 ## Build everything.
 
 .PHONY: build-native
 build-native: $(BUILD_GO_NATIVE_TARGETS) ## Build only native Go binaries
