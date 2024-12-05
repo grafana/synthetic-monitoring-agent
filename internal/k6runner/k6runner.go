@@ -67,6 +67,14 @@ func CheckInfoFromSM(smc smmmodel.Check) CheckInfo {
 	return ci
 }
 
+// MarshalZerologObject implements zerolog.LogObjectMarshaler so it can be logged in a friendly way.
+func (ci *CheckInfo) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("type", ci.Type)
+	for k, v := range ci.Metadata {
+		e.Any(k, v)
+	}
+}
+
 // ErrNoTimeout is returned by [Runner] implementations if the supplied script has a timeout of zero.
 var ErrNoTimeout = errors.New("check has no timeout")
 
