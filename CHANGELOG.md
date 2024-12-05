@@ -8,6 +8,22 @@
 * k6runner: add level=error to deferred log reporting code from runner ([dde3046](https://github.com/grafana/synthetic-monitoring-agent/commit/dde3046bfb7b611f9896c2a86a17598a6364ae87))
 * simplify TestTenantPusher ([#979](https://github.com/grafana/synthetic-monitoring-agent/issues/979)) ([ae46ff3](https://github.com/grafana/synthetic-monitoring-agent/commit/ae46ff352dbcaae1e0934cc4e954d13e8d2af56c))
 
+## [0.29.9](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.8...v0.29.9) (2024-12-05)
+
+
+### Miscellaneous Chores
+
+* Update actions/checkout digest to 11bd719 ([03f6e2e](https://github.com/grafana/synthetic-monitoring-agent/commit/03f6e2e244812317c700e422db8fb7c82c4a798b))
+* Update actions/upload-artifact digest to b4b15b8 ([17502e0](https://github.com/grafana/synthetic-monitoring-agent/commit/17502e0936483ac9e38a91ffa15da8c2910139cd))
+* Update golang.org/x/exp digest to 2d47ceb ([07b80c5](https://github.com/grafana/synthetic-monitoring-agent/commit/07b80c5f534a659a6fc0c358c65692feb889f29a))
+* Update module kernel.org/pub/linux/libs/security/libcap/cap to v1.2.73 ([d5437a7](https://github.com/grafana/synthetic-monitoring-agent/commit/d5437a7902a12612b1496f6643f1e656783c1061))
+* use grafana/sm-renovate shared presets and actions ([de8e948](https://github.com/grafana/synthetic-monitoring-agent/commit/de8e9481888f9196c0089c5400481f7672630e97))
+
+
+### Fixes
+
+* use `%q` instead of `"%s"` for free quote escaping ([6bfec89](https://github.com/grafana/synthetic-monitoring-agent/commit/6bfec890cf4fe2bf04eaaa1269702b681dd77769))
+
 ## [0.29.8](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.7...v0.29.8) (2024-11-27)
 
 
