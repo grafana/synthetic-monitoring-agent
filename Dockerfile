@@ -1,11 +1,11 @@
 # First stage obtains the list of certificates.
-FROM --platform=$BUILDPLATFORM alpine:3.20.3 AS build
+FROM --platform=$BUILDPLATFORM alpine:3.21.0@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45 AS build
 RUN apk --no-cache add ca-certificates-bundle
 
 # Second stage copies the binaries, configuration and also the
 # certificates from the first stage.
 
-FROM alpine:3.20.3 AS release
+FROM alpine:3.21.0@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45 AS release
 ARG TARGETOS
 ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
