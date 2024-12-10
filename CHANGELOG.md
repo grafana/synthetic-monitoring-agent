@@ -8,6 +8,13 @@
 * k6runner: add level=error to deferred log reporting code from runner ([dde3046](https://github.com/grafana/synthetic-monitoring-agent/commit/dde3046bfb7b611f9896c2a86a17598a6364ae87))
 * simplify TestTenantPusher ([#979](https://github.com/grafana/synthetic-monitoring-agent/issues/979)) ([ae46ff3](https://github.com/grafana/synthetic-monitoring-agent/commit/ae46ff352dbcaae1e0934cc4e954d13e8d2af56c))
 
+## [0.29.10](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.9...v0.29.10) (2024-12-10)
+
+
+### Fixes
+
+* increase SHA-1 short version length ([#1092](https://github.com/grafana/synthetic-monitoring-agent/issues/1092)) ([a09f85d](https://github.com/grafana/synthetic-monitoring-agent/commit/a09f85dfc588f674d1fbe1bd0706fc218965d05a))
+
 ## [0.29.9](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.8...v0.29.9) (2024-12-05)
 
 
