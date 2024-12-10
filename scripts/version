@@ -1,3 +1,9 @@
 #!/bin/sh
-
-git describe --dirty --tags --long --always
+#
+# --abbrev=12 asks for at least 12 characters in the SHA-1 hash. The trick is
+# that git might choose to output more if 10 are not enough to keep the value
+# unique.
+#
+# This is a balance between having a predictable value and having something
+# that is not too long, as this value gets displayed in a couple of places.
+git describe --dirty --tags --long --always --abbrev=12
