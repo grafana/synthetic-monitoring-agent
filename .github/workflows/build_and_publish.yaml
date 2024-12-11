@@ -142,7 +142,7 @@ jobs:
     runs-on: github-hosted-ubuntu-x64-small
     outputs:
       image_name: ${{ steps.extract-image-metadata.outputs.image }}
-      image_version: ${{ steps.extract-image-metadata.outputs.tag }}
+      image_tag: ${{ steps.extract-image-metadata.outputs.tag }}
     steps:
       - name: Retrieve release app credentials
         id: get-secrets
@@ -256,8 +256,9 @@ jobs:
     name: deploy
     needs:
       - preflight
+      - validate
       - publish_images
-    if: ${{ always() && needs.publish_images.result == 'success' && needs.preflight.result == 'success' }}
+    if: ${{ always() && needs.publish_images.result == 'success' && needs.validate.result == 'success' && needs.preflight.result == 'success' }}
     runs-on: github-hosted-ubuntu-x64-small
     steps:
       # The following two steps are needed because trigger-argo-workflow is
@@ -282,12 +283,15 @@ jobs:
           namespace: synthetic-monitoring-cd
           workflow_template: deploy-${{ needs.preflight.outputs.repo_name }}
           extra_args: "--generate-name deploy-${{ needs.preflight.outputs.repo_name }}-"
+          # 'image_version' is the actual version number that is embedded in
+          # the binary and is reported as part of info metrics, so it cannot be
+          # `image_tag` because that might be a diferent value.
           parameters: |
             mode=${{ (inputs.mode == 'prod' && 'release') || (inputs.mode == 'dev' && 'dev') }}
-            image=${{ needs.publish_images.outputs.image_name }}:${{ needs.publish_images.outputs.image_version }}
+            image=${{ needs.publish_images.outputs.image_name }}:${{ needs.publish_images.outputs.image_tag }}
             image_name=${{ needs.publish_images.outputs.image_name }}
-            image_version=${{ needs.publish_images.outputs.image_version }}
-            dockertag=${{ needs.publish_images.outputs.image_version }}
+            image_version=${{ needs.validate.outputs.version }}
+            dockertag=${{ needs.publish_images.outputs.image_tag }}
             commit=${{ github.sha }}
             commit_author=${{ github.actor }}
             commit_link=${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
