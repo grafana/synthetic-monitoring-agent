@@ -21,7 +21,7 @@ contents:
   dst: /etc/systemd/system/synthetic-monitoring-agent.service
 
 # Copy k6 as sm-k6 to prevent clashing with k6 if it's installed.
-- src: {{.DISTDIR}}/{{.Os}}-{{.Arch}}/k6
+- src: {{.DISTDIR}}/{{.Os}}-{{.Arch}}/sm-k6
   dst: /usr/bin/sm-k6
 rpm:
 deb:
