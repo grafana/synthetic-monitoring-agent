@@ -14,13 +14,11 @@ ifneq ($(strip $(S)),)
 .SILENT:
 endif
 
-ifeq ($(strip $(DRONE)),true)
+ifeq ($(strip $(CI)),true)
 # In CI use local tools because those will be provided by the selected docker image.
 USE_LOCAL_TOOLS := true
 endif
 
-# TODO(mem): this still needs some thinking because ideally we would fall back
-# to building the tools that we need if they are missing.
 ifeq ($(USE_LOCAL_TOOLS),true)
 GOLANGCI_LINT := golangci-lint
 GOTESTSUM     := gotestsum

@@ -1,10 +1,5 @@
 ##@ Helpers
 
-DRONE_SERVER ?= https://drone.grafana.net
-
-export DRONE_SERVER
-export DRONE_TOKEN
-
 ifeq ($(origin GITIGNORE_GEN),undefined)
 GITIGNORE_GEN ?= $(ROOTDIR)/scripts/go/bin/gitignore-gen
 LOCAL_GITIGNORE_GEN = yes
@@ -112,45 +107,16 @@ $(ROOTDIR)/pkg/pb/synthetic_monitoring/multihttp_string.go: $(wildcard $(ROOTDIR
 testdata: ## Update golden files for tests.
 	$(V) $(GO) test -v -run TestValidateMetrics ./internal/scraper -args -update-golden
 
-.PHONY: drone
-drone: .drone.yml ## Update drone files
-	$(S) true
-
 # rwildcard will recursively search for files matching the pattern, e.g. $(call rwildcard, src/*.c)
 rwildcard = $(call rwildcard_helper, $(dir $1), $(notdir $1))
 rwildcard_helper = $(wildcard $(addsuffix $(strip $2), $(strip $1))) \
 	    $(foreach d, $(wildcard $(addsuffix *, $(strip $1))), $(call rwildcard_helper, $d/, $2))
-
-DRONE_SOURCE_FILES := $(call rwildcard, $(ROOTDIR)/scripts/configs/drone/*.jsonnet) $(call rwildcard, $(ROOTDIR)/scripts/configs/drone/*.libsonnet)
-
-$(ROOTDIR)/scripts/configs/drone/go-tools-image.libsonnet: $(ROOTDIR)/.gbt.mk
-	echo '"$(GBT_IMAGE)"' > $@
-
-.drone.yml: $(DRONE_SOURCE_FILES)
-	$(S) echo 'Regenerating $@...'
-ifneq ($(origin DRONE_TOKEN),environment)
-ifeq ($(origin DRONE_TOKEN),undefined)
-	$(S) echo 'E: DRONE_TOKEN should set in the environment. Stop.'
-else
-	$(S) echo 'E: DRONE_TOKEN should *NOT* be set in a makefile, set it in the environment. Stop.'
-endif
-	$(S) false
-endif
-	$(V) ./scripts/generate-drone-yaml "$(GH_REPO_NAME)" "$(ROOTDIR)/.drone.yml" "$(ROOTDIR)/scripts/configs/drone/main.jsonnet"
-
-.PHONY: dronefmt
-dronefmt: ## Format drone jsonnet files
-	$(S) $(foreach src, $(filter-out $(ROOTDIR)/scripts/configs/drone/vendor/%, $(DRONE_SOURCE_FILES)), \
-		echo "==== Formatting $(src)" ; \
-		jsonnetfmt -i --pretty-field-names --pad-arrays --pad-objects --no-use-implicit-plus "$(src)" ; \
-	)
 
 .PHONY: update-go-version
 update-go-version: ## Update Go version (specify in go.mod)
 	$(S) echo 'Updating Go version to $(GO_VERSION)...'
 	$(S) cd scripts/go && $(GO) mod edit -go=$(GO_VERSION)
 	$(S) sed -i -e 's,^GO_VERSION=.*,GO_VERSION=$(GO_VERSION),' scripts/docker_build
-	$(S) $(MAKE) --always-make --no-print-directory .drone.yml S=$(S) V=$(V)
 
 .PHONY: help
 help: ## Display this help.
