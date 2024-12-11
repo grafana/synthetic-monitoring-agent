@@ -1,4 +1,4 @@
-[![Build Status](https://drone.grafana.net/api/badges/grafana/synthetic-monitoring-agent/status.svg)](https://drone.grafana.net/grafana/synthetic-monitoring-agent)
+[![Build Status](https://github.com/grafana/synthetic-monitoring-agent/actions/workflows/build_and_publish_main.yaml/badge.svg)](https://github.com/grafana/synthetic-monitoring-agent/actions/workflows/build_and_publish_main.yaml)
 [![go.mod Go version](https://img.shields.io/github/go-mod/go-version/grafana/synthetic-monitoring-agent.svg)](https://github.com/grafana/synthetic-monitoring-agent)
 [![Go Report Card](https://goreportcard.com/badge/github.com/grafana/synthetic-monitoring-agent)](https://goreportcard.com/report/github.com/grafana/synthetic-monitoring-agent)
 [![Go Reference](https://pkg.go.dev/badge/github.com/grafana/synthetic-monitoring-agent.svg)](https://pkg.go.dev/github.com/grafana/synthetic-monitoring-agent)
