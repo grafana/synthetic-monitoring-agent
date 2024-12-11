@@ -35,7 +35,7 @@ jobs:
     runs-on: github-hosted-ubuntu-${{ matrix.arch }}
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v0.31.1@sha256:576971e115fdb8def851e8d4141388262e2c9d6c23e6c00c5d584d8c06943bcf
+      image: ghcr.io/grafana/grafana-build-tools:v0.33.2@sha256:0f952d4d66722415d96f462c1c277f2b2fb32900bff57e078dcd246114df4cdd
     outputs:
       version: ${{ steps.version.outputs.value }}
 
