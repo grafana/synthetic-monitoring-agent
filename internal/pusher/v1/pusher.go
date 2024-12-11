@@ -74,7 +74,7 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 		tenantStr         = strconv.FormatInt(localID, 10)
 
 		newClient = false
-		logger    = p.logger.With().Int("region", regionID).Int64("tenant", localID).Logger()
+		logger    = p.logger.With().Int("regionId", regionID).Int64("tenantId", localID).Logger()
 	)
 
 	streams := payload.Streams()
