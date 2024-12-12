@@ -1,13 +1,3 @@
-## [0.29.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.3...v0.29.4) (2024-11-11)
-
-
-### Fixes
-
-* add packages to release ([#976](https://github.com/grafana/synthetic-monitoring-agent/issues/976)) ([97ee505](https://github.com/grafana/synthetic-monitoring-agent/commit/97ee5052a24ccac67f65aaac78354da01a172480))
-* change vault_instance to ops ([#978](https://github.com/grafana/synthetic-monitoring-agent/issues/978)) ([346a3a0](https://github.com/grafana/synthetic-monitoring-agent/commit/346a3a0f4ea3290f15131d386b3de51cf084e365))
-* k6runner: add level=error to deferred log reporting code from runner ([dde3046](https://github.com/grafana/synthetic-monitoring-agent/commit/dde3046bfb7b611f9896c2a86a17598a6364ae87))
-* simplify TestTenantPusher ([#979](https://github.com/grafana/synthetic-monitoring-agent/issues/979)) ([ae46ff3](https://github.com/grafana/synthetic-monitoring-agent/commit/ae46ff352dbcaae1e0934cc4e954d13e8d2af56c))
-
 ## [0.29.10](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.9...v0.29.10) (2024-12-10)
 
 
@@ -81,6 +71,16 @@
 * Update ghcr.io/renovatebot/renovate Docker tag to v39.11.7 ([238ec5a](https://github.com/grafana/synthetic-monitoring-agent/commit/238ec5a564b2384d4c4e2b79de04897fc982ebc9))
 * Update ghcr.io/renovatebot/renovate Docker tag to v39.14.1 ([522e0d1](https://github.com/grafana/synthetic-monitoring-agent/commit/522e0d184a82e6ac4626c62420dff2b9018af18b))
 * Update module github.com/golangci/golangci-lint to v1.62.0 ([138ce6c](https://github.com/grafana/synthetic-monitoring-agent/commit/138ce6c5b6a84f18eca1b7d0a133d31df3ea1b45))
+
+## [0.29.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.3...v0.29.4) (2024-11-11)
+
+
+### Fixes
+
+* add packages to release ([#976](https://github.com/grafana/synthetic-monitoring-agent/issues/976)) ([97ee505](https://github.com/grafana/synthetic-monitoring-agent/commit/97ee5052a24ccac67f65aaac78354da01a172480))
+* change vault_instance to ops ([#978](https://github.com/grafana/synthetic-monitoring-agent/issues/978)) ([346a3a0](https://github.com/grafana/synthetic-monitoring-agent/commit/346a3a0f4ea3290f15131d386b3de51cf084e365))
+* k6runner: add level error to deferred log reporting code from runner ([dde3046](https://github.com/grafana/synthetic-monitoring-agent/commit/dde3046bfb7b611f9896c2a86a17598a6364ae87))
+* simplify TestTenantPusher ([#979](https://github.com/grafana/synthetic-monitoring-agent/issues/979)) ([ae46ff3](https://github.com/grafana/synthetic-monitoring-agent/commit/ae46ff352dbcaae1e0934cc4e954d13e8d2af56c))
 
 ## [0.29.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.2...v0.29.3) (2024-11-04)
 
