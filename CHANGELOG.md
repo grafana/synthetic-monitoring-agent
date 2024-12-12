@@ -8,6 +8,31 @@
 * k6runner: add level=error to deferred log reporting code from runner ([dde3046](https://github.com/grafana/synthetic-monitoring-agent/commit/dde3046bfb7b611f9896c2a86a17598a6364ae87))
 * simplify TestTenantPusher ([#979](https://github.com/grafana/synthetic-monitoring-agent/issues/979)) ([ae46ff3](https://github.com/grafana/synthetic-monitoring-agent/commit/ae46ff352dbcaae1e0934cc4e954d13e8d2af56c))
 
+## [0.29.11](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.10...v0.29.11) (2024-12-12)
+
+
+### Miscellaneous Chores
+
+* Update actions/cache action to v4.2.0 ([76681db](https://github.com/grafana/synthetic-monitoring-agent/commit/76681dbf07a0b10faafb429e2374227a4695f6cd))
+* Update actions/checkout action to v4.2.2 ([8751eef](https://github.com/grafana/synthetic-monitoring-agent/commit/8751eef420ab4009dc3e2243cc80d948f2356805))
+* Update actions/setup-go action to v5.2.0 ([bf1829e](https://github.com/grafana/synthetic-monitoring-agent/commit/bf1829efcbe871a28aeecba78e4db51c6032196f))
+* Update alpine Docker tag to v3.21.0 ([20ba3a9](https://github.com/grafana/synthetic-monitoring-agent/commit/20ba3a937de122b606567c5786d9ae45b396c45a))
+* Update docker/build-push-action action to v6.10.0 ([004ef45](https://github.com/grafana/synthetic-monitoring-agent/commit/004ef45497cf89922cab56f135e9ced05c21577c))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v131.0.6778.108-r0-3.21.0 ([6c126df](https://github.com/grafana/synthetic-monitoring-agent/commit/6c126dfe0f052a38a986e8523a76f8628cab1ff4))
+* Update grafana/shared-workflows digest to 5a093ed ([7c1d2ad](https://github.com/grafana/synthetic-monitoring-agent/commit/7c1d2adcceeaa764fca1a5f56ba8ccf355b844ef))
+* Update module golang.org/x/net to v0.32.0 ([e42e7d0](https://github.com/grafana/synthetic-monitoring-agent/commit/e42e7d09c34b05a9d392ca75647b30d69936d556))
+* Update module google.golang.org/grpc to v1.68.1 ([8e76cce](https://github.com/grafana/synthetic-monitoring-agent/commit/8e76cce4de854ac46e08e38ffd35d8ed9f62b78b))
+
+
+### Features
+
+* remove drone setup ([1982d52](https://github.com/grafana/synthetic-monitoring-agent/commit/1982d52679db45c4be296bcb1a2769a172c13a08))
+
+
+### Fixes
+
+* pass version to argo workflow ([#1105](https://github.com/grafana/synthetic-monitoring-agent/issues/1105)) ([43d9558](https://github.com/grafana/synthetic-monitoring-agent/commit/43d9558dd6e0413c320122188e68fa8552c6bcdf))
+
 ## [0.29.10](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.9...v0.29.10) (2024-12-10)
 
 
