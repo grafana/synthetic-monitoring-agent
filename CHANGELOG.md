@@ -1,3 +1,5 @@
+# Changelog
+
 ## [0.29.10](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.9...v0.29.10) (2024-12-10)
 
 
