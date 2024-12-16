@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-kit/kit/log"       //nolint:staticcheck // TODO(mem): replace in BBE
-	"github.com/go-kit/kit/log/level" //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-ping/ping"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
