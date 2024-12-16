@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-ping/ping"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	probing "github.com/prometheus-community/pro-bing"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -70,7 +70,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 	durationGaugeVec.WithLabelValues("resolve").Add(lookupTime)
 	duration += lookupTime
 
-	pinger := ping.New(dstIPAddr.String())
+	pinger := probing.New(dstIPAddr.String())
 
 	pinger.SetPrivileged(module.Privileged)
 
@@ -99,25 +99,25 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 		_ = level.Info(logger).Log("msg", "Using source address", "srcIP", pinger.Source)
 	}
 
-	pinger.OnSend = func(pkt *ping.Packet) {
+	pinger.OnSend = func(pkt *probing.Packet) {
 		_ = level.Info(logger).Log("msg", "Creating ICMP packet", "seq", strconv.Itoa(pkt.Seq))
 		_ = level.Info(logger).Log("msg", "Waiting for reply packets")
 	}
 
-	pinger.OnRecv = func(pkt *ping.Packet) {
-		if pkt.Seq == 0 && pkt.Ttl >= 0 {
+	pinger.OnRecv = func(pkt *probing.Packet) {
+		if pkt.Seq == 0 && pkt.TTL >= 0 {
 			registry.MustRegister(hopLimitGauge)
-			hopLimitGauge.Set(float64(pkt.Ttl))
+			hopLimitGauge.Set(float64(pkt.TTL))
 		}
 
 		_ = level.Info(logger).Log("msg", "Found matching reply packet", "seq", strconv.Itoa(pkt.Seq))
 	}
 
-	pinger.OnDuplicateRecv = func(pkt *ping.Packet) {
+	pinger.OnDuplicateRecv = func(pkt *probing.Packet) {
 		_ = level.Info(logger).Log("msg", "Duplicate packet received", "seq", strconv.Itoa(pkt.Seq))
 	}
 
-	pinger.OnFinish = func(stats *ping.Statistics) {
+	pinger.OnFinish = func(stats *probing.Statistics) {
 		durationGaugeVec.WithLabelValues("rtt").Set(stats.AvgRtt.Seconds())
 		duration += stats.AvgRtt.Seconds()
 		durationMaxGauge.Set(stats.MaxRtt.Seconds())
