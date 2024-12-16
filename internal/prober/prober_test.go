@@ -24,6 +24,6 @@ func TestProberFactoryCoverage(t *testing.T) {
 		require.NoError(t, check.FromSM(sm.GetCheckInstance(checkType)))
 
 		_, _, err := pf.New(ctx, testLogger, check)
-		require.NotErrorIs(t, err, unsupportedCheckType)
+		require.NotErrorIs(t, err, errUnsupportedCheckType)
 	}
 }
