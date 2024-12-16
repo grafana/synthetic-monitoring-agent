@@ -24,7 +24,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-const unsupportedCheckType = error_types.BasicError("unsupported check type")
+const errUnsupportedCheckType = error_types.BasicError("unsupported check type")
 
 type Prober interface {
 	Name() string
@@ -119,7 +119,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		target = check.Target
 
 	default:
-		return nil, "", unsupportedCheckType
+		return nil, "", errUnsupportedCheckType
 	}
 
 	return p, target, err
