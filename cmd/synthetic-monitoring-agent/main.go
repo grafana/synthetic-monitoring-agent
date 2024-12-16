@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/grafana/synthetic-monitoring-agent/internal/screenshot"
 	"io"
 	"math"
 	"net"
@@ -66,6 +67,7 @@ func run(args []string, stdout io.Writer) error {
 			EnableDisconnect     bool
 			EnablePProf          bool
 			HttpListenAddr       string
+			ScreenshotListenAddr string
 			K6URI                string
 			K6BlacklistedIP      string
 			SelectedPublisher    string
@@ -74,14 +76,15 @@ func run(args []string, stdout io.Writer) error {
 			MemLimitRatio        float64
 			DisableK6            bool
 		}{
-			GrpcApiServerAddr: "localhost:4031",
-			HttpListenAddr:    "localhost:4050",
-			K6URI:             "sm-k6",
-			K6BlacklistedIP:   "10.0.0.0/8",
-			SelectedPublisher: pusherV2.Name,
-			TelemetryTimeSpan: defTelemetryTimeSpan,
-			AutoMemLimit:      true,
-			MemLimitRatio:     0.9,
+			GrpcApiServerAddr:    "localhost:4031",
+			HttpListenAddr:       "localhost:4050",
+			ScreenshotListenAddr: "localhost:4090",
+			K6URI:                "sm-k6",
+			K6BlacklistedIP:      "10.0.0.0/8",
+			SelectedPublisher:    pusherV2.Name,
+			TelemetryTimeSpan:    defTelemetryTimeSpan,
+			AutoMemLimit:         true,
+			MemLimitRatio:        0.9,
 		}
 	)
 
@@ -334,6 +337,39 @@ func run(args []string, stdout io.Writer) error {
 
 	g.Go(func() error {
 		return adhocHandler.Run(ctx)
+	})
+
+	ssHttpConfig := http.Config{
+		ListenAddr:   config.ScreenshotListenAddr,
+		Logger:       zl.With().Str("subsystem", "http2").Logger(),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  15 * time.Second,
+	}
+
+	ssHandler := screenshot.New(
+		zl.With().Str("subsystem", "screenshot").Logger(),
+		publisher)
+
+	ssHttpServer := http.NewServer(ctx, ssHandler, ssHttpConfig)
+
+	ssHttpListener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", ssHttpServer.ListenAddr())
+	if err != nil {
+		return err
+	}
+
+	g.Go(func() error {
+		<-ctx.Done()
+		timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer timeoutCancel()
+
+		// we probably cannot do anything meaningful with this
+		// error but return it anyways.
+		return ssHttpServer.Shutdown(timeoutCtx)
+	})
+
+	g.Go(func() error {
+		return ssHttpServer.Run(ssHttpListener)
 	})
 
 	return g.Wait()

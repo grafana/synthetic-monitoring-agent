@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
@@ -109,6 +110,10 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 
 	var stdout, stderr bytes.Buffer
 
+	if script.CheckInfo.Type == synthetic_monitoring.CheckTypeBrowser.String() {
+		envvar := "K6_BROWSER_SCREENSHOTS_OUTPUT=url=http://localhost:4090,basePath=/screenshots,header.tenantId=1" // FIXME
+		cmd.Env = append(os.Environ(), envvar)
+	}
 	cmd.Dir = workdir
 	cmd.Stdin = nil
 	cmd.Stdout = &stdout
