@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v0.31.1@sha256:576971e115fdb8def851e8d4141388262e2c9d6c23e6c00c5d584d8c06943bcf
+      image: ghcr.io/grafana/grafana-build-tools:v0.34.0@sha256:2d2b61738952e4934df01457638cf78da6178e763db152cfde0489e99bc14eeb
 
     steps:
       - name: checkout
