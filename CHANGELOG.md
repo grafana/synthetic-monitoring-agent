@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.30.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.10...v0.30.0) (2024-12-17)
+
+
+### Features
+
+* remove drone setup ([1982d52](https://github.com/grafana/synthetic-monitoring-agent/commit/1982d52679db45c4be296bcb1a2769a172c13a08))
+
+
+### Fixes
+
+* bump minor, not patch, for features ([035c146](https://github.com/grafana/synthetic-monitoring-agent/commit/035c1468c3cbfc348f57aeb7c0c6985a5731641d))
+* pass version to argo workflow ([#1105](https://github.com/grafana/synthetic-monitoring-agent/issues/1105)) ([43d9558](https://github.com/grafana/synthetic-monitoring-agent/commit/43d9558dd6e0413c320122188e68fa8552c6bcdf))
+
+
+### Miscellaneous Chores
+
+* Fix changelog ([#1107](https://github.com/grafana/synthetic-monitoring-agent/issues/1107)) ([2afc7e2](https://github.com/grafana/synthetic-monitoring-agent/commit/2afc7e215a39b79dd9ca219f62a0a217c432e279))
+* Format changelog ([#1109](https://github.com/grafana/synthetic-monitoring-agent/issues/1109)) ([48acd4d](https://github.com/grafana/synthetic-monitoring-agent/commit/48acd4de828885ae033fe8d66cb1c735b41febc7))
+* rename add err prefix to unsupportedCheckType error ([64b0cb1](https://github.com/grafana/synthetic-monitoring-agent/commit/64b0cb1967a8517df0d21accb51adf8d0f4edafd))
+* Set release version ([#1113](https://github.com/grafana/synthetic-monitoring-agent/issues/1113)) ([19de6df](https://github.com/grafana/synthetic-monitoring-agent/commit/19de6df3170c056d40971c86c927f81064b750fa))
+* Set release version ([#1119](https://github.com/grafana/synthetic-monitoring-agent/issues/1119)) ([d548f56](https://github.com/grafana/synthetic-monitoring-agent/commit/d548f56d5199d4ea5cfa49e0521213cec5426cf7))
+* Update actions/cache action to v4.2.0 ([76681db](https://github.com/grafana/synthetic-monitoring-agent/commit/76681dbf07a0b10faafb429e2374227a4695f6cd))
+* Update actions/checkout action to v4.2.2 ([8751eef](https://github.com/grafana/synthetic-monitoring-agent/commit/8751eef420ab4009dc3e2243cc80d948f2356805))
+* Update actions/setup-go action to v5.2.0 ([bf1829e](https://github.com/grafana/synthetic-monitoring-agent/commit/bf1829efcbe871a28aeecba78e4db51c6032196f))
+* Update alpine Docker tag to v3.21.0 ([20ba3a9](https://github.com/grafana/synthetic-monitoring-agent/commit/20ba3a937de122b606567c5786d9ae45b396c45a))
+* Update docker/build-push-action action to v6.10.0 ([004ef45](https://github.com/grafana/synthetic-monitoring-agent/commit/004ef45497cf89922cab56f135e9ced05c21577c))
+* Update docker/setup-buildx-action action to v3.8.0 ([1e3831a](https://github.com/grafana/synthetic-monitoring-agent/commit/1e3831a07327d4d2a2f2b3fde43af3eca1ea83af))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v131.0.6778.108-r0-3.21.0 ([6c126df](https://github.com/grafana/synthetic-monitoring-agent/commit/6c126dfe0f052a38a986e8523a76f8628cab1ff4))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v131.0.6778.139-r0-3.21.0 ([74faf88](https://github.com/grafana/synthetic-monitoring-agent/commit/74faf8840dd60d2b936f5594bf26aaf9182ad616))
+* Update golang.org/x/exp digest to 4a55095 ([e995923](https://github.com/grafana/synthetic-monitoring-agent/commit/e995923f93e19e3c5306b8d210d883848082434f))
+* Update grafana/shared-workflows digest to 4abacd5 ([844daa5](https://github.com/grafana/synthetic-monitoring-agent/commit/844daa502f9a14c3fe2b7e52f640b6e9d1129c1e))
+* Update grafana/shared-workflows digest to 5a093ed ([7c1d2ad](https://github.com/grafana/synthetic-monitoring-agent/commit/7c1d2adcceeaa764fca1a5f56ba8ccf355b844ef))
+* Update grafana/shared-workflows digest to 5b45f78 ([90caa92](https://github.com/grafana/synthetic-monitoring-agent/commit/90caa929331438ef90a0d3589737ae494110a835))
+* Update grafana/shared-workflows digest to a4e8131 ([#1121](https://github.com/grafana/synthetic-monitoring-agent/issues/1121)) ([eb6eefe](https://github.com/grafana/synthetic-monitoring-agent/commit/eb6eefe1a094cb4abeecfc4cc4de45f294497b25))
+* Update module golang.org/x/net to v0.32.0 ([e42e7d0](https://github.com/grafana/synthetic-monitoring-agent/commit/e42e7d09c34b05a9d392ca75647b30d69936d556))
+* Update module google.golang.org/grpc to v1.68.1 ([8e76cce](https://github.com/grafana/synthetic-monitoring-agent/commit/8e76cce4de854ac46e08e38ffd35d8ed9f62b78b))
+* Update module google.golang.org/grpc to v1.69.0 ([f94f827](https://github.com/grafana/synthetic-monitoring-agent/commit/f94f827762215b836cb39f3037690a374dfc1246))
+
 ## [0.29.10](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.9...v0.29.10) (2024-12-10)
 
 
