@@ -19,13 +19,17 @@
   ],
   "customManagers": [
     {
-      // Update k6 version in Dockerfiles.
+      // Update xk6-sm
       "customType": "regex",
+      "depNameTemplate": "grafana/xk6-sm",
       "datasourceTemplate": "github-releases",
-      "depNameTemplate": "grafana/k6",
-      "fileMatch": [".*\\.mk"],
+      "versioningTemplate": "semver",
+      "fileMatch": [
+        "Dockerfile",
+        "scripts/make/sm-k6.mk"
+      ],
       "matchStrings": [
-        "(?:^|\\n)[ \\t]*K6_VERSION\\s*:=\\s*(?<currentValue>\\S+)[ \\t]*(?:$|\\n)"
+        "https://github.com/grafana/xk6-sm/releases/download/(?<currentValue>[^/]+)/"
       ]
     }
   ]
