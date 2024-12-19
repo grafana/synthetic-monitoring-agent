@@ -19,7 +19,7 @@ ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
 
 # Third stage copies the setup from the base agent and
 # additionally installs Chromium to support browser checks.
-FROM ghcr.io/grafana/chromium-swiftshader-alpine:131.0.6778.139-r0-3.21.0@sha256:c42606a15ade344ef1957b3d182c6315947240ecacaac1a5983cb0ab41d8e8f6 AS with-browser
+FROM ghcr.io/grafana/chromium-swiftshader-alpine:131.0.6778.139-r1-3.21.0@sha256:d3071cfe8721cee56fecf8e5d0bf77031d531bc1091b04b05bccf5f50a32365b AS with-browser
 
 RUN apk --no-cache add --repository community tini
 
