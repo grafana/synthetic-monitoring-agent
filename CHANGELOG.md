@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.30.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.30.0...v0.30.1) (2024-12-19)
+
+
+### Miscellaneous Chores
+
+* Update dependency go to v1.23.4 ([#1095](https://github.com/grafana/synthetic-monitoring-agent/issues/1095)) ([b61444b](https://github.com/grafana/synthetic-monitoring-agent/commit/b61444b386a83ccec48a6b2518f11275d48baffd))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.34.0 ([#1102](https://github.com/grafana/synthetic-monitoring-agent/issues/1102)) ([3c86f3b](https://github.com/grafana/synthetic-monitoring-agent/commit/3c86f3bc3f1b399db233762473bcb2f89fa9e19e))
+* Update module golang.org/x/net to v0.33.0 [SECURITY] ([#1129](https://github.com/grafana/synthetic-monitoring-agent/issues/1129)) ([40720bd](https://github.com/grafana/synthetic-monitoring-agent/commit/40720bdc7aa6a7b05900ccf641fafa240425cc86))
+
 ## [0.30.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.29.10...v0.30.0) (2024-12-17)
 
 
