@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.30.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.30.1...v0.30.2) (2025-01-13)
+
+
+### Fixes
+
+* Bump golang.org/x/crypto to v0.32.0 ([#1131](https://github.com/grafana/synthetic-monitoring-agent/issues/1131)) ([112bbad](https://github.com/grafana/synthetic-monitoring-agent/commit/112bbad78ce97229f41fd99ce799bbda19c95bdc))
+
+
+### Miscellaneous Chores
+
+* Update grafana/shared-workflows digest to bec45d4 ([#1130](https://github.com/grafana/synthetic-monitoring-agent/issues/1130)) ([1642853](https://github.com/grafana/synthetic-monitoring-agent/commit/1642853dac54e74a587b792858f256f451f7d91b))
+* Update module google.golang.org/grpc to v1.69.2 ([#1128](https://github.com/grafana/synthetic-monitoring-agent/issues/1128)) ([82a293f](https://github.com/grafana/synthetic-monitoring-agent/commit/82a293f38ccce214792157a44a889ae6cff7c22e))
+
 ## [0.30.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.30.0...v0.30.1) (2024-12-19)
 
 
