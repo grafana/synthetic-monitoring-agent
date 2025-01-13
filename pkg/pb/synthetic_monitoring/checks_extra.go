@@ -148,7 +148,7 @@ const (
 	minCheckTimeout      = minCheckFrequency
 	MaxCheckTimeout      = 1 * 60 * 1000   // Maximum value for the check's timeout (1 minute).
 	minScriptedTimeout   = minCheckTimeout // Minimum timeout for scripted checks (1 second).
-	maxScriptedTimeout   = MaxCheckTimeout // Maximum timeout for scripted checks (1 minute).
+	maxScriptedTimeout   = 90 * 1000       // Maximum timeout for scripted checks (90 second).
 	minTracerouteTimeout = 30 * 1000       // Minimum timeout for traceroute checks (30 second).
 	maxTracerouteTimeout = 30 * 1000       // Minimum timeout for traceroute checks (30 second).
 )
