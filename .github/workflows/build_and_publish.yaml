@@ -252,6 +252,36 @@ jobs:
           find dist/ -mindepth 2 -maxdepth 2 -type f \( -name \*.rpm -o -name \*.deb \) -print0 |
             xargs -r0 gh release upload "$tag"
 
+      - name: push container images to docker hub (no browser)
+        id: push-no-browser-to-docker-hub
+        # if: ${{ always() && inputs.mode == 'prod' }}
+        uses: grafana/shared-workflows/actions/build-push-to-dockerhub@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
+        with:
+          repository: ${{ github.repository }}
+          # Go thru the motions, but publish only in prod mode.
+          push: ${{ inputs.mode == 'prod' }}
+          platforms: ${{ steps.extract-build-artifacts.outputs.platforms }}
+          tags: |-
+            type=raw,value=${{ needs.validate.outputs.version }}
+            type=sha,prefix=sha-,format=short
+            latest
+          file: Dockerfile.no-browser
+
+      - name: push container images to docker hub (browser)
+        id: push-browser-to-docker-hub
+        # if: ${{ always() && inputs.mode == 'prod' }}
+        uses: grafana/shared-workflows/actions/build-push-to-dockerhub@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
+        with:
+          repository: ${{ github.repository }}
+          # Go thru the motions, but publish only in prod mode.
+          push: ${{ inputs.mode == 'prod' }}
+          platforms: ${{ steps.extract-build-artifacts.outputs.platforms }}
+          tags: |-
+            type=raw,value=${{ needs.validate.outputs.version }}-browser
+            type=sha,prefix=sha-,suffix=-browser,format=short
+            latest-browser
+          file: Dockerfile.browser
+
   deploy:
     name: deploy
     needs:
