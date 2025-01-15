@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.31.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.30.2...v0.31.0) (2025-01-15)
+
+
+### Features
+
+* Add policy bot configuration ([#1144](https://github.com/grafana/synthetic-monitoring-agent/issues/1144)) ([146f642](https://github.com/grafana/synthetic-monitoring-agent/commit/146f64207eed8a7c13bbb1c0fbfe94854d090cb6))
+
+
+### Fixes
+
+* increase Scripted and Browser max timeout to 90s ([#1136](https://github.com/grafana/synthetic-monitoring-agent/issues/1136)) ([8ef7d2a](https://github.com/grafana/synthetic-monitoring-agent/commit/8ef7d2a51db161fedcdd3cd2a60ca37d59d89815))
+* Publish images to docker hub ([#1145](https://github.com/grafana/synthetic-monitoring-agent/issues/1145)) ([bcd2008](https://github.com/grafana/synthetic-monitoring-agent/commit/bcd2008f369dd43e2492adce9d750b11426fbaed)), closes [#1132](https://github.com/grafana/synthetic-monitoring-agent/issues/1132)
+
+
+### Miscellaneous Chores
+
+* Update actions/create-github-app-token digest to c1a2851 ([#1135](https://github.com/grafana/synthetic-monitoring-agent/issues/1135)) ([dfc1fd4](https://github.com/grafana/synthetic-monitoring-agent/commit/dfc1fd41ab0d728333151b38294776509d45794e))
+* Update actions/upload-artifact digest to 65c4c4a ([#1127](https://github.com/grafana/synthetic-monitoring-agent/issues/1127)) ([28126e9](https://github.com/grafana/synthetic-monitoring-agent/commit/28126e9c3478e6c58e5884b8047025f991ae2e7e))
+* Update docker/build-push-action action to v6.11.0 ([#1139](https://github.com/grafana/synthetic-monitoring-agent/issues/1139)) ([c190dad](https://github.com/grafana/synthetic-monitoring-agent/commit/c190dad5c6b27df93050f6cef3c3aa125ee54f75))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.36.0 ([#1140](https://github.com/grafana/synthetic-monitoring-agent/issues/1140)) ([ead4b9f](https://github.com/grafana/synthetic-monitoring-agent/commit/ead4b9f50f1557b79e4631e968cafc26cd501760))
+* Update module golang.org/x/net to v0.33.0 [SECURITY] ([#1142](https://github.com/grafana/synthetic-monitoring-agent/issues/1142)) ([f4f1c5d](https://github.com/grafana/synthetic-monitoring-agent/commit/f4f1c5d3f0a44cb8414fb6faf0742311dc5020bb))
+* Update module google.golang.org/grpc to v1.69.4 ([#1138](https://github.com/grafana/synthetic-monitoring-agent/issues/1138)) ([20cc2ff](https://github.com/grafana/synthetic-monitoring-agent/commit/20cc2ff9e29410b4a96498306bb0ade089127b76))
+
 ## [0.30.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.30.1...v0.30.2) (2025-01-13)
 
 
