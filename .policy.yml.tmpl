@@ -1,0 +1,34 @@
+# Require some statuses to pass only if certain files are modified. This is a
+# template file. You can edit it and the generated contents (to enforce that
+# conditional workflows pass when they are triggered) will be inserted where
+# `MERGE_WITH_GENERATED` is.
+
+policy:
+  approval:
+    - or:
+        - MERGE_WITH_GENERATED
+        - override policies
+    - policy bot config is valid when modified
+
+approval_rules:
+  - name: policy bot config is valid when modified
+    if:
+      changed_files:
+        paths:
+          - ^\.policy\.yml
+    requires:
+      conditions:
+        has_successful_status:
+          - Validate policy bot config
+
+  - name: override policies
+    requires:
+      count: 1
+      permissions:
+        - write
+    options:
+      methods:
+        comments:
+          - "policy bot: approve"
+          - "policy-bot: approve"
+        github_review: false
