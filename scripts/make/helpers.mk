@@ -103,9 +103,15 @@ $(ROOTDIR)/pkg/pb/synthetic_monitoring/multihttp_string.go: $(wildcard $(ROOTDIR
 	$(S) echo "Generating $@ ..."
 	$(V) $(GO) generate -v "$(@D)"
 
+ifeq ($(CI),true)
+TESTDATA_GO ?= $(GO)
+else
+TESTDATA_GO ?= $(ROOTDIR)/scripts/docker-run env $(GO)
+endif
+
 .PHONY: testdata
 testdata: ## Update golden files for tests.
-	$(V) $(GO) test -v -run TestValidateMetrics ./internal/scraper -args -update-golden
+	$(V) $(TESTDATA_GO) test -v -run TestValidateMetrics ./internal/scraper -args -update-golden
 
 # rwildcard will recursively search for files matching the pattern, e.g. $(call rwildcard, src/*.c)
 rwildcard = $(call rwildcard_helper, $(dir $1), $(notdir $1))
