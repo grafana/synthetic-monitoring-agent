@@ -28,7 +28,14 @@ type Script struct {
 	Settings Settings `json:"settings"`
 	// CheckInfo holds information about the SM check that triggered this script.
 	CheckInfo CheckInfo `json:"check"`
+	// SecretStore is the secret store details for the check.
+	SecretStore SecretStore `json:"secretStore"`
 	// TODO: Add features.
+}
+
+type SecretStore struct {
+	Url   string `json:"url"`
+	Token string `json:"token"`
 }
 
 // Settings is a common representation of the fields common to all implementation-specific check settings that the

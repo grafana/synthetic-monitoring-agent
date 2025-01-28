@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"math"
 	"math/rand"
 	"strconv"
@@ -75,6 +76,7 @@ type Scraper struct {
 	summaries     map[uint64]prometheus.Summary
 	histograms    map[uint64]prometheus.Histogram
 	telemeter     Telemeter
+	secretStore   *secrets.TenantSecrets
 }
 
 type Factory func(
@@ -85,6 +87,7 @@ type Factory func(
 	k6runner k6runner.Runner,
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
+	secretStore *secrets.TenantSecrets,
 ) (*Scraper, error)
 
 type (
@@ -118,13 +121,14 @@ func New(
 	k6runner k6runner.Runner,
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
+	secretStore *secrets.TenantSecrets,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
 		Publisher:     publisher,
 		Logger:        logger,
 		Metrics:       metrics,
-		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id, features),
+		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id, features, secretStore),
 		LabelsLimiter: labelsLimiter,
 		Telemeter:     telemeter,
 	})

@@ -457,12 +457,7 @@ func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, model
 		}
 	}
 
-	prober, err := scripted.NewProber(
-		ctx,
-		check,
-		zerolog.New(zerolog.NewTestWriter(t)),
-		runner,
-	)
+	prober, err := scripted.NewProber(ctx, check, zerolog.New(zerolog.NewTestWriter(t)), runner, nil)
 	if err != nil {
 		t.Fatalf("cannot create scripted prober: %s", err)
 	}
@@ -506,13 +501,7 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 		}
 	}
 
-	prober, err := multihttp.NewProber(
-		ctx,
-		check,
-		zerolog.New(zerolog.NewTestWriter(t)),
-		runner,
-		http.Header{},
-	)
+	prober, err := multihttp.NewProber(ctx, check, zerolog.New(zerolog.NewTestWriter(t)), runner, http.Header{}, nil)
 	if err != nil {
 		t.Fatalf("cannot create MultiHTTP prober: %s", err)
 	}
@@ -549,12 +538,7 @@ func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 		}
 	}
 
-	prober, err := browser.NewProber(
-		ctx,
-		check,
-		zerolog.New(zerolog.NewTestWriter(t)),
-		runner,
-	)
+	prober, err := browser.NewProber(ctx, check, zerolog.New(zerolog.NewTestWriter(t)), runner, nil)
 	if err != nil {
 		t.Fatalf("cannot create scripted prober: %s", err)
 	}

@@ -97,6 +97,16 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 		"--verbose",
 	}
 
+	// Add secretStore configuration if available
+	if script.SecretStore.Url != "" && script.SecretStore.Token != "" {
+		if script.SecretStore.Url != "" {
+			args = append(args, "--secret-store-url", script.SecretStore.Url)
+		}
+		if script.SecretStore.Token != "" {
+			args = append(args, "--secret-store-token", script.SecretStore.Token)
+		}
+	}
+
 	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
 		args = append(args,
 			"--vus", "1",

@@ -3,6 +3,7 @@ package multihttp
 import (
 	"context"
 	"errors"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"net/http"
 	"strings"
 
@@ -29,7 +30,7 @@ type Prober struct {
 	processor *k6runner.Processor
 }
 
-func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header, store secrets.SecretProvider) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Multihttp == nil {
@@ -42,6 +43,11 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 
 	if len(reservedHeaders) > 0 {
 		augmentHttpHeaders(&check.Check, reservedHeaders)
+	}
+
+	secretStore, err := store.GetSecretCredentials(ctx, check.TenantId)
+	if err != nil {
+		return p, err
 	}
 
 	script, err := settingsToScript(check.Settings.Multihttp)
@@ -57,6 +63,10 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 				Timeout: check.Timeout,
 			},
 			CheckInfo: k6runner.CheckInfoFromSM(check),
+			SecretStore: k6runner.SecretStore{
+				Url:   secretStore.Url,
+				Token: secretStore.Token,
+			},
 		},
 	}
 

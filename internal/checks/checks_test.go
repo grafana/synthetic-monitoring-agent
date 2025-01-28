@@ -3,6 +3,7 @@ package checks
 import (
 	"context"
 	"fmt"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -471,6 +472,7 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 	k6Runner k6runner.Runner,
 	labelsLimiter scraper.LabelsLimiter,
 	telemeter *telemetry.Telemeter,
+	secretStore *secrets.TenantSecrets,
 ) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,

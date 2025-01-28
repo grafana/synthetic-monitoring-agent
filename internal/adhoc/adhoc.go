@@ -139,7 +139,7 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		tenantCh:                     opts.TenantCh,
 		runnerFactory:                opts.runnerFactory,
 		grpcAdhocChecksClientFactory: opts.grpcAdhocChecksClientFactory,
-		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features),
+		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features, nil),
 		api: apiInfo{
 			conn: opts.Conn,
 		},
