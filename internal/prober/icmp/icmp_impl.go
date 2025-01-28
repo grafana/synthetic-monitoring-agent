@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-kit/kit/log"       //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-kit/kit/log/level" //nolint:staticcheck // TODO(mem): replace in BBE
-	"github.com/go-ping/ping"
+	ping "github.com/prometheus-community/pro-bing"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -105,9 +105,9 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 	}
 
 	pinger.OnRecv = func(pkt *ping.Packet) {
-		if pkt.Seq == 0 && pkt.Ttl >= 0 {
+		if pkt.Seq == 0 && pkt.TTL >= 0 {
 			registry.MustRegister(hopLimitGauge)
-			hopLimitGauge.Set(float64(pkt.Ttl))
+			hopLimitGauge.Set(float64(pkt.TTL))
 		}
 
 		_ = level.Info(logger).Log("msg", "Found matching reply packet", "seq", strconv.Itoa(pkt.Seq))
@@ -128,12 +128,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 		_ = level.Info(logger).Log("msg", "Probe finished", "packets_sent", stats.PacketsSent, "packets_received", stats.PacketsRecv)
 	}
 
-	// TODO: module.ICMP.DontFragment
-
-	if module.ICMP.DontFragment {
-		_ = level.Warn(logger).Log("msg", "ignoring DontFragment option")
-	}
-
+	pinger.SetDoNotFragment(module.ICMP.DontFragment)
 	if module.ICMP.PayloadSize != 0 {
 		pinger.Size = module.ICMP.PayloadSize
 	}
@@ -150,7 +145,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	_ = level.Info(logger).Log("msg", "Creating socket")
 
-	if err := pinger.Run(); err != nil {
+	if err := pinger.RunWithContext(ctx); err != nil {
 		_ = level.Info(logger).Log("msg", "failed to run ping", "err", err.Error())
 		return false, 0
 	}
