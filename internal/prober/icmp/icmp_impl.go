@@ -128,8 +128,6 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 		_ = level.Info(logger).Log("msg", "Probe finished", "packets_sent", stats.PacketsSent, "packets_received", stats.PacketsRecv)
 	}
 
-	// TODO: module.ICMP.DontFragment
-
 	pinger.SetDoNotFragment(module.ICMP.DontFragment)
 	if module.ICMP.PayloadSize != 0 {
 		pinger.Size = module.ICMP.PayloadSize
@@ -147,7 +145,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	_ = level.Info(logger).Log("msg", "Creating socket")
 
-	if err := pinger.Run(); err != nil {
+	if err := pinger.RunWithContext(ctx); err != nil {
 		_ = level.Info(logger).Log("msg", "failed to run ping", "err", err.Error())
 		return false, 0
 	}
