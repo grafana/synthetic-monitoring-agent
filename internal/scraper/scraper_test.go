@@ -462,6 +462,7 @@ func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, model
 		check,
 		zerolog.New(zerolog.NewTestWriter(t)),
 		runner,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("cannot create scripted prober: %s", err)
@@ -512,6 +513,7 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 		zerolog.New(zerolog.NewTestWriter(t)),
 		runner,
 		http.Header{},
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("cannot create MultiHTTP prober: %s", err)
@@ -539,6 +541,7 @@ func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 	}
 
 	var runner k6runner.Runner
+	var store noopSecretStore
 
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
 		runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
@@ -554,6 +557,7 @@ func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 		check,
 		zerolog.New(zerolog.NewTestWriter(t)),
 		runner,
+		store,
 	)
 	if err != nil {
 		t.Fatalf("cannot create scripted prober: %s", err)
@@ -2017,4 +2021,10 @@ func TestTickWithOffset(t *testing.T) {
 			require.Equal(t, tc.expected, results)
 		})
 	}
+}
+
+type noopSecretStore struct{}
+
+func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID int64) (*sm.SecretStore, error) {
+	return &sm.SecretStore{}, nil
 }

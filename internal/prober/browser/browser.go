@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
+
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
@@ -27,11 +29,16 @@ type Prober struct {
 	processor *k6runner.Processor
 }
 
-func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, store secrets.SecretProvider) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Browser == nil {
 		return p, errUnsupportedCheck
+	}
+
+	secretStore, err := store.GetSecretCredentials(ctx, check.TenantId)
+	if err != nil {
+		return p, err
 	}
 
 	p.module = Module{
@@ -42,6 +49,10 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 				Timeout: check.Timeout,
 			},
 			CheckInfo: k6runner.CheckInfoFromSM(check),
+			SecretStore: k6runner.SecretStore{
+				Url:   secretStore.Url,
+				Token: secretStore.Token,
+			},
 		},
 	}
 
