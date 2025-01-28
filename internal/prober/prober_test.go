@@ -15,7 +15,8 @@ func TestProberFactoryCoverage(t *testing.T) {
 	// This test will assert that the prober factory is handling all the
 	// known check types (as defined in the synthetic_monitoring package).
 
-	pf := NewProberFactory(nil, 0, feature.Collection{})
+	var store noopSecretStore
+	pf := NewProberFactory(nil, 0, feature.Collection{}, &store)
 	ctx := context.Background()
 	testLogger := zerolog.New(zerolog.NewTestWriter(t))
 
@@ -26,4 +27,10 @@ func TestProberFactoryCoverage(t *testing.T) {
 		_, _, err := pf.New(ctx, testLogger, check)
 		require.NotErrorIs(t, err, errUnsupportedCheckType)
 	}
+}
+
+type noopSecretStore struct{}
+
+func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID int64) (*sm.SecretStore, error) {
+	return &sm.SecretStore{}, nil
 }

@@ -99,6 +99,13 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 		"--verbose",
 	}
 
+	// Add secretStore configuration if available
+	if script.SecretStore.Url != "" && script.SecretStore.Token != "" {
+		if script.SecretStore.Url != "" {
+			args = append(args, "--secret-source=grafanasecrets=url="+script.SecretStore.Url)
+		}
+	}
+
 	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
 		args = append(args,
 			"--vus", "1",
@@ -120,7 +127,11 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	cmd.Stdin = nil
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Env = k6Env(os.Environ())
+	env := k6Env(os.Environ())
+	if script.SecretStore.Url != "" && script.SecretStore.Token != "" {
+		env = append(env, "GRAFANA_SECRET_TOKEN="+script.SecretStore.Token)
+	}
+	cmd.Env = env
 
 	start := time.Now()
 	logger.Info().Str("command", cmd.String()).Bytes("script", script.Script).Msg("running k6 script")

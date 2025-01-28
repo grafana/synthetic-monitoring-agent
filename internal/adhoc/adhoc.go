@@ -8,6 +8,8 @@ import (
 	"io"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -107,6 +109,7 @@ type HandlerOpts struct {
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
 	K6Runner       k6runner.Runner
+	TenantSecrets  *secrets.TenantSecrets
 
 	// these two fields exists so that tests can pass alternate
 	// implementations, they are unexported so that clients of this
@@ -139,7 +142,7 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		tenantCh:                     opts.TenantCh,
 		runnerFactory:                opts.runnerFactory,
 		grpcAdhocChecksClientFactory: opts.grpcAdhocChecksClientFactory,
-		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features),
+		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features, opts.TenantSecrets),
 		api: apiInfo{
 			conn: opts.Conn,
 		},
