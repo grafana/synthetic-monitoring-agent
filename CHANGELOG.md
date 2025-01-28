@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.32.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.31.0...v0.32.0) (2025-01-27)
+
+
+### Features
+
+* fetch precompiled xk6 extension from `grafana/xk6-sm` ([#966](https://github.com/grafana/synthetic-monitoring-agent/issues/966)) ([0a57fad](https://github.com/grafana/synthetic-monitoring-agent/commit/0a57fad38b720d755028abad755652293e8fd451))
+* k6runner: improve error handling for k6 output ([7cc7746](https://github.com/grafana/synthetic-monitoring-agent/commit/7cc77469a3a012a03213ed5b59dba2d4bc7526e0))
+
+
+### Fixes
+
+* increase Scripted and Browser max timeout to 120s ([#1136](https://github.com/grafana/synthetic-monitoring-agent/issues/1136)) ([#1160](https://github.com/grafana/synthetic-monitoring-agent/issues/1160)) ([24e2a41](https://github.com/grafana/synthetic-monitoring-agent/commit/24e2a417407fe196df106dc1c23ec58c0a2857bd))
+* Update grafana-build-tools to v0.37.0 ([#1162](https://github.com/grafana/synthetic-monitoring-agent/issues/1162)) ([8ab9470](https://github.com/grafana/synthetic-monitoring-agent/commit/8ab9470d60bbc941f586636f1286d7493735d98e))
+
+
+### Miscellaneous Chores
+
+* Update actions/checkout action to v4.2.2 ([#1156](https://github.com/grafana/synthetic-monitoring-agent/issues/1156)) ([9d2705d](https://github.com/grafana/synthetic-monitoring-agent/commit/9d2705dddc3bcd251a211f467d14ec310e022eb8))
+* Update actions/setup-go action to v5.3.0 ([#1157](https://github.com/grafana/synthetic-monitoring-agent/issues/1157)) ([21cf1fe](https://github.com/grafana/synthetic-monitoring-agent/commit/21cf1fe4226fb50fa798d9b128ad0073812d9269))
+* Update alpine Docker tag to v3.21.2 ([f05b158](https://github.com/grafana/synthetic-monitoring-agent/commit/f05b158d41aafe1d2bb9a40c6fc5071ddac7b492))
+* Update docker/build-push-action action to v6.13.0 ([#1158](https://github.com/grafana/synthetic-monitoring-agent/issues/1158)) ([61a4197](https://github.com/grafana/synthetic-monitoring-agent/commit/61a41975939a4e244563a6836fd7a1776407e684))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v131.0.6778.264-r0-3.21.2 ([86da451](https://github.com/grafana/synthetic-monitoring-agent/commit/86da451134e76020a0b825319b51a04616a1bc4c))
+* Update module github.com/Antonboom/nilnil to v1.0.1 ([#1149](https://github.com/grafana/synthetic-monitoring-agent/issues/1149)) ([1324150](https://github.com/grafana/synthetic-monitoring-agent/commit/132415079fa288846fafa82fa8f537bd58eccf92))
+* Update module github.com/KimMachineGun/automemlimit to v0.7.0 ([#1141](https://github.com/grafana/synthetic-monitoring-agent/issues/1141)) ([24c91b2](https://github.com/grafana/synthetic-monitoring-agent/commit/24c91b23dbff06ae894c6f67c91fc269f365a6e0))
+
 ## [0.31.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.30.2...v0.31.0) (2025-01-15)
 
 
