@@ -38,6 +38,7 @@ jobs:
       image: ghcr.io/grafana/grafana-build-tools:v0.37.0@sha256:64c6ff07fce6f93ba3732d4617b7ea3a370d7e87fd4e4cb92fd4faa25364cd50
     outputs:
       version: ${{ steps.version.outputs.value }}
+      version_bare: ${{ steps.version.outputs.bare_value }}
 
     steps:
       - name: checkout
@@ -73,6 +74,7 @@ jobs:
         run: |
           make version
           echo "value=$(cat dist/version)" >> "$GITHUB_OUTPUT"
+          echo "bare_value=$(cat dist/version | cut -d- -f1)" >> "$GITHUB_OUTPUT"
 
       - name: build
         run: make build-native
@@ -216,6 +218,7 @@ jobs:
           platforms: ${{ steps.extract-build-artifacts.outputs.platforms }}
           tags: |-
             type=raw,value=${{ needs.validate.outputs.version }}
+            type=raw,value=${{ needs.validate.outputs.version_bare }}
             type=sha,prefix=sha-,format=short
             latest
           file: Dockerfile.no-browser
@@ -229,6 +232,7 @@ jobs:
           platforms: ${{ steps.extract-build-artifacts.outputs.platforms }}
           tags: |-
             type=raw,value=${{ needs.validate.outputs.version }}-browser
+            type=raw,value=${{ needs.validate.outputs.version_bare }}-browser
             type=sha,prefix=sha-,suffix=-browser,format=short
             latest-browser
           file: Dockerfile.browser
