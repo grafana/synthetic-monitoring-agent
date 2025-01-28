@@ -21,7 +21,7 @@ require (
 	github.com/rs/zerolog v1.33.0
 	github.com/stretchr/testify v1.10.0
 	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
-	golang.org/x/net v0.33.0
+	golang.org/x/net v0.34.0
 	golang.org/x/sync v0.10.0
 	google.golang.org/grpc v1.69.4
 )
@@ -31,11 +31,11 @@ require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/go-kit/log v0.2.1
-	github.com/go-ping/ping v1.1.0
 	github.com/gogo/status v1.1.1
 	github.com/grafana/loki/pkg/push v0.0.0-20241004191050-c2f38e18c6b8
 	github.com/jpillora/backoff v1.0.0
 	github.com/mccutchen/go-httpbin/v2 v2.15.0
+	github.com/prometheus-community/pro-bing v0.6.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	github.com/spf13/afero v1.11.0
 	golang.org/x/exp v0.0.0-20241215155358-4a5509556b9e
@@ -61,7 +61,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/mod v0.22.0 // indirect
 	golang.org/x/oauth2 v0.23.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
