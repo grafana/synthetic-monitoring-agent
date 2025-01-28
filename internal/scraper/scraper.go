@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
+
 	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-kit/kit/log/level"  //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-logfmt/logfmt"
@@ -85,6 +87,7 @@ type Factory func(
 	k6runner k6runner.Runner,
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
+	secretStore *secrets.TenantSecrets,
 ) (*Scraper, error)
 
 type (
@@ -118,13 +121,14 @@ func New(
 	k6runner k6runner.Runner,
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
+	secretStore *secrets.TenantSecrets,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
 		Publisher:     publisher,
 		Logger:        logger,
 		Metrics:       metrics,
-		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id, features),
+		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id, features, secretStore),
 		LabelsLimiter: labelsLimiter,
 		Telemeter:     telemeter,
 	})

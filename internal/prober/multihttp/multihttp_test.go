@@ -123,11 +123,12 @@ func TestNewProber(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			var runner noopRunner
+			var store noopSecretStore
 			checkId := tc.check.Id
 			reservedHeaders := http.Header{}
 			reservedHeaders.Add("x-sm-id", fmt.Sprintf("%d-%d", checkId, checkId))
 
-			p, err := NewProber(ctx, tc.check, logger, runner, reservedHeaders)
+			p, err := NewProber(ctx, tc.check, logger, runner, reservedHeaders, store)
 			if tc.expectFailure {
 				require.Error(t, err)
 				return
@@ -156,4 +157,10 @@ func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 
 func (noopRunner) Run(ctx context.Context, script k6runner.Script) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
+}
+
+type noopSecretStore struct{}
+
+func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID int64) (*sm.SecretStore, error) {
+	return &sm.SecretStore{}, nil
 }

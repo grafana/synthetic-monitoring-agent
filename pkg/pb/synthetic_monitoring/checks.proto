@@ -175,7 +175,7 @@ message TenantLimits {
   int64 maxBrowserChecks = 5 [(gogoproto.jsontag) = "maxBrowserChecks"];
 }
 
-// SecretStore contains details for accessing Grafana secrets
+// SecretStore contains details for accessing the Grafana secret store
 message SecretStore {
   string url = 1 [(gogoproto.jsontag) = "url"]; // secret service URL
   string token = 2 [(gogoproto.jsontag) = "token"]; // secret service token
