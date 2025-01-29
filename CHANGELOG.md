@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.33.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.32.0...v0.33.0) (2025-01-29)
+
+
+### Features
+
+* Replace go-ping with pro-bing and enable DF ([#1167](https://github.com/grafana/synthetic-monitoring-agent/issues/1167)) ([934ba8e](https://github.com/grafana/synthetic-monitoring-agent/commit/934ba8e851aa5c0b782e9c5d546c1b8a72f5877d))
+
+
+### Fixes
+
+* Tag images with the bare version. ([#1166](https://github.com/grafana/synthetic-monitoring-agent/issues/1166)) ([b6ef348](https://github.com/grafana/synthetic-monitoring-agent/commit/b6ef348badf7951b5d2dca34dd38394927c9f5fd))
+* Use the recommended 'persist-credentials: false' setting ([#1143](https://github.com/grafana/synthetic-monitoring-agent/issues/1143)) ([270f956](https://github.com/grafana/synthetic-monitoring-agent/commit/270f956e52efc6fe772c162220b43874b62372fa))
+
+
+### Miscellaneous Chores
+
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.37.1 ([#1171](https://github.com/grafana/synthetic-monitoring-agent/issues/1171)) ([5ecf37f](https://github.com/grafana/synthetic-monitoring-agent/commit/5ecf37fe5666c0d144a033e886e17c302e3c434c))
+* Update module github.com/miekg/dns to v1.1.63 ([#1163](https://github.com/grafana/synthetic-monitoring-agent/issues/1163)) ([f0810fc](https://github.com/grafana/synthetic-monitoring-agent/commit/f0810fc2751faf698cb694f8dbd996110596dcf2))
+* Update module github.com/prometheus-community/pro-bing to v0.6.0 ([#1170](https://github.com/grafana/synthetic-monitoring-agent/issues/1170)) ([4753f6f](https://github.com/grafana/synthetic-monitoring-agent/commit/4753f6f867c7c1ccc0de182e1adde21bcf9a916d))
+* Update module github.com/prometheus/prometheus to v0.55.1 ([#980](https://github.com/grafana/synthetic-monitoring-agent/issues/980)) ([17d6dc2](https://github.com/grafana/synthetic-monitoring-agent/commit/17d6dc280090ec534fd0f7c228f4183c9414b72e))
+* Update module github.com/spf13/afero to v1.12.0 ([#1172](https://github.com/grafana/synthetic-monitoring-agent/issues/1172)) ([3e92990](https://github.com/grafana/synthetic-monitoring-agent/commit/3e929901dc6a6acdf211cd6aa74212de3896c82d))
+
 ## [0.32.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.31.0...v0.32.0) (2025-01-27)
 
 
