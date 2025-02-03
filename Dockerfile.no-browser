@@ -1,8 +1,14 @@
+FROM --platform=$BUILDPLATFORM alpine:3.21.2@sha256:56fa17d2a7e7f168a043a2712e63aed1f8543aeafdcee47c58dcffe38ed51099 AS build
+RUN adduser -D -u 12345 -g 12345 sm
+
 FROM --platform=$TARGETOS/$TARGETARCH scratch
 
 ARG TARGETOS
 ARG TARGETARCH
+RUN adduser -D -u 12345 -g 12345 sm
 
 ADD ./dist/container-image.no-browser.${TARGETOS}-${TARGETARCH}.tar /
+COPY --from=0 /etc/passwd /etc/passwd
 
+USER sm
 ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
