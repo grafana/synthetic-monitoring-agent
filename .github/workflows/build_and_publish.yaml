@@ -272,6 +272,7 @@ jobs:
           platforms: ${{ steps.extract-build-artifacts.outputs.platforms }}
           tags: |-
             type=raw,value=${{ needs.validate.outputs.version }}
+            type=raw,value=${{ needs.validate.outputs.version_bare }}
             type=sha,prefix=sha-,format=short
             latest
           file: Dockerfile.no-browser
@@ -287,6 +288,7 @@ jobs:
           platforms: ${{ steps.extract-build-artifacts.outputs.platforms }}
           tags: |-
             type=raw,value=${{ needs.validate.outputs.version }}-browser
+            type=raw,value=${{ needs.validate.outputs.version_bare }}-browser
             type=sha,prefix=sha-,suffix=-browser,format=short
             latest-browser
           file: Dockerfile.browser
