@@ -101,10 +101,10 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	// Add secretStore configuration if available
 	if script.SecretStore.Url != "" && script.SecretStore.Token != "" {
 		if script.SecretStore.Url != "" {
-			args = append(args, "--secret-store-url", script.SecretStore.Url)
+			args = append(args, "--env", "SECRET_STORE_URL="+script.SecretStore.Url)
 		}
 		if script.SecretStore.Token != "" {
-			args = append(args, "--secret-store-token", script.SecretStore.Token)
+			args = append(args, "--env", "SECRET_STORE_TOKEN="+script.SecretStore.Token)
 		}
 	}
 
