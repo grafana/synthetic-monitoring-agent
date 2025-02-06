@@ -34,7 +34,7 @@ require (
 	github.com/gogo/status v1.1.1
 	github.com/grafana/loki/pkg/push v0.0.0-20241004191050-c2f38e18c6b8
 	github.com/jpillora/backoff v1.0.0
-	github.com/mccutchen/go-httpbin/v2 v2.15.0
+	github.com/mccutchen/go-httpbin/v2 v2.16.0
 	github.com/prometheus-community/pro-bing v0.6.1
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	github.com/spf13/afero v1.12.0
