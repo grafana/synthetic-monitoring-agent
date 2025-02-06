@@ -90,6 +90,7 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 		"--summary-time-unit", "s",
 		// "--discard-response-bodies",                        // TODO(mem): make this configurable
 		"--dns", "ttl=30s,select=random,policy=preferIPv4", // TODO(mem): this needs fixing, preferIPv4 is probably not what we want
+		"--address", "", // Disable REST API server
 		"--no-thresholds",
 		"--no-usage-report",
 		"--no-color",
