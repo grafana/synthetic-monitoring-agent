@@ -1,10 +1,15 @@
+FROM --platform=$BUILDPLATFORM alpine:3.21.2@sha256:56fa17d2a7e7f168a043a2712e63aed1f8543aeafdcee47c58dcffe38ed51099 AS build
+RUN adduser -D -u 12345 -g 12345 sm
+
 FROM --platform=$TARGETOS/$TARGETARCH scratch
 
 ARG TARGETOS
 ARG TARGETARCH
 
 ADD ./dist/container-image.browser.${TARGETOS}-${TARGETARCH}.tar /
+COPY --from=0 /etc/passwd /etc/passwd
 
+USER sm
 ENV K6_BROWSER_ARGS=no-sandbox,disable-dev-shm-usage
 
 ENTRYPOINT ["tini", "--", "/usr/local/bin/synthetic-monitoring-agent"]
