@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"time"
 
@@ -119,6 +120,7 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	cmd.Stdin = nil
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	cmd.Env = k6Env(os.Environ())
 
 	start := time.Now()
 	logger.Info().Str("command", cmd.String()).Bytes("script", script.Script).Msg("running k6 script")
