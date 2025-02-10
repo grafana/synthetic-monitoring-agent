@@ -175,6 +175,12 @@ message TenantLimits {
   int64 maxBrowserChecks = 5 [(gogoproto.jsontag) = "maxBrowserChecks"];
 }
 
+// SecretStore contains details for accessing Grafana secrets
+message SecretStore {
+  string url = 1 [(gogoproto.jsontag) = "url"]; // secret service URL
+  string token = 2 [(gogoproto.jsontag) = "token"]; // secret service token
+}
+
 // Tenant represents a user of synthetic-monitoring.
 message Tenant {
   int64 id = 1 [(gogoproto.jsontag) = "id"]; // unique ID
@@ -188,6 +194,7 @@ message Tenant {
 
   double created = 100 [(gogoproto.jsontag) = "created"]; // time the check was created
   double modified = 101 [(gogoproto.jsontag) = "modified"]; // last time modified
+  SecretStore secretStore = 102 [(gogoproto.jsontag) = "secretStore"]; // secret store details
 }
 
 // RemoteInfo represents an instance of the Prometheus remote write
