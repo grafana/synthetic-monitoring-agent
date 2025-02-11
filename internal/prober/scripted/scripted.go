@@ -3,6 +3,7 @@ package scripted
 import (
 	"context"
 	"errors"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
@@ -27,11 +28,16 @@ type Prober struct {
 	processor *k6runner.Processor
 }
 
-func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, store secrets.SecretProvider) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Scripted == nil {
 		return p, errUnsupportedCheck
+	}
+
+	secretStore, err := store.GetSecretCredentials(ctx, check.TenantId)
+	if err != nil {
+		return p, err
 	}
 
 	p.module = Module{
@@ -43,6 +49,15 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 			},
 			CheckInfo: k6runner.CheckInfoFromSM(check),
 		},
+	}
+
+	if secretStore != nil {
+		p.module.Script.SecretStore = k6runner.SecretStore{
+			Url:   secretStore.Url,
+			Token: secretStore.Token,
+		}
+	} else {
+		p.logger.Error().Msg("Failed to get secrets")
 	}
 
 	processor, err := k6runner.NewProcessor(p.module.Script, runner)
