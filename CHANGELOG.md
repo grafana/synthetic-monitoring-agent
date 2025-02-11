@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.34.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.33.0...v0.34.0) (2025-02-11)
+
+
+### Features
+
+* k6runner: default K6_BROWSER_LOG to info ([287ccda](https://github.com/grafana/synthetic-monitoring-agent/commit/287ccdad739852308fde36e2e79c9abcbd52c899))
+* Run agent + chromium as non-root user ([#1187](https://github.com/grafana/synthetic-monitoring-agent/issues/1187)) ([96667da](https://github.com/grafana/synthetic-monitoring-agent/commit/96667da3ca45a6746ea5bc5edbd31437a304a0db))
+* update proto to include secret url and location ([#1192](https://github.com/grafana/synthetic-monitoring-agent/issues/1192)) ([a0ef302](https://github.com/grafana/synthetic-monitoring-agent/commit/a0ef302588b4cf5209534f70f4e634db5d4b2195))
+
+
+### Fixes
+
+* increase Scripted and Browser max timeout to 180s ([ecb198a](https://github.com/grafana/synthetic-monitoring-agent/commit/ecb198aa4be5ab7b923d5b7759886f8774c6f043))
+* increase Scripted and Browser max timeout to 180s ([#1173](https://github.com/grafana/synthetic-monitoring-agent/issues/1173)) ([ecb198a](https://github.com/grafana/synthetic-monitoring-agent/commit/ecb198aa4be5ab7b923d5b7759886f8774c6f043))
+* k6runner/local: disable k6 api server ([3a9439e](https://github.com/grafana/synthetic-monitoring-agent/commit/3a9439e3da7b02a67862a0f0d1d3ac6a4390ae7a))
+* Point CODEOWNERS to synthetic-monitoring-be ([#1180](https://github.com/grafana/synthetic-monitoring-agent/issues/1180)) ([415a084](https://github.com/grafana/synthetic-monitoring-agent/commit/415a084a47da42cc8ea3a040453b831a568a61ab))
+* tag docker images with the bare version ([#1178](https://github.com/grafana/synthetic-monitoring-agent/issues/1178)) ([e39b576](https://github.com/grafana/synthetic-monitoring-agent/commit/e39b576116c0c43e9f8b393dda2c3f0c888f47d1))
+
+
+### Miscellaneous Chores
+
+* remove xk6 leftovers ([c8d3a7e](https://github.com/grafana/synthetic-monitoring-agent/commit/c8d3a7eed1bce36eeb1ba5117c0befc662417cfd))
+* Revert "Run agent + chromium as non-root user ([#965](https://github.com/grafana/synthetic-monitoring-agent/issues/965))" ([#1186](https://github.com/grafana/synthetic-monitoring-agent/issues/1186)) ([44a7bde](https://github.com/grafana/synthetic-monitoring-agent/commit/44a7bde4e9b8b70fad0ba26de765f73090b3af29))
+* Update actions/create-github-app-token digest to 67e27a7 ([#1177](https://github.com/grafana/synthetic-monitoring-agent/issues/1177)) ([2fe64fc](https://github.com/grafana/synthetic-monitoring-agent/commit/2fe64fc8688b9f0ba0da218639f6b40349e9bd98))
+* Update docker/setup-buildx-action action to v3.9.0 ([#1188](https://github.com/grafana/synthetic-monitoring-agent/issues/1188)) ([aace0e4](https://github.com/grafana/synthetic-monitoring-agent/commit/aace0e428fae7addcc529bcb066c3e45aa0ee549))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.38.1 ([#1189](https://github.com/grafana/synthetic-monitoring-agent/issues/1189)) ([1d039aa](https://github.com/grafana/synthetic-monitoring-agent/commit/1d039aa3df3b560a5310a9ca1ff7a9a66266c792))
+* update logo and screenshot ([#1176](https://github.com/grafana/synthetic-monitoring-agent/issues/1176)) ([f89f2bb](https://github.com/grafana/synthetic-monitoring-agent/commit/f89f2bbcefafa5409d65d742857db139afa7132c))
+* Update module github.com/golangci/golangci-lint to v1.63.4 ([02b7388](https://github.com/grafana/synthetic-monitoring-agent/commit/02b73887bb0aaab79b958cf21e4890d3fe5edb11))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.16.0 ([#1164](https://github.com/grafana/synthetic-monitoring-agent/issues/1164)) ([d086821](https://github.com/grafana/synthetic-monitoring-agent/commit/d086821fc80e0474be71300938cb6b61672e7565))
+* Update module github.com/prometheus-community/pro-bing to v0.6.1 ([#1182](https://github.com/grafana/synthetic-monitoring-agent/issues/1182)) ([89628cd](https://github.com/grafana/synthetic-monitoring-agent/commit/89628cd9b0340d75730a9abdd62586b0f61636e9))
+* Update module golang.org/x/net to v0.35.0 ([#1195](https://github.com/grafana/synthetic-monitoring-agent/issues/1195)) ([5b4276b](https://github.com/grafana/synthetic-monitoring-agent/commit/5b4276bf5509f44958a6671f53a188b3baad8e36))
+* Update module golang.org/x/sync to v0.11.0 ([#1183](https://github.com/grafana/synthetic-monitoring-agent/issues/1183)) ([a97765f](https://github.com/grafana/synthetic-monitoring-agent/commit/a97765f6f6e2f4dbf2bfc9b2188e8eabc3934662))
+* Update module google.golang.org/grpc to v1.70.0 ([#1174](https://github.com/grafana/synthetic-monitoring-agent/issues/1174)) ([3a9ba62](https://github.com/grafana/synthetic-monitoring-agent/commit/3a9ba6279d9cf7cd6a3a49a4f7f5f1958a83d477))
+* Update prometheus-go ([#1044](https://github.com/grafana/synthetic-monitoring-agent/issues/1044)) ([eb02887](https://github.com/grafana/synthetic-monitoring-agent/commit/eb02887b4dbd3a11976f96299ee90d4967326082))
+
 ## [0.33.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.32.0...v0.33.0) (2025-01-29)
 
 
