@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.34.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.0...v0.34.1) (2025-02-14)
+
+
+### Miscellaneous Chores
+
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v132 ([#1175](https://github.com/grafana/synthetic-monitoring-agent/issues/1175)) ([0f1e413](https://github.com/grafana/synthetic-monitoring-agent/commit/0f1e4136a18420758a0cd02bc81d428df4321b4f))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.39.0 ([87352b1](https://github.com/grafana/synthetic-monitoring-agent/commit/87352b1c244e6fb2f9eff89b434c550bbe1c2d2d))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.39.1 ([#1199](https://github.com/grafana/synthetic-monitoring-agent/issues/1199)) ([2b85ab9](https://github.com/grafana/synthetic-monitoring-agent/commit/2b85ab9b82efb1915bc976b7e6367a736a291580))
+* Update grafana/shared-workflows digest to 56d0989 ([98db8c5](https://github.com/grafana/synthetic-monitoring-agent/commit/98db8c5b32a5b66a57bd28ace7a45da0563ed4cd))
+* Update module github.com/golangci/golangci-lint to v1.64.4 ([0fe816c](https://github.com/grafana/synthetic-monitoring-agent/commit/0fe816c414c2983de4ea6560a55939798293c829))
+* Update module github.com/golangci/golangci-lint to v1.64.5 ([#1201](https://github.com/grafana/synthetic-monitoring-agent/issues/1201)) ([6cb293b](https://github.com/grafana/synthetic-monitoring-agent/commit/6cb293ba8c7063d634c99f47af500e3b1325a593))
+
 ## [0.34.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.33.0...v0.34.0) (2025-02-11)
 
 
