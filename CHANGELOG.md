@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.34.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.0...v0.34.1) (2025-02-17)
+
+
+### Miscellaneous Chores
+
+* golangcilint: disable `exportloopref` linter ([adda550](https://github.com/grafana/synthetic-monitoring-agent/commit/adda550e0fbc38211b4aafc85c6e9b4f3ebcf920))
+* Update actions/create-github-app-token digest to 0d56448 ([97ac799](https://github.com/grafana/synthetic-monitoring-agent/commit/97ac7995994c85875273e9782d8f57233906abc3))
+* Update alpine Docker tag to v3.21.3 ([7e05333](https://github.com/grafana/synthetic-monitoring-agent/commit/7e053337442cba4cd793acc289004167b6cf8a7d))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v132 ([#1175](https://github.com/grafana/synthetic-monitoring-agent/issues/1175)) ([0f1e413](https://github.com/grafana/synthetic-monitoring-agent/commit/0f1e4136a18420758a0cd02bc81d428df4321b4f))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v132.0.6834.83-r0-3.21.3 ([ac6f03d](https://github.com/grafana/synthetic-monitoring-agent/commit/ac6f03de9f1081baa6e96fa139d24f1239acc0f2))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.39.0 ([87352b1](https://github.com/grafana/synthetic-monitoring-agent/commit/87352b1c244e6fb2f9eff89b434c550bbe1c2d2d))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.39.1 ([#1199](https://github.com/grafana/synthetic-monitoring-agent/issues/1199)) ([2b85ab9](https://github.com/grafana/synthetic-monitoring-agent/commit/2b85ab9b82efb1915bc976b7e6367a736a291580))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.40.0 ([4ab358c](https://github.com/grafana/synthetic-monitoring-agent/commit/4ab358c70a7a0dc1269ca5edbab72166271ee199))
+* Update grafana/shared-workflows digest to 56d0989 ([98db8c5](https://github.com/grafana/synthetic-monitoring-agent/commit/98db8c5b32a5b66a57bd28ace7a45da0563ed4cd))
+* Update grafana/shared-workflows digest to 7f3871d ([8de8207](https://github.com/grafana/synthetic-monitoring-agent/commit/8de820741754a17b0aeadedaab3b9e9df1b1ae3a))
+* Update module github.com/golangci/golangci-lint to v1.64.4 ([0fe816c](https://github.com/grafana/synthetic-monitoring-agent/commit/0fe816c414c2983de4ea6560a55939798293c829))
+* Update module github.com/golangci/golangci-lint to v1.64.5 ([#1201](https://github.com/grafana/synthetic-monitoring-agent/issues/1201)) ([6cb293b](https://github.com/grafana/synthetic-monitoring-agent/commit/6cb293ba8c7063d634c99f47af500e3b1325a593))
+
 ## [0.34.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.33.0...v0.34.0) (2025-02-11)
 
 
