@@ -60,7 +60,6 @@ linters:
     - sqlclosecheck
     - staticcheck
     # TODO(mem): - tagalign
-    - tenv
     - testableexamples
     # TODO(mem): - thelper
     - typecheck
@@ -85,41 +84,9 @@ linters-settings:
       - github.com/jmoiron/sqlx
   gocritic:
     enabled-checks:
-      - appendAssign
-      - argOrder
-      - assignOp
-      - badCall
-      - badCond
-      - captLocal
-      - caseOrder
-      - codegenComment
-      - commentFormatting
-      - defaultCaseOrder
-      - deprecatedComment
-      - dupArg
-      - dupBranchBody
-      - dupCase
-      - dupSubExpr
-      - elseif
-      - exitAfterDefer
-      - flagDeref
-      - flagName
-      - ifElseChain
-      - mapKey
-      - newDeref
-      - offBy1
-      - regexpMust
+      # This augments the default checks.
       - ruleguard
-      - singleCaseSwitch
-      - sloppyLen
       - stringXbytes
-      - switchTrue
-      - typeSwitchVar
-      - underef
-      - unlambda
-      - unslice
-      - valSwap
-      - wrapperFunc
     settings:
       ruleguard:
         rules: "internal/rules/rules.go"
