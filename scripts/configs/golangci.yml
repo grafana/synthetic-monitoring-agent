@@ -1,7 +1,4 @@
-enable:
-
-run:
-  deadline: 10m
+# yaml-language-server: $schema=https://golangci-lint.run/jsonschema/golangci.jsonschema.json
 
 linters:
   disable-all: true
@@ -83,9 +80,6 @@ linters-settings:
     min-occurrences: 5
   gocyclo:
     min-complexity: 20
-  golint:
-    ignore-tests: false
-    min-confidence: 3
   rowserrcheck:
     packages:
       - github.com/jmoiron/sqlx
@@ -141,5 +135,3 @@ linters-settings:
 issues:
   exclude:
     - "(func|method|type|var|struct field|func parameter|method parameter) [^ ]+ should be .*"
-  # new: true
-  # new-from-rev: v0.0.3
