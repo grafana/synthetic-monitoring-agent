@@ -3,4 +3,4 @@
 
 DOCKER_TAG = grafana/synthetic-monitoring-agent
 
-PLATFORMS := $(sort $(HOST_OS)/$(HOST_ARCH) linux/amd64 linux/arm64)
+PLATFORMS = $(sort $(HOST_OS)/$(HOST_ARCH) linux/amd64 linux/arm64)

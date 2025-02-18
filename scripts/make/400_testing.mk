@@ -10,25 +10,15 @@ GOTESTSUM ?= gotestsum
 endif
 
 ifeq ($(origin GOTESTSUM),undefined)
-ifneq ($(LOCAL_GOTESTSUM),yes)
-GOTESTSUM ?= $(ROOTDIR)/scripts/docker-run gotestsum
-endif
-endif
-
-ifeq ($(LOCAL_GOTESTSUM),yes)
-GOTESTSUM ?= $(ROOTDIR)/scripts/go/bin/gotestsum
-$(GOTESTSUM): scripts/go/go.mod
-	$(S) cd scripts/go && \
-		$(GO) mod download && \
-		$(GO) build -o $(GOTESTSUM) gotest.tools/gotestsum
+GOTESTSUM ?= ./scripts/docker-run gotestsum
 endif
 
 .PHONY: test-go
+test-go: export CGO_ENABLED=1 # Required so that -race works.
 test-go: ## Run Go tests.
-test-go: $(if $(filter $(LOCAL_GOTESTSUM),yes),$(GOTESTSUM))
-test-go:
 	$(S) echo "test backend"
-	env CGO_ENABLED=1 $(GOTESTSUM) \
+	$(S) mkdir -p '$(DISTDIR)'
+	$(GOTESTSUM) \
 		--format $(GO_TEST_FORMAT) \
 		--jsonfile $(TEST_OUTPUT).json \
 		--junitfile $(TEST_OUTPUT).xml \

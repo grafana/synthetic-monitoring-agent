@@ -1,0 +1,35 @@
+#!/bin/sh
+
+op=list
+
+while true ; do
+	[ "$#" -eq 0 ] && break
+
+	getopts 'e' opt
+
+	case $opt in
+		e)
+			op="find"
+			shift
+			;;
+		*)
+			echo "Usage: $0 [-e]"
+			exit 1
+			;;
+	esac
+done
+
+
+case "$op" in
+	list)
+		git ls-files -z |
+		grep -zE '\.proto$' |
+		sort -z |
+		tr '\0' '\n'
+		;;
+
+	find)
+		git ls-files -z |
+		grep -qzE '\.proto$'
+		;;
+esac
