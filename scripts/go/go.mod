@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.24.0
 
 require (
-	github.com/dmarkham/enumer v1.5.10
+	github.com/dmarkham/enumer v1.5.11
 	github.com/golangci/golangci-lint v1.64.5
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
 	github.com/securego/gosec/v2 v2.22.1
