@@ -139,14 +139,14 @@ const (
 	MaxMultiHttpVariables    = 5    // Max variables per multi-http target.
 
 	// Frequencies
-	MaxCheckFrequency      = time.Hour       // Maximum value for the check's frequency (1 hour)
+	maxCheckFrequency      = time.Hour       // Maximum value for the check's frequency (1 hour)
 	minCheckFrequency      = time.Second     // Minimum default value for the check's frequency (1 second)
 	minTracerouteFrequency = 2 * time.Minute // Minimum value for the traceroute check's frequency (2 min)
 	minK6Frequency         = time.Minute     // Minimum value for k6-class check's frequency (1 min)
 
 	// Timeouts
 	minCheckTimeout      = minCheckFrequency
-	MaxCheckTimeout      = time.Minute      // Maximum value for the check's timeout (1 minute)
+	maxCheckTimeout      = time.Minute      // Maximum value for the check's timeout (1 minute)
 	minScriptedTimeout   = minCheckTimeout  // Minimum timeout for scripted checks (1 second)
 	maxScriptedTimeout   = 3 * time.Minute  // Maximum timeout for scripted checks (180 second)
 	minTracerouteTimeout = 30 * time.Second // Minimum timeout for traceroute checks (30 second)
@@ -368,7 +368,7 @@ func (c Check) validateTarget() error {
 func (c Check) validateFrequency() error {
 	var (
 		minFrequency int64 = minCheckFrequency.Milliseconds()
-		maxFrequency int64 = MaxCheckFrequency.Milliseconds()
+		maxFrequency int64 = maxCheckFrequency.Milliseconds()
 	)
 
 	// Some check types have different allowed values for the frequency.
@@ -1435,7 +1435,7 @@ func validateTimeout(checkType CheckType, timeout, frequency int64) error {
 		// less than frequency (otherwise we can end up running
 		// overlapping checks)
 		minTimeout = minCheckTimeout.Milliseconds()
-		maxTimeout = min(frequency, MaxCheckTimeout.Milliseconds())
+		maxTimeout = min(frequency, maxCheckTimeout.Milliseconds())
 	}
 
 	if !inClosedRange(timeout, minTimeout, maxTimeout) {
