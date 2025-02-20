@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -77,43 +78,20 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	ctx, cancel = context.WithTimeout(ctx, checkTimeout)
 	defer cancel()
 
-	args := []string{
-		"run",
-		"--out", "sm=" + metricsFn,
-		"--log-format", "logfmt",
-		"--log-output", "file=" + logsFn,
-		"--max-redirects", "10",
-		"--batch", "10",
-		"--batch-per-host", "4",
-		"--no-connection-reuse",
-		"--blacklist-ip", r.blacklistedIP,
-		"--block-hostnames", "*.cluster.local", // TODO(mem): make this configurable
-		"--summary-time-unit", "s",
-		// "--discard-response-bodies",                        // TODO(mem): make this configurable
-		"--dns", "ttl=30s,select=random,policy=preferIPv4", // TODO(mem): this needs fixing, preferIPv4 is probably not what we want
-		"--address", "", // Disable REST API server
-		"--no-thresholds",
-		"--no-usage-report",
-		"--no-color",
-		"--no-summary",
-		"--verbose",
-	}
-
-	// Add secretStore configuration if available
+	var tokenFile string
 	if script.SecretStore.Url != "" && script.SecretStore.Token != "" {
-		if script.SecretStore.Url != "" {
-			args = append(args, "--secret-source=grafanasecrets=url="+script.SecretStore.Url)
+		var cleanup func()
+		tokenFile, cleanup, err = createSecureTokenFile(script.SecretStore.Token)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create token file: %w", err)
 		}
+		defer cleanup()
 	}
 
-	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
-		args = append(args,
-			"--vus", "1",
-			"--iterations", "1",
-		)
+	args, err := r.buildK6Args(script, metricsFn, logsFn, scriptFn, tokenFile)
+	if err != nil {
+		return nil, fmt.Errorf("building k6 arguments: %w", err)
 	}
-
-	args = append(args, scriptFn)
 
 	cmd := exec.CommandContext(
 		ctx,
@@ -128,9 +106,6 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	env := k6Env(os.Environ())
-	if script.SecretStore.Url != "" && script.SecretStore.Token != "" {
-		env = append(env, "GRAFANA_SECRET_TOKEN="+script.SecretStore.Token)
-	}
 	cmd.Env = env
 
 	start := time.Now()
@@ -196,6 +171,49 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	}
 
 	return &RunResponse{Metrics: metrics.Bytes(), Logs: logs.Bytes()}, errors.Join(err, errorFromLogs(logs.Bytes()))
+}
+
+func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, tokenFile string) ([]string, error) {
+	args := []string{
+		"run",
+		"--out", "sm=" + metricsFn,
+		"--log-format", "logfmt",
+		"--log-output", "file=" + logsFn,
+		"--max-redirects", "10",
+		"--batch", "10",
+		"--batch-per-host", "4",
+		"--no-connection-reuse",
+		"--blacklist-ip", r.blacklistedIP,
+		"--block-hostnames", "*.cluster.local", // TODO(mem): make this configurable
+		"--summary-time-unit", "s",
+		// "--discard-response-bodies",                        // TODO(mem): make this configurable
+		"--dns", "ttl=30s,select=random,policy=preferIPv4", // TODO(mem): this needs fixing, preferIPv4 is probably not what we want
+		"--address", "", // Disable REST API server
+		"--no-thresholds",
+		"--no-usage-report",
+		"--no-color",
+		"--no-summary",
+		"--verbose",
+	}
+
+	// Add secretStore configuration if available
+	if script.SecretStore.Url != "" && script.SecretStore.Token != "" {
+		// Encode the URL to avoid any parsing issues
+		encodedURL := base64.StdEncoding.EncodeToString([]byte(script.SecretStore.Url))
+
+		args = append(args, "--secret-source", "grafanasecrets=url_base64="+encodedURL+",token="+tokenFile)
+	}
+
+	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
+		args = append(args,
+			"--vus", "1",
+			"--iterations", "1",
+		)
+	}
+
+	args = append(args, scriptFn)
+
+	return args, nil
 }
 
 func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
@@ -272,4 +290,34 @@ func readFileLimit(f afero.Fs, name string, limit int64) (*bytes.Buffer, bool, e
 	}
 
 	return buf, true, nil
+}
+
+// createSecureTokenFile creates a temporary file with secure permissions and returns
+// the filename and a cleanup function
+func createSecureTokenFile(tokenData string) (filename string, cleanup func(), err error) {
+	tmpFile, err := os.CreateTemp("", "k6-secrets-*.token")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating temp file: %w", err)
+	}
+
+	if err := os.Chmod(tmpFile.Name(), 0600); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", nil, fmt.Errorf("setting file permissions: %w", err)
+	}
+
+	if _, err := tmpFile.WriteString(tokenData); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", nil, fmt.Errorf("writing token file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", nil, fmt.Errorf("closing token file: %w", err)
+	}
+
+	cleanup = func() {
+		os.Remove(tmpFile.Name())
+	}
+
+	return tmpFile.Name(), cleanup, nil
 }
