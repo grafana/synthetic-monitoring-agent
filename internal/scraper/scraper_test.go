@@ -499,6 +499,7 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 	}
 
 	var runner k6runner.Runner
+	var store noopSecretStore
 
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
 		runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
@@ -515,7 +516,7 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 		zerolog.New(zerolog.NewTestWriter(t)),
 		runner,
 		http.Header{},
-		nil,
+		store,
 	)
 	if err != nil {
 		t.Fatalf("cannot create MultiHTTP prober: %s", err)

@@ -57,8 +57,6 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 			Url:   secretStore.Url,
 			Token: secretStore.Token,
 		}
-	} else {
-		logger.Error().Msg("Failed to get secrets")
 	}
 
 	processor, err := k6runner.NewProcessor(p.module.Script, runner)
