@@ -84,7 +84,7 @@ func TestBuildK6Args(t *testing.T) {
 		tokenFilename string
 		wantArgs      []string
 	}{
-		"basic script without secrets": {
+		"script without secrets": {
 			metricsFn:     "/tmp/metrics.json",
 			logsFn:        "/tmp/logs.log",
 			scriptFn:      "/tmp/script.js",
@@ -112,7 +112,7 @@ func TestBuildK6Args(t *testing.T) {
 				"--out", "sm=/tmp/metrics.json",
 				"--log-output", "file=/tmp/logs.log",
 				"--blacklist-ip", "127.0.0.1",
-				"--secret-source", "grafanasecrets=url_base64=" + secretUrlBase64 + ",token=" + tokenFilename,
+				"--secret-source", "grafanasecrets=url_base64=" + secretUrlBase64 + ":token=" + tokenFilename,
 			},
 		},
 	}

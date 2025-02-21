@@ -200,7 +200,7 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, tokenFile
 		// Encode the URL to avoid any parsing issues
 		encodedURL := base64.URLEncoding.EncodeToString([]byte(script.SecretStore.Url))
 
-		args = append(args, "--secret-source", "grafanasecrets=url_base64="+encodedURL+",token="+tokenFile)
+		args = append(args, "--secret-source", "grafanasecrets=url_base64="+encodedURL+":token="+tokenFile)
 	}
 
 	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
