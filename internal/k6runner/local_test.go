@@ -68,7 +68,7 @@ func TestCreateSecureTokenFile(t *testing.T) {
 
 func TestBuildK6Args(t *testing.T) {
 	secretUrl := "http://secrets.example.com"
-	secretUrlBase64 := base64.StdEncoding.EncodeToString([]byte(secretUrl))
+	secretUrlBase64 := base64.URLEncoding.EncodeToString([]byte(secretUrl))
 	tokenFilename, cleanup, err := createSecureTokenFile("secret-token")
 	if err != nil {
 		t.Fatalf("failed to create token file: %v", err)
