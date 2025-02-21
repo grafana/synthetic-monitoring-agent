@@ -199,7 +199,7 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, tokenFile
 	// Add secretStore configuration if available
 	if script.SecretStore.Url != "" && script.SecretStore.Token != "" {
 		// Encode the URL to avoid any parsing issues
-		encodedURL := base64.StdEncoding.EncodeToString([]byte(script.SecretStore.Url))
+		encodedURL := base64.URLEncoding.EncodeToString([]byte(script.SecretStore.Url))
 
 		args = append(args, "--secret-source", "grafanasecrets=url_base64="+encodedURL+",token="+tokenFile)
 	}
