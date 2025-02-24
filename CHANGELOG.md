@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.34.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.1...v0.34.2) (2025-02-24)
+
+
+### Miscellaneous Chores
+
+* golangci: remove properties rejected by schema ([#1209](https://github.com/grafana/synthetic-monitoring-agent/issues/1209)) ([490936c](https://github.com/grafana/synthetic-monitoring-agent/commit/490936caf0ff090410fe86836855515ad92934bb))
+* Update actions/cache action to v4.2.1 ([d180329](https://github.com/grafana/synthetic-monitoring-agent/commit/d180329e2a47cee879c9be9551e3d293a2660592))
+* Update actions/upload-artifact digest to 4cec3d8 ([#1217](https://github.com/grafana/synthetic-monitoring-agent/issues/1217)) ([48b9ae7](https://github.com/grafana/synthetic-monitoring-agent/commit/48b9ae70674cf6764745d8c48ea0a7a8b1395a5f))
+* Update docker/build-push-action action to v6.14.0 ([7f5053e](https://github.com/grafana/synthetic-monitoring-agent/commit/7f5053ecd42d5cb74b43b28f647dbc3ad14444dd))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.40.1 ([f7cbf1c](https://github.com/grafana/synthetic-monitoring-agent/commit/f7cbf1c23588467deb078461ba950914189f5ca3))
+* Update module github.com/dmarkham/enumer to v1.5.11 ([e65ba61](https://github.com/grafana/synthetic-monitoring-agent/commit/e65ba613789914ea08ac99a532675790d2f79046))
+* Update prometheus-go ([#1208](https://github.com/grafana/synthetic-monitoring-agent/issues/1208)) ([2bc2855](https://github.com/grafana/synthetic-monitoring-agent/commit/2bc285523b011ebf6e0c41f53f50a24d33f96cf6))
+
 ## [0.34.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.0...v0.34.1) (2025-02-17)
 
 
