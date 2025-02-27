@@ -88,7 +88,7 @@ export default function() {
 	{{ range $queries }}{{ . }};
 	{{ end -}}
 	{{- $method := .Request.Method.String }}
-	
+
 	body = {{ buildBody .Request.Body }};
 	{{- $bodyVars := interpolateBodyVars "body" .Request.Body }}
 	{{ range $bodyVars }}{{ . }};
@@ -98,8 +98,9 @@ export default function() {
 	response = http.request('{{ $method }}', url.toString(), body, {
 		// TODO(mem): build params out of options for the check
 		tags: {
+      // TODO: xk6-sm as of v0.3.0 no longer gives the `name` tag any preferential treatment. We should consider if this
+      // is still needed.
 		  name: '{{ $idx }}', // TODO(mem): give the user some control over this?
-		  __raw_url__: '{{ .Request.Url }}',
 		},
 		redirects: 0{{ if gt (len $headers) 0 }},
 		headers: {{ $headers }}{{ end }}
