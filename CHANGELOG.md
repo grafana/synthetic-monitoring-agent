@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.34.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.2...v0.34.3) (2025-02-28)
+
+
+### Miscellaneous Chores
+
+* Update actions/cache action to v4.2.2 ([#1227](https://github.com/grafana/synthetic-monitoring-agent/issues/1227)) ([1b3eb9e](https://github.com/grafana/synthetic-monitoring-agent/commit/1b3eb9e9d3e253bd2552430c0a35099fef02b11d))
+* Update actions/download-artifact digest to cc20338 ([#1223](https://github.com/grafana/synthetic-monitoring-agent/issues/1223)) ([4fcb926](https://github.com/grafana/synthetic-monitoring-agent/commit/4fcb92621f69b10b50871b201720142916ce4b4c))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v133 ([ac67a05](https://github.com/grafana/synthetic-monitoring-agent/commit/ac67a055261faa23b073cd544282b1aa6feb0605))
+* Update grafana/shared-workflows digest to a7bc536 ([40af603](https://github.com/grafana/synthetic-monitoring-agent/commit/40af60339495e57174c49d45932c3b9210042920))
+
 ## [0.34.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.1...v0.34.2) (2025-02-24)
 
 
