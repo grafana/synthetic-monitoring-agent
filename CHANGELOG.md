@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.3...v0.34.4) (2025-03-04)
+
+
+### Miscellaneous Chores
+
+* Update docker/build-push-action action to v6.15.0 ([fac4f07](https://github.com/grafana/synthetic-monitoring-agent/commit/fac4f073bf9879b820de56e50b584939acc24ede))
+
 ## [0.34.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.2...v0.34.3) (2025-02-28)
 
 
