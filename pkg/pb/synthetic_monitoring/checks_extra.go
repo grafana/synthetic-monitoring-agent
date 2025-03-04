@@ -138,19 +138,19 @@ const (
 	MaxMultiHttpAssertions   = 5    // Max assertions per multi-http target.
 	MaxMultiHttpVariables    = 5    // Max variables per multi-http target.
 
-	// Frequencies (in milliseconds)
-	MaxCheckFrequency      = 1 * 60 * 60 * 1000 // Maximum value for the check's frequency (1 hour).
-	minCheckFrequency      = 1 * 1000           // Minimum default value for the check's frequency (1 second).
-	minTracerouteFrequency = 120 * 1000         // Minimum value for the traceroute check's frequency (2 min).
-	minK6Frequency         = 60 * 1000          // Minimum value for k6-class check's frequency (1 min).
+	// Frequencies
+	maxCheckFrequency      = time.Hour       // Maximum value for the check's frequency (1 hour)
+	minCheckFrequency      = time.Second     // Minimum default value for the check's frequency (1 second)
+	minTracerouteFrequency = 2 * time.Minute // Minimum value for the traceroute check's frequency (2 min)
+	minK6Frequency         = time.Minute     // Minimum value for k6-class check's frequency (1 min)
 
-	// Timeouts (in milliseconds)
+	// Timeouts
 	minCheckTimeout      = minCheckFrequency
-	MaxCheckTimeout      = 1 * 60 * 1000   // Maximum value for the check's timeout (1 minute).
-	minScriptedTimeout   = minCheckTimeout // Minimum timeout for scripted checks (1 second).
-	maxScriptedTimeout   = 180 * 1000      // Maximum timeout for scripted checks (180 second).
-	minTracerouteTimeout = 30 * 1000       // Minimum timeout for traceroute checks (30 second).
-	maxTracerouteTimeout = 30 * 1000       // Minimum timeout for traceroute checks (30 second).
+	maxCheckTimeout      = time.Minute      // Maximum value for the check's timeout (1 minute)
+	minScriptedTimeout   = minCheckTimeout  // Minimum timeout for scripted checks (1 second)
+	maxScriptedTimeout   = 3 * time.Minute  // Maximum timeout for scripted checks (180 second)
+	minTracerouteTimeout = 30 * time.Second // Minimum timeout for traceroute checks (30 second)
+	maxTracerouteTimeout = 30 * time.Second // Maximum timeout for traceroute checks (30 second)
 )
 
 const (
@@ -367,18 +367,18 @@ func (c Check) validateTarget() error {
 
 func (c Check) validateFrequency() error {
 	var (
-		minFrequency int64 = minCheckFrequency
-		maxFrequency int64 = MaxCheckFrequency
+		minFrequency int64 = minCheckFrequency.Milliseconds()
+		maxFrequency int64 = maxCheckFrequency.Milliseconds()
 	)
 
 	// Some check types have different allowed values for the frequency.
 
 	switch c.Type() {
 	case CheckTypeTraceroute:
-		minFrequency = minTracerouteFrequency
+		minFrequency = minTracerouteFrequency.Milliseconds()
 
 	case CheckTypeScripted, CheckTypeMultiHttp, CheckTypeBrowser:
-		minFrequency = minK6Frequency
+		minFrequency = minK6Frequency.Milliseconds()
 	}
 
 	if !inClosedRange(c.Frequency, minFrequency, maxFrequency) {
@@ -1412,24 +1412,30 @@ func validateDnsLabel(label string, isLast bool) error {
 }
 
 func validateTimeout(checkType CheckType, timeout, frequency int64) error {
-	var minTimeout, maxTimeout int64
+	var (
+		minTimeout int64
+		maxTimeout int64
+	)
 
 	switch checkType {
 	case CheckTypeTraceroute:
-		minTimeout, maxTimeout = minTracerouteTimeout, min(frequency, maxTracerouteTimeout)
+		minTimeout = minTracerouteTimeout.Milliseconds()
+		maxTimeout = min(frequency, maxTracerouteTimeout.Milliseconds())
 
 	case CheckTypeScripted, CheckTypeMultiHttp, CheckTypeBrowser:
 		// This is experimental. A large timeout means we have more
 		// checks lingering around. timeout must be less or equal than
 		// frequency (otherwise we can end up running overlapping
 		// checks)
-		minTimeout, maxTimeout = minScriptedTimeout, min(frequency, maxScriptedTimeout)
+		minTimeout = minScriptedTimeout.Milliseconds()
+		maxTimeout = min(frequency, maxScriptedTimeout.Milliseconds())
 
 	default:
 		// timeout must be within the defined limits, and it must be
 		// less than frequency (otherwise we can end up running
 		// overlapping checks)
-		minTimeout, maxTimeout = minCheckTimeout, min(frequency, MaxCheckTimeout)
+		minTimeout = minCheckTimeout.Milliseconds()
+		maxTimeout = min(frequency, maxCheckTimeout.Milliseconds())
 	}
 
 	if !inClosedRange(timeout, minTimeout, maxTimeout) {
