@@ -1,7 +1,0 @@
-{
-  "customEnvVariables": {
-    "GOPRIVATE": "github.com/grafana",
-    "GONOSUMDB": "github.com/grafana",
-    "GONOPROXY": "github.com/grafana"
-  }
-}
