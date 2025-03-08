@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
+
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
@@ -29,7 +31,7 @@ type Prober struct {
 	processor *k6runner.Processor
 }
 
-func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header, store secrets.SecretProvider) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Multihttp == nil {
@@ -42,6 +44,11 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 
 	if len(reservedHeaders) > 0 {
 		augmentHttpHeaders(&check.Check, reservedHeaders)
+	}
+
+	secretStore, err := store.GetSecretCredentials(ctx, check.TenantId)
+	if err != nil {
+		return p, err
 	}
 
 	script, err := settingsToScript(check.Settings.Multihttp)
@@ -58,6 +65,13 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 			},
 			CheckInfo: k6runner.CheckInfoFromSM(check),
 		},
+	}
+
+	if secretStore != nil {
+		p.module.Script.SecretStore = k6runner.SecretStore{
+			Url:   secretStore.Url,
+			Token: secretStore.Token,
+		}
 	}
 
 	processor, err := k6runner.NewProcessor(p.module.Script, runner)

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
+
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -40,16 +42,18 @@ type ProberFactory interface {
 }
 
 type proberFactory struct {
-	runner   k6runner.Runner
-	probeId  int64
-	features feature.Collection
+	runner      k6runner.Runner
+	probeId     int64
+	features    feature.Collection
+	secretStore secrets.SecretProvider
 }
 
-func NewProberFactory(runner k6runner.Runner, probeId int64, features feature.Collection) ProberFactory {
+func NewProberFactory(runner k6runner.Runner, probeId int64, features feature.Collection, secretStore secrets.SecretProvider) ProberFactory {
 	return proberFactory{
-		runner:   runner,
-		probeId:  probeId,
-		features: features,
+		runner:      runner,
+		probeId:     probeId,
+		features:    features,
+		secretStore: secretStore,
 	}
 }
 
@@ -88,7 +92,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 
 	case sm.CheckTypeScripted:
 		if f.runner != nil {
-			p, err = scripted.NewProber(ctx, check, logger, f.runner)
+			p, err = scripted.NewProber(ctx, check, logger, f.runner, f.secretStore)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
@@ -99,7 +103,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		// we know that the runner is actually able to handle browser
 		// checks.
 		if f.runner != nil {
-			p, err = browser.NewProber(ctx, check, logger, f.runner)
+			p, err = browser.NewProber(ctx, check, logger, f.runner, f.secretStore)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
@@ -108,7 +112,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 	case sm.CheckTypeMultiHttp:
 		if f.runner != nil {
 			reservedHeaders := f.getReservedHeaders(&check)
-			p, err = multihttp.NewProber(ctx, check, logger, f.runner, reservedHeaders)
+			p, err = multihttp.NewProber(ctx, check, logger, f.runner, reservedHeaders, f.secretStore)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
