@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.34.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.3...v0.34.4) (2025-03-10)
+
+
+### Miscellaneous Chores
+
+* remove unused renovate-app.json ([1658ef7](https://github.com/grafana/synthetic-monitoring-agent/commit/1658ef72bd88de98b2169320cd2a72a7ca248e39))
+* Update actions/create-github-app-token digest to 21cfef2 ([#1232](https://github.com/grafana/synthetic-monitoring-agent/issues/1232)) ([b4e310b](https://github.com/grafana/synthetic-monitoring-agent/commit/b4e310bdbb55a39f5c7cda631c6e0ed5916645bf))
+* Update dependency go to v1.24.1 ([#1233](https://github.com/grafana/synthetic-monitoring-agent/issues/1233)) ([77b51bc](https://github.com/grafana/synthetic-monitoring-agent/commit/77b51bccf3c039bdbecfcf6526216a36f7bd26a1))
+* Update docker/build-push-action action to v6.15.0 ([fac4f07](https://github.com/grafana/synthetic-monitoring-agent/commit/fac4f073bf9879b820de56e50b584939acc24ede))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v133.0.6943.141-r0-3.21.3 ([#1236](https://github.com/grafana/synthetic-monitoring-agent/issues/1236)) ([15bdd33](https://github.com/grafana/synthetic-monitoring-agent/commit/15bdd332133b2d81983f55461cbf1ff8973760a5))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v0.40.3 ([b9eca69](https://github.com/grafana/synthetic-monitoring-agent/commit/b9eca690b614b27d1434c0bc9117dcb51d49bd74))
+* Update googleapis/release-please-action digest to a02a34c ([#1235](https://github.com/grafana/synthetic-monitoring-agent/issues/1235)) ([f04a7b4](https://github.com/grafana/synthetic-monitoring-agent/commit/f04a7b4677698bb943d15a85332c2c0ecdf4bf65))
+* Update module github.com/golangci/golangci-lint to v1.64.6 ([#1230](https://github.com/grafana/synthetic-monitoring-agent/issues/1230)) ([5af16db](https://github.com/grafana/synthetic-monitoring-agent/commit/5af16dbd714d61d9e9c5c2ec7b852f9f71dfcfe1))
+* Update module github.com/KimMachineGun/automemlimit to v0.7.1 ([#1218](https://github.com/grafana/synthetic-monitoring-agent/issues/1218)) ([c08a537](https://github.com/grafana/synthetic-monitoring-agent/commit/c08a537b402fd2f1b1e9f01263427cfbeae81c20))
+
 ## [0.34.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.2...v0.34.3) (2025-02-28)
 
 
