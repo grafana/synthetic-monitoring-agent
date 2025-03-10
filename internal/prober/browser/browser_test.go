@@ -58,7 +58,8 @@ func TestNewProber(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			var runner noopRunner
-			p, err := NewProber(ctx, tc.check, logger, runner)
+			var store noopSecretStore
+			p, err := NewProber(ctx, tc.check, logger, runner, store)
 			if tc.expectFailure {
 				require.Error(t, err)
 				return
@@ -81,4 +82,10 @@ func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 
 func (noopRunner) Run(ctx context.Context, script k6runner.Script) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
+}
+
+type noopSecretStore struct{}
+
+func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID int64) (*sm.SecretStore, error) {
+	return &sm.SecretStore{}, nil
 }
