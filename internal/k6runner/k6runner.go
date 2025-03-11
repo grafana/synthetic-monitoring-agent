@@ -38,6 +38,11 @@ type SecretStore struct {
 	Token string `json:"token"`
 }
 
+// IsConfigured returns true if the SecretStore has both URL and token configured.
+func (s SecretStore) IsConfigured() bool {
+	return s.Url != "" && s.Token != ""
+}
+
 // Settings is a common representation of the fields common to all implementation-specific check settings that the
 // runners are interested about.
 type Settings struct {

@@ -1,27 +1,30 @@
 package k6runner
 
 import (
-	"encoding/base64"
+	"encoding/json"
 	"os"
 	"slices"
 	"testing"
 )
 
-func TestCreateSecureTokenFile(t *testing.T) {
+func TestCreateSecretConfigFile(t *testing.T) {
 	tests := map[string]struct {
-		tokenData string
+		url   string
+		token string
 	}{
-		"valid token": {
-			tokenData: "secret-token-123",
+		"valid data": {
+			url:   "http://secrets.example.com",
+			token: "secret-token-123",
 		},
-		"empty token": {
-			tokenData: "",
+		"empty values": {
+			url:   "",
+			token: "",
 		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			filename, cleanup, err := createSecureTokenFile(tt.tokenData)
+			filename, cleanup, err := createSecretConfigFile(tt.url, tt.token)
 			defer cleanup()
 
 			if err != nil {
@@ -31,7 +34,7 @@ func TestCreateSecureTokenFile(t *testing.T) {
 
 			// Check if file exists
 			if _, err := os.Stat(filename); os.IsNotExist(err) {
-				t.Error("token file was not created")
+				t.Error("config file was not created")
 				return
 			}
 
@@ -49,12 +52,23 @@ func TestCreateSecureTokenFile(t *testing.T) {
 			// Check file contents
 			content, err := os.ReadFile(filename)
 			if err != nil {
-				t.Errorf("failed to read token file: %v", err)
+				t.Errorf("failed to read config file: %v", err)
 				return
 			}
 
-			if string(content) != tt.tokenData {
-				t.Errorf("expected token data %q, got %q", tt.tokenData, string(content))
+			// Verify JSON format and content
+			var config secretSourceConfig
+			if err := json.Unmarshal(content, &config); err != nil {
+				t.Errorf("failed to unmarshal JSON: %v", err)
+				return
+			}
+
+			if config.URL != tt.url {
+				t.Errorf("expected URL %q, got %q", tt.url, config.URL)
+			}
+
+			if config.Token != tt.token {
+				t.Errorf("expected token %q, got %q", tt.token, config.Token)
 			}
 
 			// Test cleanup function
@@ -68,10 +82,9 @@ func TestCreateSecureTokenFile(t *testing.T) {
 
 func TestBuildK6Args(t *testing.T) {
 	secretUrl := "http://secrets.example.com"
-	secretUrlBase64 := base64.URLEncoding.EncodeToString([]byte(secretUrl))
-	tokenFilename, cleanup, err := createSecureTokenFile("secret-token")
+	configFilename, cleanup, err := createSecretConfigFile(secretUrl, "secret-token")
 	if err != nil {
-		t.Fatalf("failed to create token file: %v", err)
+		t.Fatalf("failed to create config file: %v", err)
 	}
 	defer cleanup()
 
@@ -81,7 +94,7 @@ func TestBuildK6Args(t *testing.T) {
 		logsFn        string
 		scriptFn      string
 		blacklistedIP string
-		tokenFilename string
+		configFile    string
 		wantArgs      []string
 	}{
 		"script without secrets": {
@@ -89,7 +102,7 @@ func TestBuildK6Args(t *testing.T) {
 			logsFn:        "/tmp/logs.log",
 			scriptFn:      "/tmp/script.js",
 			blacklistedIP: "127.0.0.1",
-			tokenFilename: "",
+			configFile:    "",
 			wantArgs: []string{
 				"--out", "sm=/tmp/metrics.json",
 				"--log-output", "file=/tmp/logs.log",
@@ -107,12 +120,12 @@ func TestBuildK6Args(t *testing.T) {
 			logsFn:        "/tmp/logs.log",
 			scriptFn:      "/tmp/script.js",
 			blacklistedIP: "127.0.0.1",
-			tokenFilename: tokenFilename,
+			configFile:    configFilename,
 			wantArgs: []string{
 				"--out", "sm=/tmp/metrics.json",
 				"--log-output", "file=/tmp/logs.log",
 				"--blacklist-ip", "127.0.0.1",
-				"--secret-source", "grafanasecrets=url_base64=" + secretUrlBase64 + ":token=" + tokenFilename,
+				"--secret-source", "grafanasecrets=config=" + configFilename,
 			},
 		},
 	}
@@ -120,7 +133,7 @@ func TestBuildK6Args(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := Local{blacklistedIP: tt.blacklistedIP}
-			args, err := r.buildK6Args(tt.script, tt.metricsFn, tt.logsFn, tt.scriptFn, tt.tokenFilename)
+			args, err := r.buildK6Args(tt.script, tt.metricsFn, tt.logsFn, tt.scriptFn, tt.configFile)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return

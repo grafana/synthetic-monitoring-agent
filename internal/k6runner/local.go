@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +16,12 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
 )
+
+// secretSourceConfig represents the configuration for the secrets store
+type secretSourceConfig struct {
+	URL   string `json:"url"`
+	Token string `json:"token"`
+}
 
 type Local struct {
 	k6path        string
@@ -78,17 +84,17 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	ctx, cancel = context.WithTimeout(ctx, checkTimeout)
 	defer cancel()
 
-	var tokenFile string
-	if script.SecretStore.Url != "" && script.SecretStore.Token != "" {
+	var configFile string
+	if script.SecretStore.IsConfigured() {
 		var cleanup func()
-		tokenFile, cleanup, err = createSecureTokenFile(script.SecretStore.Token)
+		configFile, cleanup, err = createSecretConfigFile(script.SecretStore.Url, script.SecretStore.Token)
 		if err != nil {
-			return nil, fmt.Errorf("cannot create token file: %w", err)
+			return nil, fmt.Errorf("cannot create secret config file: %w", err)
 		}
 		defer cleanup()
 	}
 
-	args, err := r.buildK6Args(script, metricsFn, logsFn, scriptFn, tokenFile)
+	args, err := r.buildK6Args(script, metricsFn, logsFn, scriptFn, configFile)
 	if err != nil {
 		return nil, fmt.Errorf("building k6 arguments: %w", err)
 	}
@@ -172,7 +178,7 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	return &RunResponse{Metrics: metrics.Bytes(), Logs: logs.Bytes()}, errors.Join(err, errorFromLogs(logs.Bytes()))
 }
 
-func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, tokenFile string) ([]string, error) {
+func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
 	args := []string{
 		"run",
 		"--out", "sm=" + metricsFn,
@@ -196,11 +202,8 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, tokenFile
 	}
 
 	// Add secretStore configuration if available
-	if script.SecretStore.Url != "" && script.SecretStore.Token != "" {
-		// Encode the URL to avoid any parsing issues
-		encodedURL := base64.URLEncoding.EncodeToString([]byte(script.SecretStore.Url))
-
-		args = append(args, "--secret-source", "grafanasecrets=url_base64="+encodedURL+":token="+tokenFile)
+	if script.SecretStore.IsConfigured() {
+		args = append(args, "--secret-source", "grafanasecrets=config="+configFile)
 	}
 
 	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
@@ -291,10 +294,9 @@ func readFileLimit(f afero.Fs, name string, limit int64) (*bytes.Buffer, bool, e
 	return buf, true, nil
 }
 
-// createSecureTokenFile creates a temporary file with secure permissions and returns
-// the filename and a cleanup function
-func createSecureTokenFile(tokenData string) (filename string, cleanup func(), err error) {
-	tmpFile, err := os.CreateTemp("", "k6-secrets-*.token")
+// createSecretConfigFile creates a JSON config file with the given secret store URL and token
+func createSecretConfigFile(url, token string) (filename string, cleanup func(), err error) {
+	tmpFile, err := os.CreateTemp("", "k6-secrets-*.json")
 	if err != nil {
 		return "", nil, fmt.Errorf("creating temp file: %w", err)
 	}
@@ -304,19 +306,26 @@ func createSecureTokenFile(tokenData string) (filename string, cleanup func(), e
 		return "", nil, fmt.Errorf("setting file permissions: %w", err)
 	}
 
-	if _, err := tmpFile.WriteString(tokenData); err != nil {
+	config := secretSourceConfig{
+		URL:   url,
+		Token: token,
+	}
+
+	configData, err := json.Marshal(config)
+	if err != nil {
 		os.Remove(tmpFile.Name())
-		return "", nil, fmt.Errorf("writing token file: %w", err)
+		return "", nil, fmt.Errorf("marshaling config to JSON: %w", err)
+	}
+
+	if _, err := tmpFile.Write(configData); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", nil, fmt.Errorf("writing config file: %w", err)
 	}
 
 	if err := tmpFile.Close(); err != nil {
 		os.Remove(tmpFile.Name())
-		return "", nil, fmt.Errorf("closing token file: %w", err)
+		return "", nil, fmt.Errorf("closing config file: %w", err)
 	}
 
-	cleanup = func() {
-		os.Remove(tmpFile.Name())
-	}
-
-	return tmpFile.Name(), cleanup, nil
+	return tmpFile.Name(), func() { os.Remove(tmpFile.Name()) }, nil
 }
