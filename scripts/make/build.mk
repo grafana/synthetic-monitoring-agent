@@ -39,7 +39,6 @@ define build_go_command
 	$(V) GOOS=$(GOOS) GOARCH=$(GOARCH) $(GO) build \
 		$(GO_BUILD_FLAGS) \
 		-o '$(DIST_FILENAME)' \
-		-ldflags '-X "$(VERSION_PKG).commit=$(BUILD_COMMIT)" -X "$(VERSION_PKG).version=$(BUILD_VERSION)" -X "$(VERSION_PKG).buildstamp=$(BUILD_STAMP)"' \
 		'$(1)'
 	$(V) test '$(GOOS)' = '$(HOST_OS)' -a '$(GOARCH)' = '$(HOST_ARCH)' && \
 		cp -a '$(DIST_FILENAME)' '$(DISTDIR)/$(notdir $(1))' || \
