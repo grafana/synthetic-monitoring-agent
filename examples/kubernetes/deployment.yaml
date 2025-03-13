@@ -43,6 +43,15 @@ spec:
           ports:
             - containerPort: 4050
               name: http-metrics
+          securityContext:
+            capabilities:
+              add:
+                - NET_RAW # Needed for ICMP (ping and traceroute) checks.
+              drop:
+                - all
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 12345 # https://github.com/grafana/synthetic-monitoring-agent/blob/main/Dockerfile#L24
           # Readiness/liveness probes can be enabled to show the agent as not ready if it cannot successfully connect
           # to the Grafana Synthetic Monitoring API. Enabling this probes requires configuring the agent to listen on
           # all interfaces, so they are commented out by default.
