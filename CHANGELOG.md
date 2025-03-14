@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.35.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.4...v0.35.0) (2025-03-14)
+
+
+### Features
+
+* Add the sm-k6-gsm binary for secrets ([#1234](https://github.com/grafana/synthetic-monitoring-agent/issues/1234)) ([94a3d29](https://github.com/grafana/synthetic-monitoring-agent/commit/94a3d290d34de1fd449e6ef4036855ffbe4a660c))
+* pass secret store from API ([#1179](https://github.com/grafana/synthetic-monitoring-agent/issues/1179)) ([fcfcd8f](https://github.com/grafana/synthetic-monitoring-agent/commit/fcfcd8f3564a7645f380764ad2ca03afc22decdd))
+
+
+### Fixes
+
+* Update version reporting logic ([#1244](https://github.com/grafana/synthetic-monitoring-agent/issues/1244)) ([ad3ffbb](https://github.com/grafana/synthetic-monitoring-agent/commit/ad3ffbbecf44565f74aefedc5dd3a91b6d138ad2))
+
+
+### Miscellaneous Chores
+
+* Update grafana/shared-workflows digest to 68b38bb ([047466f](https://github.com/grafana/synthetic-monitoring-agent/commit/047466f31788ca01e20732079c72d2d7506d8612))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.17.1 ([#1240](https://github.com/grafana/synthetic-monitoring-agent/issues/1240)) ([91c5550](https://github.com/grafana/synthetic-monitoring-agent/commit/91c5550d2d4f64c444540e3986b674fd15e1f224))
+* Update module golang.org/x/net to v0.37.0 ([#1245](https://github.com/grafana/synthetic-monitoring-agent/issues/1245)) ([fed448b](https://github.com/grafana/synthetic-monitoring-agent/commit/fed448bf9cde3aa61644ab490e8ba7cf2a132e4f))
+
 ## [0.34.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.3...v0.34.4) (2025-03-10)
 
 
