@@ -33,6 +33,7 @@ import (
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tenants"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
@@ -288,6 +289,7 @@ func run(args []string, stdout io.Writer) error {
 
 	publisher := publisherFactory(ctx, tm, zl.With().Str("subsystem", "publisher").Str("version", config.SelectedPublisher).Logger(), promRegisterer)
 	limits := limits.NewTenantLimits(tm)
+	secrets := secrets.NewTenantSecrets(tm, zl.With().Str("subsystem", "secretstore").Logger())
 
 	telemetry := telemetry.NewTelemeter(
 		ctx, uuid.New().String(), time.Duration(config.TelemetryTimeSpan)*time.Minute,
@@ -308,6 +310,7 @@ func run(args []string, stdout io.Writer) error {
 		K6Runner:       k6Runner,
 		ScraperFactory: scraper.New,
 		TenantLimits:   limits,
+		TenantSecrets:  secrets,
 		Telemeter:      telemetry,
 	})
 	if err != nil {
@@ -327,6 +330,7 @@ func run(args []string, stdout io.Writer) error {
 		PromRegisterer: promRegisterer,
 		Features:       features,
 		K6Runner:       k6Runner,
+		TenantSecrets:  secrets,
 	})
 	if err != nil {
 		return fmt.Errorf("Cannot create ad-hoc checks handler: %w", err)

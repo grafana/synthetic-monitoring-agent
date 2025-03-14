@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,12 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
 )
+
+// secretSourceConfig represents the configuration for the secrets store
+type secretSourceConfig struct {
+	URL   string `json:"url"`
+	Token string `json:"token"`
+}
 
 type Local struct {
 	k6path        string
@@ -68,7 +75,18 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 		return nil, fmt.Errorf("cannot write temporary script file: %w", err)
 	}
 
-	k6Path, err := exec.LookPath(r.k6path)
+	executable := r.k6path
+	// TODO(d0ugal): This is a short-term hack to use a different k6 binary when
+	// secrets are configured. This should be removed when the default binary has been updated
+	if script.SecretStore.IsConfigured() {
+		executable = r.k6path + "-gsm"
+		logger.Info().
+			Str("k6_path", r.k6path).
+			Str("k6_gsm_path", executable).
+			Msg("Using k6-gsm binary for secrets")
+	}
+
+	k6Path, err := exec.LookPath(executable)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find k6 executable: %w", err)
 	}
@@ -77,36 +95,20 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	ctx, cancel = context.WithTimeout(ctx, checkTimeout)
 	defer cancel()
 
-	args := []string{
-		"run",
-		"--out", "sm=" + metricsFn,
-		"--log-format", "logfmt",
-		"--log-output", "file=" + logsFn,
-		"--max-redirects", "10",
-		"--batch", "10",
-		"--batch-per-host", "4",
-		"--no-connection-reuse",
-		"--blacklist-ip", r.blacklistedIP,
-		"--block-hostnames", "*.cluster.local", // TODO(mem): make this configurable
-		"--summary-time-unit", "s",
-		// "--discard-response-bodies",                        // TODO(mem): make this configurable
-		"--dns", "ttl=30s,select=random,policy=preferIPv4", // TODO(mem): this needs fixing, preferIPv4 is probably not what we want
-		"--address", "", // Disable REST API server
-		"--no-thresholds",
-		"--no-usage-report",
-		"--no-color",
-		"--no-summary",
-		"--verbose",
+	var configFile string
+	if script.SecretStore.IsConfigured() {
+		var cleanup func()
+		configFile, cleanup, err = createSecretConfigFile(script.SecretStore.Url, script.SecretStore.Token)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create secret config file: %w", err)
+		}
+		defer cleanup()
 	}
 
-	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
-		args = append(args,
-			"--vus", "1",
-			"--iterations", "1",
-		)
+	args, err := r.buildK6Args(script, metricsFn, logsFn, scriptFn, configFile)
+	if err != nil {
+		return nil, fmt.Errorf("building k6 arguments: %w", err)
 	}
-
-	args = append(args, scriptFn)
 
 	cmd := exec.CommandContext(
 		ctx,
@@ -187,6 +189,46 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	return &RunResponse{Metrics: metrics.Bytes(), Logs: logs.Bytes()}, errors.Join(err, errorFromLogs(logs.Bytes()))
 }
 
+func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
+	args := []string{
+		"run",
+		"--out", "sm=" + metricsFn,
+		"--log-format", "logfmt",
+		"--log-output", "file=" + logsFn,
+		"--max-redirects", "10",
+		"--batch", "10",
+		"--batch-per-host", "4",
+		"--no-connection-reuse",
+		"--blacklist-ip", r.blacklistedIP,
+		"--block-hostnames", "*.cluster.local", // TODO(mem): make this configurable
+		"--summary-time-unit", "s",
+		// "--discard-response-bodies",                        // TODO(mem): make this configurable
+		"--dns", "ttl=30s,select=random,policy=preferIPv4", // TODO(mem): this needs fixing, preferIPv4 is probably not what we want
+		"--address", "", // Disable REST API server
+		"--no-thresholds",
+		"--no-usage-report",
+		"--no-color",
+		"--no-summary",
+		"--verbose",
+	}
+
+	// Add secretStore configuration if available
+	if script.SecretStore.IsConfigured() {
+		args = append(args, "--secret-source", "grafanasecrets=config="+configFile)
+	}
+
+	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
+		args = append(args,
+			"--vus", "1",
+			"--iterations", "1",
+		)
+	}
+
+	args = append(args, scriptFn)
+
+	return args, nil
+}
+
 func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
 	f, err := afero.TempFile(fs, dir, pattern)
 	if err != nil {
@@ -261,4 +303,40 @@ func readFileLimit(f afero.Fs, name string, limit int64) (*bytes.Buffer, bool, e
 	}
 
 	return buf, true, nil
+}
+
+// createSecretConfigFile creates a JSON config file with the given secret store URL and token
+func createSecretConfigFile(url, token string) (filename string, cleanup func(), err error) {
+	tmpFile, err := os.CreateTemp("", "k6-secrets-*.json")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating temp file: %w", err)
+	}
+
+	if err := os.Chmod(tmpFile.Name(), 0600); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", nil, fmt.Errorf("setting file permissions: %w", err)
+	}
+
+	config := secretSourceConfig{
+		URL:   url,
+		Token: token,
+	}
+
+	configData, err := json.Marshal(config)
+	if err != nil {
+		os.Remove(tmpFile.Name())
+		return "", nil, fmt.Errorf("marshaling config to JSON: %w", err)
+	}
+
+	if _, err := tmpFile.Write(configData); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", nil, fmt.Errorf("writing config file: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		os.Remove(tmpFile.Name())
+		return "", nil, fmt.Errorf("closing config file: %w", err)
+	}
+
+	return tmpFile.Name(), func() { os.Remove(tmpFile.Name()) }, nil
 }
