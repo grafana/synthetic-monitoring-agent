@@ -11,11 +11,17 @@ $(DISTDIR)/$(1)-$(2)/sm-k6:
 	curl -sSL https://github.com/grafana/xk6-sm/releases/download/v0.0.3/sm-k6-$(1)-$(2) -o "$$@"
 	chmod +x "$$@"
 
-sm-k6: $(DISTDIR)/$(1)-$(2)/sm-k6
+$(DISTDIR)/$(1)-$(2)/sm-k6-gsm:
+	mkdir -p "$(DISTDIR)/$(1)-$(2)"
+	# Renovate updates the following line. Keep its syntax as it is.
+	curl -sSL https://github.com/grafana/xk6-sm/releases/download/v0.4.0/sm-k6-$(1)-$(2)-gsm -o "$$@"
+	chmod +x "$$@"
+
+sm-k6: $(DISTDIR)/$(1)-$(2)/sm-k6 $(DISTDIR)/$(1)-$(2)/sm-k6-gsm
 endef
 
 $(foreach BUILD_PLATFORM,$(XK6_PLATFORMS), \
 	$(eval $(call sm-k6,$(word 1,$(subst /, ,$(BUILD_PLATFORM))),$(word 2,$(subst /, ,$(BUILD_PLATFORM))))))
 
 .PHONY: sm-k6-native
-sm-k6-native: $(DISTDIR)/$(HOST_OS)-$(HOST_ARCH)/sm-k6
+sm-k6-native: $(DISTDIR)/$(HOST_OS)-$(HOST_ARCH)/sm-k6 $(DISTDIR)/$(HOST_OS)-$(HOST_ARCH)/sm-k6-gsm
