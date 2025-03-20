@@ -43,6 +43,8 @@ func (r requestError) Error() string {
 type HTTPRunRequest struct {
 	Script   `json:",inline"`
 	NotAfter time.Time `json:"notAfter"`
+	// SecretStore holds the location and token for accessing secrets
+	SecretStore SecretStore `json:"secretStore"`
 }
 
 type RunResponse struct {
@@ -149,8 +151,9 @@ func (r HttpRunner) request(ctx context.Context, script Script) (*RunResponse, e
 	// This allows runners to not waste time running scripts which will not complete before the client gives up on the
 	// request.
 	runRequest := HTTPRunRequest{
-		Script:   script,
-		NotAfter: notAfter,
+		Script:      script,
+		NotAfter:    notAfter,
+		SecretStore: script.SecretStore,
 	}
 
 	reqBody, err := json.Marshal(runRequest)
