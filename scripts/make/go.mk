@@ -1,4 +1,4 @@
-GO_VERSION            := $(shell go list -m -f '{{.GoVersion}}')
+GO_VERSION            := $(shell go mod edit -json | jq -r .Go)
 GO                    := GO111MODULE=on CGO_ENABLED=0 go
 GO_VENDOR             := $(if $(realpath $(ROOTDIR)/vendor/modules.txt),true,false)
 GO_BUILD_COMMON_FLAGS := -trimpath
