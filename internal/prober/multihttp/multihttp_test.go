@@ -161,6 +161,6 @@ func (noopRunner) Run(ctx context.Context, script k6runner.Script) (*k6runner.Ru
 
 type noopSecretStore struct{}
 
-func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID int64) (*sm.SecretStore, error) {
+func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
 	return &sm.SecretStore{}, nil
 }

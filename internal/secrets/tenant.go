@@ -5,11 +5,12 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
 type SecretProvider interface {
-	GetSecretCredentials(ctx context.Context, tenantID int64) (*sm.SecretStore, error)
+	GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error)
 }
 
 type TenantProvider interface {
@@ -28,9 +29,9 @@ func NewTenantSecrets(tp TenantProvider, logger zerolog.Logger) *TenantSecrets {
 	}
 }
 
-func (ts *TenantSecrets) GetSecretCredentials(ctx context.Context, tenantID int64) (*sm.SecretStore, error) {
+func (ts *TenantSecrets) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
 	tenant, err := ts.tp.GetTenant(ctx, &sm.TenantInfo{
-		Id: tenantID,
+		Id: int64(tenantID),
 	})
 	if err != nil {
 		return nil, err
