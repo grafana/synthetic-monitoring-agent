@@ -7,6 +7,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/stretchr/testify/assert"
 )
@@ -26,7 +27,7 @@ func TestGetSecretCredentials_Success(t *testing.T) {
 	mockTenantProvider := &tenantProvider{tenant: mockTenant}
 	ts := NewTenantSecrets(mockTenantProvider, zerolog.Nop())
 	ctx := context.Background()
-	tenantID := int64(1234)
+	tenantID := model.GlobalID(1234)
 
 	secretStore, err := ts.GetSecretCredentials(ctx, tenantID)
 
@@ -39,7 +40,7 @@ func TestGetSecretCredentials_Error(t *testing.T) {
 	mockTenantProvider := &tenantProvider{err: getTenantErr}
 	ts := NewTenantSecrets(mockTenantProvider, zerolog.Nop())
 	ctx := context.Background()
-	tenantID := int64(1234)
+	tenantID := model.GlobalID(1234)
 
 	secretStore, err := ts.GetSecretCredentials(ctx, tenantID)
 

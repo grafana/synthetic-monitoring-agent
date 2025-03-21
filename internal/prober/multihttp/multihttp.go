@@ -46,7 +46,7 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 		augmentHttpHeaders(&check.Check, reservedHeaders)
 	}
 
-	secretStore, err := store.GetSecretCredentials(ctx, check.TenantId)
+	secretStore, err := store.GetSecretCredentials(ctx, check.GlobalTenantID())
 	if err != nil {
 		return p, err
 	}
