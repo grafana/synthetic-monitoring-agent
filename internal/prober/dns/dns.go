@@ -51,7 +51,7 @@ func (p Prober) Name() string {
 	return "dns"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger) (bool, float64) {
 	cfg := p.config
 
 	if p.experimental {
@@ -71,7 +71,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 			}
 		}
 
-		_ = logger.Log("msg", "probing DNS", "target", target, "retries", cfg.DNS.Retries, "retry_timeout", cfg.DNS.RetryTimeout)
+		_ = l.Log("msg", "probing DNS", "target", target, "retries", cfg.DNS.Retries, "retry_timeout", cfg.DNS.RetryTimeout)
 	}
 
 	// The target of the BBE DNS check is the _DNS server_, while
@@ -79,7 +79,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	// pass the server as the target parameter, and ignore the
 	// _target_ paramater that is passed to this function.
 
-	return bbeprober.ProbeDNS(ctx, p.target, cfg, registry, logger), 0
+	return bbeprober.ProbeDNS(ctx, p.target, cfg, registry, l), 0
 }
 
 func settingsToModule(settings *sm.DnsSettings, target string) config.Module {
