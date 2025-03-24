@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.35.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.4...v0.35.0) (2025-03-21)
+
+
+### Features
+
+* Add the sm-k6-gsm binary for secrets ([#1234](https://github.com/grafana/synthetic-monitoring-agent/issues/1234)) ([94a3d29](https://github.com/grafana/synthetic-monitoring-agent/commit/94a3d290d34de1fd449e6ef4036855ffbe4a660c))
+* pass secret store from API ([#1179](https://github.com/grafana/synthetic-monitoring-agent/issues/1179)) ([fcfcd8f](https://github.com/grafana/synthetic-monitoring-agent/commit/fcfcd8f3564a7645f380764ad2ca03afc22decdd))
+
+
+### Fixes
+
+* Update version reporting logic ([#1244](https://github.com/grafana/synthetic-monitoring-agent/issues/1244)) ([ad3ffbb](https://github.com/grafana/synthetic-monitoring-agent/commit/ad3ffbbecf44565f74aefedc5dd3a91b6d138ad2))
+* Use a global tenant ID when retrieving secrets information ([#1260](https://github.com/grafana/synthetic-monitoring-agent/issues/1260)) ([f171fc4](https://github.com/grafana/synthetic-monitoring-agent/commit/f171fc456d6b8a4da0a46647c1ac32c61ee579a2))
+
+
+### Miscellaneous Chores
+
+* examples/kubernetes: default to a hardened `securityContext` ([18b6df0](https://github.com/grafana/synthetic-monitoring-agent/commit/18b6df076ebc1506495d494778698a07df82bc52))
+* Update dependency grafana/xk6-sm to v0.2.0 ([#1161](https://github.com/grafana/synthetic-monitoring-agent/issues/1161)) ([b56c7a0](https://github.com/grafana/synthetic-monitoring-agent/commit/b56c7a00a6fe5d2d727e89ace0fd217be036018b))
+* Update grafana/shared-workflows digest to 68b38bb ([047466f](https://github.com/grafana/synthetic-monitoring-agent/commit/047466f31788ca01e20732079c72d2d7506d8612))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.17.1 ([#1240](https://github.com/grafana/synthetic-monitoring-agent/issues/1240)) ([91c5550](https://github.com/grafana/synthetic-monitoring-agent/commit/91c5550d2d4f64c444540e3986b674fd15e1f224))
+* Update module github.com/securego/gosec/v2 to v2.22.2 ([3977d87](https://github.com/grafana/synthetic-monitoring-agent/commit/3977d87400513d59d76e7152269bc689dbc11e4b))
+* Update module golang.org/x/net to v0.37.0 ([#1245](https://github.com/grafana/synthetic-monitoring-agent/issues/1245)) ([fed448b](https://github.com/grafana/synthetic-monitoring-agent/commit/fed448bf9cde3aa61644ab490e8ba7cf2a132e4f))
+* Update module google.golang.org/grpc to v1.71.0 ([84aeea1](https://github.com/grafana/synthetic-monitoring-agent/commit/84aeea139b3af70711a5bb41507a2f884dfdcc5e))
+
 ## [0.34.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.3...v0.34.4) (2025-03-10)
 
 
