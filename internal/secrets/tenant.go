@@ -30,11 +30,18 @@ func NewTenantSecrets(tp TenantProvider, logger zerolog.Logger) *TenantSecrets {
 }
 
 func (ts *TenantSecrets) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
+	if ts.logger.GetLevel() <= zerolog.DebugLevel {
+		tenantID, regionID := model.GetLocalAndRegionIDs(tenantID)
+		ts.logger.Debug().Int("regionID", regionID).Int64("tenantId", tenantID).Msg("getting secret credentials")
+	}
+
 	tenant, err := ts.tp.GetTenant(ctx, &sm.TenantInfo{
 		Id: int64(tenantID),
 	})
 	if err != nil {
+		ts.logger.Warn().Err(err).Int64("tenantId", int64(tenantID)).Msg("failed to get tenant")
 		return nil, err
 	}
+
 	return tenant.SecretStore, nil
 }
