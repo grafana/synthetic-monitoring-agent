@@ -384,6 +384,7 @@ func defaultGrpcAdhocChecksClientFactory(conn ClientConn) (sm.AdHocChecksClient,
 func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest) (*runner, error) {
 	check := model.Check{
 		Check: sm.Check{
+			TenantId: req.AdHocCheck.TenantId,
 			Target:   req.AdHocCheck.Target,
 			Timeout:  req.AdHocCheck.Timeout,
 			Settings: req.AdHocCheck.Settings,
