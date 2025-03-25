@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.35.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.35.0...v0.35.1) (2025-03-25)
+
+
+### Fixes
+
+* Pass Tenant ID to adhoc checks ([#1267](https://github.com/grafana/synthetic-monitoring-agent/issues/1267)) ([8255fa3](https://github.com/grafana/synthetic-monitoring-agent/commit/8255fa3152703e902c2c4d5e8914ea7f7c796607))
+* Report errors when retrieving secrets ([#1265](https://github.com/grafana/synthetic-monitoring-agent/issues/1265)) ([39d80d1](https://github.com/grafana/synthetic-monitoring-agent/commit/39d80d12ef67c2bd1833dde7a58d9d6008e8d32f))
+
 ## [0.35.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.34.4...v0.35.0) (2025-03-21)
 
 
