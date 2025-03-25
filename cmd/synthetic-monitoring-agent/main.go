@@ -273,6 +273,7 @@ func run(args []string, stdout io.Writer) error {
 		k6Runner = k6runner.New(k6runner.RunnerOpts{
 			Uri:           config.K6URI,
 			BlacklistedIP: config.K6BlacklistedIP,
+			Registerer:    promRegisterer,
 		})
 	}
 

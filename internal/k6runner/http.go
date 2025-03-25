@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"golang.org/x/exp/rand"
 )
@@ -21,6 +22,8 @@ type HttpRunner struct {
 	backoff time.Duration
 	// graceTime tells the HttpRunner how much time to add to the script timeout to form the request timeout.
 	graceTime time.Duration
+	// metrics stores metrics for the remote k6 runner.
+	metrics *HTTPMetrics
 }
 
 const (
@@ -81,6 +84,8 @@ func (r HttpRunner) Run(ctx context.Context, script Script) (*RunResponse, error
 			Msg("time until next execution is too close to script timeout, there might not be room for retries")
 	}
 
+	// Retry logic is purely context (time) based, but we keep track of the number of attempts for reporting telemetry.
+	attempts := 1.0
 	wait := r.backoff
 	var response *RunResponse
 	for {
@@ -90,14 +95,20 @@ func (r HttpRunner) Run(ctx context.Context, script Script) (*RunResponse, error
 		response, err = r.request(ctx, script)
 		if err == nil {
 			r.logger.Debug().Bytes("metrics", response.Metrics).Bytes("logs", response.Logs).Msg("script result")
+			r.metrics.Requests.With(map[string]string{metricLabelSuccess: "1", metricLabelRetriable: ""}).Inc()
+			r.metrics.RequestsPerRun.WithLabelValues("1").Observe(attempts)
 			return response, nil
 		}
 
 		if !errors.Is(err, errRetryable) {
 			// TODO: Log the returned error in the Processor instead.
 			r.logger.Error().Err(err).Msg("non-retryable error running k6")
+			r.metrics.Requests.With(map[string]string{metricLabelSuccess: "0", metricLabelRetriable: "0"}).Inc()
+			r.metrics.RequestsPerRun.WithLabelValues("0").Observe(attempts)
 			return nil, err
 		}
+
+		r.metrics.Requests.With(map[string]string{metricLabelSuccess: "0", metricLabelRetriable: "1"}).Inc()
 
 		// Wait, but subtract the amount of time we've already waited as part of the request timeout.
 		// We do this because these requests have huge timeouts, and by the nature of the system running these requests,
@@ -112,6 +123,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script) (*RunResponse, error
 			waitTimer.Stop()
 			// TODO: Log the returned error in the Processor instead.
 			r.logger.Error().Err(err).Msg("retries exhausted")
+			r.metrics.RequestsPerRun.WithLabelValues("0").Observe(attempts)
 			return nil, fmt.Errorf("cannot retry further: %w", errors.Join(err, ctx.Err()))
 		case <-waitTimer.C:
 		}
@@ -205,4 +217,48 @@ func (r HttpRunner) request(ctx context.Context, script Script) (*RunResponse, e
 	}
 
 	return &response, nil
+}
+
+type HTTPMetrics struct {
+	Requests       *prometheus.CounterVec
+	RequestsPerRun *prometheus.HistogramVec
+}
+
+const (
+	metricLabelSuccess   = "success"
+	metricLabelRetriable = "retriable"
+)
+
+func NewHTTPMetrics(registerer prometheus.Registerer) *HTTPMetrics {
+	m := &HTTPMetrics{}
+	m.Requests = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "sm_agent",
+			Subsystem: "k6runner",
+			Name:      "requests_total",
+			Help: "Total number of requests made to remote k6 runners, which may be more than one per run. " +
+				"The 'success' label is 1 if this single request succeeded, 0 otherwise. " +
+				"The 'retriable' label is 1 if the request failed with a retriable error, 0 otherwise. " +
+				"Successful requests do not have the 'retriable' label.",
+		},
+		[]string{metricLabelSuccess, metricLabelRetriable},
+	)
+	registerer.MustRegister(m.Requests)
+
+	m.RequestsPerRun = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "sm_agent",
+			Subsystem: "k6runner",
+			Name:      "requests_per_run",
+			Help: "Number of requests attempted per run operation. " +
+				"The 'success' label is 1 if one ultimately succeeded potentially including retries, 0 otherwise.",
+			// Generally we expect request to be retries a handful of times, so we create high resolution buckets up to
+			// 5. Form 5 onwards something off is going on and we do not care that much about resolution.
+			Buckets: []float64{1, 2, 3, 4, 5, 10, 20, 50},
+		},
+		[]string{metricLabelSuccess},
+	)
+	registerer.MustRegister(m.RequestsPerRun)
+
+	return m
 }
