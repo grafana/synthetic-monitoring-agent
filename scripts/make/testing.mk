@@ -1,6 +1,7 @@
 ##@ Testing
 
 GO_TEST_ARGS ?= $(GO_PKGS)
+GO_TEST_FORMAT ?= standard-verbose
 
 TEST_OUTPUT := $(DISTDIR)/test
 
@@ -28,7 +29,7 @@ test-go: $(if $(filter $(LOCAL_GOTESTSUM),yes),$(GOTESTSUM))
 test-go:
 	$(S) echo "test backend"
 	env CGO_ENABLED=1 $(GOTESTSUM) \
-		--format standard-verbose \
+		--format $(GO_TEST_FORMAT) \
 		--jsonfile $(TEST_OUTPUT).json \
 		--junitfile $(TEST_OUTPUT).xml \
 		-- \
