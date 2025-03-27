@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.35.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.35.1...v0.35.2) (2025-03-27)
+
+
+### Miscellaneous Chores
+
+* **deps:** bump github.com/mccutchen/go-httpbin/v2 ([be4f4f0](https://github.com/grafana/synthetic-monitoring-agent/commit/be4f4f01881aaf48becf48e54560666ca8dc5e42))
+* Update actions/upload-artifact digest to ea165f8 ([b7587fa](https://github.com/grafana/synthetic-monitoring-agent/commit/b7587fab2bc452c8c6a176d43aa1b8f2eb843801))
+
 ## [0.35.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.35.0...v0.35.1) (2025-03-25)
 
 
