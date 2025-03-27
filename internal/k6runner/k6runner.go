@@ -98,11 +98,16 @@ type Runner interface {
 type RunnerOpts struct {
 	Uri           string
 	BlacklistedIP string
+	Registerer    prometheus.Registerer
 }
 
 func New(opts RunnerOpts) Runner {
 	var r Runner
 	logger := zerolog.Nop()
+	var registerer prometheus.Registerer = prometheus.NewRegistry() // NOOP registry.
+	if opts.Registerer != nil {
+		registerer = opts.Registerer
+	}
 
 	if strings.HasPrefix(opts.Uri, "http") {
 		r = &HttpRunner{
@@ -110,6 +115,7 @@ func New(opts RunnerOpts) Runner {
 			logger:    &logger,
 			graceTime: defaultGraceTime,
 			backoff:   defaultBackoff,
+			metrics:   NewHTTPMetrics(registerer),
 		}
 	} else {
 		r = Local{

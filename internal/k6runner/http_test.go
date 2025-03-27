@@ -301,7 +301,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 
-			runner := HttpRunner{url: srv.URL + "/run", graceTime: time.Second, backoff: time.Second}
+			runner := HttpRunner{url: srv.URL + "/run", graceTime: time.Second, backoff: time.Second, metrics: NewHTTPMetrics(prometheus.NewRegistry())}
 			script, err := NewProcessor(Script{
 				Script: []byte("tee-hee"),
 				Settings: Settings{
@@ -443,7 +443,7 @@ func TestHTTPProcessorRetries(t *testing.T) {
 				srv := httptest.NewServer(mux)
 				t.Cleanup(srv.Close)
 
-				runner := HttpRunner{url: srv.URL + "/run", graceTime: tc.graceTime, backoff: time.Second}
+				runner := HttpRunner{url: srv.URL + "/run", graceTime: tc.graceTime, backoff: time.Second, metrics: NewHTTPMetrics(prometheus.NewRegistry())}
 				processor, err := NewProcessor(Script{Script: nil, Settings: Settings{tc.scriptTimeout.Milliseconds()}}, runner)
 				require.NoError(t, err)
 
@@ -489,7 +489,7 @@ func TestHTTPProcessorRetries(t *testing.T) {
 
 		addr := <-listenerCh
 
-		runner := HttpRunner{url: "http://" + addr + "/run", graceTime: time.Second, backoff: time.Second}
+		runner := HttpRunner{url: "http://" + addr + "/run", graceTime: time.Second, backoff: time.Second, metrics: NewHTTPMetrics(prometheus.NewRegistry())}
 		processor, err := NewProcessor(Script{Script: nil, Settings: Settings{Timeout: 1000}}, runner)
 		require.NoError(t, err)
 
