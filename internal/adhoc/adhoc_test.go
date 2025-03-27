@@ -2,6 +2,7 @@ package adhoc
 
 import (
 	"context"
+	"errors"
 	"io"
 	"os"
 	"testing"
@@ -17,6 +18,9 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -346,4 +350,256 @@ func (p *testProber) Probe(ctx context.Context, target string, registry *prometh
 	registry.MustRegister(g)
 	_ = logger.Log("msg", "test")
 	return true, 1
+}
+
+// Add mock secrets store
+type testSecretStore struct{}
+
+func (s testSecretStore) GetSecretCredentials(ctx context.Context, tenantId model.GlobalID) (*sm.SecretStore, error) {
+	if tenantId == 0 {
+		return nil, errors.New("invalid tenant ID")
+	}
+
+	return &sm.SecretStore{
+		Url:   "http://example.com",
+		Token: "test-token",
+	}, nil
+}
+
+func TestDefaultRunnerFactory(t *testing.T) {
+	t.Parallel()
+
+	features := feature.NewCollection()
+	require.NoError(t, features.Set(feature.K6))
+
+	logger := zerolog.New(io.Discard)
+	if testing.Verbose() {
+		logger = zerolog.New(os.Stdout)
+	}
+
+	// Initialize the mockRunner and secretStore
+	mockRunner := &testK6Runner{}
+	secretStore := &testSecretStore{}
+
+	testcases := map[string]struct {
+		request     *sm.AdHocRequest
+		expectError bool
+		errCheck    func(error) bool
+		shouldPanic bool
+	}{
+		"ping check": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:       "test-ping",
+					TenantId: 1000,
+					Target:   "example.com",
+					Timeout:  1000,
+					Settings: sm.CheckSettings{
+						Ping: &sm.PingSettings{},
+					},
+				},
+			},
+		},
+		"http check": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:       "test-http",
+					TenantId: 1000,
+					Target:   "http://example.com",
+					Timeout:  1000,
+					Settings: sm.CheckSettings{
+						Http: &sm.HttpSettings{},
+					},
+				},
+			},
+		},
+		"dns check": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:       "test-dns",
+					TenantId: 1000,
+					Target:   "example.com",
+					Timeout:  1000,
+					Settings: sm.CheckSettings{
+						Dns: &sm.DnsSettings{},
+					},
+				},
+			},
+		},
+		"tcp check": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:       "test-tcp",
+					TenantId: 1000,
+					Target:   "example.com:80",
+					Timeout:  1000,
+					Settings: sm.CheckSettings{
+						Tcp: &sm.TcpSettings{},
+					},
+				},
+			},
+		},
+		"k6 scripted check": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:       "test-scripted",
+					TenantId: 1000,
+					Target:   "test-target",
+					Timeout:  1000,
+					Settings: sm.CheckSettings{
+						Scripted: &sm.ScriptedSettings{},
+					},
+				},
+			},
+		},
+		"k6 multihttp check": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:       "test-multihttp",
+					TenantId: 1000,
+					Target:   "test-target",
+					Timeout:  1000,
+					Settings: sm.CheckSettings{
+						Multihttp: &sm.MultiHttpSettings{
+							Entries: []*sm.MultiHttpEntry{
+								{
+									Request: &sm.MultiHttpEntryRequest{
+										Url: "http://example.com",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		"k6 browser check": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:       "test-browser",
+					TenantId: 1000,
+					Target:   "test-target",
+					Timeout:  1000,
+					Settings: sm.CheckSettings{
+						Browser: &sm.BrowserSettings{},
+					},
+				},
+			},
+		},
+		"zero timeout": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:       "test-zero-timeout",
+					TenantId: 1000,
+					Target:   "example.com",
+					Timeout:  0,
+					Settings: sm.CheckSettings{
+						Ping: &sm.PingSettings{},
+					},
+				},
+			},
+		},
+		"empty settings": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:       "test-empty-settings",
+					TenantId: 1000,
+					Target:   "example.com",
+					Timeout:  1000,
+					Settings: sm.CheckSettings{},
+				},
+			},
+			expectError: true,
+			shouldPanic: true,
+		},
+		"nil request": {
+			request:     nil,
+			expectError: true,
+			errCheck: func(err error) bool {
+				return errors.Is(err, errInvalidAdHocRequest)
+			},
+		},
+		"zero tenant": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:       "test-zero-tenant",
+					TenantId: 0,
+					Target:   "example.com",
+					Timeout:  1000,
+					Settings: sm.CheckSettings{},
+				},
+			},
+			expectError: true,
+			errCheck: func(err error) bool {
+				return errors.Is(err, errInvalidAdHocRequest)
+			},
+		},
+	}
+
+	for name, tc := range testcases {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			h := &Handler{
+				logger:   logger,
+				features: features,
+				probe: &sm.Probe{
+					Name: "test-probe",
+				},
+				proberFactory: prober.NewProberFactory(mockRunner, 0, features, secretStore),
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			if tc.shouldPanic {
+				require.Panics(t, func() {
+					_, _ = h.defaultRunnerFactory(ctx, tc.request)
+				})
+				return
+			}
+
+			runner, err := h.defaultRunnerFactory(ctx, tc.request)
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.errCheck != nil {
+					require.True(t, tc.errCheck(err), "unexpected error: %v", err)
+				}
+				require.Nil(t, runner)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, runner)
+
+			// Verify runner fields
+			require.Equal(t, logger, runner.logger)
+			require.NotNil(t, runner.prober)
+			require.Equal(t, tc.request.AdHocCheck.Id, runner.id)
+			require.Equal(t, "test-probe", runner.probe)
+
+			// For k6-based checks, verify the grace period is added
+			switch tc.request.AdHocCheck.Type() {
+			case sm.CheckTypeMultiHttp, sm.CheckTypeScripted, sm.CheckTypeBrowser:
+				expectedTimeout := time.Duration(tc.request.AdHocCheck.Timeout)*time.Millisecond + k6AdhocGraceTime
+				require.Equal(t, expectedTimeout, runner.timeout)
+
+			default:
+				expectedTimeout := time.Duration(tc.request.AdHocCheck.Timeout) * time.Millisecond
+				require.Equal(t, expectedTimeout, runner.timeout)
+			}
+		})
+	}
+}
+
+// Add mock k6runner
+type testK6Runner struct{}
+
+func (r *testK6Runner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
+	return r
+}
+
+func (r *testK6Runner) Run(ctx context.Context, script k6runner.Script) (*k6runner.RunResponse, error) {
+	return &k6runner.RunResponse{}, nil
 }
