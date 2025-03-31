@@ -51,10 +51,13 @@ type Error string
 func (e Error) Error() string { return string(e) }
 
 const (
-	errNotAuthorized     = Error("probe not authorized")
-	errTransportClosing  = Error("transport closing")
-	errProbeUnregistered = Error("probe no longer registered")
-	errIncompatibleApi   = Error("API does not support required features")
+	errNotAuthorized       = Error("probe not authorized")
+	errTransportClosing    = Error("transport closing")
+	errProbeUnregistered   = Error("probe no longer registered")
+	errIncompatibleApi     = Error("API does not support required features")
+	errInvalidAdHocRequest = Error("invalid ad-hoc request")
+
+	k6AdhocGraceTime = 20 * time.Second
 )
 
 type runner struct {
@@ -358,6 +361,10 @@ func (h *Handler) handleAdHocCheck(ctx context.Context, ahReq *sm.AdHocRequest) 
 
 	runner, err := h.runnerFactory(ctx, ahReq)
 	if err != nil {
+		// TODO(mem): if the runner factory returns an error, we should
+		// create a result that reflects that and publish it, so that
+		// the frontend is able to communicate to the user that
+		// something went wrong.
 		return err
 	}
 
@@ -382,12 +389,31 @@ func defaultGrpcAdhocChecksClientFactory(conn ClientConn) (sm.AdHocChecksClient,
 }
 
 func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest) (*runner, error) {
+	// This should never happen. If we hit this, it's a bug in the code
+	// that is handling the request, or the API sent us an invalid request.
+	if req == nil || req.AdHocCheck.TenantId == 0 {
+		return nil, errInvalidAdHocRequest
+	}
+
 	check := model.Check{
 		Check: sm.Check{
 			TenantId: req.AdHocCheck.TenantId,
 			Target:   req.AdHocCheck.Target,
 			Timeout:  req.AdHocCheck.Timeout,
 			Settings: req.AdHocCheck.Settings,
+
+			// All the following fields are not used for ad-hoc checks.
+			Id:               0, // ad-hoc checks don't have an ID in this sense.
+			Job:              "",
+			Frequency:        0,
+			Offset:           0,
+			Enabled:          true,
+			Labels:           nil,
+			Probes:           nil,
+			BasicMetricsOnly: false,
+			AlertSensitivity: "",
+			Created:          0,
+			Modified:         0,
 		},
 	}
 
@@ -402,7 +428,6 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 	timeout := time.Duration(check.Timeout) * time.Millisecond
 	switch check.Type() {
 	case sm.CheckTypeMultiHttp, sm.CheckTypeScripted, sm.CheckTypeBrowser:
-		const k6AdhocGraceTime = 20 * time.Second
 		timeout += k6AdhocGraceTime
 	}
 
