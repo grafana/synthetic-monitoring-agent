@@ -75,18 +75,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		return nil, fmt.Errorf("cannot write temporary script file: %w", err)
 	}
 
-	executable := r.k6path
-	// TODO(d0ugal): This is a short-term hack to use a different k6 binary when
-	// secrets are configured. This should be removed when the default binary has been updated
-	if secretStore.IsConfigured() {
-		executable = r.k6path + "-gsm"
-		logger.Info().
-			Str("k6_path", r.k6path).
-			Str("k6_gsm_path", executable).
-			Msg("Using k6-gsm binary for secrets")
-	}
-
-	k6Path, err := exec.LookPath(executable)
+	k6Path, err := exec.LookPath(r.k6path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find k6 executable: %w", err)
 	}
