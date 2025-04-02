@@ -1,9 +1,9 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 2.194e-06
+probe_dns_lookup_time_seconds 3.792e-06
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.001022041
+probe_duration_seconds 0.001522125
 # HELP probe_failed_due_to_regex Indicates if probe failed due to regex
 # TYPE probe_failed_due_to_regex gauge
 probe_failed_due_to_regex 0
@@ -21,7 +21,7 @@ probe_ssl_earliest_cert_expiry 3.6e+09
 probe_ssl_last_chain_expiry_timestamp_seconds -6.21355968e+10
 # HELP probe_ssl_last_chain_info Contains SSL leaf certificate information
 # TYPE probe_ssl_last_chain_info gauge
-probe_ssl_last_chain_info{fingerprint_sha256="efc04a3afb86376b3a4db1b1d2f454afc60d192a573d78541836d83e4c849813",issuer="O=Acme Co",subject="O=Acme Co",subjectalternative="example.com"} 1
+probe_ssl_last_chain_info{fingerprint_sha256="efc04a3afb86376b3a4db1b1d2f454afc60d192a573d78541836d83e4c849813",issuer="O=Acme Co",serialnumber="8a086bc8a70f8a416a58b6741a5cebec",subject="O=Acme Co",subjectalternative="example.com"} 1
 # HELP probe_success Displays whether or not the probe was a success
 # TYPE probe_success gauge
 probe_success 1
@@ -45,7 +45,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.001022041
+probe_all_duration_seconds_sum 0.001522125
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
