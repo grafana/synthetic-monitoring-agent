@@ -187,7 +187,8 @@ func TestCalculateValidUntil(t *testing.T) {
 		"secret store with earlier expiration": {
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
-					ExpirationDate: float64(now.Add(2*time.Minute).UnixNano()) / 1e9,
+					Token:  "token",
+					Expiry: float64(now.Add(2*time.Minute).UnixNano()) / 1e9,
 				},
 			},
 			expectedBefore: now.Add(2 * time.Minute).Add(timeWindow),
@@ -196,7 +197,8 @@ func TestCalculateValidUntil(t *testing.T) {
 		"secret store with later expiration": {
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
-					ExpirationDate: float64(now.Add(10*time.Minute).UnixNano()) / 1e9,
+					Token:  "token",
+					Expiry: float64(now.Add(10*time.Minute).UnixNano()) / 1e9,
 				},
 			},
 			expectedBefore: now.Add(timeout).Add(timeWindow),
