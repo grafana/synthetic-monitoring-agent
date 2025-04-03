@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.36.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.35.2...v0.36.0) (2025-04-03)
+
+
+### Features
+
+* report metrics about requests made to remote runners ([8f93e87](https://github.com/grafana/synthetic-monitoring-agent/commit/8f93e87fbdb9e44e069bb3de504cf6eb00bd656e))
+
+
+### Fixes
+
+* Add a safety net in adhoc's defaultRunnerFactory ([#1268](https://github.com/grafana/synthetic-monitoring-agent/issues/1268)) ([0568a50](https://github.com/grafana/synthetic-monitoring-agent/commit/0568a500f0f5d9f7afee5fb8968f8512ad89e642))
+* Make test reporting style configurable ([#1261](https://github.com/grafana/synthetic-monitoring-agent/issues/1261)) ([793c4ea](https://github.com/grafana/synthetic-monitoring-agent/commit/793c4eaa4e7fecdfe8c04c0488f64030ef879cac))
+* Update Go version retrieval logic ([#1262](https://github.com/grafana/synthetic-monitoring-agent/issues/1262)) ([87d4781](https://github.com/grafana/synthetic-monitoring-agent/commit/87d47817758e1257f884945811e83efbef9d9364))
+
+
+### Miscellaneous Chores
+
+* ci: remove unused `Renovate reviewer` workflow ([2699f62](https://github.com/grafana/synthetic-monitoring-agent/commit/2699f62001b70a540d2d8f0132919cc8de0409ba))
+* runner/test: initialize metrics with a noop registry ([de0b714](https://github.com/grafana/synthetic-monitoring-agent/commit/de0b714c6385207d069d285c60d37b936e76b0fb))
+* Update actions/create-github-app-token digest to d72941d ([8623d6d](https://github.com/grafana/synthetic-monitoring-agent/commit/8623d6d351cc430dfcc17379f37efbfd528f4f2b))
+
 ## [0.35.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.35.1...v0.35.2) (2025-03-27)
 
 
