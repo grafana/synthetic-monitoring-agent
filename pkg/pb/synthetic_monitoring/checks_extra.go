@@ -148,7 +148,7 @@ const (
 	minCheckTimeout      = minCheckFrequency
 	maxCheckTimeout      = time.Minute      // Maximum value for the check's timeout (1 minute)
 	minScriptedTimeout   = minCheckTimeout  // Minimum timeout for scripted checks (1 second)
-	maxScriptedTimeout   = 3 * time.Minute  // Maximum timeout for scripted checks (180 second)
+	MaxScriptedTimeout   = 3 * time.Minute  // Maximum timeout for scripted checks (180 second)
 	minTracerouteTimeout = 30 * time.Second // Minimum timeout for traceroute checks (30 second)
 	maxTracerouteTimeout = 30 * time.Second // Maximum timeout for traceroute checks (30 second)
 )
@@ -1428,7 +1428,7 @@ func validateTimeout(checkType CheckType, timeout, frequency int64) error {
 		// frequency (otherwise we can end up running overlapping
 		// checks)
 		minTimeout = minScriptedTimeout.Milliseconds()
-		maxTimeout = min(frequency, maxScriptedTimeout.Milliseconds())
+		maxTimeout = min(frequency, MaxScriptedTimeout.Milliseconds())
 
 	default:
 		// timeout must be within the defined limits, and it must be

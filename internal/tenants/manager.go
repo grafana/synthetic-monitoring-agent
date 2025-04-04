@@ -64,18 +64,36 @@ func (tm *Manager) run(ctx context.Context) {
 // calculateValidUntil determines the expiration time for a tenant based on the timeout
 // and the secret store expiration date (if set), returning the earlier of the two.
 func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
-	validUntil := time.Now().Add(tm.timeout)
+	now := time.Now()
 
 	if tenant.SecretStore != nil && tenant.SecretStore.Expiry > 0 {
 		seconds, nanonseconds := math.Modf(tenant.SecretStore.Expiry)
+		// Subtract MaxScriptedTimeout to ensure the token is valid for the maximum running time.
 		expirationTime := time.Unix(int64(seconds), int64(nanonseconds*1e9))
 
-		if expirationTime.Before(validUntil) {
-			validUntil = expirationTime
+		delta := expirationTime.Sub(now)
+
+		switch {
+		case delta < 0:
+			// The token is already expired, return the current time
+			return now
+
+		case delta < sm.MaxScriptedTimeout:
+			// The token is valid for less than MaxScriptedTimeout, return the expiration time
+			return expirationTime
+
+		default:
+			// Reduce delta by sm.MaxScriptedTimeout to ensure the token is valid for the maximum running time.
+			delta -= sm.MaxScriptedTimeout
+
+			// Pick the smallest value between the calculated delta and the configured timeout.
+			delta = min(delta, tm.timeout)
+
+			return now.Add(delta)
 		}
 	}
 
-	return validUntil
+	return now.Add(tm.timeout)
 }
 
 func (tm *Manager) updateTenant(tenant sm.Tenant) {

@@ -174,6 +174,10 @@ func TestCalculateValidUntil(t *testing.T) {
 		epsilon = float64(now.Add(1*time.Second).UnixNano()-now.UnixNano()) / float64(now.UnixNano())
 	)
 
+	// Some tests below assume this is true.
+	require.Greater(t, sm.MaxScriptedTimeout, 2*time.Minute)
+	require.Less(t, sm.MaxScriptedTimeout, 5*time.Minute)
+
 	testCases := map[string]struct {
 		timeout time.Duration
 		tenant  *sm.Tenant
@@ -189,7 +193,7 @@ func TestCalculateValidUntil(t *testing.T) {
 			tenant:  &sm.Tenant{},
 			want:    1 * time.Hour,
 		},
-		"7.5 minute timeout, secret store expires in 2 minutes": {
+		"7.5 minute timeout, secret store expires in 2 minutes (less than MaxScriptedTimeout)": {
 			timeout: 7*time.Minute + 30*time.Second,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
@@ -199,7 +203,7 @@ func TestCalculateValidUntil(t *testing.T) {
 			},
 			want: 2 * time.Minute,
 		},
-		"7.5 minute timeout, secret store expires in 5 minutes": {
+		"7.5 minute timeout, secret store expires in 5 minutes (more than MaxScriptedTimeout)": {
 			timeout: 7*time.Minute + 30*time.Second,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
@@ -207,7 +211,7 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(5*time.Minute).UnixNano()) / 1e9,
 				},
 			},
-			want: 5 * time.Minute,
+			want: 5*time.Minute - sm.MaxScriptedTimeout,
 		},
 		"7.5 minute timeout, secret store expires in 1 hour": {
 			timeout: 7*time.Minute + 30*time.Second,
@@ -219,9 +223,8 @@ func TestCalculateValidUntil(t *testing.T) {
 			},
 			want: 7*time.Minute + 30*time.Second,
 		},
+		// This should not make a difference wrt to the previous tests. Make sure that's the case.
 		"10 minute timeout, secret store expires in 2 minutes": {
-			// This should not make a difference wrt to the
-			// previous tests. Make sure that's the case.
 			timeout: 10 * time.Minute,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
@@ -239,7 +242,7 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(5*time.Minute).UnixNano()) / 1e9,
 				},
 			},
-			want: 5 * time.Minute,
+			want: 5*time.Minute - sm.MaxScriptedTimeout,
 		},
 		"10 minute timeout, secret store expires in 10 minutes": {
 			timeout: 10 * time.Minute,
@@ -249,7 +252,7 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(10*time.Minute).UnixNano()) / 1e9,
 				},
 			},
-			want: 10 * time.Minute,
+			want: 10*time.Minute - sm.MaxScriptedTimeout,
 		},
 		"10 minute timeout, secret store expires in 1 hour": {
 			timeout: 10 * time.Minute,
@@ -272,8 +275,12 @@ func TestCalculateValidUntil(t *testing.T) {
 			expected := time.Now().Add(tc.want)
 			actual := tm.calculateValidUntil(tc.tenant)
 
-			require.InEpsilon(t, expected.UnixNano(), actual.UnixNano(), epsilon,
-				"calculateValidUntil() should be within range")
+			require.InEpsilonf(t, expected.UnixNano(), actual.UnixNano(), epsilon,
+				"calculateValidUntil() should be within range. expected: %d, actual: %d, delta: %d",
+				expected.Sub(now).Milliseconds(),
+				actual.Sub(now).Milliseconds(),
+				expected.UnixMilli()-actual.UnixMilli(),
+			)
 		})
 	}
 }
