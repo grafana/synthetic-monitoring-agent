@@ -44,8 +44,9 @@ func (r requestError) Error() string {
 
 // HTTPRunRequest
 type HTTPRunRequest struct {
-	Script   `json:",inline"`
-	NotAfter time.Time `json:"notAfter"`
+	Script      `json:",inline"`
+	SecretStore SecretStore `json:",inline"`
+	NotAfter    time.Time   `json:"notAfter"`
 }
 
 type RunResponse struct {
@@ -92,7 +93,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 		start := time.Now()
 
 		var err error
-		response, err = r.request(ctx, script)
+		response, err = r.request(ctx, script, secretStore)
 		if err == nil {
 			r.logger.Debug().Bytes("metrics", response.Metrics).Bytes("logs", response.Logs).Msg("script result")
 			r.metrics.Requests.With(map[string]string{metricLabelSuccess: "1", metricLabelRetriable: ""}).Inc()
@@ -136,7 +137,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 // errRetryable indicates that an error is retryable. It is typically joined with another error.
 var errRetryable = errors.New("retryable")
 
-func (r HttpRunner) request(ctx context.Context, script Script) (*RunResponse, error) {
+func (r HttpRunner) request(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
 	checkTimeout := time.Duration(script.Settings.Timeout) * time.Millisecond
 	if checkTimeout == 0 {
 		return nil, ErrNoTimeout
@@ -161,8 +162,9 @@ func (r HttpRunner) request(ctx context.Context, script Script) (*RunResponse, e
 	// This allows runners to not waste time running scripts which will not complete before the client gives up on the
 	// request.
 	runRequest := HTTPRunRequest{
-		Script:   script,
-		NotAfter: notAfter,
+		Script:      script,
+		SecretStore: secretStore,
+		NotAfter:    notAfter,
 	}
 
 	reqBody, err := json.Marshal(runRequest)
