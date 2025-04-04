@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	"github.com/rs/zerolog"
 )
 
 type Manager struct {
@@ -15,9 +16,24 @@ type Manager struct {
 	timeout       time.Duration
 	tenantsMutex  sync.Mutex
 	tenants       map[int64]*tenantInfo
+	logger        zerolog.Logger
 }
 
 var _ pusher.TenantProvider = &Manager{}
+
+const (
+	// The expiration time for access tokens is 10 minutes. Until we get
+	// expiration information from the API, set this to a fixed number.
+	//
+	// This specific number is accounting for ~ 3 minutes of total
+	// execution time for scripts, plus 30 seconds of buffer for retrieving
+	// secrets, sending script to runner, etc. We expect secrets to be
+	// loaded near the start of the script, but given it's a program we
+	// cannot enforce that. k6 would have enforced that by making secrets
+	// part of the options block, but we do not want to go anywhere near
+	// that.
+	secretsTimeout = 450 * time.Second // 7.5 minutes
+)
 
 type tenantInfo struct {
 	mutex      sync.Mutex // protects the entire structure
@@ -32,12 +48,13 @@ type tenantInfo struct {
 //
 // A new goroutine is started which stops when the provided context is
 // cancelled.
-func NewManager(ctx context.Context, tenantsClient sm.TenantsClient, tenantCh <-chan sm.Tenant, timeout time.Duration) *Manager {
+func NewManager(ctx context.Context, tenantsClient sm.TenantsClient, tenantCh <-chan sm.Tenant, timeout time.Duration, logger zerolog.Logger) *Manager {
 	tm := &Manager{
 		tenantCh:      tenantCh,
 		tenantsClient: tenantsClient,
 		timeout:       timeout,
 		tenants:       make(map[int64]*tenantInfo),
+		logger:        logger,
 	}
 
 	go tm.run(ctx)
@@ -86,10 +103,16 @@ func (tm *Manager) updateTenant(tenant sm.Tenant) {
 	// one that is already there, if there's one.
 
 	info.mutex.Lock()
-	if info.tenant == nil || info.tenant.Modified < tenant.Modified {
-		info.validUntil = time.Now().Add(tm.timeout)
+
+	now := time.Now()
+
+	// if we do not have a tenant, or if the tenant we have is older
+	// than the one we are trying to insert, we need to update it.
+	if info.tenant == nil || info.validUntil.Before(now) || info.tenant.Modified < tenant.Modified {
+		info.validUntil = getDeadline(now, tm.timeout, secretsTimeout, tenant.SecretStore != nil)
 		info.tenant = &tenant
 	}
+
 	info.mutex.Unlock()
 }
 
@@ -112,10 +135,16 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 
 	// If there is a valid tenant in the cache, return it
 	if info.validUntil.After(now) {
+		tm.logger.Debug().
+			Int64("tenantId", req.Id).
+			Time("validUntil", info.validUntil).
+			Dur("validFor", info.validUntil.Sub(now)).
+			Msg("returning tenant from cache")
+
 		return info.tenant, nil
 	}
 
-	// Request the tenant to the API
+	// Request the tenant from the API
 	tenant, err := tm.tenantsClient.GetTenant(ctx, req)
 	// Treat every error in the same way, whether it's network or app related.
 	// As example of application errors: If the API has issues reaching the DB,
@@ -123,6 +152,7 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 	// should be propagated through other paths, and this component should act
 	// "silly" on it.
 	if err != nil && (!found || info.tenant == nil) {
+		tm.logger.Error().Err(err).Int64("tenantId", req.Id).Msg("failed to retrieve remote tenant information")
 		// Only return error if tenant was not found in the cache or
 		// is not a valid entry, and can not be retrieved from the API
 		return nil, err
@@ -130,11 +160,36 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 
 	// If tenant was retrieved from the API, update it in the cache
 	if err == nil {
-		info.validUntil = time.Now().Add(tm.timeout)
+		info.validUntil = getDeadline(time.Now(), tm.timeout, secretsTimeout, tenant.SecretStore != nil)
 		info.tenant = tenant
+
+		tm.logger.Debug().
+			Int64("tenantId", req.Id).
+			Time("validUntil", info.validUntil).
+			Msg("tenant retrieved from API")
 	}
+
+	tm.logger.Debug().
+		Int64("tenantId", req.Id).
+		Time("validUntil", info.validUntil).
+		Dur("validFor", info.validUntil.Sub(now)).
+		Msg("returning tenant")
 
 	// At this point we are either returning the new tenant data retrieved
 	// from the API, or the stale tenant data that was present in the cache
 	return info.tenant, nil
+}
+
+func getDeadline(now time.Time, timeout, secretsTimeout time.Duration, secretStore bool) time.Time {
+	if secretStore {
+		// If we are hitting the secret store, we need to account for
+		// the fact that the token has a short expiration time of ~ 10
+		// minutes. Since we need to use it, take 2 minutes off that.
+		//
+		// In the future, if we get expiration information from the
+		// API, we can use that to make this calculation.
+		return now.Add(min(secretsTimeout, timeout))
+	}
+
+	return now.Add(timeout)
 }

@@ -9,8 +9,9 @@ import (
 	"strings"
 
 	"github.com/go-logfmt/logfmt"
-	smmmodel "github.com/grafana/synthetic-monitoring-agent/internal/model"
+	smmodel "github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -29,8 +30,6 @@ type Script struct {
 	// CheckInfo holds information about the SM check that triggered this script.
 	CheckInfo CheckInfo `json:"check"`
 	// SecretStore holds the location and token for accessing secrets
-	SecretStore SecretStore `json:"secretStore"`
-	// TODO: Add features.
 }
 
 type SecretStore struct {
@@ -64,7 +63,7 @@ type CheckInfo struct {
 }
 
 // CheckInfoFromSM returns a CheckInfo from the information of the given SM check.
-func CheckInfoFromSM(smc smmmodel.Check) CheckInfo {
+func CheckInfoFromSM(smc smmodel.Check) CheckInfo {
 	ci := CheckInfo{
 		Metadata: map[string]any{},
 	}
@@ -92,7 +91,7 @@ var ErrNoTimeout = errors.New("check has no timeout")
 
 type Runner interface {
 	WithLogger(logger *zerolog.Logger) Runner
-	Run(ctx context.Context, script Script) (*RunResponse, error)
+	Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error)
 }
 
 type RunnerOpts struct {
@@ -149,11 +148,11 @@ var (
 	ErrFromRunner  = errors.New("runner reported an error")
 )
 
-func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) (bool, error) {
+func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger, secretStore SecretStore) (bool, error) {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
 	// TODO: This error message is okay to be Debug for local k6 execution, but should be Error for remote runners.
-	result, err := k6runner.Run(ctx, r.script)
+	result, err := k6runner.Run(ctx, r.script, secretStore)
 	if err != nil {
 		internalLogger.Debug().
 			Err(err).
@@ -384,4 +383,29 @@ NEXT_RECORD:
 	}
 
 	return dec.Err()
+}
+
+// NewCredentialsRetriever returns a function that retrieves the secret store
+// credentials for a given tenant ID each time it's called. It uses the provided
+// secret provider to fetch the credentials. If the credentials are not found,
+// it returns an empty SecretStore. If an error occurs while fetching the
+// credentials, it returns an error.
+func NewCredentialsRetriever(provider secrets.SecretProvider, tenantID smmodel.GlobalID) func(context.Context) (SecretStore, error) {
+	return func(ctx context.Context) (SecretStore, error) {
+		var store SecretStore
+
+		credentials, err := provider.GetSecretCredentials(ctx, tenantID)
+		if err != nil {
+			return store, err
+		}
+
+		if credentials != nil {
+			store = SecretStore{
+				Url:   credentials.Url,
+				Token: credentials.Token,
+			}
+		}
+
+		return store, nil
+	}
 }
