@@ -9,6 +9,9 @@ import (
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
+// MaxScriptedTimeout is the maximum timeout for scripted checks (3 minutes)
+const MaxScriptedTimeout = 3 * time.Minute
+
 type Manager struct {
 	tenantCh      <-chan sm.Tenant
 	tenantsClient sm.TenantsClient
@@ -62,7 +65,8 @@ func (tm *Manager) run(ctx context.Context) {
 func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 	validUntil := time.Now().Add(tm.timeout)
 	if tenant.SecretStore != nil && tenant.SecretStore.Expiry > 0 {
-		expirationTime := time.Unix(0, int64(tenant.SecretStore.Expiry*1e9))
+		// Subtract MaxScriptedTimeout to ensure the token is valid for the maximum running time
+		expirationTime := time.Unix(0, int64(tenant.SecretStore.Expiry*1e9)).Add(-sm.MaxScriptedTimeout)
 		if expirationTime.Before(validUntil) {
 			validUntil = expirationTime
 		}
