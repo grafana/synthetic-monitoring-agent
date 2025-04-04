@@ -8,6 +8,7 @@ import (
 	"time"
 
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
@@ -66,7 +67,8 @@ func TestTenantManagerGetTenant(t *testing.T) {
 
 	tenantCh := make(chan sm.Tenant)
 	cacheExpirationTime := 200 * time.Millisecond
-	tm := NewManager(ctx, &tc, tenantCh, cacheExpirationTime)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	tm := NewManager(ctx, &tc, tenantCh, cacheExpirationTime, logger)
 
 	t1 := tc.tenants[1]
 
