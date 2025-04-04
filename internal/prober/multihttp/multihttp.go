@@ -26,9 +26,10 @@ type Module struct {
 }
 
 type Prober struct {
-	logger    zerolog.Logger
-	module    Module
-	processor *k6runner.Processor
+	logger           zerolog.Logger
+	module           Module
+	processor        *k6runner.Processor
+	secretsRetriever func(context.Context) (k6runner.SecretStore, error)
 }
 
 func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header, store secrets.SecretProvider) (Prober, error) {
@@ -44,11 +45,6 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 
 	if len(reservedHeaders) > 0 {
 		augmentHttpHeaders(&check.Check, reservedHeaders)
-	}
-
-	secretStore, err := store.GetSecretCredentials(ctx, check.GlobalTenantID())
-	if err != nil {
-		return p, err
 	}
 
 	script, err := settingsToScript(check.Settings.Multihttp)
@@ -67,13 +63,6 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 		},
 	}
 
-	if secretStore != nil {
-		p.module.Script.SecretStore = k6runner.SecretStore{
-			Url:   secretStore.Url,
-			Token: secretStore.Token,
-		}
-	}
-
 	processor, err := k6runner.NewProcessor(p.module.Script, runner)
 	if err != nil {
 		return p, err
@@ -89,6 +78,7 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 
 	p.processor = processor
 	p.logger = logger
+	p.secretsRetriever = newCredentialsRetriever(store, check.GlobalTenantID())
 
 	return p, nil
 }
@@ -98,7 +88,14 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
-	success, err := p.processor.Run(ctx, registry, logger, p.logger)
+	secretStore, err := p.secretsRetriever(ctx)
+
+	if err != nil {
+		p.logger.Error().Err(err).Msg("running probe")
+		return false, 0
+	}
+
+	success, err := p.processor.Run(ctx, registry, logger, p.logger, secretStore)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("running probe")
 		return false, 0
@@ -129,5 +126,25 @@ func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 		}
 
 		entry.Request.Headers = updatedHeaders
+	}
+}
+
+func newCredentialsRetriever(provider secrets.SecretProvider, tenantID model.GlobalID) func(context.Context) (k6runner.SecretStore, error) {
+	return func(ctx context.Context) (k6runner.SecretStore, error) {
+		var store k6runner.SecretStore
+
+		credentials, err := provider.GetSecretCredentials(ctx, tenantID)
+		if err != nil {
+			return store, err
+		}
+
+		if credentials != nil {
+			store = k6runner.SecretStore{
+				Url:   credentials.Url,
+				Token: credentials.Token,
+			}
+		}
+
+		return store, nil
 	}
 }

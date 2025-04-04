@@ -277,7 +277,13 @@ func run(args []string, stdout io.Writer) error {
 		})
 	}
 
-	tm := tenants.NewManager(ctx, synthetic_monitoring.NewTenantsClient(conn), tenantCh, 15*time.Minute)
+	tm := tenants.NewManager(
+		ctx,
+		synthetic_monitoring.NewTenantsClient(conn),
+		tenantCh,
+		15*time.Minute,
+		zl.With().Str("subsystem", "tenant_manager").Logger(),
+	)
 
 	pusherRegistry := pusher.NewRegistry[pusher.Factory]()
 	pusherRegistry.MustRegister(pusherV1.Name, pusherV1.NewPublisher)
