@@ -1,13 +1,13 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 2.024e-06
+probe_dns_lookup_time_seconds 9.875e-06
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.000433569
+probe_duration_seconds 0.000747417
 # HELP probe_grpc_duration_seconds Duration of gRPC request by phase
 # TYPE probe_grpc_duration_seconds gauge
-probe_grpc_duration_seconds{phase="check"} 0.000361262
-probe_grpc_duration_seconds{phase="resolve"} 2.024e-06
+probe_grpc_duration_seconds{phase="check"} 0.000571083
+probe_grpc_duration_seconds{phase="resolve"} 9.875e-06
 # HELP probe_grpc_healthcheck_response Response HealthCheck response
 # TYPE probe_grpc_healthcheck_response gauge
 probe_grpc_healthcheck_response{serving_status="NOT_SERVING"} 0
@@ -26,9 +26,6 @@ probe_ip_addr_hash 1.268118805e+09
 # HELP probe_ip_protocol Specifies whether probe ip protocol is IP4 or IP6
 # TYPE probe_ip_protocol gauge
 probe_ip_protocol 4
-# HELP probe_ssl_earliest_cert_expiry Returns last SSL chain expiry in unixtime
-# TYPE probe_ssl_earliest_cert_expiry gauge
-probe_ssl_earliest_cert_expiry 0
 # HELP probe_success Displays whether or not the probe was a success
 # TYPE probe_success gauge
 probe_success 1
@@ -49,7 +46,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.000433569
+probe_all_duration_seconds_sum 0.000747417
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
