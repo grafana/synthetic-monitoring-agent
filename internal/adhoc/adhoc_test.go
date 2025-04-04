@@ -600,6 +600,6 @@ func (r *testK6Runner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 	return r
 }
 
-func (r *testK6Runner) Run(ctx context.Context, script k6runner.Script) (*k6runner.RunResponse, error) {
+func (r *testK6Runner) Run(ctx context.Context, script k6runner.Script, secretStore k6runner.SecretStore) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
 }

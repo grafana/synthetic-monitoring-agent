@@ -90,7 +90,7 @@ func TestScriptRun(t *testing.T) {
 	// We already know tha parsing the metrics and the logs is working, so
 	// we are only interested in verifying that the script runs without
 	// errors.
-	success, err := processor.Run(ctx, registry, &logger, zlogger)
+	success, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
 	require.NoError(t, err)
 	require.True(t, success)
 }
@@ -130,7 +130,7 @@ type testRunner struct {
 
 var _ Runner = &testRunner{}
 
-func (r *testRunner) Run(ctx context.Context, script Script) (*RunResponse, error) {
+func (r *testRunner) Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
 	return &RunResponse{
 		Metrics: r.metrics,
 		Logs:    r.logs,
