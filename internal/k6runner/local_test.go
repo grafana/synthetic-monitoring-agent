@@ -110,12 +110,7 @@ func TestBuildK6Args(t *testing.T) {
 			},
 		},
 		"script with secrets": {
-			script: Script{
-				SecretStore: SecretStore{
-					Url:   secretUrl,
-					Token: "secret-token",
-				},
-			},
+			script:        Script{},
 			metricsFn:     "/tmp/metrics.json",
 			logsFn:        "/tmp/logs.log",
 			scriptFn:      "/tmp/script.js",
