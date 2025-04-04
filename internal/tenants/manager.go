@@ -22,7 +22,17 @@ type Manager struct {
 var _ pusher.TenantProvider = &Manager{}
 
 const (
-	secretsTimeout = 8 * time.Minute
+	// The expiration time for access tokens is 10 minutes. Until we get
+	// expiration information from the API, set this to a fixed number.
+	//
+	// This specific number is accounting for ~ 3 minutes of total
+	// execution time for scripts, plus 30 seconds of buffer for retrieving
+	// secrets, sending script to runner, etc. We expect secrets to be
+	// loaded near the start of the script, but given it's a program we
+	// cannot enforce that. k6 would have enforced that by making secrets
+	// part of the options block, but we do not want to go anywhere near
+	// that.
+	secretsTimeout = 450 * time.Second // 7.5 minutes
 )
 
 type tenantInfo struct {
