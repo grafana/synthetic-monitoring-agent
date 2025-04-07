@@ -165,63 +165,115 @@ func TestTenantManagerGetTenant(t *testing.T) {
 }
 
 func TestCalculateValidUntil(t *testing.T) {
-	now := time.Now()
-	timeout := 5 * time.Minute
-	timeWindow := 100 * time.Millisecond
+	var (
+		now = time.Now()
+		// compute the relative error if there's a 1 second difference
+		// between the time we expect (which is around now+timeout) and
+		// a time that is 1 second later. In other words, tolare a
+		// relative difference of about 1 second in the results we get.
+		epsilon = float64(now.Add(1*time.Second).UnixNano()-now.UnixNano()) / float64(now.UnixNano())
+	)
 
-	tests := map[string]struct {
-		tenant         *sm.Tenant
-		expectedBefore time.Time
-		expectedAfter  time.Time
+	testCases := map[string]struct {
+		timeout time.Duration
+		tenant  *sm.Tenant
+		want    time.Duration
 	}{
-		"no secret store": {
-			tenant:         &sm.Tenant{},
-			expectedBefore: now.Add(timeout).Add(timeWindow),
-			expectedAfter:  now.Add(timeout).Add(-timeWindow),
+		"10 minute timeout, no secret store": {
+			timeout: 10 * time.Minute,
+			tenant:  &sm.Tenant{},
+			want:    10 * time.Minute,
 		},
-		"secret store with no expiration": {
-			tenant: &sm.Tenant{
-				SecretStore: &sm.SecretStore{},
-			},
-			expectedBefore: now.Add(timeout).Add(timeWindow),
-			expectedAfter:  now.Add(timeout).Add(-timeWindow),
+		"1 hour timeout, no secret store": {
+			timeout: 1 * time.Hour,
+			tenant:  &sm.Tenant{},
+			want:    1 * time.Hour,
 		},
-		"secret store with earlier expiration": {
+		"7.5 minute timeout, secret store expires in 2 minutes": {
+			timeout: 7*time.Minute + 30*time.Second,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
 					Token:  "token",
 					Expiry: float64(now.Add(2*time.Minute).UnixNano()) / 1e9,
 				},
 			},
-			expectedBefore: now.Add(2 * time.Minute).Add(timeWindow),
-			expectedAfter:  now.Add(2 * time.Minute).Add(-timeWindow),
+			want: 2 * time.Minute,
 		},
-		"secret store with later expiration": {
+		"7.5 minute timeout, secret store expires in 5 minutes": {
+			timeout: 7*time.Minute + 30*time.Second,
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{
+					Token:  "token",
+					Expiry: float64(now.Add(5*time.Minute).UnixNano()) / 1e9,
+				},
+			},
+			want: 5 * time.Minute,
+		},
+		"7.5 minute timeout, secret store expires in 1 hour": {
+			timeout: 7*time.Minute + 30*time.Second,
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{
+					Token:  "token",
+					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
+				},
+			},
+			want: 7*time.Minute + 30*time.Second,
+		},
+		"10 minute timeout, secret store expires in 2 minutes": {
+			// This should not make a difference wrt to the
+			// previous tests. Make sure that's the case.
+			timeout: 10 * time.Minute,
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{
+					Token:  "token",
+					Expiry: float64(now.Add(2*time.Minute).UnixNano()) / 1e9,
+				},
+			},
+			want: 2 * time.Minute,
+		},
+		"10 minute timeout, secret store expires in 5 minutes": {
+			timeout: 10 * time.Minute,
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{
+					Token:  "token",
+					Expiry: float64(now.Add(5*time.Minute).UnixNano()) / 1e9,
+				},
+			},
+			want: 5 * time.Minute,
+		},
+		"10 minute timeout, secret store expires in 10 minutes": {
+			timeout: 10 * time.Minute,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
 					Token:  "token",
 					Expiry: float64(now.Add(10*time.Minute).UnixNano()) / 1e9,
 				},
 			},
-			expectedBefore: now.Add(timeout).Add(timeWindow),
-			expectedAfter:  now.Add(timeout).Add(-timeWindow),
+			want: 10 * time.Minute,
+		},
+		"10 minute timeout, secret store expires in 1 hour": {
+			timeout: 10 * time.Minute,
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{
+					Token:  "token",
+					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
+				},
+			},
+			want: 10 * time.Minute,
 		},
 	}
 
-	for name, tt := range tests {
+	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			tm := &Manager{
-				timeout: timeout,
+				timeout: tc.timeout,
 			}
 
-			validUntil := tm.calculateValidUntil(tt.tenant)
+			expected := time.Now().Add(tc.want)
+			actual := tm.calculateValidUntil(tc.tenant)
 
-			if validUntil.After(tt.expectedBefore) {
-				t.Errorf("validUntil %v is after expected time %v", validUntil, tt.expectedBefore)
-			}
-			if validUntil.Before(tt.expectedAfter) {
-				t.Errorf("validUntil %v is before expected time %v", validUntil, tt.expectedAfter)
-			}
+			require.InEpsilon(t, expected.UnixNano(), actual.UnixNano(), epsilon,
+				"calculateValidUntil() should be within range")
 		})
 	}
 }

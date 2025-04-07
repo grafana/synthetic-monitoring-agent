@@ -2,6 +2,7 @@ package tenants
 
 import (
 	"context"
+	"math"
 	"sync"
 	"time"
 
@@ -78,12 +79,16 @@ func (tm *Manager) run(ctx context.Context) {
 // and the secret store expiration date (if set), returning the earlier of the two.
 func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 	validUntil := time.Now().Add(tm.timeout)
+
 	if tenant.SecretStore != nil && tenant.SecretStore.Expiry > 0 {
-		expirationTime := time.Unix(0, int64(tenant.SecretStore.Expiry*1e9))
+		seconds, nanonseconds := math.Modf(tenant.SecretStore.Expiry)
+		expirationTime := time.Unix(int64(seconds), int64(nanonseconds*1e9))
+
 		if expirationTime.Before(validUntil) {
 			validUntil = expirationTime
 		}
 	}
+
 	return validUntil
 }
 
