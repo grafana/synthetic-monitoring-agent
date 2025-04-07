@@ -43,6 +43,19 @@ import (
 const (
 	exitFail             = 1
 	defTelemetryTimeSpan = 5 // min
+
+	// The expiration time for access tokens is 10 minutes. Until we get
+	// expiration information from the API, set this to a low number.
+	// Normally it should be 15 minutes.
+	//
+	// This specific number is accounting for ~ 3 minutes of total
+	// execution time for scripts, plus 30 seconds of buffer for retrieving
+	// secrets, sending script to runner, etc. We expect secrets to be
+	// loaded near the start of the script, but given it's a program we
+	// cannot enforce that. k6 would have enforced that by making secrets
+	// part of the options block, but we do not want to go anywhere near
+	// that.
+	secretsTimeout = 450 * time.Second // 7.5 minutes
 )
 
 // run is the main entry point for the program.
@@ -281,7 +294,7 @@ func run(args []string, stdout io.Writer) error {
 		ctx,
 		synthetic_monitoring.NewTenantsClient(conn),
 		tenantCh,
-		15*time.Minute,
+		secretsTimeout,
 		zl.With().Str("subsystem", "tenant_manager").Logger(),
 	)
 

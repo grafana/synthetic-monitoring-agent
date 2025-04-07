@@ -22,20 +22,6 @@ type Manager struct {
 
 var _ pusher.TenantProvider = &Manager{}
 
-const (
-	// The expiration time for access tokens is 10 minutes. Until we get
-	// expiration information from the API, set this to a fixed number.
-	//
-	// This specific number is accounting for ~ 3 minutes of total
-	// execution time for scripts, plus 30 seconds of buffer for retrieving
-	// secrets, sending script to runner, etc. We expect secrets to be
-	// loaded near the start of the script, but given it's a program we
-	// cannot enforce that. k6 would have enforced that by making secrets
-	// part of the options block, but we do not want to go anywhere near
-	// that.
-	secretsTimeout = 450 * time.Second // 7.5 minutes
-)
-
 type tenantInfo struct {
 	mutex      sync.Mutex // protects the entire structure
 	validUntil time.Time
@@ -197,18 +183,4 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 	// At this point we are either returning the new tenant data retrieved
 	// from the API, or the stale tenant data that was present in the cache
 	return info.tenant, nil
-}
-
-func getDeadline(now time.Time, timeout, secretsTimeout time.Duration, secretStore bool) time.Time {
-	if secretStore {
-		// If we are hitting the secret store, we need to account for
-		// the fact that the token has a short expiration time of ~ 10
-		// minutes. Since we need to use it, take 2 minutes off that.
-		//
-		// In the future, if we get expiration information from the
-		// API, we can use that to make this calculation.
-		return now.Add(min(secretsTimeout, timeout))
-	}
-
-	return now.Add(timeout)
 }
