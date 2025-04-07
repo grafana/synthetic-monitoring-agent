@@ -25,7 +25,7 @@ type tenantInfo struct {
 	tenant     *sm.Tenant
 }
 
-// NewTenantManager creates a new tenant manager that is able to
+// NewManager creates a new tenant manager that is able to
 // retrieve tenants from the remote API using the specified
 // tenantsClient or receive them over the provided tenantCh channel. It
 // will keep them for a duration no longer than `timeout`.
@@ -55,6 +55,19 @@ func (tm *Manager) run(ctx context.Context) {
 			tm.updateTenant(tenant)
 		}
 	}
+}
+
+// calculateValidUntil determines the expiration time for a tenant based on the timeout
+// and the secret store expiration date (if set), returning the earlier of the two.
+func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
+	validUntil := time.Now().Add(tm.timeout)
+	if tenant.SecretStore != nil && tenant.SecretStore.Expiry > 0 {
+		expirationTime := time.Unix(0, int64(tenant.SecretStore.Expiry*1e9))
+		if expirationTime.Before(validUntil) {
+			validUntil = expirationTime
+		}
+	}
+	return validUntil
 }
 
 func (tm *Manager) updateTenant(tenant sm.Tenant) {
@@ -87,7 +100,10 @@ func (tm *Manager) updateTenant(tenant sm.Tenant) {
 
 	info.mutex.Lock()
 	if info.tenant == nil || info.tenant.Modified < tenant.Modified {
-		info.validUntil = time.Now().Add(tm.timeout)
+		// Set validUntil to the earlier of:
+		// - Now + timeout
+		// - Secret store expiration date (if set)
+		info.validUntil = tm.calculateValidUntil(&tenant)
 		info.tenant = &tenant
 	}
 	info.mutex.Unlock()
@@ -130,7 +146,10 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 
 	// If tenant was retrieved from the API, update it in the cache
 	if err == nil {
-		info.validUntil = time.Now().Add(tm.timeout)
+		// Set validUntil to the earlier of:
+		// - Now + timeout
+		// - Secret store expiration date (if set)
+		info.validUntil = tm.calculateValidUntil(tenant)
 		info.tenant = tenant
 	}
 
