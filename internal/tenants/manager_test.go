@@ -161,3 +161,65 @@ func TestTenantManagerGetTenant(t *testing.T) {
 	require.Equal(t, 1, tc.requestCount[t3.Id])
 	require.Equal(t, t3, *tenant)
 }
+
+func TestCalculateValidUntil(t *testing.T) {
+	now := time.Now()
+	timeout := 5 * time.Minute
+	timeWindow := 100 * time.Millisecond
+
+	tests := map[string]struct {
+		tenant         *sm.Tenant
+		expectedBefore time.Time
+		expectedAfter  time.Time
+	}{
+		"no secret store": {
+			tenant:         &sm.Tenant{},
+			expectedBefore: now.Add(timeout).Add(timeWindow),
+			expectedAfter:  now.Add(timeout).Add(-timeWindow),
+		},
+		"secret store with no expiration": {
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{},
+			},
+			expectedBefore: now.Add(timeout).Add(timeWindow),
+			expectedAfter:  now.Add(timeout).Add(-timeWindow),
+		},
+		"secret store with earlier expiration": {
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{
+					Token:  "token",
+					Expiry: float64(now.Add(2*time.Minute).UnixNano()) / 1e9,
+				},
+			},
+			expectedBefore: now.Add(2 * time.Minute).Add(timeWindow),
+			expectedAfter:  now.Add(2 * time.Minute).Add(-timeWindow),
+		},
+		"secret store with later expiration": {
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{
+					Token:  "token",
+					Expiry: float64(now.Add(10*time.Minute).UnixNano()) / 1e9,
+				},
+			},
+			expectedBefore: now.Add(timeout).Add(timeWindow),
+			expectedAfter:  now.Add(timeout).Add(-timeWindow),
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			tm := &Manager{
+				timeout: timeout,
+			}
+
+			validUntil := tm.calculateValidUntil(tt.tenant)
+
+			if validUntil.After(tt.expectedBefore) {
+				t.Errorf("validUntil %v is after expected time %v", validUntil, tt.expectedBefore)
+			}
+			if validUntil.Before(tt.expectedAfter) {
+				t.Errorf("validUntil %v is before expected time %v", validUntil, tt.expectedAfter)
+			}
+		})
+	}
+}

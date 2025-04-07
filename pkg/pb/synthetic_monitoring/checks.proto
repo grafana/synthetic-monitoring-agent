@@ -179,6 +179,7 @@ message TenantLimits {
 message SecretStore {
   string url = 1 [(gogoproto.jsontag) = "url"]; // secret service URL
   string token = 2 [(gogoproto.jsontag) = "token"]; // secret service token
+  double expiry = 3 [(gogoproto.jsontag) = "expiry"]; // unix timestamp when the secret store token expires
 }
 
 // Tenant represents a user of synthetic-monitoring.
