@@ -8,7 +8,6 @@ policy:
   approval:
     - or:
         - and:
-            - Workflow .github/workflows/renovate-reviewer.yaml succeeded or skipped
             - Workflow .github/workflows/renovate-validate.yaml succeeded or skipped
             - Workflow .github/workflows/validate-policy-bot-config.yml succeeded or skipped
             - Workflow .github/workflows/validate_pr.yaml succeeded or skipped
@@ -16,15 +15,6 @@ policy:
         - override policies
     - policy bot config is valid when modified
 approval_rules:
-  - name: Workflow .github/workflows/renovate-reviewer.yaml succeeded or skipped
-    requires:
-      conditions:
-        has_workflow_result:
-          conclusions:
-            - skipped
-            - success
-          workflows:
-            - .github/workflows/renovate-reviewer.yaml
   - name: Workflow .github/workflows/renovate-validate.yaml succeeded or skipped
     if:
       changed_files:
