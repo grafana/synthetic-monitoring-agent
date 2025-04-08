@@ -35,7 +35,7 @@ func (r Local) WithLogger(logger *zerolog.Logger) Runner {
 	return r
 }
 
-func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
+func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
 	logger := r.logger.With().Object("checkInfo", &script.CheckInfo).Logger()
 
 	afs := afero.Afero{Fs: r.fs}
@@ -75,18 +75,7 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 		return nil, fmt.Errorf("cannot write temporary script file: %w", err)
 	}
 
-	executable := r.k6path
-	// TODO(d0ugal): This is a short-term hack to use a different k6 binary when
-	// secrets are configured. This should be removed when the default binary has been updated
-	if script.SecretStore.IsConfigured() {
-		executable = r.k6path + "-gsm"
-		logger.Info().
-			Str("k6_path", r.k6path).
-			Str("k6_gsm_path", executable).
-			Msg("Using k6-gsm binary for secrets")
-	}
-
-	k6Path, err := exec.LookPath(executable)
+	k6Path, err := exec.LookPath(r.k6path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find k6 executable: %w", err)
 	}
@@ -96,13 +85,18 @@ func (r Local) Run(ctx context.Context, script Script) (*RunResponse, error) {
 	defer cancel()
 
 	var configFile string
-	if script.SecretStore.IsConfigured() {
+	if secretStore.IsConfigured() {
 		var cleanup func()
-		configFile, cleanup, err = createSecretConfigFile(script.SecretStore.Url, script.SecretStore.Token)
+		configFile, cleanup, err = createSecretConfigFile(secretStore.Url, secretStore.Token)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create secret config file: %w", err)
 		}
 		defer cleanup()
+
+		logger.Debug().
+			Str("secret_config_file", configFile).
+			Str("secrets_url", secretStore.Url).
+			Msg("Using secret config file")
 	}
 
 	args, err := r.buildK6Args(script, metricsFn, logsFn, scriptFn, configFile)
@@ -213,7 +207,7 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 	}
 
 	// Add secretStore configuration if available
-	if script.SecretStore.IsConfigured() {
+	if configFile != "" {
 		args = append(args, "--secret-source", "grafanasecrets=config="+configFile)
 	}
 

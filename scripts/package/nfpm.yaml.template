@@ -23,7 +23,5 @@ contents:
 # Copy k6 as sm-k6 to prevent clashing with k6 if it's installed.
 - src: {{.DISTDIR}}/{{.Os}}-{{.Arch}}/sm-k6
   dst: /usr/bin/sm-k6
-- src: {{.DISTDIR}}/{{.Os}}-{{.Arch}}/sm-k6-gsm
-  dst: /usr/bin/sm-k6-gsm
 rpm:
 deb:

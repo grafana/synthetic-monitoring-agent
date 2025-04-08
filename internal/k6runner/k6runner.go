@@ -29,8 +29,6 @@ type Script struct {
 	// CheckInfo holds information about the SM check that triggered this script.
 	CheckInfo CheckInfo `json:"check"`
 	// SecretStore holds the location and token for accessing secrets
-	SecretStore SecretStore `json:"secretStore"`
-	// TODO: Add features.
 }
 
 type SecretStore struct {
@@ -92,7 +90,7 @@ var ErrNoTimeout = errors.New("check has no timeout")
 
 type Runner interface {
 	WithLogger(logger *zerolog.Logger) Runner
-	Run(ctx context.Context, script Script) (*RunResponse, error)
+	Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error)
 }
 
 type RunnerOpts struct {
@@ -149,11 +147,11 @@ var (
 	ErrFromRunner  = errors.New("runner reported an error")
 )
 
-func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger) (bool, error) {
+func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger, secretStore SecretStore) (bool, error) {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
 	// TODO: This error message is okay to be Debug for local k6 execution, but should be Error for remote runners.
-	result, err := k6runner.Run(ctx, r.script)
+	result, err := k6runner.Run(ctx, r.script, secretStore)
 	if err != nil {
 		internalLogger.Debug().
 			Err(err).
