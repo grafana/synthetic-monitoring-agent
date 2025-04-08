@@ -14,13 +14,6 @@ ifneq ($(strip $(S)),)
 .SILENT:
 endif
 
-ifeq ($(strip $(CI)),true)
-# In CI use local tools because those will be provided by the selected docker image.
-USE_LOCAL_TOOLS := true
-endif
+GO_TOOLS_IMAGE := $(GBT_IMAGE)
 
-ifeq ($(USE_LOCAL_TOOLS),true)
-GOLANGCI_LINT := golangci-lint
-GOTESTSUM     := gotestsum
-SHELLCHECK    := shellcheck
-endif
+HAS_PROTO := $(shell $(ROOTDIR)/scripts/list-proto -e && echo true)
