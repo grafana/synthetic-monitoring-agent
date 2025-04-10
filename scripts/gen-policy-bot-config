@@ -1,0 +1,26 @@
+#!/bin/sh
+
+set -e
+set -u
+
+IMAGE=ghcr.io/grafana/generate-policy-bot-config:latest
+
+targetdir=${1:-}
+mergearg=
+
+if test -z "${targetdir}" ; then
+	targetdir=$(git rev-parse --show-toplevel)
+fi
+
+if test -f "${targetdir}/.policy.yml.tmpl" ; then
+	mergearg="--merge-with=.policy.yml.tmpl"
+fi
+
+docker run --rm                       \
+	--volume "${targetdir}:/work" \
+	--user "$(id -u):$(id -g)"    \
+	--workdir /work               \
+	"${IMAGE}"                    \
+	--output /work/.policy.yml    \
+	"${mergearg}"                 \
+	.
