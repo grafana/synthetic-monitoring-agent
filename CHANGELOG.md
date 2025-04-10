@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.37.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.36.0...v0.37.0) (2025-04-10)
+
+
+### Features
+
+* bust the tenant cache on the token expiry ([#1279](https://github.com/grafana/synthetic-monitoring-agent/issues/1279)) ([371fe13](https://github.com/grafana/synthetic-monitoring-agent/commit/371fe135ee8ea70898aeae34a04491df79f73077))
+
+
+### Fixes
+
+* Change how the secret store is handled ([#1281](https://github.com/grafana/synthetic-monitoring-agent/issues/1281)) ([5a78dae](https://github.com/grafana/synthetic-monitoring-agent/commit/5a78dae0a786a8d9ceb5c6d03cb8e8c667c882a5))
+* Remove second k6 binary for gsm ([#1274](https://github.com/grafana/synthetic-monitoring-agent/issues/1274)) ([dedd951](https://github.com/grafana/synthetic-monitoring-agent/commit/dedd951f97815c748bc12a24def5169e64c18d5c))
+* Subtract the timeout from the token expiry, to ensure it will last for the duration ([#1282](https://github.com/grafana/synthetic-monitoring-agent/issues/1282)) ([773f7a3](https://github.com/grafana/synthetic-monitoring-agent/commit/773f7a3d70e07882756ed78dcc557bf43e7a835e))
+* Synchronize makefiles with more recent versions ([#1214](https://github.com/grafana/synthetic-monitoring-agent/issues/1214)) ([7e124e8](https://github.com/grafana/synthetic-monitoring-agent/commit/7e124e85193f234b3e58e6e4966c0ae341fce856))
+* Update policybot config ([3a0b7ca](https://github.com/grafana/synthetic-monitoring-agent/commit/3a0b7cad255fa0d06b24b1557083b7b7a7dd5b63))
+
+
+### Miscellaneous Chores
+
+* examples: mount an emptydir volume in /tmp ([009ff5f](https://github.com/grafana/synthetic-monitoring-agent/commit/009ff5ff7fbb7f25fdb5645425b09ba8c7290a14))
+* Update actions/cache action to v4.2.3 ([#1275](https://github.com/grafana/synthetic-monitoring-agent/issues/1275)) ([6a5b781](https://github.com/grafana/synthetic-monitoring-agent/commit/6a5b781c786ca9eb1675bf7d55fc5bad6ad78a0f))
+* Update actions/download-artifact digest to 95815c3 ([#1256](https://github.com/grafana/synthetic-monitoring-agent/issues/1256)) ([87c6d21](https://github.com/grafana/synthetic-monitoring-agent/commit/87c6d21a3c8bf38a85784ccee0e9db2d2ece80d7))
+* Update actions/setup-go action to v5.4.0 ([#1289](https://github.com/grafana/synthetic-monitoring-agent/issues/1289)) ([93e94da](https://github.com/grafana/synthetic-monitoring-agent/commit/93e94da807683ce5881c29bc9b8e55fed673ca63))
+* Update dependency go to v1.24.2 ([#1285](https://github.com/grafana/synthetic-monitoring-agent/issues/1285)) ([4c30f60](https://github.com/grafana/synthetic-monitoring-agent/commit/4c30f6055ce55e226ce99758749f3e4f8b118b92))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.18.1 ([#1286](https://github.com/grafana/synthetic-monitoring-agent/issues/1286)) ([3ce93fd](https://github.com/grafana/synthetic-monitoring-agent/commit/3ce93fdc5c7a79e5a55e53cbd2926af14d9e3f0b))
+* Update module github.com/miekg/dns to v1.1.65 ([#1287](https://github.com/grafana/synthetic-monitoring-agent/issues/1287)) ([20cef71](https://github.com/grafana/synthetic-monitoring-agent/commit/20cef7133afc48ecdcf48bd17b0d9f60a45a94a2))
+* Update module google.golang.org/grpc to v1.71.1 ([#1288](https://github.com/grafana/synthetic-monitoring-agent/issues/1288)) ([f36e667](https://github.com/grafana/synthetic-monitoring-agent/commit/f36e667ab7f4c0d8e24874b301aa09a251cd8e4a))
+* Update module gotest.tools/gotestsum to v1.12.1 ([#1254](https://github.com/grafana/synthetic-monitoring-agent/issues/1254)) ([db2c8c2](https://github.com/grafana/synthetic-monitoring-agent/commit/db2c8c265fc1ba356e725535f6a35d47664ecfe8))
+* Update module kernel.org/pub/linux/libs/security/libcap/cap to v1.2.75 ([#1242](https://github.com/grafana/synthetic-monitoring-agent/issues/1242)) ([67c5eb3](https://github.com/grafana/synthetic-monitoring-agent/commit/67c5eb3d5608092403949e3bbcc8486c137a5ac3))
+
 ## [0.36.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.35.2...v0.36.0) (2025-04-03)
 
 
