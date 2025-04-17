@@ -1,23 +1,23 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 1.3255e-05
+probe_dns_lookup_time_seconds 1.6875e-05
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.000233914
+probe_duration_seconds 0.000282056
 # HELP probe_icmp_duration_rtt_max_seconds Maximum duration of round trip time phase
 # TYPE probe_icmp_duration_rtt_max_seconds gauge
-probe_icmp_duration_rtt_max_seconds 0.000166765
+probe_icmp_duration_rtt_max_seconds 0.000208125
 # HELP probe_icmp_duration_rtt_min_seconds Minimum duration of round trip time phase
 # TYPE probe_icmp_duration_rtt_min_seconds gauge
-probe_icmp_duration_rtt_min_seconds 0.000113955
+probe_icmp_duration_rtt_min_seconds 0.000159792
 # HELP probe_icmp_duration_rtt_stddev_seconds Standard deviation of round trip time phase
 # TYPE probe_icmp_duration_rtt_stddev_seconds gauge
-probe_icmp_duration_rtt_stddev_seconds 2.2954e-05
+probe_icmp_duration_rtt_stddev_seconds 1.9733e-05
 # HELP probe_icmp_duration_seconds Duration of icmp request by phase
 # TYPE probe_icmp_duration_seconds gauge
-probe_icmp_duration_seconds{phase="resolve"} 1.3255e-05
-probe_icmp_duration_seconds{phase="rtt"} 0.000134787
-probe_icmp_duration_seconds{phase="setup"} 8.5872e-05
+probe_icmp_duration_seconds{phase="resolve"} 1.6875e-05
+probe_icmp_duration_seconds{phase="rtt"} 0.000184139
+probe_icmp_duration_seconds{phase="setup"} 8.1042e-05
 # HELP probe_icmp_packets_received_count Number of ICMP packets received
 # TYPE probe_icmp_packets_received_count gauge
 probe_icmp_packets_received_count 3
@@ -53,7 +53,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.000233914
+probe_all_duration_seconds_sum 0.000282056
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary

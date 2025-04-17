@@ -1,9 +1,9 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 3.216e-06
+probe_dns_lookup_time_seconds 1.0792e-05
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 0.001836298
+probe_duration_seconds 0.006055292
 # HELP probe_failed_due_to_regex Indicates if probe failed due to regex
 # TYPE probe_failed_due_to_regex gauge
 probe_failed_due_to_regex 0
@@ -12,11 +12,11 @@ probe_failed_due_to_regex 0
 probe_http_content_length 0
 # HELP probe_http_duration_seconds Duration of http request by phase, summed over all redirects
 # TYPE probe_http_duration_seconds gauge
-probe_http_duration_seconds{phase="connect"} 5.304e-05
-probe_http_duration_seconds{phase="processing"} 7.8909e-05
-probe_http_duration_seconds{phase="resolve"} 3.216e-06
-probe_http_duration_seconds{phase="tls"} 0.001459797
-probe_http_duration_seconds{phase="transfer"} 2.4386e-05
+probe_http_duration_seconds{phase="connect"} 0.000156708
+probe_http_duration_seconds{phase="processing"} 0.000264459
+probe_http_duration_seconds{phase="resolve"} 1.0792e-05
+probe_http_duration_seconds{phase="tls"} 0.00510025
+probe_http_duration_seconds{phase="transfer"} 0.000115416
 # HELP probe_http_redirects The number of redirects
 # TYPE probe_http_redirects gauge
 probe_http_redirects 0
@@ -46,10 +46,13 @@ probe_ssl_earliest_cert_expiry 3.6e+09
 probe_ssl_last_chain_expiry_timestamp_seconds -6.21355968e+10
 # HELP probe_ssl_last_chain_info Contains SSL leaf certificate information
 # TYPE probe_ssl_last_chain_info gauge
-probe_ssl_last_chain_info{fingerprint_sha256="468174fd18ae990a0a1e10568e30f9819a8acd23224c319f4ec3eb4f6f2980d9",issuer="O=Acme Co",subject="O=Acme Co",subjectalternative="example.com,*.example.com"} 1
+probe_ssl_last_chain_info{fingerprint_sha256="468174fd18ae990a0a1e10568e30f9819a8acd23224c319f4ec3eb4f6f2980d9",issuer="O=Acme Co",serialnumber="10ffe677def41f2b1d053a6ecc339fd0",subject="O=Acme Co",subjectalternative="example.com,*.example.com"} 1
 # HELP probe_success Displays whether or not the probe was a success
 # TYPE probe_success gauge
 probe_success 1
+# HELP probe_tls_cipher_info Returns the TLS cipher negotiated during handshake
+# TYPE probe_tls_cipher_info gauge
+probe_tls_cipher_info{cipher="TLS_AES_128_GCM_SHA256"} 1
 # HELP probe_tls_version_info Returns the TLS version used or NaN when unknown
 # TYPE probe_tls_version_info gauge
 probe_tls_version_info{version="TLS 1.3"} 1
@@ -58,7 +61,7 @@ probe_tls_version_info{version="TLS 1.3"} 1
 sm_check_info 1
 # HELP probe_all_duration_seconds Returns how long the probe took to complete in seconds (histogram)
 # TYPE probe_all_duration_seconds histogram
-probe_all_duration_seconds_bucket{le="0.005"} 1
+probe_all_duration_seconds_bucket{le="0.005"} 0
 probe_all_duration_seconds_bucket{le="0.01"} 1
 probe_all_duration_seconds_bucket{le="0.025"} 1
 probe_all_duration_seconds_bucket{le="0.05"} 1
@@ -70,7 +73,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 0.001836298
+probe_all_duration_seconds_sum 0.006055292
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
