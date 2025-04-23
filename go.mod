@@ -42,7 +42,7 @@ require (
 	github.com/spf13/afero v1.12.0
 	golang.org/x/exp v0.0.0-20241215155358-4a5509556b9e
 	gopkg.in/yaml.v3 v3.0.1
-	kernel.org/pub/linux/libs/security/libcap/cap v1.2.75
+	kernel.org/pub/linux/libs/security/libcap/cap v1.2.76
 )
 
 require (
@@ -71,7 +71,7 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 	google.golang.org/protobuf v1.36.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
-	kernel.org/pub/linux/libs/security/libcap/psx v1.2.75 // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.76 // indirect
 )
 
 replace github.com/tonobo/mtr => github.com/grafana/mtr v0.1.1-0.20221107202107-a9806fdda166
