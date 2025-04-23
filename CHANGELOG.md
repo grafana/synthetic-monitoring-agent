@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.0...v0.37.1) (2025-04-17)
+
+
+### Miscellaneous Chores
+
+* Update module golang.org/x/net to v0.38.0 [SECURITY] ([#1296](https://github.com/grafana/synthetic-monitoring-agent/issues/1296)) ([63ca400](https://github.com/grafana/synthetic-monitoring-agent/commit/63ca40032d31c4e5713e2cee16cf4c233fbcdd12))
+
 ## [0.37.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.36.0...v0.37.0) (2025-04-10)
 
 
