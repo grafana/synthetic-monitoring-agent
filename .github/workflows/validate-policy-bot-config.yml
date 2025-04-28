@@ -11,17 +11,24 @@ on:
     paths:
       - ".policy.yml"
 
+permissions:
+  contents: none
+
 jobs:
   validate:
     name: Validate policy bot config
 
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          persists-credentials: false
+          persist-credentials: false
 
       - name: Validate policy bot config
         run: |

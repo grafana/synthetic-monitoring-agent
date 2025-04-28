@@ -1,0 +1,6 @@
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        grafana/sm-renovate/actions/renovate-validate: ref-pin
+        grafana/sm-renovate/actions/renovate: ref-pin

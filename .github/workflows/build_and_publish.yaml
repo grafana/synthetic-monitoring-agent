@@ -5,17 +5,25 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: none
+  packages: none
+
 jobs:
   preflight:
     name: Preflight checks
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       repo_name: ${{ steps.info.outputs.repo_name }}
     steps:
       - name: Validate mode
+        env:
+          WF_MODE: ${{ inputs.mode }}
         run: |
-          if [ "${{ inputs.mode }}" != "dev" ] && [ "${{ inputs.mode }}" != "prod" ]; then
-            echo "Invalid mode: ${{ inputs.mode }}"
+          if [ "${WF_MODE}" != "dev" ] && [ "${WF_MODE}" != "prod" ]; then
+            echo "Invalid mode: ${WF_MODE}"
             exit 1
           fi
 
@@ -33,6 +41,8 @@ jobs:
       matrix:
         arch: [ x64-large, arm64 ]
     runs-on: github-hosted-ubuntu-${{ matrix.arch }}
+    permissions:
+      contents: write # needed to upload build artifacts
 
     container:
       image: ghcr.io/grafana/grafana-build-tools:v0.40.3@sha256:1e112c01108b888ae64e786e6d13a8e46c02884f94ccf784ad646d906ac97254
@@ -118,10 +128,13 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: create build artfact
+        env:
+          TARGET_OS: ${{ steps.build-info.outputs.os }}
+          TARGET_ARCH: ${{ steps.build-info.outputs.arch }}
         run: |
-          tar cf dist/build-artifacts.${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar \
+          tar cf "dist/build-artifacts.${TARGET_OS}-${TARGET_ARCH}.tar" \
             dist/container-image.*.*.tar \
-            dist/${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}
+            "dist/${TARGET_OS}-${TARGET_ARCH}"
 
       - name: upload build artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -146,6 +159,9 @@ jobs:
       - validate
     if: ${{ always() && needs.validate.result == 'success' && needs.preflight.result == 'success' }}
     runs-on: github-hosted-ubuntu-x64-small
+    permissions:
+      contents: read
+      id-token: write
     outputs:
       image_name: ${{ steps.extract-image-metadata.outputs.image }}
       image_tag: ${{ steps.extract-image-metadata.outputs.tag }}
@@ -301,6 +317,8 @@ jobs:
       - publish_images
     if: ${{ always() && needs.publish_images.result == 'success' && needs.validate.result == 'success' && needs.preflight.result == 'success' }}
     runs-on: github-hosted-ubuntu-x64-small
+    permissions:
+      contents: read
     steps:
       # The following two steps are needed because trigger-argo-workflow is
       # calling setup-go *after* setup-argo, and setup-argo actually needs go

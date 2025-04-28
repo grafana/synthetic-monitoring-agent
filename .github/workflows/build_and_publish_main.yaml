@@ -7,8 +7,8 @@ on:
 
 # This is needed so that pushing to GAR works.
 permissions:
-  contents: read
-  id-token: write
+  contents: none
+  packages: none
 
 jobs:
   call_build_and_publish:
