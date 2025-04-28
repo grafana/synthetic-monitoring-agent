@@ -1,9 +1,9 @@
 # HELP probe_dns_lookup_time_seconds Returns the time taken for probe dns lookup in seconds
 # TYPE probe_dns_lookup_time_seconds gauge
-probe_dns_lookup_time_seconds 2.575e-06
+probe_dns_lookup_time_seconds 7.125e-06
 # HELP probe_duration_seconds Returns how long the probe took to complete in seconds
 # TYPE probe_duration_seconds gauge
-probe_duration_seconds 8.46e-05
+probe_duration_seconds 0.000449208
 # HELP probe_failed_due_to_regex Indicates if probe failed due to regex
 # TYPE probe_failed_due_to_regex gauge
 probe_failed_due_to_regex 0
@@ -33,7 +33,7 @@ probe_all_duration_seconds_bucket{le="2.5"} 1
 probe_all_duration_seconds_bucket{le="5"} 1
 probe_all_duration_seconds_bucket{le="10"} 1
 probe_all_duration_seconds_bucket{le="+Inf"} 1
-probe_all_duration_seconds_sum 8.46e-05
+probe_all_duration_seconds_sum 0.000449208
 probe_all_duration_seconds_count 1
 # HELP probe_all_success Displays whether or not the probe was a success (summary)
 # TYPE probe_all_success summary
@@ -53,5 +53,5 @@ probe_dns_lookup_all_time_seconds_bucket{le="2.5"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="5"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="10"} 1
 probe_dns_lookup_all_time_seconds_bucket{le="+Inf"} 1
-probe_dns_lookup_all_time_seconds_sum 2.575e-06
+probe_dns_lookup_all_time_seconds_sum 7.125e-06
 probe_dns_lookup_all_time_seconds_count 1
