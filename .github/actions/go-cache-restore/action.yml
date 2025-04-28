@@ -13,10 +13,12 @@ runs:
     - name: Compute cache info
       id: compute-cache-info
       shell: bash
+      env:
+        GITHUB_BASE_REF: ${{ github.base_ref }}
       run: |
         cat <<EOT >> "$GITHUB_OUTPUT"
-        key=$(./scripts/get-go-cache-key "${{ github.base_ref }}")
-        base_key=$(./scripts/get-go-cache-key "${{ github.base_ref }}" | sed -E -e 's,-[^-]+$,-,')
+        key=$(./scripts/get-go-cache-key "${GITHUB_BASE_REF}")
+        base_key=$(./scripts/get-go-cache-key "${GITHUB_BASE_REF}" | sed -E -e 's,-[^-]+$,-,')
         path<<EOS
         $(go env GOCACHE)
         $(go env GOMODCACHE)
