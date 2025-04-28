@@ -7,8 +7,8 @@ on:
 
 # This is needed so that pushing to GAR works.
 permissions:
-  contents: write # needed to upload release artifacts
-  id-token: write
+  contents: none
+  packages: none
 
 jobs:
   call_build_and_publish:
