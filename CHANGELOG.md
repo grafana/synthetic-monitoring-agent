@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.3...v0.37.4) (2025-05-05)
+
+
+### Miscellaneous Chores
+
+* release 0.37.4 ([#1311](https://github.com/grafana/synthetic-monitoring-agent/issues/1311)) ([b2ee2d7](https://github.com/grafana/synthetic-monitoring-agent/commit/b2ee2d71a3adb36b5d250c15cdcb17e673f3e874))
+
 ## [0.37.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.2...v0.37.3) (2025-05-05)
 
 
