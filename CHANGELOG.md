@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.2...v0.37.3) (2025-05-05)
+
+
+### Fixes
+
+* Adjust workflow permissions ([#1307](https://github.com/grafana/synthetic-monitoring-agent/issues/1307)) ([828b6e1](https://github.com/grafana/synthetic-monitoring-agent/commit/828b6e137a029333404b5d78d65d7de0b9118cd1))
+
 ## [0.37.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.1...v0.37.2) (2025-04-30)
 
 
