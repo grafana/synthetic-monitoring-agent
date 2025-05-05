@@ -320,7 +320,7 @@ jobs:
     runs-on: github-hosted-ubuntu-x64-small
     permissions:
       contents: read
-      id-token: none
+      id-token: write
     steps:
       # The following two steps are needed because trigger-argo-workflow is
       # calling setup-go *after* setup-argo, and setup-argo actually needs go
