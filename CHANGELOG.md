@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.37.5](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.4...v0.37.5) (2025-05-06)
+
+
+### Miscellaneous Chores
+
+* Update module github.com/spf13/afero to v1.14.0 ([56921fd](https://github.com/grafana/synthetic-monitoring-agent/commit/56921fd411e54669f45265fd4f9c38b0ccf4a57c))
+
 ## [0.37.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.3...v0.37.4) (2025-05-05)
 
 
