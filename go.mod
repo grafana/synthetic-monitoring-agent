@@ -39,7 +39,7 @@ require (
 	github.com/mccutchen/go-httpbin/v2 v2.18.1
 	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.22
-	github.com/spf13/afero v1.12.0
+	github.com/spf13/afero v1.14.0
 	golang.org/x/exp v0.0.0-20241215155358-4a5509556b9e
 	gopkg.in/yaml.v3 v3.0.1
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.76
