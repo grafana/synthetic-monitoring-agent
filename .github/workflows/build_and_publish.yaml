@@ -229,7 +229,7 @@ jobs:
 
       - name: push container images to GAR (no browser)
         id: push-to-gar
-        uses: grafana/shared-workflows/actions/push-to-gar-docker@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
+        uses: grafana/shared-workflows/actions/push-to-gar-docker@de81a07e6f6718fb289c7a4612c9c514c28bd798 # v0.4.1
         with:
           environment: ${{ inputs.mode }}
           image_name: ${{ needs.preflight.outputs.repo_name }}
@@ -243,7 +243,7 @@ jobs:
           file: Dockerfile.no-browser
 
       - name: push container images to GAR (browser)
-        uses: grafana/shared-workflows/actions/push-to-gar-docker@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
+        uses: grafana/shared-workflows/actions/push-to-gar-docker@de81a07e6f6718fb289c7a4612c9c514c28bd798 # v0.4.1
         with:
           environment: ${{ inputs.mode }}
           image_name: ${{ needs.preflight.outputs.repo_name }}
@@ -281,7 +281,7 @@ jobs:
       - name: push container images to docker hub (no browser)
         id: push-no-browser-to-docker-hub
         # if: ${{ always() && inputs.mode == 'prod' }}
-        uses: grafana/shared-workflows/actions/build-push-to-dockerhub@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
+        uses: grafana/shared-workflows/actions/build-push-to-dockerhub@de81a07e6f6718fb289c7a4612c9c514c28bd798 # v0.4.1
         with:
           repository: ${{ github.repository }}
           # Go thru the motions, but publish only in prod mode.
@@ -297,7 +297,7 @@ jobs:
       - name: push container images to docker hub (browser)
         id: push-browser-to-docker-hub
         # if: ${{ always() && inputs.mode == 'prod' }}
-        uses: grafana/shared-workflows/actions/build-push-to-dockerhub@7d18a46aafb8b875ed76a0bc98852d74b91e7f91 # v1.0.0
+        uses: grafana/shared-workflows/actions/build-push-to-dockerhub@de81a07e6f6718fb289c7a4612c9c514c28bd798 # v0.4.1
         with:
           repository: ${{ github.repository }}
           # Go thru the motions, but publish only in prod mode.
