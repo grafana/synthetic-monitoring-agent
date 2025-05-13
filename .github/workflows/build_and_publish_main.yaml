@@ -5,13 +5,15 @@ on:
     branches:
       - main
 
-# This is needed so that pushing to GAR works.
 permissions:
   contents: none
   packages: none
 
 jobs:
   call_build_and_publish:
+    permissions:
+      contents: write # Necessary to publish artifacts
+      id-token: write # Necessary to publish to GAR
     uses: ./.github/workflows/build_and_publish.yaml
     with:
       mode: dev

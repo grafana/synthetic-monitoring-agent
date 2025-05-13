@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.37.5](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.4...v0.37.5) (2025-05-06)
+
+
+### Miscellaneous Chores
+
+* Update module github.com/spf13/afero to v1.14.0 ([56921fd](https://github.com/grafana/synthetic-monitoring-agent/commit/56921fd411e54669f45265fd4f9c38b0ccf4a57c))
+
+## [0.37.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.3...v0.37.4) (2025-05-05)
+
+
+### Miscellaneous Chores
+
+* release 0.37.4 ([#1311](https://github.com/grafana/synthetic-monitoring-agent/issues/1311)) ([b2ee2d7](https://github.com/grafana/synthetic-monitoring-agent/commit/b2ee2d71a3adb36b5d250c15cdcb17e673f3e874))
+
+## [0.37.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.2...v0.37.3) (2025-05-05)
+
+
+### Fixes
+
+* Adjust workflow permissions ([#1307](https://github.com/grafana/synthetic-monitoring-agent/issues/1307)) ([828b6e1](https://github.com/grafana/synthetic-monitoring-agent/commit/828b6e137a029333404b5d78d65d7de0b9118cd1))
+
+## [0.37.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.1...v0.37.2) (2025-04-30)
+
+
+### Fixes
+
+* Resolve issues reported by zizmor ([#1302](https://github.com/grafana/synthetic-monitoring-agent/issues/1302)) ([a76f949](https://github.com/grafana/synthetic-monitoring-agent/commit/a76f949224ba23a6cb85834845b632310d6ae835))
+* Resolve issues reported by zizmor, part 2 ([#1303](https://github.com/grafana/synthetic-monitoring-agent/issues/1303)) ([5b34259](https://github.com/grafana/synthetic-monitoring-agent/commit/5b3425947486ea8faa7bd658402eefff436e9ab4))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm to v0.5.3 ([#1301](https://github.com/grafana/synthetic-monitoring-agent/issues/1301)) ([4c7b7c8](https://github.com/grafana/synthetic-monitoring-agent/commit/4c7b7c8631c2bc7a8f1be176e69e81d638baf694))
+* Update module github.com/prometheus-community/pro-bing to v0.7.0 ([#1290](https://github.com/grafana/synthetic-monitoring-agent/issues/1290)) ([bd38d05](https://github.com/grafana/synthetic-monitoring-agent/commit/bd38d058b1f1a345e081aea6e9ac7251c8d1efe4))
+* Update module github.com/rs/zerolog to v1.34.0 ([#1291](https://github.com/grafana/synthetic-monitoring-agent/issues/1291)) ([d014686](https://github.com/grafana/synthetic-monitoring-agent/commit/d01468662f4fc026921d18a2ed6329dcd29932e6))
+* Update module kernel.org/pub/linux/libs/security/libcap/cap to v1.2.76 ([#1298](https://github.com/grafana/synthetic-monitoring-agent/issues/1298)) ([fcc0d07](https://github.com/grafana/synthetic-monitoring-agent/commit/fcc0d07f9f136b8dcc4aaf6f40be1be2a0bdff10))
+
 ## [0.37.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.0...v0.37.1) (2025-04-17)
 
 
