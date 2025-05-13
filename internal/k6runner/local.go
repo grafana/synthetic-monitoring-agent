@@ -143,27 +143,14 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		return nil, fmt.Errorf("executing k6 script: %w", err)
 	}
 
-	// 256KiB is the maximum payload size for Loki. Set our limit slightly below that to avoid tripping the limit in
-	// case we inject some messages down the line.
-	const maxLogsSizeBytes = 255 * 1024
-
 	// Mimir can also ingest up to 256KiB, but that's JSON-encoded, not promhttp encoded.
 	// To be safe, we limit it to 100KiB promhttp-encoded, hoping than the more verbose json encoding overhead is less
 	// than 2.5x.
 	const maxMetricsSizeBytes = 100 * 1024
 
-	logs, truncated, err := readFileLimit(afs.Fs, logsFn, maxLogsSizeBytes)
+	logs, err := afs.ReadFile(logsFn)
 	if err != nil {
 		return nil, fmt.Errorf("reading k6 logs: %w", err)
-	}
-	if truncated {
-		logger.Warn().
-			Str("filename", logsFn).
-			Int("limitBytes", maxLogsSizeBytes).
-			Msg("Logs output larger than limit, truncating")
-
-		// Leave a truncation notice at the end.
-		fmt.Fprintf(logs, `level=error msg="Log output truncated at %d bytes"`+"\n", maxLogsSizeBytes)
 	}
 
 	metrics, truncated, err := readFileLimit(afs.Fs, metricsFn, maxMetricsSizeBytes)
@@ -177,10 +164,12 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 			Msg("Metrics output larger than limit, truncating")
 
 		// If we truncate metrics, also leave a truncation notice at the end of the logs.
-		fmt.Fprintf(logs, `level=error msg="Metrics output truncated at %d bytes"`+"\n", maxMetricsSizeBytes)
+		var metricsNotice bytes.Buffer
+		fmt.Fprintf(&metricsNotice, `level=error msg="Metrics output truncated at %d bytes"`+"\n", maxMetricsSizeBytes)
+		logs = append(logs, metricsNotice.Bytes()...)
 	}
 
-	return &RunResponse{Metrics: metrics.Bytes(), Logs: logs.Bytes()}, errors.Join(err, errorFromLogs(logs.Bytes()))
+	return &RunResponse{Metrics: metrics.Bytes(), Logs: logs}, errors.Join(err, errorFromLogs(logs))
 }
 
 func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
@@ -333,4 +322,47 @@ func createSecretConfigFile(url, token string) (filename string, cleanup func(),
 	}
 
 	return tmpFile.Name(), func() { os.Remove(tmpFile.Name()) }, nil
+}
+
+// splitLogsIntoChunks splits the logs into chunks of maxSize bytes, respecting newline boundaries.
+// Returns a slice of byte slices, each containing a chunk of logs.
+func splitLogsIntoChunks(logs []byte, maxSize int) [][]byte {
+	if len(logs) <= maxSize {
+		return [][]byte{logs}
+	}
+
+	var chunks [][]byte
+	currentChunk := make([]byte, 0, maxSize)
+	scanner := bufio.NewScanner(bytes.NewReader(logs))
+
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		// Add 1 for the newline character
+		if len(currentChunk)+len(line)+1 > maxSize {
+			if len(currentChunk) > 0 {
+				chunks = append(chunks, currentChunk)
+				currentChunk = make([]byte, 0, maxSize)
+			}
+			// If a single line is larger than maxSize, we need to split it
+			if len(line) > maxSize {
+				for len(line) > 0 {
+					chunkSize := maxSize
+					if chunkSize > len(line) {
+						chunkSize = len(line)
+					}
+					chunks = append(chunks, append([]byte{}, line[:chunkSize]...))
+					line = line[chunkSize:]
+				}
+				continue
+			}
+		}
+		currentChunk = append(currentChunk, line...)
+		currentChunk = append(currentChunk, '\n')
+	}
+
+	if len(currentChunk) > 0 {
+		chunks = append(chunks, currentChunk)
+	}
+
+	return chunks
 }
