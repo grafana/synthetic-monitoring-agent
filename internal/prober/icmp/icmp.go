@@ -48,8 +48,8 @@ func (p Prober) Name() string {
 	return "ping"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
-	return probeICMP(ctx, target, p.config, registry, logger)
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger) (bool, float64) {
+	return probeICMP(ctx, target, p.config, registry, l)
 }
 
 func settingsToModule(settings *sm.PingSettings) Module {
