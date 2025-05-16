@@ -70,7 +70,7 @@ func TestSplitStreamsIntoChunks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := splitStreamsIntoChunks(tt.streams, tt.maxBytes)
+			got := SplitStreamsIntoChunks(tt.streams, tt.maxBytes)
 			require.Equal(t, tt.want, got)
 		})
 	}

@@ -10,9 +10,9 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/prom"
 )
 
-// splitStreamsIntoChunks splits a slice of streams into chunks that fit within maxBytes.
+// SplitStreamsIntoChunks splits a slice of streams into chunks that fit within maxBytes.
 // It respects stream boundaries and ensures each chunk is a valid PushRequest.
-func splitStreamsIntoChunks(streams []logproto.Stream, maxBytes int) [][]logproto.Stream {
+func SplitStreamsIntoChunks(streams []logproto.Stream, maxBytes int) [][]logproto.Stream {
 	if len(streams) == 0 {
 		return nil
 	}
@@ -54,7 +54,7 @@ func splitStreamsIntoChunks(streams []logproto.Stream, maxBytes int) [][]logprot
 func SendStreamsWithBackoff(ctx context.Context, client *prom.Client, streams []logproto.Stream, buf *[]byte) error {
 	// Split streams into chunks that fit within maxBytes
 	const maxBytes = 255 * 1024 // 255KB, slightly below Loki's 256KB limit
-	chunks := splitStreamsIntoChunks(streams, maxBytes)
+	chunks := SplitStreamsIntoChunks(streams, maxBytes)
 
 	for _, chunk := range chunks {
 		req, err := buildStreamsPushRequest(chunk, *buf)
