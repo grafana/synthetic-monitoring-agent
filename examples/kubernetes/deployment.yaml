@@ -69,7 +69,13 @@ spec:
               memory: 500Mi
           volumeMounts:
             - name: tmp
+              subPath: tmp
               mountPath: /tmp
+            # Uncomment the following volumeMount if you are using the -browser image, as Chromium needs to be able to
+            # write temporary files.
+            # - name: tmp
+            #   subPath: home-sm
+            #   mountPath: /home/sm
       volumes:
         - name: tmp
           emptyDir: {}
