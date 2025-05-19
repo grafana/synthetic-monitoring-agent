@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"time"
@@ -116,7 +117,14 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	cmd.Stdin = nil
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Env = k6Env(os.Environ())
+
+	port, err := findAvailablePort()
+	if err != nil {
+		return nil, fmt.Errorf("finding available port: %w", err)
+	}
+	cmd.Env = append([]string{}, fmt.Sprintf("K6_BROWSER_SCREENSHOTS_OUTPUT=url=http://127.0.0.1:%d", port))
+	cmd.Env = k6Env(cmd.Env)
+	cmd.Env = append(cmd.Env, os.Environ()...)
 
 	start := time.Now()
 	logger.Info().Str("command", cmd.String()).Bytes("script", script.Script).Msg("running k6 script")
@@ -322,4 +330,13 @@ func createSecretConfigFile(url, token string) (filename string, cleanup func(),
 	}
 
 	return tmpFile.Name(), func() { os.Remove(tmpFile.Name()) }, nil
+}
+
+func findAvailablePort() (int, error) {
+	addr, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, err
+	}
+	defer addr.Close()
+	return addr.Addr().(*net.TCPAddr).Port, nil
 }
