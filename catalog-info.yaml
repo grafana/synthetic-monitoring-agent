@@ -6,7 +6,6 @@ metadata:
   description: |
     This is the 'worker' for Grafana's Synthetic Monitoring application. The agent provides probe functionality and executes network checks for monitoring remote targets.
   annotations:
-    backstage.io/techdocs-ref: dir:.
     github.com/project-slug: grafana/synthetic-monitoring-agent
 spec:
   type: service
