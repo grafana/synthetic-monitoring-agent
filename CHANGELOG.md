@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.37.6](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.5...v0.37.6) (2025-05-20)
+
+
+### Fixes
+
+* deployment: add commented-out mountpoint for `/home/sm` (browser) ([eed6231](https://github.com/grafana/synthetic-monitoring-agent/commit/eed62310273f948a4e7f67d4a035c17d7669011e))
+* revert the tenant cache to 15 minutes ([#1316](https://github.com/grafana/synthetic-monitoring-agent/issues/1316)) ([f54d4c5](https://github.com/grafana/synthetic-monitoring-agent/commit/f54d4c5c5f22f2678a369595efc5e1d37c3554c7))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm to v0.5.5 ([#1314](https://github.com/grafana/synthetic-monitoring-agent/issues/1314)) ([9fb9461](https://github.com/grafana/synthetic-monitoring-agent/commit/9fb94615d2db50cf8bf1e7c689d4ec0f62adc3b0))
+* Update module google.golang.org/grpc to v1.72.1 ([#1306](https://github.com/grafana/synthetic-monitoring-agent/issues/1306)) ([1ffd451](https://github.com/grafana/synthetic-monitoring-agent/commit/1ffd451a84de2f098e9a135b622fa1b4104af182))
+* Update push-to-gar-docker action to v0.4.1 ([#1315](https://github.com/grafana/synthetic-monitoring-agent/issues/1315)) ([a8309d5](https://github.com/grafana/synthetic-monitoring-agent/commit/a8309d59215881d0ac49464b425f88ae313c33ab))
+* upgrade blackbox exporter ([#1255](https://github.com/grafana/synthetic-monitoring-agent/issues/1255)) ([fcd3eed](https://github.com/grafana/synthetic-monitoring-agent/commit/fcd3eed990ca14fd863dae8ed39d572bd2c8df43))
+
 ## [0.37.5](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.4...v0.37.5) (2025-05-06)
 
 
