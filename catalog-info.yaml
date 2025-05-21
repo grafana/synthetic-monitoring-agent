@@ -1,0 +1,13 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: synthetic-monitoring-agent
+  title: synthetic-monitoring-agent
+  description: |
+    This is the 'worker' for Grafana's Synthetic Monitoring application. The agent provides probe functionality and executes network checks for monitoring remote targets.
+  annotations:
+    github.com/project-slug: grafana/synthetic-monitoring-agent
+spec:
+  type: service
+  owner: group:default/synthetic-monitoring-be
+  lifecycle: production
