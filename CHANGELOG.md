@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.37.7](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.6...v0.37.7) (2025-06-06)
+
+
+### Miscellaneous Chores
+
+* Register Component into Software Catalog and set up TechDocs publishing ([#1319](https://github.com/grafana/synthetic-monitoring-agent/issues/1319)) ([8bb2518](https://github.com/grafana/synthetic-monitoring-agent/commit/8bb2518b7baee64af4f864acc1776d2a8d9520dc))
+* Update actions/create-github-app-token action to v2 ([5ac2c54](https://github.com/grafana/synthetic-monitoring-agent/commit/5ac2c549df7c1aa7fb4aed8b429b39f931d84721))
+* Update actions/download-artifact digest to d3f86a1 ([4b06427](https://github.com/grafana/synthetic-monitoring-agent/commit/4b064277d6ab14702d6f3dc5e152615d514b7437))
+* Update actions/setup-go action to v5.5.0 ([2ec4a13](https://github.com/grafana/synthetic-monitoring-agent/commit/2ec4a13d31a59bddd44d35d2fdc3b4a39081db5a))
+* Update alpine Docker tag to v3.22.0 ([9963d22](https://github.com/grafana/synthetic-monitoring-agent/commit/9963d229a0c4f5e9e7b857609903536eddb25578))
+* Update dependency go to v1.24.4 ([1f1ecc2](https://github.com/grafana/synthetic-monitoring-agent/commit/1f1ecc2950235a0b1980924214d043b7451b15f6))
+* Update docker/build-push-action action to v6.18.0 ([79737b0](https://github.com/grafana/synthetic-monitoring-agent/commit/79737b0b7090601967b19e548f4f5871b6f4425e))
+* Update docker/setup-buildx-action action to v3.10.0 ([30067e6](https://github.com/grafana/synthetic-monitoring-agent/commit/30067e6dd03b05dc4d691c3cea4ee1a74fc4c7d6))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v136 ([488e51c](https://github.com/grafana/synthetic-monitoring-agent/commit/488e51cb1737d5c1aa78ebad500ac59d6111ab0b))
+* Update module github.com/KimMachineGun/automemlimit to v0.7.2 ([68cb8f4](https://github.com/grafana/synthetic-monitoring-agent/commit/68cb8f4cd4bb1972578a918eeaedf366b1c6a2bf))
+* Update module github.com/miekg/dns to v1.1.66 ([fcf7cf3](https://github.com/grafana/synthetic-monitoring-agent/commit/fcf7cf3a4dbfe2b828f222669a28ac49484def61))
+* Update module golang.org/x/net to v0.41.0 ([4f4c747](https://github.com/grafana/synthetic-monitoring-agent/commit/4f4c747b09072de7aaf40412f0b86456a46107ff))
+* Update module google.golang.org/grpc to v1.73.0 ([df12825](https://github.com/grafana/synthetic-monitoring-agent/commit/df128256d156bb9a5fd25ccf384afa4baea7c310))
+
 ## [0.37.6](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.5...v0.37.6) (2025-05-20)
 
 
