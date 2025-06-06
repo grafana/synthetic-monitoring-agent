@@ -25,7 +25,7 @@ require (
 	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
 	golang.org/x/net v0.41.0
 	golang.org/x/sync v0.15.0
-	google.golang.org/grpc v1.72.1
+	google.golang.org/grpc v1.73.0
 )
 
 require (
@@ -64,12 +64,12 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/mod v0.25.0 // indirect
-	golang.org/x/oauth2 v0.26.0 // indirect
+	golang.org/x/oauth2 v0.28.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.26.0 // indirect
 	golang.org/x/tools v0.33.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
-	google.golang.org/protobuf v1.36.5 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250324211829-b45e905df463 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.76 // indirect
 )
