@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"net/http"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
-	"golang.org/x/exp/rand"
 )
 
 type HttpRunner struct {
@@ -130,7 +130,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 		}
 
 		// Backoff linearly, adding some jitter.
-		wait += r.backoff + time.Duration(rand.Intn(int(r.backoff)))
+		wait += r.backoff + time.Duration(rand.Int64N(int64(r.backoff)))
 	}
 }
 
