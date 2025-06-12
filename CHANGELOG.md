@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.37.8](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.7...v0.37.8) (2025-06-12)
+
+
+### Miscellaneous Chores
+
+* ci: pin exact version of actions/github-create-app-token ([693a1e2](https://github.com/grafana/synthetic-monitoring-agent/commit/693a1e2563416c27f86f4ff97d0e0133f018db49))
+* Update dependency grafana/xk6-sm to v0.5.6 ([#1340](https://github.com/grafana/synthetic-monitoring-agent/issues/1340)) ([b328862](https://github.com/grafana/synthetic-monitoring-agent/commit/b328862b984bed226cffa14b50a2ee83bddc9ee9))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v137 ([#1334](https://github.com/grafana/synthetic-monitoring-agent/issues/1334)) ([b0364c4](https://github.com/grafana/synthetic-monitoring-agent/commit/b0364c46cea8c43579017a71367b943e04957078))
+* Update grafana/shared-workflows digest to cb40def ([#1337](https://github.com/grafana/synthetic-monitoring-agent/issues/1337)) ([ddc5ee0](https://github.com/grafana/synthetic-monitoring-agent/commit/ddc5ee03f12df7429195c1b08bcf07cf50ebd4c7))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.18.2 ([#1339](https://github.com/grafana/synthetic-monitoring-agent/issues/1339)) ([7d1393d](https://github.com/grafana/synthetic-monitoring-agent/commit/7d1393d5c51650a82e37bb039014acdca58d4c83))
+
 ## [0.37.7](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.6...v0.37.7) (2025-06-06)
 
 
