@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -80,7 +81,7 @@ type Updater struct {
 	k6Runner       k6runner.Runner
 	scraperFactory scraper.Factory
 	tenantLimits   *limits.TenantLimits
-	tenantSecrets  *secrets.TenantSecrets
+	tenantSecrets  secrets.SecretProvider
 	telemeter      *telemetry.Telemeter
 }
 
@@ -106,7 +107,7 @@ type (
 type UpdaterOptions struct {
 	Conn           *grpc.ClientConn
 	Logger         zerolog.Logger
-	Backoff        Backoffer
+	Backoff        *backoff.Backoff
 	Publisher      pusher.Publisher
 	TenantCh       chan<- sm.Tenant
 	IsConnected    func(bool)
@@ -115,8 +116,8 @@ type UpdaterOptions struct {
 	K6Runner       k6runner.Runner
 	ScraperFactory scraper.Factory
 	TenantLimits   *limits.TenantLimits
+	TenantSecrets  secrets.SecretProvider
 	Telemeter      *telemetry.Telemeter
-	TenantSecrets  *secrets.TenantSecrets
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {

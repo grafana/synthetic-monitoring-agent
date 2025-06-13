@@ -164,3 +164,7 @@ type noopSecretStore struct{}
 func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
 	return &sm.SecretStore{}, nil
 }
+
+func (n noopSecretStore) GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+	return "", nil
+}
