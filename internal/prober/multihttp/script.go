@@ -5,10 +5,10 @@ import (
 	"embed"
 	"encoding/base64"
 	"fmt"
-	"regexp"
 	"strings"
 	"text/template"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -17,55 +17,9 @@ import (
 //go:embed script.tmpl
 var templateFS embed.FS
 
-var userVariables = regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
-
+// performVariableExpansion converts a string with variable interpolation to JavaScript code
 func performVariableExpansion(in string) string {
-	if len(in) == 0 {
-		return `''`
-	}
-
-	var s strings.Builder
-	buf := []byte(in)
-	locs := userVariables.FindAllSubmatchIndex(buf, -1)
-
-	p := 0
-	for _, loc := range locs {
-		if len(loc) < 4 { // put the bounds checker at ease
-			panic("unexpected result while building URL")
-		}
-
-		if s.Len() > 0 {
-			s.WriteRune('+')
-		}
-
-		if pre := buf[p:loc[0]]; len(pre) > 0 {
-			s.WriteRune('\'')
-			template.JSEscape(&s, pre)
-			s.WriteRune('\'')
-			s.WriteRune('+')
-		}
-
-		s.WriteString(`vars['`)
-		// Because of the capture in the regular expression, the result
-		// has two indices that represent the matched substring, and
-		// two more indices that represent the capture group.
-		s.Write(buf[loc[2]:loc[3]])
-		s.WriteString(`']`)
-
-		p = loc[1]
-	}
-
-	if len(buf[p:]) > 0 {
-		if s.Len() > 0 {
-			s.WriteRune('+')
-		}
-
-		s.WriteRune('\'')
-		template.JSEscape(&s, buf[p:])
-		s.WriteRune('\'')
-	}
-
-	return s.String()
+	return interpolation.ToJavaScript(in)
 }
 
 // Query params must be appended to a URL that has already been created.
@@ -113,7 +67,7 @@ func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []st
 	default:
 		var buf strings.Builder
 
-		matches := userVariables.FindAllString(string(body.Payload), -1)
+		matches := interpolation.VariableRegex.FindAllString(string(body.Payload), -1)
 		parsedMatches := make(map[string]struct{})
 		out := make([]string, 0, len(matches))
 
