@@ -473,7 +473,7 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 	k6Runner k6runner.Runner,
 	labelsLimiter scraper.LabelsLimiter,
 	telemeter *telemetry.Telemeter,
-	secretStore *secrets.TenantSecrets,
+	secretStore secrets.SecretProvider,
 ) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
