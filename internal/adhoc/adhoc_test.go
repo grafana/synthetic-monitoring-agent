@@ -366,6 +366,10 @@ func (s testSecretStore) GetSecretCredentials(ctx context.Context, tenantId mode
 	}, nil
 }
 
+func (s testSecretStore) GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+	return "", nil
+}
+
 func TestDefaultRunnerFactory(t *testing.T) {
 	t.Parallel()
 

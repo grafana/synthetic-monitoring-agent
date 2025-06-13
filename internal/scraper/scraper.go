@@ -87,7 +87,7 @@ type Factory func(
 	k6runner k6runner.Runner,
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
-	secretStore *secrets.TenantSecrets,
+	secretStore secrets.SecretProvider,
 ) (*Scraper, error)
 
 type (
@@ -121,7 +121,7 @@ func New(
 	k6runner k6runner.Runner,
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
-	secretStore *secrets.TenantSecrets,
+	secretStore secrets.SecretProvider,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
@@ -275,7 +275,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	case errors.Is(err, errCheckFailed):
 		h.scraper.metrics.AddCheckError()
 		h.sm.fail(func() {
-			h.scraper.logger.Info().Msg("check entered FAIL state")
+			h.scraper.logger.Info().Err(err).Msg("check entered FAIL state")
 		})
 
 	case err != nil:

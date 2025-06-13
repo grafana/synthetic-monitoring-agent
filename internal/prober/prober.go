@@ -71,7 +71,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 
 	case sm.CheckTypeHttp:
 		reservedHeaders := f.getReservedHeaders(&check)
-		p, err = httpProber.NewProber(ctx, check, logger, reservedHeaders)
+		p, err = httpProber.NewProber(ctx, check, logger, reservedHeaders, f.secretStore)
 		target = check.Target
 
 	case sm.CheckTypeDns:

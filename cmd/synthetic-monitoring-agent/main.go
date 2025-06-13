@@ -314,7 +314,12 @@ func run(args []string, stdout io.Writer) error {
 
 	publisher := publisherFactory(ctx, tm, zl.With().Str("subsystem", "publisher").Str("version", config.SelectedPublisher).Logger(), promRegisterer)
 	limits := limits.NewTenantLimits(tm)
-	secrets := secrets.NewTenantSecrets(tm, zl.With().Str("subsystem", "secretstore").Logger())
+
+	// Create secret provider with caching (60-second TTL)
+	secretProvider := secrets.NewSecretProvider(tm, 60*time.Second, zl.With().Str("subsystem", "secretstore").Logger())
+
+	// Wrap with capability awareness - capabilities will be set after probe registration
+	capabilityAwareSecretProvider := secrets.NewUpdatableCapabilityAwareSecretProvider(secretProvider)
 
 	telemetry := telemetry.NewTelemeter(
 		ctx, uuid.New().String(), time.Duration(config.TelemetryTimeSpan)*time.Minute,
@@ -335,7 +340,7 @@ func run(args []string, stdout io.Writer) error {
 		K6Runner:       k6Runner,
 		ScraperFactory: scraper.New,
 		TenantLimits:   limits,
-		TenantSecrets:  secrets,
+		TenantSecrets:  capabilityAwareSecretProvider,
 		Telemeter:      telemetry,
 		UsageReporter:  usageReporter,
 	})
@@ -356,7 +361,7 @@ func run(args []string, stdout io.Writer) error {
 		PromRegisterer: promRegisterer,
 		Features:       features,
 		K6Runner:       k6Runner,
-		TenantSecrets:  secrets,
+		TenantSecrets:  capabilityAwareSecretProvider,
 	})
 	if err != nil {
 		return fmt.Errorf("Cannot create ad-hoc checks handler: %w", err)
