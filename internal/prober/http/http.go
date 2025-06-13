@@ -40,7 +40,7 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, re
 		augmentHttpHeaders(&check.Check, reservedHeaders)
 	}
 
-	cfg, err := settingsToModule(ctx, check.Settings.Http, logger, secretStore)
+	cfg, err := settingsToModule(ctx, check.Settings.Http, logger, secretStore, check.GlobalTenantID())
 	if err != nil {
 		return Prober{}, err
 	}
@@ -67,7 +67,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	return bbeprober.ProbeHTTP(ctx, target, p.config, registry, slogger), 0
 }
 
-func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider) (config.Module, error) {
+func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider, tenantID model.GlobalID) (config.Module, error) {
 	var m config.Module
 
 	m.Prober = sm.CheckTypeHttp.String()
@@ -150,6 +150,7 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 		settings,
 		logger.With().Str("prober", m.Prober).Logger(),
 		secretStore,
+		tenantID,
 	)
 	if err != nil {
 		return m, err
@@ -172,7 +173,40 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 	return m, nil
 }
 
-func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider) (promconfig.HTTPClientConfig, error) {
+// resolveSecretValue resolves a secret value based on its prefix:
+// - "gsm:" prefix: lookup the secret from the secret store
+// - "plaintext:" prefix: strip the prefix and return the value
+// - no prefix (legacy): return the value as-is
+func resolveSecretValue(ctx context.Context, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+
+	if strings.HasPrefix(value, "gsm:") {
+		secretKey := strings.TrimPrefix(value, "gsm:")
+		if secretKey == "" {
+			return "", fmt.Errorf("empty secret key after gsm: prefix")
+		}
+
+		logger.Debug().Str("secretKey", secretKey).Int64("tenantId", int64(tenantID)).Msg("resolving secret from GSM")
+
+		secretValue, err := secretStore.GetSecretValue(ctx, tenantID, secretKey)
+		if err != nil {
+			return "", fmt.Errorf("failed to get secret '%s' from GSM: %w", secretKey, err)
+		}
+
+		return secretValue, nil
+	}
+
+	if strings.HasPrefix(value, "plaintext:") {
+		return strings.TrimPrefix(value, "plaintext:"), nil
+	}
+
+	// Legacy format - treat as plaintext
+	return value, nil
+}
+
+func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider, tenantID model.GlobalID) (promconfig.HTTPClientConfig, error) {
 	var cfg promconfig.HTTPClientConfig
 
 	// Enable HTTP2 for all checks.
@@ -205,12 +239,23 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 		}
 	}
 
-	cfg.BearerToken = promconfig.Secret(settings.BearerToken)
+	// Resolve bearer token (may be a secret)
+	bearerToken, err := resolveSecretValue(ctx, settings.BearerToken, secretStore, tenantID, logger)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to resolve bearer token: %w", err)
+	}
+	cfg.BearerToken = promconfig.Secret(bearerToken)
 
 	if settings.BasicAuth != nil {
+		// Resolve password (may be a secret)
+		password, err := resolveSecretValue(ctx, settings.BasicAuth.Password, secretStore, tenantID, logger)
+		if err != nil {
+			return cfg, fmt.Errorf("failed to resolve basic auth password: %w", err)
+		}
+
 		cfg.BasicAuth = &promconfig.BasicAuth{
 			Username: settings.BasicAuth.Username,
-			Password: promconfig.Secret(settings.BasicAuth.Password),
+			Password: promconfig.Secret(password),
 		}
 	}
 
