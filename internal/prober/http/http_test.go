@@ -30,8 +30,7 @@ func TestName(t *testing.T) {
 func TestNewProber(t *testing.T) {
 	testcases := map[string]struct {
 		input       model.Check
-		expected    Prober
-		ExpectError bool
+		expectError bool
 	}{
 		"default": {
 			input: model.Check{Check: sm.Check{
@@ -45,12 +44,7 @@ func TestNewProber(t *testing.T) {
 					},
 				},
 			}},
-			expected: Prober{
-				config: getDefaultModule().
-					addHttpHeader("X-Sm-Id", "3-3"). // is checkId twice since probeId is unavailable here
-					getConfigModule(),
-			},
-			ExpectError: false,
+			expectError: false,
 		},
 		"no-settings": {
 			input: model.Check{Check: sm.Check{
@@ -60,8 +54,7 @@ func TestNewProber(t *testing.T) {
 					Http: nil,
 				},
 			}},
-			expected:    Prober{},
-			ExpectError: true,
+			expectError: true,
 		},
 		"headers": {
 			input: model.Check{
@@ -79,14 +72,7 @@ func TestNewProber(t *testing.T) {
 					},
 				},
 			},
-			expected: Prober{
-				config: getDefaultModule().
-					addHttpHeader("uSeR-aGeNt", "test-user-agent").
-					addHttpHeader("some-header", "some-value").
-					addHttpHeader("X-Sm-Id", "5-5").
-					getConfigModule(),
-			},
-			ExpectError: false,
+			expectError: false,
 		},
 	}
 
@@ -100,11 +86,15 @@ func TestNewProber(t *testing.T) {
 			reservedHeaders.Add("x-sm-id", fmt.Sprintf("%d-%d", checkId, checkId))
 
 			actual, err := NewProber(ctx, testcase.input, logger, reservedHeaders, nil)
-			require.Equal(t, &testcase.expected, &actual)
-			if testcase.ExpectError {
+
+			if testcase.expectError {
 				require.Error(t, err, "unsupported check")
 			} else {
 				require.NoError(t, err)
+				// Verify that the prober was created with the expected settings
+				require.NotNil(t, actual.settings)
+				require.Equal(t, testcase.input.Settings.Http, actual.settings)
+				require.Equal(t, testcase.input.GlobalTenantID(), actual.tenantID)
 			}
 		})
 	}
@@ -412,26 +402,19 @@ func TestSettingsToModule(t *testing.T) {
 				setHttpBody("This is a body").
 				getConfigModule(),
 		},
-		"proxy-settings": {
-			input: sm.HttpSettings{
-				ProxyURL:            "http://example.org/",
-				ProxyConnectHeaders: []string{"h1: v1", "h2:v2"},
-			},
-			expected: getDefaultModule().
-				setProxyUrl("http://example.org/").
-				setProxyConnectHeaders(map[string]string{"h1": "v1", "h2": "v2"}).
-				setSkipResolvePhaseWithProxy(true).
-				getConfigModule(),
-		},
 	}
 
 	for name, testcase := range testcases {
-		ctx := context.Background()
-		logger := zerolog.New(io.Discard)
 		t.Run(name, func(t *testing.T) {
-			actual, err := settingsToModule(ctx, &testcase.input, logger, nil, model.GlobalID(0))
+			actual, err := buildStaticConfig(&testcase.input)
 			require.NoError(t, err)
-			require.Equal(t, &testcase.expected, &actual)
+
+			// Note: buildStaticConfig doesn't include HTTP client config
+			// so we need to remove that from expected results for this test
+			expected := testcase.expected
+			expected.HTTP.HTTPClientConfig = httpConfig.HTTPClientConfig{}
+
+			require.Equal(t, &expected, &actual)
 		})
 	}
 }

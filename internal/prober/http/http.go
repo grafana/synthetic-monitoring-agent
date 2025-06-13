@@ -27,8 +27,15 @@ import (
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Prober struct {
-	config                     config.Module
+	// Raw settings and dependencies for runtime secret resolution
+	settings                   *sm.HttpSettings
+	timeout                    time.Duration
+	secretStore                secrets.SecretProvider
+	tenantID                   model.GlobalID
+	logger                     zerolog.Logger
 	cacheBustingQueryParamName string
+	// Static config that doesn't need secret resolution
+	staticConfig config.Module
 }
 
 func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, reservedHeaders http.Header, secretStore secrets.SecretProvider) (Prober, error) {
@@ -40,16 +47,22 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, re
 		augmentHttpHeaders(&check.Check, reservedHeaders)
 	}
 
-	cfg, err := settingsToModule(ctx, check.Settings.Http, logger, secretStore, check.GlobalTenantID())
+	// Build static configuration (everything except authentication secrets)
+	staticCfg, err := buildStaticConfig(check.Settings.Http)
 	if err != nil {
 		return Prober{}, err
 	}
 
-	cfg.Timeout = time.Duration(check.Timeout) * time.Millisecond
+	staticCfg.Timeout = time.Duration(check.Timeout) * time.Millisecond
 
 	return Prober{
-		config:                     cfg,
+		settings:                   check.Settings.Http,
+		timeout:                    time.Duration(check.Timeout) * time.Millisecond,
+		secretStore:                secretStore,
+		tenantID:                   check.GlobalTenantID(),
+		logger:                     logger.With().Str("prober", "http").Logger(),
 		cacheBustingQueryParamName: check.Settings.Http.CacheBustingQueryParamName,
+		staticConfig:               staticCfg,
 	}, nil
 }
 
@@ -64,10 +77,54 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		target = addCacheBustParam(target, p.cacheBustingQueryParamName, target)
 	}
 
-	return bbeprober.ProbeHTTP(ctx, target, p.config, registry, slogger), 0
+	// Resolve secrets and build complete config at probe time
+	probeConfig, err := p.buildProbeConfig(ctx)
+	if err != nil {
+		p.logger.Error().Err(err).Msg("failed to resolve secrets for HTTP probe")
+		return false, 0
+	}
+
+	return bbeprober.ProbeHTTP(ctx, target, probeConfig, registry, slogger), 0
 }
 
-func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider, tenantID model.GlobalID) (config.Module, error) {
+// buildProbeConfig creates the complete configuration with resolved secrets
+func (p Prober) buildProbeConfig(ctx context.Context) (config.Module, error) {
+	// Start with static config
+	cfg := p.staticConfig
+
+	// Resolve authentication secrets at probe time
+	httpClientConfig, err := buildPrometheusHTTPClientConfig(
+		ctx,
+		p.settings,
+		p.logger,
+		p.secretStore,
+		p.tenantID,
+	)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to build HTTP client config: %w", err)
+	}
+
+	cfg.HTTP.HTTPClientConfig = httpClientConfig
+
+	// Set BBE's SkipResolvePhaseWithProxy when a proxy is configured
+	if cfg.HTTP.HTTPClientConfig.ProxyURL.URL != nil {
+		cfg.HTTP.SkipResolvePhaseWithProxy = true
+	}
+
+	// Handle OAuth2 config if present
+	if p.settings.Oauth2Config != nil && p.settings.Oauth2Config.ClientId != "" {
+		oauth2Config, err := convertOAuth2Config(ctx, p.settings.Oauth2Config, p.logger)
+		if err != nil {
+			return cfg, fmt.Errorf("parsing OAuth2 settings: %w", err)
+		}
+		cfg.HTTP.HTTPClientConfig.OAuth2 = oauth2Config
+	}
+
+	return cfg, nil
+}
+
+// buildStaticConfig creates the parts of the config that don't require secret resolution
+func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 	var m config.Module
 
 	m.Prober = sm.CheckTypeHttp.String()
@@ -142,32 +199,6 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 			Regexp:       re,
 			AllowMissing: match.AllowMissing,
 		})
-	}
-
-	var err error
-	m.HTTP.HTTPClientConfig, err = buildPrometheusHTTPClientConfig(
-		ctx,
-		settings,
-		logger.With().Str("prober", m.Prober).Logger(),
-		secretStore,
-		tenantID,
-	)
-	if err != nil {
-		return m, err
-	}
-
-	// Set BBE's SkipResolvePhaseWithProxy when a proxy is configured to avoid resolving the target.
-	// DNS should be done at the proxy server only.
-	if m.HTTP.HTTPClientConfig.ProxyURL.URL != nil {
-		m.HTTP.SkipResolvePhaseWithProxy = true
-	}
-
-	if settings.Oauth2Config != nil && settings.Oauth2Config.ClientId != "" {
-		var err error
-		m.HTTP.HTTPClientConfig.OAuth2, err = convertOAuth2Config(ctx, settings.Oauth2Config, logger.With().Str("prober", m.Prober).Logger())
-		if err != nil {
-			return m, fmt.Errorf("parsing OAuth2 settings: %w", err)
-		}
 	}
 
 	return m, nil
