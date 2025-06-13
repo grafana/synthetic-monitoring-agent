@@ -429,7 +429,7 @@ func TestSettingsToModule(t *testing.T) {
 		ctx := context.Background()
 		logger := zerolog.New(io.Discard)
 		t.Run(name, func(t *testing.T) {
-			actual, err := settingsToModule(ctx, &testcase.input, logger, nil)
+			actual, err := settingsToModule(ctx, &testcase.input, logger, nil, model.GlobalID(0))
 			require.NoError(t, err)
 			require.Equal(t, &testcase.expected, &actual)
 		})
@@ -561,4 +561,187 @@ func TestNewProberWithSecretStore(t *testing.T) {
 
 	// This test verifies that the secretStore parameter is properly
 	// accepted and passed through the call chain without causing errors
+}
+
+func TestResolveSecretValue(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(io.Discard)
+	tenantID := model.GlobalID(123)
+
+	testcases := map[string]struct {
+		input          string
+		mockSecretFunc func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
+		expectedOutput string
+		expectError    bool
+	}{
+		"empty value": {
+			input:          "",
+			expectedOutput: "",
+			expectError:    false,
+		},
+		"gsm prefix with valid secret": {
+			input: "gsm:my-secret-key",
+			mockSecretFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+				if secretKey == "my-secret-key" {
+					return "secret-value-from-gsm", nil
+				}
+				return "", fmt.Errorf("secret not found")
+			},
+			expectedOutput: "secret-value-from-gsm",
+			expectError:    false,
+		},
+		"gsm prefix with secret lookup error": {
+			input: "gsm:non-existent-key",
+			mockSecretFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+				return "", fmt.Errorf("secret not found")
+			},
+			expectedOutput: "",
+			expectError:    true,
+		},
+		"gsm prefix with empty key": {
+			input:          "gsm:",
+			expectedOutput: "",
+			expectError:    true,
+		},
+		"plaintext prefix": {
+			input:          "plaintext:my-plain-password",
+			expectedOutput: "my-plain-password",
+			expectError:    false,
+		},
+		"plaintext prefix with empty value": {
+			input:          "plaintext:",
+			expectedOutput: "",
+			expectError:    false,
+		},
+		"legacy format (no prefix)": {
+			input:          "legacy-password",
+			expectedOutput: "legacy-password",
+			expectError:    false,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			// Create mock secret store
+			var mockSecretStore *mockSecretProvider
+			if tc.mockSecretFunc != nil {
+				mockSecretStore = &mockSecretProvider{
+					getSecretValueFunc: tc.mockSecretFunc,
+				}
+			}
+
+			actual, err := resolveSecretValue(ctx, tc.input, mockSecretStore, tenantID, logger)
+
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedOutput, actual)
+			}
+		})
+	}
+}
+
+// mockSecretProvider is a mock implementation of secrets.SecretProvider for testing
+type mockSecretProvider struct {
+	getSecretValueFunc func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
+}
+
+func (m *mockSecretProvider) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
+	return &sm.SecretStore{
+		Url:   "https://mock-gsm.example.com",
+		Token: "mock-token",
+	}, nil
+}
+
+func (m *mockSecretProvider) GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+	if m.getSecretValueFunc != nil {
+		return m.getSecretValueFunc(ctx, tenantID, secretKey)
+	}
+	return "", fmt.Errorf("mock not configured")
+}
+
+func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(io.Discard)
+	tenantID := model.GlobalID(123)
+
+	// Mock secret store that returns known values
+	mockSecretStore := &mockSecretProvider{
+		getSecretValueFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+			secrets := map[string]string{
+				"bearer-token-key": "bearer-secret-value",
+				"password-key":     "password-secret-value",
+			}
+			if value, exists := secrets[secretKey]; exists {
+				return value, nil
+			}
+			return "", fmt.Errorf("secret '%s' not found", secretKey)
+		},
+	}
+
+	testcases := map[string]struct {
+		settings       sm.HttpSettings
+		expectedBearer string
+		expectedPasswd string
+	}{
+		"gsm secrets": {
+			settings: sm.HttpSettings{
+				BearerToken: "gsm:bearer-token-key",
+				BasicAuth: &sm.BasicAuth{
+					Username: "testuser",
+					Password: "gsm:password-key",
+				},
+			},
+			expectedBearer: "bearer-secret-value",
+			expectedPasswd: "password-secret-value",
+		},
+		"plaintext secrets": {
+			settings: sm.HttpSettings{
+				BearerToken: "plaintext:plain-bearer-token",
+				BasicAuth: &sm.BasicAuth{
+					Username: "testuser",
+					Password: "plaintext:plain-password",
+				},
+			},
+			expectedBearer: "plain-bearer-token",
+			expectedPasswd: "plain-password",
+		},
+		"legacy secrets": {
+			settings: sm.HttpSettings{
+				BearerToken: "legacy-bearer-token",
+				BasicAuth: &sm.BasicAuth{
+					Username: "testuser",
+					Password: "legacy-password",
+				},
+			},
+			expectedBearer: "legacy-bearer-token",
+			expectedPasswd: "legacy-password",
+		},
+		"mixed secret types": {
+			settings: sm.HttpSettings{
+				BearerToken: "gsm:bearer-token-key",
+				BasicAuth: &sm.BasicAuth{
+					Username: "testuser",
+					Password: "plaintext:plain-password",
+				},
+			},
+			expectedBearer: "bearer-secret-value",
+			expectedPasswd: "plain-password",
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			cfg, err := buildPrometheusHTTPClientConfig(ctx, &tc.settings, logger, mockSecretStore, tenantID)
+			require.NoError(t, err)
+
+			require.Equal(t, tc.expectedBearer, string(cfg.BearerToken))
+			if tc.settings.BasicAuth != nil {
+				require.NotNil(t, cfg.BasicAuth)
+				require.Equal(t, tc.expectedPasswd, string(cfg.BasicAuth.Password))
+				require.Equal(t, tc.settings.BasicAuth.Username, cfg.BasicAuth.Username)
+			}
+		})
+	}
 }
