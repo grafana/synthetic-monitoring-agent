@@ -8,10 +8,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
-
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/prometheus/prompb"
+	prompb "github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -24,6 +22,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
@@ -112,7 +111,7 @@ type HandlerOpts struct {
 	PromRegisterer prometheus.Registerer
 	Features       feature.Collection
 	K6Runner       k6runner.Runner
-	TenantSecrets  *secrets.TenantSecrets
+	TenantSecrets  secrets.SecretProvider
 
 	// these two fields exists so that tests can pass alternate
 	// implementations, they are unexported so that clients of this

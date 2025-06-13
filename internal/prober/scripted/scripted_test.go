@@ -89,6 +89,10 @@ func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID mode
 	return &sm.SecretStore{}, nil
 }
 
+func (n noopSecretStore) GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+	return "", nil
+}
+
 func testContext(t *testing.T) (context.Context, func()) {
 	if deadline, ok := t.Deadline(); ok {
 		return context.WithDeadline(context.Background(), deadline)

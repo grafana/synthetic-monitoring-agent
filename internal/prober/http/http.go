@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tls"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -26,11 +28,18 @@ import (
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Prober struct {
-	config                     config.Module
+	// Raw settings and dependencies for runtime secret resolution
+	settings                   *sm.HttpSettings
+	timeout                    time.Duration
+	secretStore                secrets.SecretProvider
+	tenantID                   model.GlobalID
+	logger                     zerolog.Logger
 	cacheBustingQueryParamName string
+	// Static config that doesn't need secret resolution
+	staticConfig config.Module
 }
 
-func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, reservedHeaders http.Header) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, reservedHeaders http.Header, secretStore secrets.SecretProvider) (Prober, error) {
 	if check.Settings.Http == nil {
 		return Prober{}, errUnsupportedCheck
 	}
@@ -39,16 +48,22 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, re
 		augmentHttpHeaders(&check.Check, reservedHeaders)
 	}
 
-	cfg, err := settingsToModule(ctx, check.Settings.Http, logger)
+	// Build static configuration (everything except authentication secrets)
+	staticCfg, err := buildStaticConfig(check.Settings.Http)
 	if err != nil {
 		return Prober{}, err
 	}
 
-	cfg.Timeout = time.Duration(check.Timeout) * time.Millisecond
+	staticCfg.Timeout = time.Duration(check.Timeout) * time.Millisecond
 
 	return Prober{
-		config:                     cfg,
+		settings:                   check.Settings.Http,
+		timeout:                    time.Duration(check.Timeout) * time.Millisecond,
+		secretStore:                secretStore,
+		tenantID:                   check.GlobalTenantID(),
+		logger:                     logger.With().Str("prober", "http").Logger(),
 		cacheBustingQueryParamName: check.Settings.Http.CacheBustingQueryParamName,
+		staticConfig:               staticCfg,
 	}, nil
 }
 
@@ -63,10 +78,54 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		target = addCacheBustParam(target, p.cacheBustingQueryParamName, target)
 	}
 
-	return bbeprober.ProbeHTTP(ctx, target, p.config, registry, slogger), 0
+	// Resolve secrets and build complete config at probe time
+	probeConfig, err := p.buildProbeConfig(ctx)
+	if err != nil {
+		p.logger.Error().Err(err).Msg("failed to resolve secrets for HTTP probe")
+		return false, 0
+	}
+
+	return bbeprober.ProbeHTTP(ctx, target, probeConfig, registry, slogger), 0
 }
 
-func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger) (config.Module, error) {
+// buildProbeConfig creates the complete configuration with resolved secrets
+func (p Prober) buildProbeConfig(ctx context.Context) (config.Module, error) {
+	// Start with static config
+	cfg := p.staticConfig
+
+	// Resolve authentication secrets at probe time
+	httpClientConfig, err := buildPrometheusHTTPClientConfig(
+		ctx,
+		p.settings,
+		p.logger,
+		p.secretStore,
+		p.tenantID,
+	)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to build HTTP client config: %w", err)
+	}
+
+	cfg.HTTP.HTTPClientConfig = httpClientConfig
+
+	// Set BBE's SkipResolvePhaseWithProxy when a proxy is configured
+	if cfg.HTTP.HTTPClientConfig.ProxyURL.URL != nil {
+		cfg.HTTP.SkipResolvePhaseWithProxy = true
+	}
+
+	// Handle OAuth2 config if present
+	if p.settings.Oauth2Config != nil && p.settings.Oauth2Config.ClientId != "" {
+		oauth2Config, err := convertOAuth2Config(ctx, p.settings.Oauth2Config, p.logger)
+		if err != nil {
+			return cfg, fmt.Errorf("parsing OAuth2 settings: %w", err)
+		}
+		cfg.HTTP.HTTPClientConfig.OAuth2 = oauth2Config
+	}
+
+	return cfg, nil
+}
+
+// buildStaticConfig creates the parts of the config that don't require secret resolution
+func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 	var m config.Module
 
 	m.Prober = sm.CheckTypeHttp.String()
@@ -143,34 +202,27 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 		})
 	}
 
-	var err error
-	m.HTTP.HTTPClientConfig, err = buildPrometheusHTTPClientConfig(
-		ctx,
-		settings,
-		logger.With().Str("prober", m.Prober).Logger(),
-	)
-	if err != nil {
-		return m, err
-	}
-
-	// Set BBE's SkipResolvePhaseWithProxy when a proxy is configured to avoid resolving the target.
-	// DNS should be done at the proxy server only.
-	if m.HTTP.HTTPClientConfig.ProxyURL.URL != nil {
-		m.HTTP.SkipResolvePhaseWithProxy = true
-	}
-
-	if settings.Oauth2Config != nil && settings.Oauth2Config.ClientId != "" {
-		var err error
-		m.HTTP.HTTPClientConfig.OAuth2, err = convertOAuth2Config(ctx, settings.Oauth2Config, logger.With().Str("prober", m.Prober).Logger())
-		if err != nil {
-			return m, fmt.Errorf("parsing OAuth2 settings: %w", err)
-		}
-	}
-
 	return m, nil
 }
 
-func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger) (promconfig.HTTPClientConfig, error) {
+// resolveSecretValue resolves a secret value using string interpolation with ${secrets.secret_name} syntax.
+// If secretManagerEnabled is false, the value is returned as-is without any interpolation.
+func resolveSecretValue(ctx context.Context, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger, secretManagerEnabled bool) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+
+	// If secret manager is not enabled, return the value as-is
+	if !secretManagerEnabled {
+		return value, nil
+	}
+
+	// Create a resolver that only handles secrets (no variables)
+	resolver := interpolation.NewResolver(nil, secretStore, tenantID, logger, secretManagerEnabled)
+	return resolver.Resolve(ctx, value)
+}
+
+func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider, tenantID model.GlobalID) (promconfig.HTTPClientConfig, error) {
 	var cfg promconfig.HTTPClientConfig
 
 	// Enable HTTP2 for all checks.
@@ -197,18 +249,29 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 
 	if settings.TlsConfig != nil {
 		var err error
-		cfg.TLSConfig, err = tls.SMtoProm(ctx, logger, settings.TlsConfig)
+		cfg.TLSConfig, err = buildTLSConfig(ctx, settings.TlsConfig, secretStore, tenantID, logger, settings.SecretManagerEnabled)
 		if err != nil {
 			return cfg, err
 		}
 	}
 
-	cfg.BearerToken = promconfig.Secret(settings.BearerToken)
+	// Resolve bearer token (may be a secret)
+	bearerToken, err := resolveSecretValue(ctx, settings.BearerToken, secretStore, tenantID, logger, settings.SecretManagerEnabled)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to resolve bearer token: %w", err)
+	}
+	cfg.BearerToken = promconfig.Secret(bearerToken)
 
 	if settings.BasicAuth != nil {
+		// Resolve password (may be a secret)
+		password, err := resolveSecretValue(ctx, settings.BasicAuth.Password, secretStore, tenantID, logger, settings.SecretManagerEnabled)
+		if err != nil {
+			return cfg, fmt.Errorf("failed to resolve basic auth password: %w", err)
+		}
+
 		cfg.BasicAuth = &promconfig.BasicAuth{
 			Username: settings.BasicAuth.Username,
-			Password: promconfig.Secret(settings.BasicAuth.Password),
+			Password: promconfig.Secret(password),
 		}
 	}
 
@@ -230,6 +293,60 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 	}
 
 	return cfg, nil
+}
+
+// buildTLSConfig builds a Prometheus TLS config from SM TLS config with secret resolution support
+func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger, secretManagerEnabled bool) (promconfig.TLSConfig, error) {
+	// Create a copy of the TLS config with resolved secrets
+	resolvedTLSConfig := &sm.TLSConfig{
+		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
+		ServerName:         tlsConfig.ServerName,
+	}
+
+	// Resolve CA cert if present
+	if len(tlsConfig.CACert) > 0 {
+		if secretManagerEnabled {
+			// Resolve CA cert from secret if secret manager is enabled
+			caCertStr, err := resolveSecretValue(ctx, string(tlsConfig.CACert), secretStore, tenantID, logger, secretManagerEnabled)
+			if err != nil {
+				return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve CA cert: %w", err)
+			}
+			resolvedTLSConfig.CACert = []byte(caCertStr)
+		} else {
+			resolvedTLSConfig.CACert = tlsConfig.CACert
+		}
+	}
+
+	// Resolve client cert if present
+	if len(tlsConfig.ClientCert) > 0 {
+		if secretManagerEnabled {
+			// Resolve client cert from secret if secret manager is enabled
+			clientCertStr, err := resolveSecretValue(ctx, string(tlsConfig.ClientCert), secretStore, tenantID, logger, secretManagerEnabled)
+			if err != nil {
+				return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client cert: %w", err)
+			}
+			resolvedTLSConfig.ClientCert = []byte(clientCertStr)
+		} else {
+			resolvedTLSConfig.ClientCert = tlsConfig.ClientCert
+		}
+	}
+
+	// Resolve client key if present
+	if len(tlsConfig.ClientKey) > 0 {
+		if secretManagerEnabled {
+			// Resolve client key from secret if secret manager is enabled
+			clientKeyStr, err := resolveSecretValue(ctx, string(tlsConfig.ClientKey), secretStore, tenantID, logger, secretManagerEnabled)
+			if err != nil {
+				return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client key: %w", err)
+			}
+			resolvedTLSConfig.ClientKey = []byte(clientKeyStr)
+		} else {
+			resolvedTLSConfig.ClientKey = tlsConfig.ClientKey
+		}
+	}
+
+	// Use the existing TLS conversion function with resolved config
+	return tls.SMtoProm(ctx, logger, resolvedTLSConfig)
 }
 
 func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerolog.Logger) (*promconfig.OAuth2, error) {
