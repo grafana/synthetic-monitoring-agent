@@ -13,6 +13,7 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tls"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -30,7 +31,7 @@ type Prober struct {
 	cacheBustingQueryParamName string
 }
 
-func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, reservedHeaders http.Header) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, reservedHeaders http.Header, secretStore secrets.SecretProvider) (Prober, error) {
 	if check.Settings.Http == nil {
 		return Prober{}, errUnsupportedCheck
 	}
@@ -39,7 +40,7 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, re
 		augmentHttpHeaders(&check.Check, reservedHeaders)
 	}
 
-	cfg, err := settingsToModule(ctx, check.Settings.Http, logger)
+	cfg, err := settingsToModule(ctx, check.Settings.Http, logger, secretStore)
 	if err != nil {
 		return Prober{}, err
 	}
@@ -66,7 +67,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	return bbeprober.ProbeHTTP(ctx, target, p.config, registry, slogger), 0
 }
 
-func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger) (config.Module, error) {
+func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider) (config.Module, error) {
 	var m config.Module
 
 	m.Prober = sm.CheckTypeHttp.String()
@@ -148,6 +149,7 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 		ctx,
 		settings,
 		logger.With().Str("prober", m.Prober).Logger(),
+		secretStore,
 	)
 	if err != nil {
 		return m, err
@@ -170,7 +172,7 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 	return m, nil
 }
 
-func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger) (promconfig.HTTPClientConfig, error) {
+func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider) (promconfig.HTTPClientConfig, error) {
 	var cfg promconfig.HTTPClientConfig
 
 	// Enable HTTP2 for all checks.

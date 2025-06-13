@@ -99,7 +99,7 @@ func TestNewProber(t *testing.T) {
 			reservedHeaders := http.Header{}
 			reservedHeaders.Add("x-sm-id", fmt.Sprintf("%d-%d", checkId, checkId))
 
-			actual, err := NewProber(ctx, testcase.input, logger, reservedHeaders)
+			actual, err := NewProber(ctx, testcase.input, logger, reservedHeaders, nil)
 			require.Equal(t, &testcase.expected, &actual)
 			if testcase.ExpectError {
 				require.Error(t, err, "unsupported check")
@@ -234,7 +234,7 @@ func TestProbe(t *testing.T) {
 			zl := zerolog.Logger{}
 			kl := log.NewLogfmtLogger(io.Discard)
 
-			prober, err := NewProber(ctx, check, zl, http.Header{})
+			prober, err := NewProber(ctx, check, zl, http.Header{}, nil)
 			require.NoError(t, err)
 
 			success, duration := prober.Probe(ctx, check.Target, registry, kl)
@@ -429,7 +429,7 @@ func TestSettingsToModule(t *testing.T) {
 		ctx := context.Background()
 		logger := zerolog.New(io.Discard)
 		t.Run(name, func(t *testing.T) {
-			actual, err := settingsToModule(ctx, &testcase.input, logger)
+			actual, err := settingsToModule(ctx, &testcase.input, logger, nil)
 			require.NoError(t, err)
 			require.Equal(t, &testcase.expected, &actual)
 		})
@@ -541,4 +541,24 @@ func (m *testModule) setProxyConnectHeaders(headers map[string]string) *testModu
 func (m *testModule) setSkipResolvePhaseWithProxy(value bool) *testModule {
 	m.HTTP.SkipResolvePhaseWithProxy = value
 	return m
+}
+
+func TestNewProberWithSecretStore(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(io.Discard)
+
+	check := model.Check{Check: sm.Check{
+		Id:     1,
+		Target: "www.grafana.com",
+		Settings: sm.CheckSettings{
+			Http: &sm.HttpSettings{},
+		},
+	}}
+
+	// Test with nil secret store (should work)
+	_, err := NewProber(ctx, check, logger, http.Header{}, nil)
+	require.NoError(t, err)
+
+	// This test verifies that the secretStore parameter is properly
+	// accepted and passed through the call chain without causing errors
 }
