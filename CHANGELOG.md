@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.38.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.7...v0.38.0) (2025-06-17)
+
+
+### Features
+
+* Add enableProtocolSecrets and supportsProtocolSecrets to protobuf ([#1344](https://github.com/grafana/synthetic-monitoring-agent/issues/1344)) ([6fa78f5](https://github.com/grafana/synthetic-monitoring-agent/commit/6fa78f5ad93ca978e611622ba044f81e0f8732c5))
+
+
+### Miscellaneous Chores
+
+* ci: pin exact version of actions/github-create-app-token ([693a1e2](https://github.com/grafana/synthetic-monitoring-agent/commit/693a1e2563416c27f86f4ff97d0e0133f018db49))
+* Update dependency grafana/xk6-sm to v0.5.6 ([#1340](https://github.com/grafana/synthetic-monitoring-agent/issues/1340)) ([b328862](https://github.com/grafana/synthetic-monitoring-agent/commit/b328862b984bed226cffa14b50a2ee83bddc9ee9))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v137 ([#1334](https://github.com/grafana/synthetic-monitoring-agent/issues/1334)) ([b0364c4](https://github.com/grafana/synthetic-monitoring-agent/commit/b0364c46cea8c43579017a71367b943e04957078))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:137.0.7151.68-r0-3.22.0 Docker digest to 5f6a1fc ([756c46d](https://github.com/grafana/synthetic-monitoring-agent/commit/756c46d2e1c3fcf2de90fb9d91738723120ef825))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1 ([1116688](https://github.com/grafana/synthetic-monitoring-agent/commit/111668860fa537a40fd1811d39000caabe714028))
+* Update grafana/shared-workflows digest to cb40def ([#1337](https://github.com/grafana/synthetic-monitoring-agent/issues/1337)) ([ddc5ee0](https://github.com/grafana/synthetic-monitoring-agent/commit/ddc5ee03f12df7429195c1b08bcf07cf50ebd4c7))
+* Update module github.com/KimMachineGun/automemlimit to v0.7.3 ([9130943](https://github.com/grafana/synthetic-monitoring-agent/commit/9130943e10601f05ab9583010b279f0bc77deb02))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.18.2 ([#1339](https://github.com/grafana/synthetic-monitoring-agent/issues/1339)) ([7d1393d](https://github.com/grafana/synthetic-monitoring-agent/commit/7d1393d5c51650a82e37bb039014acdca58d4c83))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.18.3 ([fc7724a](https://github.com/grafana/synthetic-monitoring-agent/commit/fc7724a049a669e597aeddf0d74d41f68341572e))
+
 ## [0.37.7](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.6...v0.37.7) (2025-06-06)
 
 
