@@ -82,6 +82,7 @@ message ProbeInfo {
   string Version = 1 [(gogoproto.jsontag) = "version"]; // version of the probe
   string Commit = 2 [(gogoproto.jsontag) = "commit"]; // commit hash used to build the probe
   string Buildstamp = 3 [(gogoproto.jsontag) = "buildstamp"]; // timestamp when the probe was built
+  bool supportsProtocolSecrets = 4 [(gogoproto.jsontag) = "supportsProtocolSecrets"]; // true when protocol secrets are supported in the Agent
 }
 
 // PingRequest is the message sent as argument of the Ping method.
@@ -125,6 +126,7 @@ message Probe {
   message Capabilities {
     bool disableScriptedChecks = 1 [(gogoproto.jsontag) = "disableScriptedChecks"]; // probe should not run scripted checks
     bool disableBrowserChecks = 2 [(gogoproto.jsontag) = "disableBrowserChecks"]; // probe should not run browser checks
+    bool enableProtocolSecrets = 3 [(gogoproto.jsontag) = "enableProtocolSecrets"]; // true when protocol secrets are enabled in the API
   }
 
   int64 id = 1 [(gogoproto.jsontag) = "id"]; // ID of the probe, assigned by the API
