@@ -9,7 +9,7 @@ require (
 	github.com/go-logfmt/logfmt v0.6.0
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
-	github.com/golang/snappy v0.0.4
+	github.com/golang/snappy v1.0.0
 	github.com/google/uuid v1.6.0
 	github.com/miekg/dns v1.1.66
 	github.com/mmcloughlin/geohash v0.10.0
