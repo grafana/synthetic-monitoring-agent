@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	gsmClient "github.com/grafana/gsm-api-go-client"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,16 +21,6 @@ type mockTenantProvider struct {
 
 func (m *mockTenantProvider) GetTenant(ctx context.Context, info *sm.TenantInfo) (*sm.Tenant, error) {
 	return m.tenant, m.err
-}
-
-// mockGSMClient implements the GSM client interface for testing
-type mockGSMClient struct {
-	response *gsmClient.DecryptSecretByIdResponse
-	err      error
-}
-
-func (m *mockGSMClient) DecryptSecretByIdWithResponse(ctx context.Context, secretId string, reqEditors ...gsmClient.RequestEditorFn) (*gsmClient.DecryptSecretByIdResponse, error) {
-	return m.response, m.err
 }
 
 func TestSecretProvider_GetSecretCredentials(t *testing.T) {

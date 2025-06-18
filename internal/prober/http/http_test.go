@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/go-kit/log"
@@ -473,22 +472,6 @@ func (m *testModule) getConfigModule() config.Module {
 	return config.Module(*m)
 }
 
-func (m *testModule) addHttpHeader(key, value string) *testModule {
-	if m.HTTP.Headers == nil {
-		m.HTTP.Headers = make(map[string]string)
-	}
-
-	for k := range m.HTTP.Headers {
-		if strings.EqualFold(k, key) {
-			delete(m.HTTP.Headers, k)
-		}
-	}
-
-	m.HTTP.Headers[key] = value
-
-	return m
-}
-
 func (m *testModule) addHttpValidStatusCodes(code int) *testModule {
 	m.HTTP.ValidStatusCodes = append(m.HTTP.ValidStatusCodes, code)
 	return m
@@ -501,28 +484,6 @@ func (m *testModule) setHttpMethod(method string) *testModule {
 
 func (m *testModule) setHttpBody(body string) *testModule {
 	m.HTTP.Body = body
-	return m
-}
-
-func (m *testModule) setProxyUrl(u string) *testModule {
-	var err error
-	m.HTTP.HTTPClientConfig.ProxyURL.URL, err = url.Parse(u)
-	if err != nil {
-		panic(err)
-	}
-	return m
-}
-
-func (m *testModule) setProxyConnectHeaders(headers map[string]string) *testModule {
-	m.HTTP.HTTPClientConfig.ProxyConnectHeader = make(httpConfig.ProxyHeader)
-	for k, v := range headers {
-		m.HTTP.HTTPClientConfig.ProxyConnectHeader[k] = []httpConfig.Secret{httpConfig.Secret(v)}
-	}
-	return m
-}
-
-func (m *testModule) setSkipResolvePhaseWithProxy(value bool) *testModule {
-	m.HTTP.SkipResolvePhaseWithProxy = value
 	return m
 }
 
