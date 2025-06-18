@@ -960,7 +960,7 @@ func TestValidateLabels(t *testing.T) {
 			s := Scraper{
 				checkName: "check name",
 				target:    check.Target,
-				logger:    zerolog.Nop(),
+				logger:    testhelper.Logger(t),
 				prober:    prober,
 				labelsLimiter: testLabelsLimiter{
 					maxMetricLabels: 100,
@@ -1569,7 +1569,7 @@ func TestScraperCollectData(t *testing.T) {
 			s := Scraper{
 				checkName: checkName,
 				target:    "test target",
-				logger:    zerolog.Nop(),
+				logger:    testhelper.Logger(t),
 				prober:    testProber{},
 				labelsLimiter: testLabelsLimiter{
 					maxMetricLabels: tc.maxMetricLabels,

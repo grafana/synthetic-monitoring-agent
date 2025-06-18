@@ -43,7 +43,7 @@ func TestNewUpdater(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 				Features:       testFeatureCollection,
 			},
 		},
@@ -168,7 +168,7 @@ func TestHandleCheckOp(t *testing.T) {
 			PromRegisterer: prometheus.NewPedanticRegistry(),
 			Publisher:      channelPublisher(publishCh),
 			TenantCh:       make(chan<- sm.Tenant),
-			Logger:         zerolog.Nop(),
+			Logger:         testhelper.Logger(t),
 			ScraperFactory: testScraperFactory,
 		},
 	)
@@ -285,7 +285,7 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 				K6Runner:       noopRunner{},
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
@@ -300,7 +300,7 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
 				DisableScriptedChecks: false,
@@ -314,7 +314,7 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 				K6Runner:       noopRunner{},
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
@@ -329,7 +329,7 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
 				DisableScriptedChecks: true,
@@ -343,7 +343,7 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 				K6Runner:       noopRunner{},
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
@@ -358,7 +358,7 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
 				DisableScriptedChecks: false,
@@ -372,7 +372,7 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 				K6Runner:       noopRunner{},
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
@@ -387,7 +387,7 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe", Capabilities: &sm.Probe_Capabilities{
 				DisableScriptedChecks: true,
@@ -401,7 +401,7 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe"},
 		},
@@ -412,7 +412,7 @@ func TestCheckHandlerProbeValidation(t *testing.T) {
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Publisher:      channelPublisher(make(chan pusher.Payload)),
 				TenantCh:       make(chan<- sm.Tenant),
-				Logger:         zerolog.Nop(),
+				Logger:         testhelper.Logger(t),
 				K6Runner:       noopRunner{},
 			},
 			probe: sm.Probe{Id: 100, Name: "test-probe"},
@@ -524,7 +524,7 @@ func TestHandleError(t *testing.T) {
 	ctx, cancel := testhelper.Context(context.Background(), t)
 	defer cancel()
 
-	logger := zerolog.Nop()
+	logger := testhelper.Logger(t)
 
 	t.Run("no error", func(t *testing.T) {
 		backoff := testBackoff(1)
