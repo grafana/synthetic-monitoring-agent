@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http/testserver"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
@@ -574,7 +575,14 @@ func TestResolveSecretValue(t *testing.T) {
 				}
 			}
 
-			actual, err := resolveSecretValue(ctx, tc.input, mockSecretStore, tenantID, logger)
+			// Wrap with capability-aware provider with protocol secrets enabled
+			// to maintain the original test behavior
+			capabilities := &sm.Probe_Capabilities{
+				EnableProtocolSecrets: true,
+			}
+			capabilityAwareStore := secrets.NewCapabilityAwareSecretProvider(mockSecretStore, capabilities)
+
+			actual, err := resolveSecretValue(ctx, tc.input, capabilityAwareStore, tenantID, logger)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -677,7 +685,14 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			cfg, err := buildPrometheusHTTPClientConfig(ctx, &tc.settings, logger, mockSecretStore, tenantID)
+			// Wrap with capability-aware provider with protocol secrets enabled
+			// to maintain the original test behavior
+			capabilities := &sm.Probe_Capabilities{
+				EnableProtocolSecrets: true,
+			}
+			capabilityAwareStore := secrets.NewCapabilityAwareSecretProvider(mockSecretStore, capabilities)
+
+			cfg, err := buildPrometheusHTTPClientConfig(ctx, &tc.settings, logger, capabilityAwareStore, tenantID)
 			require.NoError(t, err)
 
 			require.Equal(t, tc.expectedBearer, string(cfg.BearerToken))
@@ -688,4 +703,207 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(io.Discard)
+	tenantID := model.GlobalID(123)
+
+	// Mock secret store that should never be called when capability is disabled
+	mockSecretStore := &mockSecretProvider{
+		getSecretValueFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+			if secretKey == "my-bearer-token" {
+				return "resolved-bearer-token", nil
+			}
+			return "", fmt.Errorf("secret not found")
+		},
+	}
+
+	t.Run("with EnableProtocolSecrets=true", func(t *testing.T) {
+		// Create capability-aware secret store with capability enabled
+		capabilities := &sm.Probe_Capabilities{
+			EnableProtocolSecrets: true,
+		}
+		capabilityAwareStore := secrets.NewCapabilityAwareSecretProvider(mockSecretStore, capabilities)
+
+		testcases := map[string]struct {
+			input          string
+			expectedOutput string
+			expectError    bool
+		}{
+			"gsm prefix resolved when capability enabled": {
+				input:          "gsm:my-bearer-token",
+				expectedOutput: "resolved-bearer-token",
+				expectError:    false,
+			},
+			"plaintext prefix resolved when capability enabled": {
+				input:          "plaintext:my-plain-password",
+				expectedOutput: "my-plain-password",
+				expectError:    false,
+			},
+			"legacy format unchanged when capability enabled": {
+				input:          "legacy-password",
+				expectedOutput: "legacy-password",
+				expectError:    false,
+			},
+		}
+
+		for name, tc := range testcases {
+			t.Run(name, func(t *testing.T) {
+				actual, err := resolveSecretValue(ctx, tc.input, capabilityAwareStore, tenantID, logger)
+
+				if tc.expectError {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, tc.expectedOutput, actual)
+				}
+			})
+		}
+	})
+
+	t.Run("with EnableProtocolSecrets=false", func(t *testing.T) {
+		// Mock that should never be called
+		failingMockStore := &mockSecretProvider{
+			getSecretValueFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+				t.Fatal("GetSecretValue should not be called when EnableProtocolSecrets is false")
+				return "", nil
+			},
+		}
+
+		// Create capability-aware secret store with capability disabled
+		capabilities := &sm.Probe_Capabilities{
+			EnableProtocolSecrets: false,
+		}
+		capabilityAwareStore := secrets.NewCapabilityAwareSecretProvider(failingMockStore, capabilities)
+
+		testcases := map[string]struct {
+			input          string
+			expectedOutput string
+		}{
+			"gsm prefix preserved when capability disabled": {
+				input:          "gsm:my-bearer-token",
+				expectedOutput: "gsm:my-bearer-token",
+			},
+			"plaintext prefix preserved when capability disabled": {
+				input:          "plaintext:my-plain-password",
+				expectedOutput: "plaintext:my-plain-password",
+			},
+			"legacy format unchanged when capability disabled": {
+				input:          "legacy-password",
+				expectedOutput: "legacy-password",
+			},
+		}
+
+		for name, tc := range testcases {
+			t.Run(name, func(t *testing.T) {
+				actual, err := resolveSecretValue(ctx, tc.input, capabilityAwareStore, tenantID, logger)
+
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedOutput, actual)
+			})
+		}
+	})
+
+	t.Run("with nil capabilities (defaults to false)", func(t *testing.T) {
+		// Mock that should never be called
+		failingMockStore := &mockSecretProvider{
+			getSecretValueFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+				t.Fatal("GetSecretValue should not be called when capabilities are nil")
+				return "", nil
+			},
+		}
+
+		// Create capability-aware secret store with nil capabilities
+		capabilityAwareStore := secrets.NewCapabilityAwareSecretProvider(failingMockStore, nil)
+
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", capabilityAwareStore, tenantID, logger)
+		require.NoError(t, err)
+		require.Equal(t, "gsm:my-bearer-token", actual)
+	})
+
+	t.Run("with regular SecretProvider (no capability awareness)", func(t *testing.T) {
+		// When using a regular SecretProvider, should default to false (no resolution)
+		failingMockStore := &mockSecretProvider{
+			getSecretValueFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+				t.Fatal("GetSecretValue should not be called when no capability interface is implemented")
+				return "", nil
+			},
+		}
+
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", failingMockStore, tenantID, logger)
+		require.NoError(t, err)
+		require.Equal(t, "gsm:my-bearer-token", actual)
+	})
+}
+
+func TestUpdatableCapabilityAwareSecretProvider(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(io.Discard)
+	tenantID := model.GlobalID(123)
+
+	// Mock secret store
+	mockSecretStore := &mockSecretProvider{
+		getSecretValueFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+			if secretKey == "my-bearer-token" {
+				return "resolved-bearer-token", nil
+			}
+			return "", fmt.Errorf("secret not found")
+		},
+	}
+
+	// Create updatable capability-aware secret store
+	updatableStore := secrets.NewUpdatableCapabilityAwareSecretProvider(mockSecretStore)
+
+	t.Run("defaults to disabled", func(t *testing.T) {
+		require.False(t, updatableStore.IsProtocolSecretsEnabled())
+
+		// Should not resolve secrets when disabled
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger)
+		require.NoError(t, err)
+		require.Equal(t, "gsm:my-bearer-token", actual)
+	})
+
+	t.Run("can be updated to enabled", func(t *testing.T) {
+		// Update capabilities to enable protocol secrets
+		capabilities := &sm.Probe_Capabilities{
+			EnableProtocolSecrets: true,
+		}
+		updatableStore.UpdateCapabilities(capabilities)
+
+		require.True(t, updatableStore.IsProtocolSecretsEnabled())
+
+		// Should now resolve secrets
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger)
+		require.NoError(t, err)
+		require.Equal(t, "resolved-bearer-token", actual)
+	})
+
+	t.Run("can be updated to disabled", func(t *testing.T) {
+		// Update capabilities to disable protocol secrets
+		capabilities := &sm.Probe_Capabilities{
+			EnableProtocolSecrets: false,
+		}
+		updatableStore.UpdateCapabilities(capabilities)
+
+		require.False(t, updatableStore.IsProtocolSecretsEnabled())
+
+		// Should not resolve secrets when disabled
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger)
+		require.NoError(t, err)
+		require.Equal(t, "gsm:my-bearer-token", actual)
+	})
+
+	t.Run("handles nil capabilities", func(t *testing.T) {
+		// Update with nil capabilities (should default to disabled)
+		updatableStore.UpdateCapabilities(nil)
+
+		require.False(t, updatableStore.IsProtocolSecretsEnabled())
+
+		// Should not resolve secrets when disabled
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger)
+		require.NoError(t, err)
+		require.Equal(t, "gsm:my-bearer-token", actual)
+	})
 }

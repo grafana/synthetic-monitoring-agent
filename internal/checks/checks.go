@@ -389,6 +389,17 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	c.probe = &result.Probe
 
+	// Update secret provider with probe capabilities if it supports it
+	if updatableSecretProvider, ok := c.tenantSecrets.(secrets.UpdatableCapabilityAwareSecretProvider); ok {
+		updatableSecretProvider.UpdateCapabilities(c.probe.Capabilities)
+		logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
+		enableProtocolSecrets := false
+		if c.probe.Capabilities != nil {
+			enableProtocolSecrets = c.probe.Capabilities.EnableProtocolSecrets
+		}
+		logger.Debug().Bool("enable_protocol_secrets", enableProtocolSecrets).Msg("updated secret provider with probe capabilities")
+	}
+
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
 
 	logger.Info().Str("probe_name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
