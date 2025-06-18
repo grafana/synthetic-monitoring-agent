@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	prom "github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -57,28 +57,28 @@ func TestTelemeterAddExecution(t *testing.T) {
 		registerer = prom.NewPedanticRegistry()
 	)
 
-	tele := NewTelemeter(ctx, instance, timeSpan, testClient, zerolog.Nop(), registerer)
+	tele := NewTelemeter(ctx, instance, timeSpan, testClient, testhelper.Logger(t), registerer)
 
-	t.Run("should init with no region pushers", func(t *testing.T) {
+	{ // should init with no region pushers
 		verifyTelemeter(t, tele, 0)
-	})
+	}
 
-	t.Run("should create a new region pusher", func(t *testing.T) {
+	{ // should create a new region pusher
 		execution := getTestDataset(0).executions[0]
 		tele.AddExecution(execution)
 		verifyTelemeter(t, tele, 1)
 		verifyRegionPusher(t, tele, execution.RegionID, execution)
-	})
+	}
 
-	t.Run("should add telemetry to current region pusher", func(t *testing.T) {
+	{ // should add telemetry to current region pusher
 		executions := getTestDataset(0).executions
 		tele.AddExecution(executions[1])
 		tele.AddExecution(executions[2])
 		verifyTelemeter(t, tele, 1)
 		verifyRegionPusher(t, tele, executions[0].RegionID, executions[:2]...)
-	})
+	}
 
-	t.Run("should add another region pusher", func(t *testing.T) {
+	{ // should add another region pusher
 		executions := getTestDataset(0).executions
 		executions[2].RegionID = 1
 		tele.AddExecution(executions[2])
@@ -86,10 +86,10 @@ func TestTelemeterAddExecution(t *testing.T) {
 		tele.AddExecution(executions[3])
 		verifyTelemeter(t, tele, 2)
 		verifyRegionPusher(t, tele, executions[3].RegionID, executions[2:4]...)
-	})
+	}
 
-	t.Run("initial region pusher data should be intact", func(t *testing.T) {
+	{ // initial region pusher data should be intact
 		executions := getTestDataset(0).executions
 		verifyRegionPusher(t, tele, executions[0].RegionID, executions[:2]...)
-	})
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,6 +19,15 @@ func Context(ctx context.Context, t *testing.T) (context.Context, context.Cancel
 	}
 
 	return context.WithDeadline(ctx, deadline)
+}
+
+func Logger(t *testing.T) zerolog.Logger {
+	logger := zerolog.New(zerolog.NewTestWriter(t)).Level(zerolog.ErrorLevel)
+	if testing.Verbose() {
+		logger = logger.Level(zerolog.DebugLevel)
+	}
+
+	return logger.With().Caller().Timestamp().Logger()
 }
 
 func MustReadFile(t *testing.T, filename string) []byte {
@@ -54,4 +64,13 @@ func ModuleDir(t *testing.T) string {
 	}
 
 	return dir
+}
+
+func K6Path(t *testing.T) string {
+	t.Helper()
+
+	k6path := filepath.Join(ModuleDir(t), "dist", runtime.GOOS+"-"+runtime.GOARCH, "sm-k6")
+	require.FileExistsf(t, k6path, "k6 program must exist at %s", k6path)
+
+	return k6path
 }

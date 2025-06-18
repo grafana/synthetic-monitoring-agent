@@ -319,7 +319,7 @@ func TestScriptHTTPRun(t *testing.T) {
 				registry = prometheus.NewRegistry()
 				logBuf   = bytes.Buffer{}
 				logger   = recordingLogger{buf: &logBuf}
-				zlogger  = zerolog.Nop()
+				zlogger  = testhelper.Logger(t)
 			)
 
 			success, err := script.Run(ctx, registry, logger, zlogger, SecretStore{})
