@@ -205,12 +205,24 @@ func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 }
 
 // resolveSecretValue resolves a secret value based on its prefix:
-// - "gsm:" prefix: lookup the secret from the secret store
-// - "plaintext:" prefix: strip the prefix and return the value
+// - "gsm:" prefix: lookup the secret from the secret store (only if EnableProtocolSecrets is true)
+// - "plaintext:" prefix: strip the prefix and return the value (only if EnableProtocolSecrets is true)
 // - no prefix (legacy): return the value as-is
+// If EnableProtocolSecrets is false, the value is returned as-is regardless of any prefix
 func resolveSecretValue(ctx context.Context, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) (string, error) {
 	if value == "" {
 		return "", nil
+	}
+
+	// Check if protocol secrets are enabled
+	enableProtocolSecrets := false
+	if capabilityAware, ok := secretStore.(secrets.CapabilityAwareSecretProvider); ok {
+		enableProtocolSecrets = capabilityAware.IsProtocolSecretsEnabled()
+	}
+
+	// If protocol secrets are not enabled, return the value as-is regardless of any prefix
+	if !enableProtocolSecrets {
+		return value, nil
 	}
 
 	if strings.HasPrefix(value, "gsm:") {

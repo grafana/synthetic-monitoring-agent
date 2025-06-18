@@ -19,8 +19,71 @@ type SecretProvider interface {
 	GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
 }
 
+// CapabilityAwareSecretProvider extends SecretProvider with probe capability awareness
+type CapabilityAwareSecretProvider interface {
+	SecretProvider
+	IsProtocolSecretsEnabled() bool
+}
+
+// UpdatableCapabilityAwareSecretProvider allows updating probe capabilities after creation
+type UpdatableCapabilityAwareSecretProvider interface {
+	CapabilityAwareSecretProvider
+	UpdateCapabilities(probeCapabilities *sm.Probe_Capabilities)
+}
+
 type TenantProvider interface {
 	GetTenant(context.Context, *sm.TenantInfo) (*sm.Tenant, error)
+}
+
+// capabilityAwareWrapper wraps a SecretProvider to add probe capability awareness
+type capabilityAwareWrapper struct {
+	SecretProvider
+	enableProtocolSecrets bool
+}
+
+// updatableCapabilityAwareWrapper wraps a SecretProvider to add updatable probe capability awareness
+type updatableCapabilityAwareWrapper struct {
+	SecretProvider
+	enableProtocolSecrets bool
+}
+
+// NewCapabilityAwareSecretProvider wraps a SecretProvider with probe capabilities
+func NewCapabilityAwareSecretProvider(secretProvider SecretProvider, probeCapabilities *sm.Probe_Capabilities) CapabilityAwareSecretProvider {
+	enableProtocolSecrets := false
+	if probeCapabilities != nil {
+		enableProtocolSecrets = probeCapabilities.EnableProtocolSecrets
+	}
+
+	return &capabilityAwareWrapper{
+		SecretProvider:        secretProvider,
+		enableProtocolSecrets: enableProtocolSecrets,
+	}
+}
+
+// NewUpdatableCapabilityAwareSecretProvider wraps a SecretProvider with updatable probe capabilities
+func NewUpdatableCapabilityAwareSecretProvider(secretProvider SecretProvider) UpdatableCapabilityAwareSecretProvider {
+	return &updatableCapabilityAwareWrapper{
+		SecretProvider:        secretProvider,
+		enableProtocolSecrets: false, // Default to false until capabilities are set
+	}
+}
+
+// IsProtocolSecretsEnabled returns whether protocol secrets are enabled for this probe
+func (w *capabilityAwareWrapper) IsProtocolSecretsEnabled() bool {
+	return w.enableProtocolSecrets
+}
+
+// IsProtocolSecretsEnabled returns whether protocol secrets are enabled for this probe
+func (w *updatableCapabilityAwareWrapper) IsProtocolSecretsEnabled() bool {
+	return w.enableProtocolSecrets
+}
+
+// UpdateCapabilities updates the probe capabilities
+func (w *updatableCapabilityAwareWrapper) UpdateCapabilities(probeCapabilities *sm.Probe_Capabilities) {
+	w.enableProtocolSecrets = false
+	if probeCapabilities != nil {
+		w.enableProtocolSecrets = probeCapabilities.EnableProtocolSecrets
+	}
 }
 
 // secretProvider provides caching for secret values with TTL and intelligent response handling
