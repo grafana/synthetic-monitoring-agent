@@ -103,6 +103,8 @@ func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
 					Msg("store stream failed")
 			}
 
+			// Drop the records by returning their buffers to the pool. They were either published or we
+			// gave up on them.
 			size := q.options.pool.returnAll(records)
 
 			switch pushErr.Kind() {
@@ -117,6 +119,11 @@ func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
 			case errKindPayload:
 				// This is not necessarily errors! Possibly most of the data was ingested and only
 				// a sample was discarded.
+				q.options.metrics.ErrorCounter.WithLabelValues(statusCodeStr).Add(numRecords)
+
+			case errKindLimit:
+				// Some (?) of the data was ingested, but we don't have a way to know which part.
+				// Retrying won't help. Keep going.
 				q.options.metrics.ErrorCounter.WithLabelValues(statusCodeStr).Add(numRecords)
 
 			case errKindTenant, errKindFatal, errKindWait:

@@ -140,7 +140,7 @@ func TestParsePushError(t *testing.T) {
 				Err:        errors.New(`Maximum active stream limit exceeded, reduce the number of active streams (reduce labels or reduce label values), or contact your Loki administrator to see if the limit can be increased, user: '1234'`),
 			},
 			expected: pushError{
-				kind: errKindFatal,
+				kind: errKindLimit,
 			},
 			code: 429,
 		},
