@@ -15,6 +15,7 @@ import (
 
 	logproto "github.com/grafana/loki/pkg/push"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/pkg/loki"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
@@ -182,7 +183,11 @@ func (p *tenantPusher) publish(payload pusher.Payload) {
 	}
 
 	if len(payload.Streams()) > 0 {
-		p.logs.insert(toRequest(&logproto.PushRequest{Streams: payload.Streams()}, p.options.pool))
+		const maxBytes = 255 * 1024 // 255KB, match loki's limit
+		chunks := loki.SplitStreamsIntoChunks(payload.Streams(), maxBytes)
+		for _, chunk := range chunks {
+			p.logs.insert(toRequest(&logproto.PushRequest{Streams: chunk}, p.options.pool))
+		}
 	}
 }
 
