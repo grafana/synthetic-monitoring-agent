@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 
 	prom "github.com/prometheus/client_golang/prometheus"
 	prommodel "github.com/prometheus/client_model/go"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
@@ -228,7 +228,7 @@ func TestTenantPusher(t *testing.T) {
 	t.Run("should send telemetry data once", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, _ := setupTest(context.Background())
+		td, tc, pusher, _ := setupTest(t)
 
 		t.Cleanup(td.shutdownAndWait)
 
@@ -248,7 +248,7 @@ func TestTenantPusher(t *testing.T) {
 	t.Run("should retry sending data once", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, _ := setupTest(context.Background())
+		td, tc, pusher, _ := setupTest(t)
 
 		t.Cleanup(td.shutdownAndWait)
 
@@ -269,7 +269,7 @@ func TestTenantPusher(t *testing.T) {
 	t.Run("should retry and send more data", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, _ := setupTest(context.Background())
+		td, tc, pusher, _ := setupTest(t)
 
 		t.Cleanup(td.shutdownAndWait)
 
@@ -297,7 +297,7 @@ func TestTenantPusher(t *testing.T) {
 	t.Run("should push on context done", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, _ := setupTest(context.Background())
+		td, tc, pusher, _ := setupTest(t)
 
 		// Add some executions
 		addExecutions(pusher, getTestDataset(0).executions)
@@ -326,7 +326,7 @@ func TestTenantPusher(t *testing.T) {
 	t.Run("should report push error", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, metrics := setupTest(context.Background())
+		td, tc, pusher, metrics := setupTest(t)
 
 		t.Cleanup(td.shutdownAndWait)
 
@@ -350,7 +350,7 @@ func TestTenantPusher(t *testing.T) {
 	t.Run("should report push error on unexpected status", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, metrics := setupTest(context.Background())
+		td, tc, pusher, metrics := setupTest(t)
 
 		t.Cleanup(td.shutdownAndWait)
 
@@ -390,14 +390,14 @@ type testPushResp struct {
 	err error
 }
 
-func setupTest(ctx context.Context) (*testDriver, *testTelemetryClient, *RegionPusher, RegionMetrics) {
+func setupTest(t *testing.T) (*testDriver, *testTelemetryClient, *RegionPusher, RegionMetrics) {
 	var (
 		wg              = &sync.WaitGroup{}
-		testCtx, cancel = context.WithCancel(ctx)
+		testCtx, cancel = context.WithCancel(t.Context())
 		ticker          = &testTicker{c: make(chan time.Time)}
 		td              = testDriver{wg: wg, cancel: cancel, ticker: ticker}
 		tc              = &testTelemetryClient{wg: wg}
-		logger          = zerolog.Nop()
+		logger          = testhelper.Logger(t)
 		metrics         = RegionMetrics{
 			pushRequestsActive:   prom.NewGauge(prom.GaugeOpts{}),
 			pushRequestsDuration: prom.NewHistogram(prom.HistogramOpts{}),
@@ -407,6 +407,8 @@ func setupTest(ctx context.Context) (*testDriver, *testTelemetryClient, *RegionP
 		}
 		opt withTicker = ticker
 	)
+
+	t.Cleanup(cancel)
 
 	pusher := NewRegionPusher(testCtx, 1*time.Second, tc, logger, instance, regionID, metrics, opt)
 

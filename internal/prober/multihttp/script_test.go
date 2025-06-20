@@ -5,8 +5,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -18,7 +16,6 @@ import (
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mccutchen/go-httpbin/v2/httpbin"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -851,13 +848,12 @@ func TestSettingsToScript(t *testing.T) {
 
 	ctx, cancel := testhelper.Context(context.Background(), t)
 	t.Cleanup(cancel)
-	// logger := zerolog.New(zerolog.NewTestWriter(t))
-	logger := zerolog.Nop()
-	k6path := filepath.Join(testhelper.ModuleDir(t), "dist", runtime.GOOS+"-"+runtime.GOARCH, "sm-k6")
-	t.Log(k6path)
+
+	k6path := testhelper.K6Path(t)
 	runner := k6runner.New(k6runner.RunnerOpts{Uri: k6path})
 	store := noopSecretStore{}
 
+	logger := testhelper.Logger(t)
 	prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store)
 	require.NoError(t, err)
 
