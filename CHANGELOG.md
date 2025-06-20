@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.38.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.0...v0.38.1) (2025-06-20)
+
+
+### Miscellaneous Chores
+
+* k6runner: replace exp/rand with math/rand/v2 ([#1325](https://github.com/grafana/synthetic-monitoring-agent/issues/1325)) ([73f4af7](https://github.com/grafana/synthetic-monitoring-agent/commit/73f4af7944dceeecb503de13b605450f7c719acc))
+* Update docker/setup-buildx-action action to v3.11.1 ([#1348](https://github.com/grafana/synthetic-monitoring-agent/issues/1348)) ([56ad9e0](https://github.com/grafana/synthetic-monitoring-agent/commit/56ad9e0afdbfb4dfed46250afc86c79ff0e91b9b))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v137.0.7151.103-r0-edge ([d329f31](https://github.com/grafana/synthetic-monitoring-agent/commit/d329f312017f85ae256cc63f4f323955456ec37b))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:137.0.7151.68-r0-3.22.0 Docker digest to d1b6268 ([#1347](https://github.com/grafana/synthetic-monitoring-agent/issues/1347)) ([9d1e880](https://github.com/grafana/synthetic-monitoring-agent/commit/9d1e880610b6f330aafd4bc922fc54852f049c82))
+* Update grafana/shared-workflows digest to d24aec3 ([#1343](https://github.com/grafana/synthetic-monitoring-agent/issues/1343)) ([3145981](https://github.com/grafana/synthetic-monitoring-agent/commit/3145981bb1cd45ef982215c2d3e6306ed03ebb2e))
+* Update module github.com/golang/snappy to v1 ([#1249](https://github.com/grafana/synthetic-monitoring-agent/issues/1249)) ([36a02d6](https://github.com/grafana/synthetic-monitoring-agent/commit/36a02d66a6230fb33360c515c0b54b1499658f64))
+
 ## [0.38.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.37.7...v0.38.0) (2025-06-17)
 
 
