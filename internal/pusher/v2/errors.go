@@ -21,6 +21,7 @@ const (
 	errKindTenant                    // A problem with the tenant remotes. Fetch the tenant again.
 	errKindFatal                     // There is a problem that can't be fixed by fetching the tenant.
 	errKindTerminated                // Push terminated (context canceled)
+	errKindLimit                     // There is a problem with the limits of the tenant. Discard it.
 )
 
 func (k errKind) String() string {
@@ -39,6 +40,8 @@ func (k errKind) String() string {
 		return "fatal error"
 	case errKindTerminated:
 		return "terminate error"
+	case errKindLimit:
+		return "limit error"
 	}
 	return "unknown error"
 }
@@ -120,8 +123,12 @@ var httpCodeMappings = map[int]struct {
 				kind:   errKindFatal,
 			},
 			{
+				// We are hitting a limit in the maximum number of active streams allowed by Loki.
+				// There's nothing we can do about it other than reporting it. Because of the
+				// way Loki works, it's possible that we hit this limit once and don't hit it the next
+				// time we try to publish data.
 				substr: "Maximum active stream limit exceeded",
-				kind:   errKindFatal,
+				kind:   errKindLimit,
 			},
 		},
 	},

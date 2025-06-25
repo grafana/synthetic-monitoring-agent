@@ -304,11 +304,16 @@ func TestQueuePush(t *testing.T) {
 		},
 		"fatal error": {
 			responses: []http.HandlerFunc{
-				respond(http.StatusTooManyRequests, "Maximum active stream limit exceeded"),
+				respond(http.StatusTooManyRequests, "limit: 0 "),
 			},
 			expectedErr: pushError{
 				kind:  errKindFatal,
-				inner: errors.New(`server returned HTTP status 429 Too Many Requests: Maximum active stream limit exceeded`),
+				inner: errors.New(`server returned HTTP status 429 Too Many Requests: limit: 0 `),
+			},
+		},
+		"limit error": {
+			responses: []http.HandlerFunc{
+				respond(http.StatusTooManyRequests, "Maximum active stream limit exceeded"),
 			},
 		},
 	} {
