@@ -1,12 +1,15 @@
 package synthetic_monitoring
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"flag"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1972,4 +1975,73 @@ func TestGetCheckInstance(t *testing.T) {
 		require.Equal(t, checkType, check.Type())
 		require.NoError(t, check.Validate())
 	}
+}
+
+func requireRemoteInfoFields(t *testing.T) {
+	t.Helper()
+
+	// The expected fields in the RemoteInfo struct. It's necessary to
+	// assert this list so that if the implementation ever changes, we can
+	// go update the MarshalZerologObject method accordingly.
+	expectedFields := []string{
+		"Name",
+		"Url",
+		"Username",
+		"Password",
+	}
+
+	remoteInfoType := reflect.TypeOf(RemoteInfo{})
+	actualFields := make([]string, 0, remoteInfoType.NumField())
+
+	for i := range remoteInfoType.NumField() {
+		field := remoteInfoType.Field(i)
+		if field.IsExported() {
+			actualFields = append(actualFields, field.Name)
+		}
+	}
+
+	require.ElementsMatch(t, expectedFields, actualFields,
+		"RemoteInfo struct fields have changed. Update the expected fields list and review any code that depends on the field order.")
+}
+
+func TestRemoteInfoMarshalZerologObject(t *testing.T) {
+	requireRemoteInfoFields(t)
+
+	remoteInfo := RemoteInfo{
+		Name:     "the name",
+		Url:      "https://example.com",
+		Username: "the username",
+		Password: "the password",
+	}
+
+	var buf bytes.Buffer
+	logger := zerolog.New(&buf)
+
+	logger.Info().Interface("remote_info", remoteInfo).Send()
+
+	// Note that the order of the expected fields is fixed. If the
+	// implementation changes, this test will break.
+	expected := `{"level":"info","remote_info":{"name":"the name","url":"https://example.com","username":"the username","password":"<encrypted>"}}` + "\n"
+	actual := buf.String()
+
+	require.Equal(t, expected, actual)
+}
+
+func TestRemoteInfoMarshalJSON(t *testing.T) {
+	requireRemoteInfoFields(t)
+
+	remoteInfo := RemoteInfo{
+		Name:     "the name",
+		Url:      "https://example.com",
+		Username: "the username",
+		Password: "the password",
+	}
+
+	var buf bytes.Buffer
+	err := json.NewEncoder(&buf).Encode(&remoteInfo)
+	require.NoError(t, err)
+
+	expected := `{"name":"the name","url":"https://example.com","username":"the username","password":"\u003cencrypted\u003e"}`
+	actual := strings.TrimSpace(buf.String())
+	require.Equal(t, expected, actual, "JSON encoding of RemoteInfo did not match expected output")
 }
