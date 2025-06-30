@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.38.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.1...v0.38.2) (2025-06-30)
+
+
+### Fixes
+
+* Don't stop publisher if we hit Loki's stream limit ([#1356](https://github.com/grafana/synthetic-monitoring-agent/issues/1356)) ([917541c](https://github.com/grafana/synthetic-monitoring-agent/commit/917541c48e410a8a895b29f8143f91705c0bbf69))
+
+
+### Miscellaneous Chores
+
+* Update golang.org/x/exp digest to b7579e2 ([#1190](https://github.com/grafana/synthetic-monitoring-agent/issues/1190)) ([1755745](https://github.com/grafana/synthetic-monitoring-agent/commit/1755745eef7967387cd10e84742ef913cb331c4e))
+
 ## [0.38.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.0...v0.38.1) (2025-06-20)
 
 
