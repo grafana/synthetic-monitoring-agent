@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"time"
@@ -116,7 +117,14 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	cmd.Stdin = nil
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Env = k6Env(os.Environ())
+
+	port, err := findAvailablePort()
+	if err != nil {
+		return nil, fmt.Errorf("finding available port: %w", err)
+	}
+	cmd.Env = append([]string{}, fmt.Sprintf("K6_BROWSER_SCREENSHOTS_OUTPUT=url=http://127.0.0.1:%d", port))
+	cmd.Env = k6Env(cmd.Env)
+	cmd.Env = append(cmd.Env, os.Environ()...)
 
 	start := time.Now()
 	logger.Info().Str("command", cmd.String()).Bytes("script", script.Script).Msg("running k6 script")
@@ -143,27 +151,14 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		return nil, fmt.Errorf("executing k6 script: %w", err)
 	}
 
-	// 256KiB is the maximum payload size for Loki. Set our limit slightly below that to avoid tripping the limit in
-	// case we inject some messages down the line.
-	const maxLogsSizeBytes = 255 * 1024
-
 	// Mimir can also ingest up to 256KiB, but that's JSON-encoded, not promhttp encoded.
 	// To be safe, we limit it to 100KiB promhttp-encoded, hoping than the more verbose json encoding overhead is less
 	// than 2.5x.
 	const maxMetricsSizeBytes = 100 * 1024
 
-	logs, truncated, err := readFileLimit(afs.Fs, logsFn, maxLogsSizeBytes)
+	logs, err := afs.ReadFile(logsFn)
 	if err != nil {
 		return nil, fmt.Errorf("reading k6 logs: %w", err)
-	}
-	if truncated {
-		logger.Warn().
-			Str("filename", logsFn).
-			Int("limitBytes", maxLogsSizeBytes).
-			Msg("Logs output larger than limit, truncating")
-
-		// Leave a truncation notice at the end.
-		fmt.Fprintf(logs, `level=error msg="Log output truncated at %d bytes"`+"\n", maxLogsSizeBytes)
 	}
 
 	metrics, truncated, err := readFileLimit(afs.Fs, metricsFn, maxMetricsSizeBytes)
@@ -177,10 +172,12 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 			Msg("Metrics output larger than limit, truncating")
 
 		// If we truncate metrics, also leave a truncation notice at the end of the logs.
-		fmt.Fprintf(logs, `level=error msg="Metrics output truncated at %d bytes"`+"\n", maxMetricsSizeBytes)
+		var metricsNotice bytes.Buffer
+		fmt.Fprintf(&metricsNotice, `level=error msg="Metrics output truncated at %d bytes"`+"\n", maxMetricsSizeBytes)
+		logs = append(logs, metricsNotice.Bytes()...)
 	}
 
-	return &RunResponse{Metrics: metrics.Bytes(), Logs: logs.Bytes()}, errors.Join(err, errorFromLogs(logs.Bytes()))
+	return &RunResponse{Metrics: metrics.Bytes(), Logs: logs}, errors.Join(err, errorFromLogs(logs))
 }
 
 func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
@@ -333,4 +330,13 @@ func createSecretConfigFile(url, token string) (filename string, cleanup func(),
 	}
 
 	return tmpFile.Name(), func() { os.Remove(tmpFile.Name()) }, nil
+}
+
+func findAvailablePort() (int, error) {
+	addr, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, err
+	}
+	defer addr.Close()
+	return addr.Addr().(*net.TCPAddr).Port, nil
 }
