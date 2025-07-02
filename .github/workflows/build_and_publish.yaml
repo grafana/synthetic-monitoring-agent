@@ -263,7 +263,7 @@ jobs:
           tag=${GITHUB_REF##*/}
           # Make sure this is a tag. The following command will fail otherwise.
           git rev-parse "refs/tags/$tag"
-          find dist/ -mindepth 2 -maxdepth 2 -type f \( -name \*.rpm -o -name \*.deb \) -print0 |
+          find dist/ -mindepth 2 -maxdepth 2 -type f \( -name \*.rpm -o -name \*.deb -o -name \*.tar.gz \) -print0 |
             xargs -r0 gh release upload "$tag"
 
       - name: push container images to docker hub (no browser)
