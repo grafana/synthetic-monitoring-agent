@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.38.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.2...v0.38.3) (2025-07-02)
+
+
+### Miscellaneous Chores
+
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v138 ([6c52dfb](https://github.com/grafana/synthetic-monitoring-agent/commit/6c52dfb70a4c7d65a85b9e0c88ef62588ebb73b6))
+
 ## [0.38.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.1...v0.38.2) (2025-06-30)
 
 
