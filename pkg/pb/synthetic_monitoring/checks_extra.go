@@ -20,6 +20,7 @@ package synthetic_monitoring
 //go:generate ../../../scripts/enumer -type=MultiHttpEntryAssertionType,MultiHttpEntryAssertionSubjectVariant,MultiHttpEntryAssertionConditionVariant,MultiHttpEntryVariableType -trimprefix=MultiHttpEntryAssertionType_,MultiHttpEntryAssertionSubjectVariant_,MultiHttpEntryAssertionConditionVariant_,MultiHttpEntryVariableType_ -transform=upper -output=multihttp_string.go
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime"
@@ -30,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/rs/zerolog"
 	"golang.org/x/exp/constraints"
 	"golang.org/x/net/http/httpguts"
 )
@@ -1584,4 +1586,20 @@ func GetCheckInstance(checkType CheckType) Check {
 	}
 
 	return instance
+}
+
+func (ri RemoteInfo) MarshalZerologObject(e *zerolog.Event) {
+	e.Str("name", ri.Name).
+		Str("url", ri.Url).
+		Str("username", ri.Username).
+		Str("password", "<encrypted>")
+}
+
+func (ri RemoteInfo) MarshalJSON() ([]byte, error) {
+	type T RemoteInfo
+	var tmp T = T(ri)
+
+	tmp.Password = `<encrypted>`
+
+	return json.Marshal(tmp)
 }
