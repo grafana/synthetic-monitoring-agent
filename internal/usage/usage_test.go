@@ -11,7 +11,6 @@ import (
 )
 
 func TestUsageReporter_Report(t *testing.T) {
-
 	// Create a test http server that intercepts requests to https://stats.grafana.net
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
