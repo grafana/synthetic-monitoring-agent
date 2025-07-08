@@ -1,1 +1,5 @@
 * @grafana/synthetic-monitoring-be
+
+# The following files are owned by @synthetic-monitoring-dev so that anybody in the team can carry out the release process.
+.github/release-please/.release-please-manifest.json  @grafana/synthetic-monitoring-dev
+CHANGELOG.md                                          @grafana/synthetic-monitoring-dev
