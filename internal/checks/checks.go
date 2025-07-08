@@ -388,7 +388,6 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	c.probe = &result.Probe
 
-	// usageReporter will be nil if the usage report configuration is disabled
 	err = c.usageReporter.ReportProbe(ctx, result.Probe)
 	if err != nil {
 		c.logger.Warn().Err(err).Msg("reporting usage failed")
