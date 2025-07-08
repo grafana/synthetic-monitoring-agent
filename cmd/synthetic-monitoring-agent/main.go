@@ -77,15 +77,14 @@ func run(args []string, stdout io.Writer) error {
 			DisableK6            bool
 			DisableUsageReports  bool
 		}{
-			GrpcApiServerAddr:   "localhost:4031",
-			HttpListenAddr:      "localhost:4050",
-			K6URI:               "sm-k6",
-			K6BlacklistedIP:     "10.0.0.0/8",
-			SelectedPublisher:   pusherV2.Name,
-			TelemetryTimeSpan:   defTelemetryTimeSpan,
-			AutoMemLimit:        true,
-			MemLimitRatio:       0.9,
-			DisableUsageReports: true,
+			GrpcApiServerAddr: "localhost:4031",
+			HttpListenAddr:    "localhost:4050",
+			K6URI:             "sm-k6",
+			K6BlacklistedIP:   "10.0.0.0/8",
+			SelectedPublisher: pusherV2.Name,
+			TelemetryTimeSpan: defTelemetryTimeSpan,
+			AutoMemLimit:      true,
+			MemLimitRatio:     0.9,
 		}
 	)
 
@@ -106,7 +105,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.IntVar(&config.TelemetryTimeSpan, "telemetry-time-span", config.TelemetryTimeSpan, "time span between telemetry push executions per tenant")
 	flags.BoolVar(&config.AutoMemLimit, "enable-auto-memlimit", config.AutoMemLimit, "automatically set GOMEMLIMIT")
 	flags.BoolVar(&config.DisableK6, "disable-k6", config.DisableK6, "disables running k6 checks on this probe")
-	flags.BoolVar(&config.DisableUsageReports, "disable-usage-reports", config.DisableUsageReports, "disables sending Usage Reports to Grafana")
+	flags.BoolVar(&config.DisableUsageReports, "disable-usage-reports", config.DisableUsageReports, "Disable anonymous usage reports")
 	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
 	flags.Var(&features, "features", "optional feature flags")
 
@@ -213,17 +212,10 @@ func run(args []string, stdout io.Writer) error {
 		zl.Info().Msg("disabling k6 checks")
 	}
 
-	var usageReporter *usage.UsageReporter
-
+	usageReporter := usage.NewNoOPReporter()
 	if !config.DisableUsageReports {
-		zl.Info().Str("usage endpoint", usage.DefaultUsageStatsEndpoint).Msg("Starting usage stats reporting")
-		endpoint := usage.DefaultUsageStatsEndpoint
-		if config.DevMode {
-			// TODO: Make this point to staging
-			endpoint = "http://localhost:4200"
-		}
-		usageReporter = usage.NewUsageReporter(endpoint, features)
-		zl.Info().Msg("Usage stats reporting")
+		usageReporter = usage.NewHTTPReporter(usage.DefaultUsageStatsEndpoint, features)
+		zl.Info().Msg("enabled collecting anonymous usage reports.")
 	}
 
 	promRegisterer := prometheus.NewRegistry()

@@ -84,7 +84,7 @@ type Updater struct {
 	tenantLimits   *limits.TenantLimits
 	tenantSecrets  *secrets.TenantSecrets
 	telemeter      *telemetry.Telemeter
-	usageReporter  *usage.UsageReporter
+	usageReporter  usage.Reporter
 }
 
 type apiInfo struct {
@@ -120,7 +120,7 @@ type UpdaterOptions struct {
 	TenantLimits   *limits.TenantLimits
 	Telemeter      *telemetry.Telemeter
 	TenantSecrets  *secrets.TenantSecrets
-	UsageReporter  *usage.UsageReporter
+	UsageReporter  usage.Reporter
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -389,11 +389,9 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	c.probe = &result.Probe
 
 	// usageReporter will be nil if the usage report configuration is disabled
-	if c.usageReporter != nil {
-		err = c.usageReporter.ReportProbe(context.Background(), result.Probe)
-		if err != nil {
-			c.logger.Warn().Err(err).Msg("reporting usage failed")
-		}
+	err = c.usageReporter.ReportProbe(ctx, result.Probe)
+	if err != nil {
+		c.logger.Warn().Err(err).Msg("reporting usage failed")
 	}
 
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
