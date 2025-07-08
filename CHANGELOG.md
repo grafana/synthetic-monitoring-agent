@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.38.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.3...v0.38.4) (2025-07-07)
+
+
+### Fixes
+
+* Redact password field in RemoteInfo type ([#1322](https://github.com/grafana/synthetic-monitoring-agent/issues/1322)) ([757d3c9](https://github.com/grafana/synthetic-monitoring-agent/commit/757d3c92080b40085219e11899a503f7522b1034))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm to v0.5.7 ([c68ca0a](https://github.com/grafana/synthetic-monitoring-agent/commit/c68ca0a220e0aafb61e9fb81c7709577ee193b0b))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.8.0 ([#1367](https://github.com/grafana/synthetic-monitoring-agent/issues/1367)) ([e637d64](https://github.com/grafana/synthetic-monitoring-agent/commit/e637d642f231684e8789edc6b8f7b68721443d91))
+* Update grafana/shared-workflows digest to 00646b3 ([aefdf8e](https://github.com/grafana/synthetic-monitoring-agent/commit/aefdf8e0933e9b3592a63fd6e0e1898d49ebe289))
+* Update grafana/shared-workflows digest to 8717df3 ([#1368](https://github.com/grafana/synthetic-monitoring-agent/issues/1368)) ([b337f87](https://github.com/grafana/synthetic-monitoring-agent/commit/b337f879a9195181c58bb4c953d0722f0a3468c9))
+* Update prometheus-go ([d5347f6](https://github.com/grafana/synthetic-monitoring-agent/commit/d5347f6630c5d96f8ec763d0d209c180d4a7b3e7))
+
 ## [0.38.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.2...v0.38.3) (2025-07-02)
 
 
