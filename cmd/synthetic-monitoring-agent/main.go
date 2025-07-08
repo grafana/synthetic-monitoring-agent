@@ -76,6 +76,7 @@ func run(args []string, stdout io.Writer) error {
 			MemLimitRatio        float64
 			DisableK6            bool
 			DisableUsageReports  bool
+			UsageStatsEndpoint   string
 		}{
 			GrpcApiServerAddr: "localhost:4031",
 			HttpListenAddr:    "localhost:4050",
@@ -106,6 +107,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.AutoMemLimit, "enable-auto-memlimit", config.AutoMemLimit, "automatically set GOMEMLIMIT")
 	flags.BoolVar(&config.DisableK6, "disable-k6", config.DisableK6, "disables running k6 checks on this probe")
 	flags.BoolVar(&config.DisableUsageReports, "disable-usage-reports", config.DisableUsageReports, "Disable anonymous usage reports")
+	flags.StringVar(&config.UsageStatsEndpoint, "usage-stats-endpoint", usage.DefaultUsageStatsEndpoint, "usage stats endpoint to send reports to")
 	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
 	flags.Var(&features, "features", "optional feature flags")
 
@@ -214,7 +216,7 @@ func run(args []string, stdout io.Writer) error {
 
 	usageReporter := usage.NewNoOPReporter()
 	if !config.DisableUsageReports {
-		usageReporter = usage.NewHTTPReporter(usage.DefaultUsageStatsEndpoint, features)
+		usageReporter = usage.NewHTTPReporter(config.UsageStatsEndpoint, features)
 		zl.Info().Msg("enabled collecting anonymous usage reports.")
 	}
 

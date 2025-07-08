@@ -33,6 +33,7 @@ type report struct {
 	Features     string `json:"features"`
 	UsageStatsId string `json:"usageStatsId"`
 	TenantID     int64  `json:"tenantId"`
+	ProbeID      int64  `json:"probeId"`
 }
 
 // HTTPReporter represents
@@ -63,18 +64,18 @@ func NewHTTPReporter(endpoint string, features feature.Collection) Reporter {
 
 // submitReport is responsible for sending a report to the stats endpoint via an http POST request. The primary concern is that
 // the http server responds with http.StatusOK. Otherwise, there are no other expected responses.
-func (r *HTTPReporter) submitReport(ctx context.Context, report *report) error {
+func (hr *HTTPReporter) submitReport(ctx context.Context, report *report) error {
 	jsonData, err := json.Marshal(&report)
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
-	endpoint := fmt.Sprintf("%s/%s", r.endpoint, UsageStatsApplication)
+	endpoint := fmt.Sprintf("%s/%s", hr.endpoint, UsageStatsApplication)
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := r.client.Do(req)
+	resp, err := hr.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to do request: %w", err)
 	}
@@ -86,19 +87,20 @@ func (r *HTTPReporter) submitReport(ctx context.Context, report *report) error {
 }
 
 // ReportProbe creates a report from the probe and then sends the report to the stats api endpoint via the report method.
-func (r *HTTPReporter) ReportProbe(ctx context.Context, probe sm.Probe) error {
-	report := &report{
+func (hr *HTTPReporter) ReportProbe(ctx context.Context, probe sm.Probe) error {
+	r := &report{
 		Report:       probe.String(),
 		CreatedAt:    time.Now().Format(time.RFC3339),
 		OS:           runtime.GOOS,
 		Arch:         runtime.GOARCH,
 		Version:      probe.Version,
 		UsageStatsId: uuid.NewString(),
-		Features:     r.features.String(),
+		Features:     hr.features.String(),
 		Public:       probe.Public,
 		TenantID:     probe.TenantId,
+		ProbeID:      probe.Id,
 	}
-	return r.submitReport(ctx, report)
+	return hr.submitReport(ctx, r)
 }
 
 type NoOPReporter struct{}
