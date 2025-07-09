@@ -17,7 +17,7 @@ import (
 
 // Reporter represents a way of communicating reports to different backend systems.
 type Reporter interface {
-	ReportProbe(ctx context.Context, probe sm.Probe) error
+	ReportProbe(ctx context.Context, probe sm.Probe, features feature.Collection) error
 }
 
 // report represents a specific usage event that will be sent to https://stats.grafana.com to be processed and stored.
@@ -39,7 +39,6 @@ type report struct {
 // HTTPReporter represents
 type HTTPReporter struct {
 	endpoint string
-	features feature.Collection
 	client   *http.Client
 }
 
@@ -48,16 +47,12 @@ const (
 	// in github.com/grafana/usage-stats for synthetic monitoring agents
 	UsageStatsApplication = "synthetic-monitoring-agent-usage-report"
 	// Base Endpoint for usage stats
-	DefaultUsageStatsEndpoint = "https://stats.grafana.com"
+	ProdStatsEndpoint = "https://stats.grafana.com"
 )
 
-func NewHTTPReporter(endpoint string, features feature.Collection) Reporter {
-	if endpoint == "" {
-		endpoint = DefaultUsageStatsEndpoint
-	}
+func NewHTTPReporter(endpoint string) *HTTPReporter {
 	return &HTTPReporter{
 		endpoint: endpoint,
-		features: features,
 		client:   &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -87,7 +82,7 @@ func (hr *HTTPReporter) submitReport(ctx context.Context, report *report) error 
 }
 
 // ReportProbe creates a report from the probe and then sends the report to the stats api endpoint via the report method.
-func (hr *HTTPReporter) ReportProbe(ctx context.Context, probe sm.Probe) error {
+func (hr *HTTPReporter) ReportProbe(ctx context.Context, probe sm.Probe, features feature.Collection) error {
 	r := &report{
 		Report:       probe.String(),
 		CreatedAt:    time.Now().Format(time.RFC3339),
@@ -95,7 +90,7 @@ func (hr *HTTPReporter) ReportProbe(ctx context.Context, probe sm.Probe) error {
 		Arch:         runtime.GOARCH,
 		Version:      probe.Version,
 		UsageStatsId: uuid.NewString(),
-		Features:     hr.features.String(),
+		Features:     features.String(),
 		Public:       probe.Public,
 		TenantID:     probe.TenantId,
 		ProbeID:      probe.Id,
@@ -105,10 +100,10 @@ func (hr *HTTPReporter) ReportProbe(ctx context.Context, probe sm.Probe) error {
 
 type NoOPReporter struct{}
 
-func NewNoOPReporter() Reporter {
+func NewNoOPReporter() *NoOPReporter {
 	return &NoOPReporter{}
 }
 
-func (r *NoOPReporter) ReportProbe(_ context.Context, _ sm.Probe) error {
+func (r *NoOPReporter) ReportProbe(_ context.Context, _ sm.Probe, _ feature.Collection) error {
 	return nil
 }

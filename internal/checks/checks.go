@@ -388,7 +388,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	c.probe = &result.Probe
 
-	err = c.usageReporter.ReportProbe(ctx, result.Probe)
+	err = c.usageReporter.ReportProbe(ctx, result.Probe, c.features)
 	if err != nil {
 		c.logger.Warn().Err(err).Msg("reporting usage failed")
 	}
