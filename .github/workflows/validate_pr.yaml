@@ -21,7 +21,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v1.8.0@sha256:9ba63b0d884602c33787c1b067ca652433cf24c959b838291c6a3b365e3c96a0
+      image: ghcr.io/grafana/grafana-build-tools:v1.9.0@sha256:4c061aa2fc854b33dcc2d2707bee6d0dee5a523bbf243f85e8f08b6ea0d89beb
 
     steps:
       - name: checkout
