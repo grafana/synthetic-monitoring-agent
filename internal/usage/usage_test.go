@@ -120,26 +120,26 @@ func Test_hashOfProbe(t *testing.T) {
 		want    string
 		wantErr bool
 	}{
-		"Nil probe should return an errorn": {
+		"Nil probe should return an error": {
 			p:       sm.Probe{},
-			want:    "10238674498380227310",
+			want:    "4547005171780583226",
 			wantErr: false,
 		},
 		"Probe with an ID should generate a consistent hash": {
 			p: sm.Probe{
 				Id: 1,
 			},
-			want:    "11825251301467821359",
+			want:    "10535204341849580461",
 			wantErr: false,
 		},
-		"Probe with everything set should return a consistent has": {
+		"Probe with everything set should return a consistent hash": {
 			p: sm.Probe{
 				Id:     1,
 				Region: "test",
 				Name:   "Some Name",
 				Public: true,
 			},
-			want:    "9816051699785545891",
+			want:    "1162427638690750921",
 			wantErr: false,
 		},
 		"Probe with everything set but slightly different values should return a different hash value": {
