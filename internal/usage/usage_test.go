@@ -23,6 +23,7 @@ func TestHTTPUsageReporter_Report(t *testing.T) {
 		defer r.Body.Close()
 		if err := json.NewDecoder(r.Body).Decode(&gotReport); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
 		// Clear these values out as they're dynamic attributes that are not important to validate the result of
 		gotReport.UsageStatsId = ""
@@ -110,5 +111,55 @@ func TestNoOPUsageReporter_Report(t *testing.T) {
 	r := NewNoOPReporter()
 	if err := r.ReportProbe(t.Context(), sm.Probe{}, nil); err != nil {
 		t.Errorf("Report() error = %v", err)
+	}
+}
+
+func Test_hashOfProbe(t *testing.T) {
+	tests := map[string]struct {
+		p       sm.Probe
+		want    string
+		wantErr bool
+	}{
+		"Nil probe should return an errorn": {
+			p:       sm.Probe{},
+			want:    "10238674498380227310",
+			wantErr: false,
+		},
+		"Probe with an ID should generate a consistent hash": {
+			p: sm.Probe{
+				Id: 1,
+			},
+			want:    "11825251301467821359",
+			wantErr: false,
+		},
+		"Probe with everything set should return a consistent has": {
+			p: sm.Probe{
+				Id:     1,
+				Region: "test",
+				Name:   "Some Name",
+				Public: true,
+			},
+			want:    "9816051699785545891",
+			wantErr: false,
+		},
+		"Probe with everything set but slightly different values should return a different hash value": {
+			p: sm.Probe{
+				Id:     10,
+				Region: "test",
+				Name:   "Some Name",
+				Public: true,
+			},
+			want:    "17885419548661010353",
+			wantErr: false,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, err := hashOfProbe(tt.p)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("hashOfProbe() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			assert.Equalf(t, tt.want, got, "want=%v, got=%v", tt.want, got)
+		})
 	}
 }

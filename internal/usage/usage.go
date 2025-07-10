@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -83,13 +83,17 @@ func (hr *HTTPReporter) submitReport(ctx context.Context, report *report) error 
 
 // ReportProbe creates a report from the probe and then sends the report to the stats api endpoint via the report method.
 func (hr *HTTPReporter) ReportProbe(ctx context.Context, probe sm.Probe, features feature.Collection) error {
+	hashValue, err := hashOfProbe(probe)
+	if err != nil {
+		return err
+	}
 	r := &report{
 		Report:       probe.String(),
 		CreatedAt:    time.Now().Format(time.RFC3339),
 		OS:           runtime.GOOS,
 		Arch:         runtime.GOARCH,
 		Version:      probe.Version,
-		UsageStatsId: uuid.NewString(),
+		UsageStatsId: hashValue,
 		Features:     features.String(),
 		Public:       probe.Public,
 		TenantID:     probe.TenantId,
@@ -106,4 +110,18 @@ func NewNoOPReporter() *NoOPReporter {
 
 func (r *NoOPReporter) ReportProbe(_ context.Context, _ sm.Probe, _ feature.Collection) error {
 	return nil
+}
+
+// hashOfProbe returns a string representation of the sm.Probe passed in by concatenating a few attributes of the probe, generating an FNV hash of the probe, and converting it back to a string.
+// FNV is deterministic so that a probe will always return the same value
+func hashOfProbe(p sm.Probe) (string, error) {
+	// Create a single string representation of the probe using the name, id, region, and public flag
+	s := p.Name + strconv.FormatInt(p.Id, 10) + p.Region + strconv.FormatBool(p.Public)
+	h := fnv.New64a()
+	_, err := h.Write([]byte(s))
+	if err != nil {
+		return "", err
+	}
+	sum := h.Sum64()
+	return strconv.FormatUint(sum, 10), nil
 }
