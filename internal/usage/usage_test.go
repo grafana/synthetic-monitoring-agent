@@ -144,12 +144,13 @@ func Test_hashOfProbe(t *testing.T) {
 		},
 		"Probe with everything set but slightly different values should return a different hash value": {
 			p: sm.Probe{
-				Id:     10,
-				Region: "test",
-				Name:   "Some Name",
-				Public: true,
+				Id:       10,
+				Region:   "test",
+				Name:     "Some Name",
+				Public:   true,
+				TenantId: 1,
 			},
-			want:    "17885419548661010353",
+			want:    "9777170254191072896",
 			wantErr: false,
 		},
 	}

@@ -116,7 +116,7 @@ func (r *NoOPReporter) ReportProbe(_ context.Context, _ sm.Probe, _ feature.Coll
 // FNV is deterministic so that a probe will always return the same value
 func hashOfProbe(p sm.Probe) (string, error) {
 	// Create a single string representation of the probe using the name, id, region, and public flag
-	s := p.Name + strconv.FormatInt(p.Id, 10) + p.Region + strconv.FormatBool(p.Public)
+	s := p.Name + strconv.FormatInt(p.Id, 10) + p.Region + strconv.FormatBool(p.Public) + strconv.FormatInt(p.TenantId, 10)
 	h := fnv.New64a()
 	_, err := h.Write([]byte(s))
 	if err != nil {
