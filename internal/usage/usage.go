@@ -112,7 +112,8 @@ func (r *NoOPReporter) ReportProbe(_ context.Context, _ sm.Probe, _ feature.Coll
 	return nil
 }
 
-// hashOfProbe returns a string representation of the sm.Probe passed in by concatenating a few attributes of the probe, generating an FNV hash of the probe, and converting it back to a string.
+// hashOfProbe returns a string representation of the sm.Probe passed in by concatenating a few attributes of the probe,
+// generating an FNV hash of the probe, and converting it back to a string.
 // FNV is deterministic so that a probe will always return the same value
 func hashOfProbe(p sm.Probe) (string, error) {
 	// Create a single string representation of the probe using the name, id, region, and public flag
