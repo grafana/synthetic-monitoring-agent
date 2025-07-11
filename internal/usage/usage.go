@@ -47,7 +47,7 @@ const (
 	// in github.com/grafana/usage-stats for synthetic monitoring agents
 	UsageStatsApplication = "synthetic-monitoring-agent-usage-report"
 	// Base Endpoint for usage stats
-	ProdStatsEndpoint = "https://stats.grafana.com"
+	ProdStatsEndpoint = "https://stats.grafana.org"
 )
 
 func NewHTTPReporter(endpoint string) *HTTPReporter {
@@ -112,11 +112,10 @@ func (r *NoOPReporter) ReportProbe(_ context.Context, _ sm.Probe, _ feature.Coll
 	return nil
 }
 
-// hashOfProbe returns a string representation of the sm.Probe passed in by concatenating a few attributes of the probe,
-// generating an FNV hash of the probe, and converting it back to a string.
-// FNV is deterministic so that a probe will always return the same value
+// hashOfProbe returns a string representation of the probe by concatenating identifying attributes and
+// generating an FNV(https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function) hash.
+// The hash function is deterministic to ensure a probe always results in the same string.
 func hashOfProbe(p sm.Probe) (string, error) {
-	// Create a single string representation of the probe using the name, id, region, and public flag
 	s := p.Name + strconv.FormatInt(p.Id, 10) + p.Region + strconv.FormatBool(p.Public) + strconv.FormatInt(p.TenantId, 10)
 	h := fnv.New64a()
 	_, err := h.Write([]byte(s))
