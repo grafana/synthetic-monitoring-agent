@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.38.5](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.4...v0.38.5) (2025-07-14)
+
+
+### Fixes
+
+* remove hardcoded blacklistIPs and blockHostnames for multihttp checks ([46dca02](https://github.com/grafana/synthetic-monitoring-agent/commit/46dca023216825d1c2706209e1deace0bd7f4a0b))
+* Replace zerolog.Nop() with conditional logger ([d04d1bf](https://github.com/grafana/synthetic-monitoring-agent/commit/d04d1bf3dd45a9afd87f5a3c325d4e0b5d8f50a6))
+* Update CODEOWNERS file to enable release-please workflow ([88d8087](https://github.com/grafana/synthetic-monitoring-agent/commit/88d80878cb39b57b97ddb4817c4768462c311981))
+
+
+### Miscellaneous Chores
+
+* renovate: replace fileMatch with managerFilePatterns ([4eacef1](https://github.com/grafana/synthetic-monitoring-agent/commit/4eacef1e5fd3a1133444fc4bdf703bb0f8432fa1))
+* Update dependency grafana/xk6-sm to v0.5.8 ([af1f1ed](https://github.com/grafana/synthetic-monitoring-agent/commit/af1f1ed930e76e02376592e65769151f3ba41390))
+* Update dependency grafana/xk6-sm to v0.5.8 ([1d1922a](https://github.com/grafana/synthetic-monitoring-agent/commit/1d1922a0dbd6c15902085ced73a5a88e7ea3667d))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:138.0.7204.93-r0-3.22.0 Docker digest to 342d53b ([bd61f44](https://github.com/grafana/synthetic-monitoring-agent/commit/bd61f4461d8a18840fde64cc69bb2b25bf9ec037))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.9.0 ([e0f2050](https://github.com/grafana/synthetic-monitoring-agent/commit/e0f2050571e0d787108e9e49acda79a49925d54d))
+* Update golang.org/x/exp digest to 6ae5c78 ([b109f76](https://github.com/grafana/synthetic-monitoring-agent/commit/b109f7631508fe4896022e97435ab4400da77731))
+* Update grafana/shared-workflows digest to 388e3e9 ([49c9720](https://github.com/grafana/synthetic-monitoring-agent/commit/49c9720e509e43ebf3ef7046771b59aa59cee419))
+* Update grafana/shared-workflows digest to e9a3e88 ([c991f74](https://github.com/grafana/synthetic-monitoring-agent/commit/c991f74e0895465340327f3a2f848e4916fc4a56))
+* Update module github.com/miekg/dns to v1.1.67 ([7c7ca12](https://github.com/grafana/synthetic-monitoring-agent/commit/7c7ca12b7b15cc4a657993458bb005ec9c1e628a))
+* Update module golang.org/x/sync to v0.16.0 ([f05ee0c](https://github.com/grafana/synthetic-monitoring-agent/commit/f05ee0ce9e5913ffdcaa71fd50f4f70b113622be))
+
 ## [0.38.4](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.3...v0.38.4) (2025-07-07)
 
 
