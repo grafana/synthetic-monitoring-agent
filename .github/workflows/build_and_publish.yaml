@@ -46,7 +46,7 @@ jobs:
       id-token: none
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v1.9.0@sha256:4c061aa2fc854b33dcc2d2707bee6d0dee5a523bbf243f85e8f08b6ea0d89beb
+      image: ghcr.io/grafana/grafana-build-tools:v1.10.0@sha256:3c9d1ee0bceed38ad4aa9ca86bbad8f6b2a903b7647670f1858b784189ae5069
     outputs:
       version: ${{ steps.version.outputs.value }}
       version_bare: ${{ steps.version.outputs.bare_value }}
