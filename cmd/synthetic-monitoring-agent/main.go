@@ -36,6 +36,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tenants"
+	"github.com/grafana/synthetic-monitoring-agent/internal/usage"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
@@ -74,6 +75,7 @@ func run(args []string, stdout io.Writer) error {
 			AutoMemLimit         bool
 			MemLimitRatio        float64
 			DisableK6            bool
+			DisableUsageReports  bool
 		}{
 			GrpcApiServerAddr: "localhost:4031",
 			HttpListenAddr:    "localhost:4050",
@@ -103,6 +105,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.IntVar(&config.TelemetryTimeSpan, "telemetry-time-span", config.TelemetryTimeSpan, "time span between telemetry push executions per tenant")
 	flags.BoolVar(&config.AutoMemLimit, "enable-auto-memlimit", config.AutoMemLimit, "automatically set GOMEMLIMIT")
 	flags.BoolVar(&config.DisableK6, "disable-k6", config.DisableK6, "disables running k6 checks on this probe")
+	flags.BoolVar(&config.DisableUsageReports, "disable-usage-reports", config.DisableUsageReports, "Disable anonymous usage reports")
 	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
 	flags.Var(&features, "features", "optional feature flags")
 
@@ -207,6 +210,15 @@ func run(args []string, stdout io.Writer) error {
 		zl.Info().Str("k6URI", config.K6URI).Msg("enabling k6 checks")
 	} else {
 		zl.Info().Msg("disabling k6 checks")
+	}
+
+	var usageReporter usage.Reporter
+	switch {
+	case config.DisableUsageReports:
+		usageReporter = usage.NewNoOPReporter()
+	default:
+		usageReporter = usage.NewHTTPReporter(usage.ProdStatsEndpoint)
+		zl.Info().Msg("enabled collecting anonymous usage reports. You can disable collection by setting -disable-usage-reports.")
 	}
 
 	promRegisterer := prometheus.NewRegistry()
@@ -319,6 +331,7 @@ func run(args []string, stdout io.Writer) error {
 		TenantLimits:   limits,
 		TenantSecrets:  secrets,
 		Telemeter:      telemetry,
+		UsageReporter:  usageReporter,
 	})
 	if err != nil {
 		return fmt.Errorf("Cannot create checks updater: %w", err)

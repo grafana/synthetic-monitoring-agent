@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	logproto "github.com/grafana/loki/pkg/push"
+
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -31,6 +32,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
+	"github.com/grafana/synthetic-monitoring-agent/internal/usage"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -82,6 +84,7 @@ type Updater struct {
 	tenantLimits   *limits.TenantLimits
 	tenantSecrets  *secrets.TenantSecrets
 	telemeter      *telemetry.Telemeter
+	usageReporter  usage.Reporter
 }
 
 type apiInfo struct {
@@ -117,6 +120,7 @@ type UpdaterOptions struct {
 	TenantLimits   *limits.TenantLimits
 	Telemeter      *telemetry.Telemeter
 	TenantSecrets  *secrets.TenantSecrets
+	UsageReporter  usage.Reporter
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -249,6 +253,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 			scrapeErrorCounter:  scrapeErrorCounter,
 			scrapesCounter:      scrapesCounter,
 		},
+		usageReporter: opts.UsageReporter,
 	}, nil
 }
 
@@ -326,6 +331,7 @@ func handleError(ctx context.Context, logger zerolog.Logger, backoff Backoffer, 
 	return false, nil
 }
 
+//goland:noinspection GoBoolExpressions
 func (c *Updater) loop(ctx context.Context) (bool, error) {
 	connected := false
 
@@ -387,6 +393,11 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	}
 
 	c.probe = &result.Probe
+
+	err = c.usageReporter.ReportProbe(ctx, result.Probe, c.features)
+	if err != nil {
+		c.logger.Warn().Err(err).Msg("reporting usage failed")
+	}
 
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
 
