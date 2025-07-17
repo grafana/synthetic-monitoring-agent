@@ -144,6 +144,12 @@ func run(args []string, stdout io.Writer) error {
 		}
 	}
 
+	if _, _, err := net.SplitHostPort(config.GrpcApiServerAddr); err != nil {
+		// SplitHostPort errors if the address has no port. This is intended, as omitting the port in the address is
+		// almost likely a user error that is hard to troubleshoot otherwise.
+		return fmt.Errorf("parsing GRPC api server address %q: %w", config.GrpcApiServerAddr, err)
+	}
+
 	// If the token is provided on the command line, prefer that. Otherwise
 	// pull it from the environment variable SM_AGENT_API_TOKEN. If that's
 	// not available, fallback to API_TOKEN, which was the environment
