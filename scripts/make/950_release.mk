@@ -42,10 +42,10 @@ package-rpm-$(1)-$(2) : $(DISTDIR)/$(1)-$(2)/nfpm.yaml $(DISTDIR)/changelog.yaml
 		--packager rpm \
 		--target $(DISTDIR)/$(1)-$(2)/
 
-package-tgz-$(1)-$(2) : $(DISTDIR)/$(1)-$(2)/sm-k6 $(DISTDIR)/$(1)-$(2)/synthetic-monitoring-agent $(ROOTDIR)/CHANGELOG.md $(ROOTDIR)/README.md
+package-tgz-$(1)-$(2) : $(DISTDIR)/$(1)-$(2)/sm-k6 $(DISTDIR)/$(1)-$(2)/synthetic-monitoring-agent $(ROOTDIR)/CHANGELOG.md $(ROOTDIR)/README.md $(ROOTDIR)/LICENSE
 	# Create a tarball including the binaries, changelog, and readme. --transform is used to place all files at the root
 	# of the tarball. The built-in make variable dollar-caret is escaped with two dollars so it survives package_template.
-	$(S) tar --transform 's|.*/||' -zcf $(DISTDIR)/$(1)-$(2)/synthetic-monitoring-agent.tar.gz $$^
+	$(S) tar --transform 's|.*/||' -zcf $(DISTDIR)/$(1)-$(2)/synthetic-monitoring-agent-$(firstword $(subst -, ,$(BUILD_VERSION)))-$(1)-$(2).tar.gz $$^
 
 package-$(1)-$(2) : package-deb-$(1)-$(2) package-rpm-$(1)-$(2) package-tgz-$(1)-$(2)
 	@true
