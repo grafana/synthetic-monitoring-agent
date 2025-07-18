@@ -119,7 +119,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	cmd.Env = k6Env(os.Environ())
 
 	start := time.Now()
-	logger.Info().Str("command", cmd.String()).Bytes("script", script.Script).Msg("running k6 script")
+	logger.Info().Str("command", cmd.String()).Msg("running k6 script")
 	err = cmd.Run()
 
 	duration := time.Since(start)
