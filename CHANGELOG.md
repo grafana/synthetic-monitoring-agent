@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.39.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.5...v0.39.0) (2025-07-18)
+
+
+### Features
+
+* Implement usage report client ([#1366](https://github.com/grafana/synthetic-monitoring-agent/issues/1366)) ([d3c3c88](https://github.com/grafana/synthetic-monitoring-agent/commit/d3c3c889fe583126564825bd8c97d18a076ba6c1))
+
+
+### Fixes
+
+* k6: do not log k6 script contents before execution ([7c993e4](https://github.com/grafana/synthetic-monitoring-agent/commit/7c993e46e85e3abbf3af680ec4ea353030f48d58))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm to v0.5.10 ([8b2047f](https://github.com/grafana/synthetic-monitoring-agent/commit/8b2047f6d73eed6fb3b1c0f56736e77daf51c181))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v138.0.7204.93-r0-3.22.1 ([6a9bfa8](https://github.com/grafana/synthetic-monitoring-agent/commit/6a9bfa8e93f187580a73ab4afb5e682875c5d319))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.10.0 ([a602437](https://github.com/grafana/synthetic-monitoring-agent/commit/a6024375d7fc47e45d73f0e35f8ff854be6b98d3))
+* Update module github.com/KimMachineGun/automemlimit to v0.7.4 ([40440e2](https://github.com/grafana/synthetic-monitoring-agent/commit/40440e2e92f2f0cfcf5744f30c744c5d23fcefb7))
+
 ## [0.38.5](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.4...v0.38.5) (2025-07-14)
 
 
