@@ -180,7 +180,14 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		fmt.Fprintf(logs, `level=error msg="Metrics output truncated at %d bytes"`+"\n", maxMetricsSizeBytes)
 	}
 
-	return &RunResponse{Metrics: metrics.Bytes(), Logs: logs.Bytes()}, errors.Join(err, errorFromLogs(logs.Bytes()))
+	rr := &RunResponse{Metrics: metrics.Bytes(), Logs: logs.Bytes()}
+	if err := errorFromLogs(logs.Bytes()); err != nil {
+		// k6 was run currectly, but the script failed. We capture that failure in the RunResponse.
+		rr.ErrorCode = errorType(err)
+		rr.Error = err.Error()
+	}
+
+	return rr, nil
 }
 
 func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
@@ -244,22 +251,6 @@ func dumpK6OutputStream(logger *zerolog.Logger, lvl zerolog.Level, stream io.Rea
 	if err := scanner.Err(); err != nil {
 		logger.Error().Fields(fields).Err(err).Msg("reading k6 output")
 	}
-}
-
-// isUserError returns whether we attribute this error to the user, i.e. to a combination of the k6 script contents and
-// settings. This includes timeouts and exit codes returned by k6.
-func isUserError(err error) bool {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
-
-	if exitErr := (&exec.ExitError{}); errors.As(err, &exitErr) && exitErr.ExitCode() < 127 {
-		// If this is an ExitError and the result code is < 127, this is a user error.
-		// https://github.com/grafana/k6/blob/v0.50.0/errext/exitcodes/codes.go
-		return true
-	}
-
-	return false
 }
 
 // readFileLimit reads up to limit bytes from the specified file using the specified FS. The limit respects newline
