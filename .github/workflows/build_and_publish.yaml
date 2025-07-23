@@ -242,19 +242,7 @@ jobs:
             latest
           file: Dockerfile.no-browser
 
-      - name: push container images to GAR (browser)
-        uses: grafana/shared-workflows/actions/push-to-gar-docker@de81a07e6f6718fb289c7a4612c9c514c28bd798 # v0.4.1
-        with:
-          environment: ${{ inputs.mode }}
-          image_name: ${{ needs.preflight.outputs.repo_name }}
-          push: true
-          platforms: ${{ steps.extract-build-artifacts.outputs.platforms }}
-          tags: |-
-            type=raw,value=${{ needs.validate.outputs.version }}-browser
-            type=raw,value=${{ needs.validate.outputs.version_bare }}-browser
-            type=sha,prefix=sha-,suffix=-browser,format=short
-            latest-browser
-          file: Dockerfile.browser
+      # There's no need to push browser image to GAR, as this is not used in our infra.
 
       - name: extract image metadata
         id: extract-image-metadata
