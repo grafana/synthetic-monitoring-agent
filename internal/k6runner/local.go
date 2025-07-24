@@ -211,6 +211,7 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 		"--no-color",
 		"--no-summary",
 		"--verbose",
+		"--throw", // Abort with an exception on certain abnormal cases: https://grafana.com/docs/k6/latest/using-k6/k6-options/reference/#throw
 	}
 
 	// Add secretStore configuration if available
