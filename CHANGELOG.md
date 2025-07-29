@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.39.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.39.0...v0.39.1) (2025-07-28)
+
+
+### Fixes
+
+* build a .tar.gz file with bare binaries and attach it to releases ([834a053](https://github.com/grafana/synthetic-monitoring-agent/commit/834a05381519bacf8f282a21907664090ebf1118))
+* include LICENSE tarballs, version-os-arch in name ([b0abe50](https://github.com/grafana/synthetic-monitoring-agent/commit/b0abe509cfe1bddd23fd62816de4605c5dc413db))
+
+
+### Miscellaneous Chores
+
+* ci: do not push browser image to GAR ([bffa211](https://github.com/grafana/synthetic-monitoring-agent/commit/bffa211415b917d4ab5dab8ab3d44ae9d8f36786))
+* Update alpine Docker tag to v3.22.1 ([1a5391f](https://github.com/grafana/synthetic-monitoring-agent/commit/1a5391fcf4ac9f7601722e27a2c02ec50b8fcb6c))
+* Update grafana/shared-workflows digest to 8c3f72c ([#1396](https://github.com/grafana/synthetic-monitoring-agent/issues/1396)) ([b54aba8](https://github.com/grafana/synthetic-monitoring-agent/commit/b54aba80eba74e3832d88539297a627eac9c4b65))
+
 ## [0.39.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.38.5...v0.39.0) (2025-07-23)
 
 
