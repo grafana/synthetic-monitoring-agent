@@ -86,12 +86,13 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 	}
 
 	// Retry logic is purely context (time) based, but we keep track of the number of attempts for reporting telemetry.
-	attempts := 1.0
 	wait := r.backoff
+	var attempts float64
 	var response *RunResponse
 	for {
 		start := time.Now()
 
+		attempts += 1
 		var err error
 		response, err = r.request(ctx, script, secretStore)
 		if err == nil {
