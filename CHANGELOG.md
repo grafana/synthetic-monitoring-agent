@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.39.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.39.1...v0.39.2) (2025-07-31)
+
+
+### Fixes
+
+* k6runner/http: increase number of attempts recorded in metric ([9c35de0](https://github.com/grafana/synthetic-monitoring-agent/commit/9c35de05157fc9e36363282857a32fe21c27570f))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm to v0.5.12 ([371f16e](https://github.com/grafana/synthetic-monitoring-agent/commit/371f16eacfb02269cafaf043fd1265aa43fed2de))
+* Update grafana/shared-workflows digest to fd77b75 ([45e1aa7](https://github.com/grafana/synthetic-monitoring-agent/commit/45e1aa77c45248f14d243f5b8bb006127109e3ae))
+
 ## [0.39.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.39.0...v0.39.1) (2025-07-28)
 
 
