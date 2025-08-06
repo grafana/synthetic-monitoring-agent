@@ -290,7 +290,7 @@ message Check {
   bool basicMetricsOnly = 12 [(gogoproto.jsontag) = "basicMetricsOnly"]; // include only basic metrics
   string alertSensitivity = 13 [(gogoproto.jsontag) = "alertSensitivity"];
   repeated Label costAttributionLabels = 14 [
-    (gogoproto.nullable) = false,
+    (gogoproto.nullable) = true,
     (gogoproto.jsontag)  = "costAttributionLabels"
   ];
 
