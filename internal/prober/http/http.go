@@ -13,6 +13,7 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tls"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -26,11 +27,18 @@ import (
 var errUnsupportedCheck = errors.New("unsupported check")
 
 type Prober struct {
-	config                     config.Module
+	// Raw settings and dependencies for runtime secret resolution
+	settings                   *sm.HttpSettings
+	timeout                    time.Duration
+	secretStore                secrets.SecretProvider
+	tenantID                   model.GlobalID
+	logger                     zerolog.Logger
 	cacheBustingQueryParamName string
+	// Static config that doesn't need secret resolution
+	staticConfig config.Module
 }
 
-func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, reservedHeaders http.Header) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, reservedHeaders http.Header, secretStore secrets.SecretProvider) (Prober, error) {
 	if check.Settings.Http == nil {
 		return Prober{}, errUnsupportedCheck
 	}
@@ -39,16 +47,22 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, re
 		augmentHttpHeaders(&check.Check, reservedHeaders)
 	}
 
-	cfg, err := settingsToModule(ctx, check.Settings.Http, logger)
+	// Build static configuration (everything except authentication secrets)
+	staticCfg, err := buildStaticConfig(check.Settings.Http)
 	if err != nil {
 		return Prober{}, err
 	}
 
-	cfg.Timeout = time.Duration(check.Timeout) * time.Millisecond
+	staticCfg.Timeout = time.Duration(check.Timeout) * time.Millisecond
 
 	return Prober{
-		config:                     cfg,
+		settings:                   check.Settings.Http,
+		timeout:                    time.Duration(check.Timeout) * time.Millisecond,
+		secretStore:                secretStore,
+		tenantID:                   check.GlobalTenantID(),
+		logger:                     logger.With().Str("prober", "http").Logger(),
 		cacheBustingQueryParamName: check.Settings.Http.CacheBustingQueryParamName,
+		staticConfig:               staticCfg,
 	}, nil
 }
 
@@ -63,10 +77,54 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		target = addCacheBustParam(target, p.cacheBustingQueryParamName, target)
 	}
 
-	return bbeprober.ProbeHTTP(ctx, target, p.config, registry, slogger), 0
+	// Resolve secrets and build complete config at probe time
+	probeConfig, err := p.buildProbeConfig(ctx)
+	if err != nil {
+		p.logger.Error().Err(err).Msg("failed to resolve secrets for HTTP probe")
+		return false, 0
+	}
+
+	return bbeprober.ProbeHTTP(ctx, target, probeConfig, registry, slogger), 0
 }
 
-func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger) (config.Module, error) {
+// buildProbeConfig creates the complete configuration with resolved secrets
+func (p Prober) buildProbeConfig(ctx context.Context) (config.Module, error) {
+	// Start with static config
+	cfg := p.staticConfig
+
+	// Resolve authentication secrets at probe time
+	httpClientConfig, err := buildPrometheusHTTPClientConfig(
+		ctx,
+		p.settings,
+		p.logger,
+		p.secretStore,
+		p.tenantID,
+	)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to build HTTP client config: %w", err)
+	}
+
+	cfg.HTTP.HTTPClientConfig = httpClientConfig
+
+	// Set BBE's SkipResolvePhaseWithProxy when a proxy is configured
+	if cfg.HTTP.HTTPClientConfig.ProxyURL.URL != nil {
+		cfg.HTTP.SkipResolvePhaseWithProxy = true
+	}
+
+	// Handle OAuth2 config if present
+	if p.settings.Oauth2Config != nil && p.settings.Oauth2Config.ClientId != "" {
+		oauth2Config, err := convertOAuth2Config(ctx, p.settings.Oauth2Config, p.logger)
+		if err != nil {
+			return cfg, fmt.Errorf("parsing OAuth2 settings: %w", err)
+		}
+		cfg.HTTP.HTTPClientConfig.OAuth2 = oauth2Config
+	}
+
+	return cfg, nil
+}
+
+// buildStaticConfig creates the parts of the config that don't require secret resolution
+func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 	var m config.Module
 
 	m.Prober = sm.CheckTypeHttp.String()
@@ -143,34 +201,49 @@ func settingsToModule(ctx context.Context, settings *sm.HttpSettings, logger zer
 		})
 	}
 
-	var err error
-	m.HTTP.HTTPClientConfig, err = buildPrometheusHTTPClientConfig(
-		ctx,
-		settings,
-		logger.With().Str("prober", m.Prober).Logger(),
-	)
-	if err != nil {
-		return m, err
-	}
-
-	// Set BBE's SkipResolvePhaseWithProxy when a proxy is configured to avoid resolving the target.
-	// DNS should be done at the proxy server only.
-	if m.HTTP.HTTPClientConfig.ProxyURL.URL != nil {
-		m.HTTP.SkipResolvePhaseWithProxy = true
-	}
-
-	if settings.Oauth2Config != nil && settings.Oauth2Config.ClientId != "" {
-		var err error
-		m.HTTP.HTTPClientConfig.OAuth2, err = convertOAuth2Config(ctx, settings.Oauth2Config, logger.With().Str("prober", m.Prober).Logger())
-		if err != nil {
-			return m, fmt.Errorf("parsing OAuth2 settings: %w", err)
-		}
-	}
-
 	return m, nil
 }
 
-func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger) (promconfig.HTTPClientConfig, error) {
+// resolveSecretValue resolves a secret value based on its prefix:
+// - "gsm:" prefix: lookup the secret from the secret store (only if secretManagerEnabled is true)
+// - "plaintext:" prefix: strip the prefix and return the value (only if secretManagerEnabled is true)
+// - no prefix (legacy): return the value as-is
+// If secretManagerEnabled is false, the value is returned as-is regardless of any prefix
+func resolveSecretValue(ctx context.Context, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger, secretManagerEnabled bool) (string, error) {
+	if value == "" {
+		return "", nil
+	}
+
+	// If secret manager is not enabled, return the value as-is regardless of any prefix
+	if !secretManagerEnabled {
+		return value, nil
+	}
+
+	if strings.HasPrefix(value, "gsm:") {
+		secretKey := strings.TrimPrefix(value, "gsm:")
+		if secretKey == "" {
+			return "", fmt.Errorf("empty secret key after gsm: prefix")
+		}
+
+		logger.Debug().Str("secretKey", secretKey).Int64("tenantId", int64(tenantID)).Msg("resolving secret from GSM")
+
+		secretValue, err := secretStore.GetSecretValue(ctx, tenantID, secretKey)
+		if err != nil {
+			return "", fmt.Errorf("failed to get secret '%s' from GSM: %w", secretKey, err)
+		}
+
+		return secretValue, nil
+	}
+
+	if strings.HasPrefix(value, "plaintext:") {
+		return strings.TrimPrefix(value, "plaintext:"), nil
+	}
+
+	// Legacy format - treat as plaintext
+	return value, nil
+}
+
+func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider, tenantID model.GlobalID) (promconfig.HTTPClientConfig, error) {
 	var cfg promconfig.HTTPClientConfig
 
 	// Enable HTTP2 for all checks.
@@ -203,12 +276,23 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 		}
 	}
 
-	cfg.BearerToken = promconfig.Secret(settings.BearerToken)
+	// Resolve bearer token (may be a secret)
+	bearerToken, err := resolveSecretValue(ctx, settings.BearerToken, secretStore, tenantID, logger, settings.SecretManagerEnabled)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to resolve bearer token: %w", err)
+	}
+	cfg.BearerToken = promconfig.Secret(bearerToken)
 
 	if settings.BasicAuth != nil {
+		// Resolve password (may be a secret)
+		password, err := resolveSecretValue(ctx, settings.BasicAuth.Password, secretStore, tenantID, logger, settings.SecretManagerEnabled)
+		if err != nil {
+			return cfg, fmt.Errorf("failed to resolve basic auth password: %w", err)
+		}
+
 		cfg.BasicAuth = &promconfig.BasicAuth{
 			Username: settings.BasicAuth.Username,
-			Password: promconfig.Secret(settings.BasicAuth.Password),
+			Password: promconfig.Secret(password),
 		}
 	}
 
