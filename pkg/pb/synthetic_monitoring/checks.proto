@@ -290,7 +290,7 @@ message Check {
   bool basicMetricsOnly = 12 [(gogoproto.jsontag) = "basicMetricsOnly"]; // include only basic metrics
   string alertSensitivity = 13 [(gogoproto.jsontag) = "alertSensitivity"];
   repeated Label costAttributionLabels = 14 [
-    (gogoproto.nullable) = true,
+    (gogoproto.nullable) = false,
     (gogoproto.jsontag)  = "costAttributionLabels"
   ];
 
@@ -689,6 +689,10 @@ message CheckClassTelemetry {
   int32 executions = 2 [(gogoproto.jsontag) = "executions"];
   float duration = 3 [(gogoproto.jsontag) = "duration"];
   int32 sampledExecutions = 4 [(gogoproto.jsontag) = "sampledExecutions"];
+  repeated Label costAttributionLabels = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag)= "costAttributionLabels"
+  ];
 }
 
 // PushTelemetryResponse represents a response for a push telemetry rpc call.

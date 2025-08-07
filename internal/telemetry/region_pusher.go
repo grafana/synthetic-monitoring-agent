@@ -184,6 +184,7 @@ func (p *RegionPusher) AddExecution(e Execution) {
 			calTele, ok := clTele[val.Value]
 			if !ok {
 				calTele = &sm.CheckClassTelemetry{}
+				calTele.CostAttributionLabels = e.CostAttributionLabels
 				clTele[val.Value] = calTele
 			}
 			// Here I need to expand this. I need to _also_ know which, if any, cost attribution labels exist.
@@ -221,10 +222,11 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 		for checkClass, clTele := range tTele {
 			for _, calTele := range clTele {
 				tenantTele.Telemetry = append(tenantTele.Telemetry, &sm.CheckClassTelemetry{
-					CheckClass:        checkClass,
-					Executions:        calTele.Executions,
-					Duration:          calTele.Duration,
-					SampledExecutions: calTele.SampledExecutions,
+					CheckClass:            checkClass,
+					Executions:            calTele.Executions,
+					Duration:              calTele.Duration,
+					SampledExecutions:     calTele.SampledExecutions,
+					CostAttributionLabels: calTele.CostAttributionLabels,
 				})
 			}
 
