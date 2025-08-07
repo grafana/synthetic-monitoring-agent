@@ -43,7 +43,7 @@ type Execution struct {
 	RegionID              int32
 	CheckClass            sm.CheckClass
 	Duration              time.Duration
-	CostAttributionLabels []*sm.Label
+	CostAttributionLabels []sm.Label
 }
 
 // NewTelemeter creates a new Telemeter component.
