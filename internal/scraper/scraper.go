@@ -24,6 +24,7 @@ import (
 	"github.com/rs/zerolog"
 
 	logproto "github.com/grafana/loki/pkg/push"
+
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
@@ -291,10 +292,11 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 
 	// If we are dropping the data in case of errors, we should not count that execution.
 	h.scraper.telemeter.AddExecution(telemetry.Execution{
-		LocalTenantID: h.scraper.check.TenantId,
-		RegionID:      int32(h.scraper.check.RegionId),
-		CheckClass:    h.scraper.check.Class(),
-		Duration:      duration,
+		LocalTenantID:         h.scraper.check.TenantId,
+		RegionID:              int32(h.scraper.check.RegionId),
+		CheckClass:            h.scraper.check.Class(),
+		CostAttributionLabels: h.scraper.check.CostAttributionLabels,
+		Duration:              duration,
 	})
 
 	if h.payload != nil {
