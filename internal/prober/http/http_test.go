@@ -582,7 +582,7 @@ func TestResolveSecretValue(t *testing.T) {
 			}
 			capabilityAwareStore := secrets.NewCapabilityAwareSecretProvider(mockSecretStore, capabilities)
 
-			actual, err := resolveSecretValue(ctx, tc.input, capabilityAwareStore, tenantID, logger)
+			actual, err := resolveSecretValue(ctx, tc.input, capabilityAwareStore, tenantID, logger, true)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -639,7 +639,8 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 	}{
 		"gsm secrets": {
 			settings: sm.HttpSettings{
-				BearerToken: "gsm:bearer-token-key",
+				BearerToken:          "gsm:bearer-token-key",
+				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
 					Password: "gsm:password-key",
@@ -650,7 +651,8 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 		},
 		"plaintext secrets": {
 			settings: sm.HttpSettings{
-				BearerToken: "plaintext:plain-bearer-token",
+				BearerToken:          "plaintext:plain-bearer-token",
+				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
 					Password: "plaintext:plain-password",
@@ -661,7 +663,8 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 		},
 		"legacy secrets": {
 			settings: sm.HttpSettings{
-				BearerToken: "legacy-bearer-token",
+				BearerToken:          "legacy-bearer-token",
+				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
 					Password: "legacy-password",
@@ -672,7 +675,8 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 		},
 		"mixed secret types": {
 			settings: sm.HttpSettings{
-				BearerToken: "gsm:bearer-token-key",
+				BearerToken:          "gsm:bearer-token-key",
+				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
 					Password: "plaintext:plain-password",
@@ -751,7 +755,7 @@ func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
 
 		for name, tc := range testcases {
 			t.Run(name, func(t *testing.T) {
-				actual, err := resolveSecretValue(ctx, tc.input, capabilityAwareStore, tenantID, logger)
+				actual, err := resolveSecretValue(ctx, tc.input, capabilityAwareStore, tenantID, logger, true)
 
 				if tc.expectError {
 					require.Error(t, err)
@@ -798,7 +802,7 @@ func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
 
 		for name, tc := range testcases {
 			t.Run(name, func(t *testing.T) {
-				actual, err := resolveSecretValue(ctx, tc.input, capabilityAwareStore, tenantID, logger)
+				actual, err := resolveSecretValue(ctx, tc.input, capabilityAwareStore, tenantID, logger, false)
 
 				require.NoError(t, err)
 				require.Equal(t, tc.expectedOutput, actual)
@@ -818,7 +822,7 @@ func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
 		// Create capability-aware secret store with nil capabilities
 		capabilityAwareStore := secrets.NewCapabilityAwareSecretProvider(failingMockStore, nil)
 
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", capabilityAwareStore, tenantID, logger)
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", capabilityAwareStore, tenantID, logger, false)
 		require.NoError(t, err)
 		require.Equal(t, "gsm:my-bearer-token", actual)
 	})
@@ -832,7 +836,7 @@ func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
 			},
 		}
 
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", failingMockStore, tenantID, logger)
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", failingMockStore, tenantID, logger, false)
 		require.NoError(t, err)
 		require.Equal(t, "gsm:my-bearer-token", actual)
 	})
@@ -860,7 +864,7 @@ func TestUpdatableCapabilityAwareSecretProvider(t *testing.T) {
 		require.False(t, updatableStore.IsProtocolSecretsEnabled())
 
 		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger)
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger, false)
 		require.NoError(t, err)
 		require.Equal(t, "gsm:my-bearer-token", actual)
 	})
@@ -875,7 +879,7 @@ func TestUpdatableCapabilityAwareSecretProvider(t *testing.T) {
 		require.True(t, updatableStore.IsProtocolSecretsEnabled())
 
 		// Should now resolve secrets
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger)
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger, true)
 		require.NoError(t, err)
 		require.Equal(t, "resolved-bearer-token", actual)
 	})
@@ -890,7 +894,7 @@ func TestUpdatableCapabilityAwareSecretProvider(t *testing.T) {
 		require.False(t, updatableStore.IsProtocolSecretsEnabled())
 
 		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger)
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger, false)
 		require.NoError(t, err)
 		require.Equal(t, "gsm:my-bearer-token", actual)
 	})
@@ -902,8 +906,81 @@ func TestUpdatableCapabilityAwareSecretProvider(t *testing.T) {
 		require.False(t, updatableStore.IsProtocolSecretsEnabled())
 
 		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger)
+		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger, false)
 		require.NoError(t, err)
 		require.Equal(t, "gsm:my-bearer-token", actual)
 	})
+}
+
+func TestResolveSecretValueWithSecretManagerEnabled(t *testing.T) {
+	ctx := context.Background()
+	logger := zerolog.New(io.Discard)
+	tenantID := model.GlobalID(123)
+
+	// Mock secret store
+	mockSecretStore := &mockSecretProvider{
+		getSecretValueFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+			if secretKey == "my-bearer-token" {
+				return "resolved-bearer-token", nil
+			}
+			return "", fmt.Errorf("secret not found")
+		},
+	}
+
+	testcases := map[string]struct {
+		input                string
+		secretManagerEnabled bool
+		expectedOutput       string
+		expectError          bool
+	}{
+		"secret manager enabled with gsm prefix": {
+			input:                "gsm:my-bearer-token",
+			secretManagerEnabled: true,
+			expectedOutput:       "resolved-bearer-token",
+			expectError:          false,
+		},
+		"secret manager enabled with plaintext prefix": {
+			input:                "plaintext:my-plain-password",
+			secretManagerEnabled: true,
+			expectedOutput:       "my-plain-password",
+			expectError:          false,
+		},
+		"secret manager enabled with legacy format": {
+			input:                "legacy-password",
+			secretManagerEnabled: true,
+			expectedOutput:       "legacy-password",
+			expectError:          false,
+		},
+		"secret manager disabled with gsm prefix": {
+			input:                "gsm:my-bearer-token",
+			secretManagerEnabled: false,
+			expectedOutput:       "gsm:my-bearer-token",
+			expectError:          false,
+		},
+		"secret manager disabled with plaintext prefix": {
+			input:                "plaintext:my-plain-password",
+			secretManagerEnabled: false,
+			expectedOutput:       "plaintext:my-plain-password",
+			expectError:          false,
+		},
+		"secret manager disabled with legacy format": {
+			input:                "legacy-password",
+			secretManagerEnabled: false,
+			expectedOutput:       "legacy-password",
+			expectError:          false,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual, err := resolveSecretValue(ctx, tc.input, mockSecretStore, tenantID, logger, tc.secretManagerEnabled)
+
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedOutput, actual)
+			}
+		})
+	}
 }

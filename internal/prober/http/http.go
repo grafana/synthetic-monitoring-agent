@@ -205,23 +205,17 @@ func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 }
 
 // resolveSecretValue resolves a secret value based on its prefix:
-// - "gsm:" prefix: lookup the secret from the secret store (only if EnableProtocolSecrets is true)
-// - "plaintext:" prefix: strip the prefix and return the value (only if EnableProtocolSecrets is true)
+// - "gsm:" prefix: lookup the secret from the secret store (only if secretManagerEnabled is true)
+// - "plaintext:" prefix: strip the prefix and return the value (only if secretManagerEnabled is true)
 // - no prefix (legacy): return the value as-is
-// If EnableProtocolSecrets is false, the value is returned as-is regardless of any prefix
-func resolveSecretValue(ctx context.Context, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) (string, error) {
+// If secretManagerEnabled is false, the value is returned as-is regardless of any prefix
+func resolveSecretValue(ctx context.Context, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger, secretManagerEnabled bool) (string, error) {
 	if value == "" {
 		return "", nil
 	}
 
-	// Check if protocol secrets are enabled
-	enableProtocolSecrets := false
-	if capabilityAware, ok := secretStore.(secrets.CapabilityAwareSecretProvider); ok {
-		enableProtocolSecrets = capabilityAware.IsProtocolSecretsEnabled()
-	}
-
-	// If protocol secrets are not enabled, return the value as-is regardless of any prefix
-	if !enableProtocolSecrets {
+	// If secret manager is not enabled, return the value as-is regardless of any prefix
+	if !secretManagerEnabled {
 		return value, nil
 	}
 
@@ -283,7 +277,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 	}
 
 	// Resolve bearer token (may be a secret)
-	bearerToken, err := resolveSecretValue(ctx, settings.BearerToken, secretStore, tenantID, logger)
+	bearerToken, err := resolveSecretValue(ctx, settings.BearerToken, secretStore, tenantID, logger, settings.SecretManagerEnabled)
 	if err != nil {
 		return cfg, fmt.Errorf("failed to resolve bearer token: %w", err)
 	}
@@ -291,7 +285,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 
 	if settings.BasicAuth != nil {
 		// Resolve password (may be a secret)
-		password, err := resolveSecretValue(ctx, settings.BasicAuth.Password, secretStore, tenantID, logger)
+		password, err := resolveSecretValue(ctx, settings.BasicAuth.Password, secretStore, tenantID, logger, settings.SecretManagerEnabled)
 		if err != nil {
 			return cfg, fmt.Errorf("failed to resolve basic auth password: %w", err)
 		}
