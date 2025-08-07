@@ -382,6 +382,7 @@ message HttpSettings {
   // custom settings not present in blackbox-exporter
 
   string cacheBustingQueryParamName = 900 [(gogoproto.jsontag) = "cacheBustingQueryParamName,omitempty"];
+  bool secretManagerEnabled = 901 [(gogoproto.jsontag) = "secretManagerEnabled,omitempty"];
 }
 
 // Configuration for two-legged OAuth2 (client_credentials grant type).
