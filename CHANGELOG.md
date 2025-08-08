@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.39.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.39.2...v0.39.3) (2025-08-08)
+
+
+### Fixes
+
+* error out early if grpc address doesn't have a port ([b7fdb7f](https://github.com/grafana/synthetic-monitoring-agent/commit/b7fdb7fac7173e04eef8e03455f689649d079f9d))
+
+
+### Miscellaneous Chores
+
+* Update actions/cache action to v4.2.4 ([81ff4f1](https://github.com/grafana/synthetic-monitoring-agent/commit/81ff4f12b87bdd679416ecefe8299d2359e00ed7))
+* Update actions/download-artifact action to v5 ([5096bcc](https://github.com/grafana/synthetic-monitoring-agent/commit/5096bcc09efdf1b92da6a8737421df8a2de1fc80))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:138.0.7204.157-r0-3.22.1 Docker digest to 340d57b ([8e297e9](https://github.com/grafana/synthetic-monitoring-agent/commit/8e297e9424b3ea6e60395ad7b8f8c883cb509aaf))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.12.0 ([247e054](https://github.com/grafana/synthetic-monitoring-agent/commit/247e054421fa96fa7d9039b4fafc43d0491ccd35))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.12.1 ([1ff879d](https://github.com/grafana/synthetic-monitoring-agent/commit/1ff879dac88842089b822826188f3a5451f981b1))
+* Update module github.com/miekg/dns to v1.1.68 ([62e260c](https://github.com/grafana/synthetic-monitoring-agent/commit/62e260c3cb584885194193db3e7fe6d2e7d3bc78))
+* Update module golang.org/x/net to v0.43.0 ([e495f01](https://github.com/grafana/synthetic-monitoring-agent/commit/e495f016f72f70b34c4e2b89cb4ad67b8f8ed954))
+
 ## [0.39.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.39.1...v0.39.2) (2025-07-31)
 
 
