@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.40.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.39.2...v0.40.0) (2025-08-11)
+
+
+### Features
+
+* add secret manager boolean to HTTP checks ([#1415](https://github.com/grafana/synthetic-monitoring-agent/issues/1415)) ([5c6b9a5](https://github.com/grafana/synthetic-monitoring-agent/commit/5c6b9a5a3c3fb65b74f4dfebb013d7f3c1fa8711))
+
+
+### Fixes
+
+* error out early if grpc address doesn't have a port ([b7fdb7f](https://github.com/grafana/synthetic-monitoring-agent/commit/b7fdb7fac7173e04eef8e03455f689649d079f9d))
+
+
+### Miscellaneous Chores
+
+* Update actions/cache action to v4.2.4 ([81ff4f1](https://github.com/grafana/synthetic-monitoring-agent/commit/81ff4f12b87bdd679416ecefe8299d2359e00ed7))
+* Update actions/checkout digest to 08eba0b ([8222602](https://github.com/grafana/synthetic-monitoring-agent/commit/82226026d9f7480983754fc669e828ff4add4d1c))
+* Update actions/create-github-app-token action to v2.1.0 ([#1419](https://github.com/grafana/synthetic-monitoring-agent/issues/1419)) ([e738a54](https://github.com/grafana/synthetic-monitoring-agent/commit/e738a542d5c6a488b14eb2c070fac0db07b3615f))
+* Update actions/download-artifact action to v5 ([5096bcc](https://github.com/grafana/synthetic-monitoring-agent/commit/5096bcc09efdf1b92da6a8737421df8a2de1fc80))
+* Update dependency go to v1.24.6 ([#1414](https://github.com/grafana/synthetic-monitoring-agent/issues/1414)) ([aa32474](https://github.com/grafana/synthetic-monitoring-agent/commit/aa324745fafab572f594937433a682919a1f064f))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:138.0.7204.157-r0-3.22.1 Docker digest to 340d57b ([8e297e9](https://github.com/grafana/synthetic-monitoring-agent/commit/8e297e9424b3ea6e60395ad7b8f8c883cb509aaf))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.12.0 ([247e054](https://github.com/grafana/synthetic-monitoring-agent/commit/247e054421fa96fa7d9039b4fafc43d0491ccd35))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.12.1 ([1ff879d](https://github.com/grafana/synthetic-monitoring-agent/commit/1ff879dac88842089b822826188f3a5451f981b1))
+* Update grafana/shared-workflows digest to 53e1f52 ([#1409](https://github.com/grafana/synthetic-monitoring-agent/issues/1409)) ([5c1aae4](https://github.com/grafana/synthetic-monitoring-agent/commit/5c1aae47ab7161088e284e1e72a96d92e208279e))
+* Update module github.com/miekg/dns to v1.1.68 ([62e260c](https://github.com/grafana/synthetic-monitoring-agent/commit/62e260c3cb584885194193db3e7fe6d2e7d3bc78))
+* Update module golang.org/x/net to v0.43.0 ([e495f01](https://github.com/grafana/synthetic-monitoring-agent/commit/e495f016f72f70b34c4e2b89cb4ad67b8f8ed954))
+
 ## [0.39.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.39.1...v0.39.2) (2025-07-31)
 
 
