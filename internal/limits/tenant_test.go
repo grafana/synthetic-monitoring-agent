@@ -158,7 +158,7 @@ func TestValidateMetricLabels(t *testing.T) {
 		{
 			name:     "over tenant metric labels limit",
 			tenantID: 2,
-			nLabels:  21,
+			nLabels:  23,
 			expErr:   ErrTooManyMetricLabels,
 		},
 	}
