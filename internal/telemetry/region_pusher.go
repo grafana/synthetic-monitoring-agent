@@ -181,11 +181,12 @@ func (p *RegionPusher) AddExecution(e Execution) {
 		calTele.SampledExecutions += int32((e.Duration + time.Minute - 1) / time.Minute)
 	} else {
 		for _, val := range e.CostAttributionLabels {
-			calTele, ok := clTele[val.Value]
+			k := fmt.Sprintf("%s=%s", val.Name, val.Value)
+			calTele, ok := clTele[k]
 			if !ok {
 				calTele = &sm.CheckClassTelemetry{}
 				calTele.CostAttributionLabels = e.CostAttributionLabels
-				clTele[val.Value] = calTele
+				clTele[k] = calTele
 			}
 			// Here I need to expand this. I need to _also_ know which, if any, cost attribution labels exist.
 			// CAL's need to have their sample executions tracked separately
