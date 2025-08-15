@@ -2,6 +2,8 @@ module github.com/grafana/synthetic-monitoring-agent
 
 go 1.25.0
 
+toolchain go1.25.0
+
 require (
 	github.com/go-kit/kit v0.13.0
 	github.com/go-logfmt/logfmt v0.6.0
