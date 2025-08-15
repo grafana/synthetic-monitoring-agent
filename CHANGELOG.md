@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.40.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.40.0...v0.40.1) (2025-08-15)
+
+
+### Fixes
+
+* Update the metrics labels limit const ([#1428](https://github.com/grafana/synthetic-monitoring-agent/issues/1428)) ([afa2f54](https://github.com/grafana/synthetic-monitoring-agent/commit/afa2f5487c517531f094ef51dbe650f25d62b30c))
+
+
+### Miscellaneous Chores
+
+* Update actions/checkout action to v5 ([#1424](https://github.com/grafana/synthetic-monitoring-agent/issues/1424)) ([ca42c9c](https://github.com/grafana/synthetic-monitoring-agent/commit/ca42c9c70a7910df14ab13bdd82dc6377ffd2964))
+* Update dependency grafana/xk6-sm to v0.6.0 ([382724a](https://github.com/grafana/synthetic-monitoring-agent/commit/382724aa08d4f5121f27944cf8b577a35eafa7e0))
+
 ## [0.40.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.39.2...v0.40.0) (2025-08-11)
 
 
