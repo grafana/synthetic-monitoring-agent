@@ -71,7 +71,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 			}
 		}
 
-		_ = logger.Log("msg", "probing DNS", "target", target, "retries", cfg.DNS.Retries, "retry_timeout", cfg.DNS.RetryTimeout)
+		logger.Log("msg", "probing DNS", "target", target, "retries", cfg.DNS.Retries, "retry_timeout", cfg.DNS.RetryTimeout)
 	}
 
 	// The target of the BBE DNS check is the _DNS server_, while

@@ -8,14 +8,14 @@ import (
 	"strings"
 	"testing"
 
-	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
-	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mccutchen/go-httpbin/v2/httpbin"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -853,15 +853,16 @@ func TestSettingsToScript(t *testing.T) {
 	runner := k6runner.New(k6runner.RunnerOpts{Uri: k6path})
 	store := noopSecretStore{}
 
-	logger := testhelper.Logger(t)
-	prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store)
+	zl := testhelper.Logger(t)
+	prober, err := NewProber(ctx, check, zl, runner, http.Header{}, &store)
 	require.NoError(t, err)
 
 	reg := prometheus.NewPedanticRegistry()
 	require.NotNil(t, reg)
 
 	var buf bytes.Buffer
-	userLogger := level.NewFilter(kitlog.NewLogfmtLogger(&buf), level.AllowInfo(), level.SquelchNoLevel(false))
+	userZl := zerolog.New(&buf).Level(zerolog.InfoLevel)
+	userLogger := logger.FromZerolog(userZl)
 	require.NotNil(t, userLogger)
 
 	success, duration := prober.Probe(ctx, check.Target, reg, userLogger)

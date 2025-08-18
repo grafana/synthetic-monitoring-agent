@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-kit/log"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http/testserver"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
@@ -231,8 +231,8 @@ func TestProbe(t *testing.T) {
 
 			ctx := context.Background()
 			registry := prometheus.NewPedanticRegistry()
-			zl := zerolog.Logger{}
-			kl := log.NewLogfmtLogger(io.Discard)
+			zl := zerolog.New(io.Discard)
+			kl := logger.FromZerolog(zl)
 
 			prober, err := NewProber(ctx, check, zl, http.Header{})
 			require.NoError(t, err)
