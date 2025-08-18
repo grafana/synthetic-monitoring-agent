@@ -665,7 +665,7 @@ func runProber(
 ) bool {
 	start := time.Now()
 
-	logger.Log("level", "info", "msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
+	_ = logger.Log("level", "info", "msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
 
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -700,10 +700,10 @@ func runProber(
 
 	if success {
 		probeSuccessGauge.Set(1)
-		logger.Log("level", "info", "msg", "Check succeeded", "duration_seconds", probeDuration)
+		_ = logger.Log("level", "info", "msg", "Check succeeded", "duration_seconds", probeDuration)
 	} else {
 		probeSuccessGauge.Set(0)
-		logger.Log("level", "error", "msg", "Check failed", "duration_seconds", probeDuration)
+		_ = logger.Log("level", "error", "msg", "Check failed", "duration_seconds", probeDuration)
 	}
 
 	smCheckInfo.Set(1)
