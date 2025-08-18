@@ -109,11 +109,11 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 			hopLimitGauge.Set(float64(pkt.TTL))
 		}
 
-		logger.Log("level", "info", "msg", "Found matching reply packet", "seq", strconv.Itoa(pkt.Seq))
+		_ = logger.Log("level", "info", "msg", "Found matching reply packet", "seq", strconv.Itoa(pkt.Seq))
 	}
 
 	pinger.OnDuplicateRecv = func(pkt *ping.Packet) {
-		logger.Log("level", "info", "msg", "Duplicate packet received", "seq", strconv.Itoa(pkt.Seq))
+		_ = logger.Log("level", "info", "msg", "Duplicate packet received", "seq", strconv.Itoa(pkt.Seq))
 	}
 
 	pinger.OnFinish = func(stats *ping.Statistics) {
@@ -124,7 +124,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 		durationStddevGauge.Set(stats.StdDevRtt.Seconds())
 		packetsSentGauge.Set(float64(stats.PacketsSent))
 		packetsReceivedGauge.Set(float64(stats.PacketsRecv))
-		logger.Log("level", "info", "msg", "Probe finished", "packets_sent", stats.PacketsSent, "packets_received", stats.PacketsRecv)
+		_ = logger.Log("level", "info", "msg", "Probe finished", "packets_sent", stats.PacketsSent, "packets_received", stats.PacketsRecv)
 	}
 
 	pinger.SetDoNotFragment(module.ICMP.DontFragment)
@@ -142,10 +142,10 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	setupStart = time.Now()
 
-	logger.Log("level", "info", "msg", "Creating socket")
+	_ = logger.Log("level", "info", "msg", "Creating socket")
 
 	if err := pinger.RunWithContext(ctx); err != nil {
-		logger.Log("level", "info", "msg", "failed to run ping", "err", err.Error())
+		_ = logger.Log("level", "info", "msg", "failed to run ping", "err", err.Error())
 		return false, 0
 	}
 
