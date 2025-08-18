@@ -464,26 +464,6 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 	return err
 }
 
-// jsonLogger implements the log.Logger interface.
-type jsonLogger struct {
-	entries []map[string]string
-}
-
-// Log takes key-value pairs and logs them.
-func (l *jsonLogger) Log(keyvals ...interface{}) error {
-	m := make(map[string]string)
-	if len(keyvals)%2 != 0 {
-		return fmt.Errorf("expected even number of keyvals, got %d", len(keyvals))
-	}
-	for i := 0; i < len(keyvals); i += 2 {
-		k := fmt.Sprintf("%v", keyvals[i])
-		v := fmt.Sprintf("%v", keyvals[i+1])
-		m[k] = v
-	}
-	l.entries = append(l.entries, m)
-	return nil
-}
-
 // Run runs the specified prober once and captures the results using
 // jsonLogger.
 func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pusher.Publisher) {
@@ -491,7 +471,9 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 
 	registry := prometheus.NewRegistry()
 
-	logger := &jsonLogger{}
+	// Create a logger that captures entries for later use
+	var logBuf bytes.Buffer
+	zlogger := zerolog.New(&logBuf)
 
 	// TODO(mem): decide what to do with these metrics.
 	successGauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -513,7 +495,7 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 	rCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
-	success, duration := r.prober.Probe(rCtx, r.target, registry, logger)
+	success, duration := r.prober.Probe(rCtx, r.target, registry, zlogger)
 
 	if success {
 		successGauge.Set(1)
@@ -538,7 +520,7 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		Str("target", r.target).
 		Str("probe", r.probe).
 		Str("check_name", r.prober.Name()).
-		Interface("logs", logger.entries).
+		Str("logs", logBuf.String()).
 		Interface("timeseries", mfs).
 		Msg("ad-hoc check done")
 

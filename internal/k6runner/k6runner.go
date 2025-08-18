@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 
 	"github.com/go-logfmt/logfmt"
@@ -147,13 +148,13 @@ var (
 	ErrFromRunner  = errors.New("runner reported an error")
 )
 
-func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger, secretStore SecretStore) (bool, error) {
-	k6runner := r.runner.WithLogger(&internalLogger)
+func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, zlogger zerolog.Logger, secretStore SecretStore) (bool, error) {
+	k6runner := r.runner.WithLogger(&zlogger)
 
 	// TODO: This error message is okay to be Debug for local k6 execution, but should be Error for remote runners.
 	result, err := k6runner.Run(ctx, r.script, secretStore)
 	if err != nil {
-		internalLogger.Debug().
+		zlogger.Debug().
 			Err(err).
 			Msg("k6 script exited with error code")
 		return false, err
@@ -170,28 +171,23 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		)
 	}
 
+	// Convert zerolog to slog for user-facing logs
+	userLogger := logger.NewSlogFromZerolog(zlogger)
+
 	// If the script was not successful, send a log line saying why.
 	// Do this in a deferred function to ensure that we send it both after script logs, and regardless of errors sending
 	// other logs.
 	if result.ErrorCode != "" {
 		defer func() {
-			err := logger.Log(
-				"level", "error",
-				"msg", "script did not execute successfully",
+			userLogger.ErrorContext(ctx, "script did not execute successfully",
 				"error", result.Error,
-				"errorCode", result.ErrorCode,
-			)
-			if err != nil {
-				internalLogger.Error().
-					Err(err).
-					Msg("sending diagnostic log")
-			}
+				"errorCode", result.ErrorCode)
 		}()
 	}
 
 	// Send logs before metrics to make sure logs are submitted even if the metrics output is not parsable.
-	if err := k6LogsToLogger(result.Logs, logger); err != nil {
-		internalLogger.Debug().
+	if err := k6LogsToLogger(ctx, result.Logs, userLogger); err != nil {
+		zlogger.Debug().
 			Err(err).
 			Msg("cannot load logs to logger")
 		return false, err
@@ -202,15 +198,15 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		resultCollector checkResultCollector
 	)
 
-	if err := extractMetricSamples(result.Metrics, internalLogger, collector.process, resultCollector.process); err != nil {
-		internalLogger.Debug().
+	if err := extractMetricSamples(result.Metrics, zlogger, collector.process, resultCollector.process); err != nil {
+		zlogger.Debug().
 			Err(err).
 			Msg("cannot extract metric samples")
 		return false, err
 	}
 
 	if err := registry.Register(&collector.collector); err != nil {
-		internalLogger.Error().
+		zlogger.Error().
 			Err(err).
 			Msg("cannot register collector")
 		return false, err
@@ -350,36 +346,122 @@ func metricToLabels(metrics model.Metric) prometheus.Labels {
 	return labels
 }
 
-func k6LogsToLogger(logs []byte, logger logger.Logger) error {
+func k6LogsToLogger(ctx context.Context, logs []byte, logger *slog.Logger) error {
 	// This seems a little silly, we should be able to take the out of k6
 	// and pass it directly to Loki. The problem with that is that the only
-	// thing probers have access to is the logger.Logger.
+	// thing probers have access to is the *slog.Logger.
 	//
 	// We could pass another object to the prober, that would take Loki log
 	// entries, and the publisher could decorate that with the necessary
 	// labels.
 	dec := logfmt.NewDecoder(bytes.NewBuffer(logs))
 
-NEXT_RECORD:
 	for dec.ScanRecord() {
-		var line []interface{}
-		var source, level string
-		for dec.ScanKeyval() {
-			key := string(dec.Key())
-			value := string(dec.Value())
-			switch key {
-			case "source":
-				source = value
-			case "level":
-				level = value
-			}
-			line = append(line, key, value)
+		record, err := parseLogRecord(dec)
+		if err != nil {
+			continue // Skip malformed records
 		}
-		if level == "debug" && source == "" { // if there's no source, it's probably coming from k6
-			continue NEXT_RECORD
+
+		if shouldSkipRecord(record) {
+			continue
 		}
-		_ = logger.Log(line...)
+
+		logRecordToSlog(ctx, record, logger)
 	}
 
 	return dec.Err()
+}
+
+// logRecord represents a parsed log record from k6
+type logRecord struct {
+	level   string
+	source  string
+	message string
+	attrs   []slog.Attr
+}
+
+// parseLogRecord parses a single log record from the decoder
+func parseLogRecord(dec *logfmt.Decoder) (*logRecord, error) {
+	var line []interface{}
+	var source, level string
+
+	for dec.ScanKeyval() {
+		key := string(dec.Key())
+		value := string(dec.Value())
+		switch key {
+		case "source":
+			source = value
+		case "level":
+			level = value
+		}
+		line = append(line, key, value)
+	}
+
+	if len(line) < 2 {
+		return nil, fmt.Errorf("invalid log record: insufficient key-value pairs")
+	}
+
+	record := &logRecord{
+		level:  level,
+		source: source,
+	}
+
+	// Parse message and attributes
+	msg, attrs := parseKeyValuePairs(line)
+	record.message = msg
+	record.attrs = attrs
+
+	return record, nil
+}
+
+// shouldSkipRecord determines if a log record should be skipped
+func shouldSkipRecord(record *logRecord) bool {
+	// Skip debug logs from k6 itself (no source)
+	return record.level == "debug" && record.source == ""
+}
+
+// parseKeyValuePairs extracts message and attributes from key-value pairs
+func parseKeyValuePairs(line []interface{}) (string, []slog.Attr) {
+	msg := ""
+	attrs := make([]slog.Attr, 0, len(line)/2)
+
+	for i := 0; i < len(line)-1; i += 2 {
+		key, ok := line[i].(string)
+		if !ok {
+			continue
+		}
+		value := line[i+1]
+
+		if key == "msg" {
+			if msgStr, ok := value.(string); ok {
+				msg = msgStr
+			}
+		} else {
+			attrs = append(attrs, slog.Any(key, value))
+		}
+	}
+
+	return msg, attrs
+}
+
+// logRecordToSlog converts a log record to slog format and logs it
+func logRecordToSlog(ctx context.Context, record *logRecord, logger *slog.Logger) {
+	slogLevel := mapLogLevel(record.level)
+	logger.LogAttrs(ctx, slogLevel, record.message, record.attrs...)
+}
+
+// mapLogLevel converts string log levels to slog.Level
+func mapLogLevel(level string) slog.Level {
+	switch level {
+	case "error":
+		return slog.LevelError
+	case "warn":
+		return slog.LevelWarn
+	case "info":
+		return slog.LevelInfo
+	case "debug":
+		return slog.LevelDebug
+	default:
+		return slog.LevelInfo
+	}
 }

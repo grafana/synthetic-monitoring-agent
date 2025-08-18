@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 )
 
 var errUnsupportedCheck = errors.New("unsupported check")
@@ -48,8 +48,10 @@ func (p Prober) Name() string {
 	return "ping"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger) (bool, float64) {
-	return probeICMP(ctx, target, p.config, registry, l)
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, zlogger zerolog.Logger) (bool, float64) {
+	// Convert zerolog to slog for BBE using samber/slog-zerolog
+	slogger := logger.NewSlogFromZerolog(zlogger)
+	return probeICMP(ctx, target, p.config, registry, slogger)
 }
 
 func settingsToModule(settings *sm.PingSettings) Module {
@@ -97,7 +99,8 @@ func isPrivilegedRequired() bool {
 		ctx      = context.Background()
 		target   = "127.0.0.1"
 		registry = prometheus.NewRegistry()
-		logger   = log.NewNopLogger()
+		zl       = zerolog.Nop()
+		slogger  = logger.NewSlogFromZerolog(zl)
 		config   = Module{
 			Prober:      "test-unprivileged",
 			Timeout:     1 * time.Second,
@@ -109,7 +112,7 @@ func isPrivilegedRequired() bool {
 		}
 	)
 
-	success, _ := probeICMP(ctx, target, config, registry, logger)
+	success, _ := probeICMP(ctx, target, config, registry, slogger)
 
 	privilegedRequired = !success
 	privilegedCheckDone = true

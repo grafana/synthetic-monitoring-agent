@@ -30,7 +30,6 @@ import (
 	grpcProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/scripted"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
@@ -138,11 +137,12 @@ func verifyProberMetrics(
 
 	summaries := make(map[uint64]prometheus.Summary)
 	histograms := make(map[uint64]prometheus.Histogram)
-	logger := &testLogger{w: io.Discard}
 
+	var w = io.Discard
 	if os.Getenv("CI") == "true" {
-		logger.w = os.Stdout
+		w = os.Stdout
 	}
+	logger := zerolog.New(w)
 
 	prober, check, stop := setup(ctx, t)
 	defer stop()
@@ -1288,7 +1288,7 @@ func (p testProber) Name() string {
 	return "test prober"
 }
 
-func (p testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, zlogger zerolog.Logger) (bool, float64) {
 	counter := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "test_counter",
 	})
@@ -1661,42 +1661,6 @@ GcRWUmpDEz0t6w==
 
 func testingKey(s string) string { return strings.ReplaceAll(s, "TESTING KEY", "PRIVATE KEY") }
 
-// testLogger impleents the Logger interface to pass it to the prober.
-type testLogger struct {
-	w io.Writer
-}
-
-func (l *testLogger) Log(kv ...interface{}) error {
-	var buf strings.Builder
-
-	for i, v := range kv {
-		if i >= 2 && i%2 == 0 {
-			buf.WriteString(", ")
-		}
-
-		switch v := v.(type) {
-		case string:
-			buf.WriteString(v)
-			if i%2 == 0 {
-				buf.WriteRune(':')
-			}
-
-		case error:
-			buf.WriteString(v.Error())
-
-		case interface{ String() string }:
-			buf.WriteString(v.String())
-
-		default:
-			buf.WriteString(fmt.Sprintf("%#v", v))
-		}
-	}
-
-	fmt.Fprintf(l.w, "%s\n", buf.String())
-
-	return nil
-}
-
 func mergeMaps(maps ...map[string]string) map[string]string {
 	out := make(map[string]string)
 	for _, m := range maps {
@@ -1807,7 +1771,7 @@ func (p testProberB) Name() string {
 	return "test prober"
 }
 
-func (p *testProberB) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p *testProberB) Probe(ctx context.Context, target string, registry *prometheus.Registry, zlogger zerolog.Logger) (bool, float64) {
 	p.execCount++
 
 	if p.failureCount < p.wantedFailures {

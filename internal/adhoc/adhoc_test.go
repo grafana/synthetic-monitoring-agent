@@ -20,7 +20,6 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -341,14 +340,14 @@ func (p *testProber) Name() string {
 	return "test"
 }
 
-func (p *testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p *testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, zlogger zerolog.Logger) (bool, float64) {
 	p.logger.Info().Str("func", "Probe").Caller(0).Send()
 	g := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "test",
 	})
 	g.Set(1)
 	registry.MustRegister(g)
-	_ = logger.Log("msg", "test")
+	zlogger.Info().Str("msg", "test").Send()
 	return true, 1
 }
 

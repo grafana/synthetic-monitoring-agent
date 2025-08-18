@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
 	bbeprober "github.com/prometheus/blackbox_exporter/prober"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -242,10 +242,10 @@ func TestProber(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	require.NotNil(t, registry)
 
-	logger := log.NewLogfmtLogger(os.Stdout)
-	require.NotNil(t, logger)
+	zl := zerolog.New(os.Stdout)
+	require.NotNil(t, zl)
 
-	success, duration := prober.Probe(ctx, "127.0.0.1", registry, logger)
+	success, duration := prober.Probe(ctx, "127.0.0.1", registry, zl)
 	require.True(t, success)
 	require.Greater(t, duration, float64(0))
 }
@@ -264,8 +264,9 @@ func TestBBEProber(t *testing.T) {
 	registry := prometheus.NewRegistry()
 	require.NotNil(t, registry)
 
-	l := log.NewLogfmtLogger(os.Stdout)
-	require.NotNil(t, l)
+	zl := zerolog.New(os.Stdout)
+	slogger := logger.NewSlogFromZerolog(zl)
+	require.NotNil(t, slogger)
 
 	module := config.Module{
 		Prober:  "test",
@@ -275,8 +276,6 @@ func TestBBEProber(t *testing.T) {
 			IPProtocolFallback: false,
 		},
 	}
-	slogger := logger.ToSlog(l)
-	require.NotNil(t, slogger)
 
 	success := bbeprober.ProbeICMP(ctx, target, module, registry, slogger)
 	require.True(t, success)

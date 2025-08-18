@@ -3,15 +3,13 @@ package k6runner
 import (
 	"bytes"
 	"context"
-	"errors"
-	"fmt"
 	"io"
+	"log/slog"
 	"sort"
 	"strings"
 	"testing"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
@@ -79,7 +77,6 @@ func TestScriptRun(t *testing.T) {
 
 	var (
 		registry = prometheus.NewRegistry()
-		logger   testLogger
 		buf      bytes.Buffer
 		zlogger  = zerolog.New(&buf)
 	)
@@ -90,7 +87,7 @@ func TestScriptRun(t *testing.T) {
 	// We already know tha parsing the metrics and the logs is working, so
 	// we are only interested in verifying that the script runs without
 	// errors.
-	success, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
+	success, err := processor.Run(ctx, registry, zlogger, SecretStore{})
 	require.NoError(t, err)
 	require.True(t, success)
 }
@@ -215,46 +212,10 @@ func buildId(name string, m *dto.Metric) string {
 func TestK6LogsToLogger(t *testing.T) {
 	data := testhelper.MustReadFile(t, "testdata/test.log")
 
-	var logger testLogger
+	// Create a slog logger that writes to a buffer for testing
+	var buf bytes.Buffer
+	slogger := slog.New(slog.NewTextHandler(&buf, nil))
 
-	err := k6LogsToLogger(data, &logger)
+	err := k6LogsToLogger(context.Background(), data, slogger)
 	require.NoError(t, err)
-}
-
-type testLogger struct{}
-
-var _ logger.Logger = &testLogger{}
-
-func (l *testLogger) Log(keyvals ...any) error {
-	if len(keyvals) == 0 {
-		return errors.New("empty log message")
-	}
-	return nil
-}
-
-type recordingLogger struct {
-	buf *bytes.Buffer
-}
-
-var _ logger.Logger = &recordingLogger{}
-
-func (l recordingLogger) Log(keyvals ...any) error {
-	if len(keyvals) == 0 {
-		return errors.New("empty log message")
-	}
-
-	if len(keyvals)%2 != 0 {
-		return errors.New("not the same number of keys and vals")
-	}
-
-	line := make([]string, 0, len(keyvals)/2)
-	for i := 0; i < len(keyvals); i += 2 {
-		key := keyvals[i]
-		val := keyvals[i+1]
-
-		line = append(line, fmt.Sprintf("%s=%q", key, val))
-	}
-
-	_, err := fmt.Fprintln(l.buf, strings.Join(line, " "))
-	return err
 }

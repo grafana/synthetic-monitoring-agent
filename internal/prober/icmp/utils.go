@@ -17,11 +17,9 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"log/slog"
 	"net"
 	"time"
-
-	"github.com/go-kit/kit/log"       //nolint:staticcheck // TODO(mem): replace in BBE
-	"github.com/go-kit/kit/log/level" //nolint:staticcheck // TODO(mem): replace in BBE
 
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -32,7 +30,7 @@ var protocolToGauge = map[string]float64{
 }
 
 // Returns the IP for the ipProtocol and lookup time.
-func chooseProtocol(ctx context.Context, ipProtocol string, fallbackIPProtocol bool, target string, retries int, registry *prometheus.Registry, logger log.Logger) (ip *net.IPAddr, lookupTime float64, err error) {
+func chooseProtocol(ctx context.Context, ipProtocol string, fallbackIPProtocol bool, target string, retries int, registry *prometheus.Registry, logger *slog.Logger) (ip *net.IPAddr, lookupTime float64, err error) {
 	var fallbackProtocol string
 	probeDNSLookupTimeSeconds := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "probe_dns_lookup_time_seconds",
@@ -60,7 +58,7 @@ func chooseProtocol(ctx context.Context, ipProtocol string, fallbackIPProtocol b
 		fallbackProtocol = "ip6"
 	}
 
-	_ = level.Info(logger).Log("msg", "Resolving target address", "ip_protocol", ipProtocol)
+	logger.Info("Resolving target address", "ip_protocol", ipProtocol)
 	resolveStart := time.Now()
 
 	defer func() {
@@ -75,13 +73,13 @@ func chooseProtocol(ctx context.Context, ipProtocol string, fallbackIPProtocol b
 			ips, err := resolver.LookupIP(ctx, ipProtocol, target)
 			if err == nil {
 				for _, ip := range ips {
-					_ = level.Info(logger).Log("msg", "Resolved target address", "ip", ip.String())
+					logger.Info("Resolved target address", "ip", ip.String())
 					probeIPProtocolGauge.Set(protocolToGauge[ipProtocol])
 					probeIPAddrHash.Set(ipHash(ip))
 					return &net.IPAddr{IP: ip}, lookupTime, nil
 				}
 			}
-			_ = level.Warn(logger).Log("msg", "Resolution with IP protocol failed", "err", err)
+			logger.Warn("Resolution with IP protocol failed", "err", err)
 
 			if isRetryableError(err) {
 				continue
@@ -92,7 +90,7 @@ func chooseProtocol(ctx context.Context, ipProtocol string, fallbackIPProtocol b
 
 		ips, err := resolver.LookupIPAddr(ctx, target)
 		if err != nil {
-			_ = level.Warn(logger).Log("msg", "Resolution with IP protocol failed", "err", err)
+			logger.Warn("Resolution with IP protocol failed", "err", err)
 
 			if isRetryableError(err) {
 				continue
@@ -107,7 +105,7 @@ func chooseProtocol(ctx context.Context, ipProtocol string, fallbackIPProtocol b
 			switch ipProtocol {
 			case "ip4":
 				if ip.IP.To4() != nil {
-					_ = level.Info(logger).Log("msg", "Resolved target address", "ip", ip.String())
+					logger.Info("Resolved target address", "ip", ip.String())
 					probeIPProtocolGauge.Set(4)
 					probeIPAddrHash.Set(ipHash(ip.IP))
 					return &ip, lookupTime, nil
@@ -118,7 +116,7 @@ func chooseProtocol(ctx context.Context, ipProtocol string, fallbackIPProtocol b
 
 			case "ip6":
 				if ip.IP.To4() == nil {
-					_ = level.Info(logger).Log("msg", "Resolved target address", "ip", ip.String())
+					logger.Info("Resolved target address", "ip", ip.String())
 					probeIPProtocolGauge.Set(6)
 					probeIPAddrHash.Set(ipHash(ip.IP))
 					return &ip, lookupTime, nil
@@ -131,7 +129,7 @@ func chooseProtocol(ctx context.Context, ipProtocol string, fallbackIPProtocol b
 
 		// Unable to find ip and no fallback set.
 		if fallbackIdx == -1 || !fallbackIPProtocol {
-			_ = level.Error(logger).Log("msg", "unable to find ip; no fallback")
+			logger.Error("unable to find ip; no fallback")
 			break
 		}
 
@@ -143,7 +141,7 @@ func chooseProtocol(ctx context.Context, ipProtocol string, fallbackIPProtocol b
 		}
 		fallback := ips[fallbackIdx]
 		probeIPAddrHash.Set(ipHash(fallback.IP))
-		_ = level.Info(logger).Log("msg", "Resolved target address", "ip", fallback.String())
+		logger.Info("Resolved target address", "ip", fallback.String())
 		return &fallback, lookupTime, nil
 	}
 

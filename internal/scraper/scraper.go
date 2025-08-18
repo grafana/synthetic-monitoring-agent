@@ -13,8 +13,6 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 
-	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
-	"github.com/go-kit/kit/log/level"  //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-logfmt/logfmt"
 	"github.com/mmcloughlin/geohash"
 	"github.com/prometheus/client_golang/prometheus"
@@ -505,16 +503,12 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
-	bl := kitlog.NewLogfmtLogger(&logs)
+	zl := zerolog.New(&logs).With().Timestamp().Logger()
 
-	// set up logger to capture all the labels as part of the log entry
-	loggerLabels := make([]interface{}, 0, 2*(2+len(logLabels)))
-	loggerLabels = append(loggerLabels, "ts", kitlog.DefaultTimestampUTC, "target", target)
+	// Add labels to the logger
 	for _, l := range logLabels {
-		loggerLabels = append(loggerLabels, l.name, l.value)
+		zl = zl.With().Str(l.name, l.value).Logger()
 	}
-
-	sl := kitlog.With(bl, loggerLabels...)
 
 	var timeout time.Duration
 	switch s.CheckType() {
@@ -535,7 +529,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		timeout,
 		checkInfoLabels,
 		s.summaries, s.histograms,
-		sl,
+		zl,
 		s.check.BasicMetricsOnly,
 	)
 	if err != nil {
@@ -628,12 +622,12 @@ func getProbeMetrics(
 	checkInfoLabels map[string]string,
 	summaries map[uint64]prometheus.Summary,
 	histograms map[uint64]prometheus.Histogram,
-	logger kitlog.Logger,
+	zlogger zerolog.Logger,
 	basicMetricsOnly bool,
 ) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
-	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger)
+	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, zlogger)
 
 	mfs, err := registry.Gather()
 	if err != nil {
@@ -663,16 +657,16 @@ func runProber(
 	timeout time.Duration,
 	registry *prometheus.Registry,
 	checkInfoLabels map[string]string,
-	logger kitlog.Logger,
+	zlogger zerolog.Logger,
 ) bool {
 	start := time.Now()
 
-	_ = level.Info(logger).Log("msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
+	zlogger.Info().Str("type", prober.Name()).Float64("timeout_seconds", timeout.Seconds()).Msg("Beginning check")
 
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	success, duration := prober.Probe(checkCtx, target, registry, logger)
+	success, duration := prober.Probe(checkCtx, target, registry, zlogger)
 
 	probeDuration := time.Since(start).Seconds()
 
@@ -702,10 +696,10 @@ func runProber(
 
 	if success {
 		probeSuccessGauge.Set(1)
-		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", probeDuration)
+		zlogger.Info().Float64("duration_seconds", probeDuration).Msg("Check succeeded")
 	} else {
 		probeSuccessGauge.Set(0)
-		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", probeDuration)
+		zlogger.Error().Float64("duration_seconds", probeDuration).Msg("Check failed")
 	}
 
 	smCheckInfo.Set(1)

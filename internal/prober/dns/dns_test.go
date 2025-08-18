@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns/internal/bbe/config"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/expfmt"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -254,10 +254,10 @@ func TestProberRetries(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
 
 	var buf bytes.Buffer
-	logger := log.NewLogfmtLogger(&buf)
+	zl := zerolog.New(&buf)
 
 	t0 := time.Now()
-	success, duration := p.Probe(ctx, p.target, registry, logger)
+	success, duration := p.Probe(ctx, p.target, registry, zl)
 	t.Log(success, time.Since(t0))
 	require.True(t, success)
 	require.Equal(t, 0, duration)

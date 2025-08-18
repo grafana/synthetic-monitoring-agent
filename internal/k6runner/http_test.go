@@ -318,13 +318,12 @@ func TestScriptHTTPRun(t *testing.T) {
 			var (
 				registry = prometheus.NewRegistry()
 				logBuf   = bytes.Buffer{}
-				logger   = recordingLogger{buf: &logBuf}
-				zlogger  = testhelper.Logger(t)
+				zlogger  = zerolog.New(&logBuf)
 			)
 
-			success, err := script.Run(ctx, registry, logger, zlogger, SecretStore{})
+			success, err := script.Run(ctx, registry, zlogger, SecretStore{})
 			require.Equal(t, tc.expectSuccess, success)
-			require.Equal(t, tc.expectLogs, logger.buf.String())
+			require.Equal(t, tc.expectLogs, logBuf.String())
 			if tc.expectErrorAs == nil {
 				require.ErrorIs(t, err, tc.expectError)
 			} else {
@@ -454,10 +453,9 @@ func TestHTTPProcessorRetries(t *testing.T) {
 
 				var (
 					registry = prometheus.NewRegistry()
-					logger   testLogger
 					zlogger  = zerolog.New(io.Discard)
 				)
-				success, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
+				success, err := processor.Run(ctx, registry, zlogger, SecretStore{})
 				require.ErrorIs(t, err, tc.expectError)
 				require.Equal(t, tc.expectError == nil, success)
 				require.Equal(t, tc.expectRequests, requests.Load())
@@ -500,10 +498,9 @@ func TestHTTPProcessorRetries(t *testing.T) {
 
 		var (
 			registry = prometheus.NewRegistry()
-			logger   testLogger
 			zlogger  = zerolog.New(io.Discard)
 		)
-		success, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
+		success, err := processor.Run(ctx, registry, zlogger, SecretStore{})
 		require.NoError(t, err)
 		require.True(t, success)
 	})

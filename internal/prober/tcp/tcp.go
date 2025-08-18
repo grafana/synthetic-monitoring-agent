@@ -42,8 +42,9 @@ func (p Prober) Name() string {
 	return "tcp"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger) (bool, float64) {
-	slogger := logger.ToSlog(l)
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, zlogger zerolog.Logger) (bool, float64) {
+	// Convert zerolog to slog for BBE using samber/slog-zerolog
+	slogger := logger.NewSlogFromZerolog(zlogger)
 	return bbeprober.ProbeTCP(ctx, target, p.config, registry, slogger), 0
 }
 

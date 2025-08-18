@@ -8,7 +8,6 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
@@ -64,17 +63,17 @@ func (p Prober) Name() string {
 	return proberName
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, zlogger zerolog.Logger) (bool, float64) {
 	secretStore, err := p.secretsRetriever(ctx)
 
 	if err != nil {
-		p.logger.Error().Err(err).Msg("running probe")
+		zlogger.Error().Err(err).Msg("running probe")
 		return false, 0
 	}
 
-	success, err := p.processor.Run(ctx, registry, logger, p.logger, secretStore)
+	success, err := p.processor.Run(ctx, registry, zlogger, secretStore)
 	if err != nil {
-		p.logger.Error().Err(err).Msg("running probe")
+		zlogger.Error().Err(err).Msg("running probe")
 		return false, 0
 	}
 
