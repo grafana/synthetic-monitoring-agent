@@ -62,7 +62,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	dstIPAddr, lookupTime, err := chooseProtocol(ctx, module.ICMP.IPProtocol, module.ICMP.IPProtocolFallback, target, int(module.MaxResolveRetries), registry, logger)
 	if err != nil {
-		logger.Log("level", "error", "msg", "Error resolving address", "err", err)
+		_ = logger.Log("level", "error", "msg", "Error resolving address", "err", err)
 		return false, 0
 	}
 
@@ -75,7 +75,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	if err := pinger.Resolve(); err != nil {
 		// This should never happen, the address is already resolved.
-		logger.Log("level", "error", "msg", "Error resolving address", "err", err)
+		_ = logger.Log("level", "error", "msg", "Error resolving address", "err", err)
 		return false, 0
 	}
 
@@ -95,12 +95,12 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 			duration += setupDuration
 			setupDone = true
 		}
-		logger.Log("level", "info", "msg", "Using source address", "srcIP", pinger.Source)
+		_ = logger.Log("level", "info", "msg", "Using source address", "srcIP", pinger.Source)
 	}
 
 	pinger.OnSend = func(pkt *ping.Packet) {
-		logger.Log("level", "info", "msg", "Creating ICMP packet", "seq", strconv.Itoa(pkt.Seq))
-		logger.Log("level", "info", "msg", "Waiting for reply packets")
+		_ = logger.Log("level", "info", "msg", "Creating ICMP packet", "seq", strconv.Itoa(pkt.Seq))
+		_ = logger.Log("level", "info", "msg", "Waiting for reply packets")
 	}
 
 	pinger.OnRecv = func(pkt *ping.Packet) {
