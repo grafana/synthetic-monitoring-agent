@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-kit/log"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 )
 
 var errUnsupportedCheck = errors.New("unsupported check")
@@ -97,7 +97,8 @@ func isPrivilegedRequired() bool {
 		ctx      = context.Background()
 		target   = "127.0.0.1"
 		registry = prometheus.NewRegistry()
-		logger   = log.NewNopLogger()
+		zl       = zerolog.Nop()
+		logger   = logger.FromZerolog(zl)
 		config   = Module{
 			Prober:      "test-unprivileged",
 			Timeout:     1 * time.Second,
