@@ -47,7 +47,7 @@ jobs:
       id-token: none
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v1.13.0@sha256:8a314d3961678a751a45e7ba4fe3e0a21ca69d479f305e6224e2a011428f6384
+      image: ghcr.io/grafana/grafana-build-tools:v1.14.0@sha256:976d7ceebf570f078ef136580d6abb1bc68d921ac8c716ed3528fcccb16a7a6a
       volumes:
         # This works as long as we are using self-hosted runners.
         #
