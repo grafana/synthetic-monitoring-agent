@@ -2,6 +2,7 @@ on:
   workflow_call:
     inputs:
       mode:
+        description: 'The mode to run the workflow in.'
         required: true
         type: string
 
@@ -46,14 +47,20 @@ jobs:
       id-token: none
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v1.12.1@sha256:29bdd25f292a23a79bc13902dce1546597b5dc0fb6727730f346dab0e336b26f
+      image: ghcr.io/grafana/grafana-build-tools:v1.13.0@sha256:8a314d3961678a751a45e7ba4fe3e0a21ca69d479f305e6224e2a011428f6384
+      volumes:
+        # This works as long as we are using self-hosted runners.
+        #
+        # Self-hosted runners have this file which is used to configure
+        # buildkitd. The file is injected when the image is created.
+        - /etc/buildkitd.toml:/etc/buildkitd.toml
     outputs:
       version: ${{ steps.version.outputs.value }}
       version_bare: ${{ steps.version.outputs.bare_value }}
 
     steps:
       - name: checkout
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
           fetch-depth: 0
