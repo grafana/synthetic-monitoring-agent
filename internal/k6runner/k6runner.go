@@ -73,6 +73,8 @@ func CheckInfoFromSM(smc smmmodel.Check) CheckInfo {
 	ci.Metadata["regionID"] = smc.RegionId
 	ci.Metadata["created"] = smc.Created
 	ci.Metadata["modified"] = smc.Modified
+	ci.Metadata["frequency"] = smc.Frequency
+	ci.Metadata["timeout"] = smc.Timeout
 
 	return ci
 }
