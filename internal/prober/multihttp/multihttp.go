@@ -89,13 +89,13 @@ func (p Prober) Name() string {
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
 	secretStore, err := p.secretsRetriever(ctx)
-
 	if err != nil {
 		p.logger.Error().Err(err).Msg("running probe")
 		return false, 0
 	}
 
-	success, err := p.processor.Run(ctx, registry, logger, p.logger, secretStore)
+	runLogger := p.logger.With().Object("checkInfo", &p.module.Script.CheckInfo).Logger()
+	success, err := p.processor.Run(ctx, registry, logger, runLogger, secretStore)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("running probe")
 		return false, 0
