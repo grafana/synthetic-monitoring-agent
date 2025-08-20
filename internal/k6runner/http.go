@@ -124,7 +124,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 		case <-ctx.Done():
 			waitTimer.Stop()
 			// TODO: Log the returned error in the Processor instead.
-			r.logger.Error().Err(err).Msg("retries exhausted")
+			r.logger.Error().Err(err).Object("checkInfo", &script.CheckInfo).Msg("retries exhausted")
 			r.metrics.RequestsPerRun.WithLabelValues("0").Observe(attempts)
 			return nil, fmt.Errorf("cannot retry further: %w", errors.Join(err, ctx.Err()))
 		case <-waitTimer.C:
