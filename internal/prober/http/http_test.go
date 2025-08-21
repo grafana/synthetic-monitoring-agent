@@ -524,8 +524,8 @@ func TestResolveSecretValue(t *testing.T) {
 			expectedOutput: "",
 			expectError:    false,
 		},
-		"gsm prefix with valid secret": {
-			input: "gsm:my-secret-key",
+		"secret interpolation with valid secret": {
+			input: "${secrets.my-secret-key}",
 			mockSecretFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
 				if secretKey == "my-secret-key" {
 					return "secret-value-from-gsm", nil
@@ -535,32 +535,48 @@ func TestResolveSecretValue(t *testing.T) {
 			expectedOutput: "secret-value-from-gsm",
 			expectError:    false,
 		},
-		"gsm prefix with secret lookup error": {
-			input: "gsm:non-existent-key",
+		"secret interpolation with secret lookup error": {
+			input: "${secrets.non-existent-key}",
 			mockSecretFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
 				return "", fmt.Errorf("secret not found")
 			},
 			expectedOutput: "",
 			expectError:    true,
 		},
-		"gsm prefix with empty key": {
-			input:          "gsm:",
+		"secret interpolation with empty secret name": {
+			input:          "${secrets.}",
 			expectedOutput: "",
 			expectError:    true,
 		},
-		"plaintext prefix": {
-			input:          "plaintext:my-plain-password",
+		"plaintext value (no interpolation)": {
+			input:          "my-plain-password",
 			expectedOutput: "my-plain-password",
 			expectError:    false,
 		},
-		"plaintext prefix with empty value": {
-			input:          "plaintext:",
-			expectedOutput: "",
+		"mixed interpolation and plaintext": {
+			input: "Bearer ${secrets.my-token}",
+			mockSecretFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+				if secretKey == "my-token" {
+					return "actual-token-value", nil
+				}
+				return "", fmt.Errorf("secret not found")
+			},
+			expectedOutput: "Bearer actual-token-value",
 			expectError:    false,
 		},
-		"legacy format (no prefix)": {
-			input:          "legacy-password",
-			expectedOutput: "legacy-password",
+		"multiple secrets in one string": {
+			input: "${secrets.username}:${secrets.password}",
+			mockSecretFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+				switch secretKey {
+				case "username":
+					return "admin", nil
+				case "password":
+					return "secret123", nil
+				default:
+					return "", fmt.Errorf("secret not found")
+				}
+			},
+			expectedOutput: "admin:secret123",
 			expectError:    false,
 		},
 	}
@@ -637,53 +653,53 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 		expectedBearer string
 		expectedPasswd string
 	}{
-		"gsm secrets": {
+		"secret interpolation": {
 			settings: sm.HttpSettings{
-				BearerToken:          "gsm:bearer-token-key",
+				BearerToken:          "${secrets.bearer-token-key}",
 				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
-					Password: "gsm:password-key",
+					Password: "${secrets.password-key}",
 				},
 			},
 			expectedBearer: "bearer-secret-value",
 			expectedPasswd: "password-secret-value",
 		},
-		"plaintext secrets": {
+		"plaintext values": {
 			settings: sm.HttpSettings{
-				BearerToken:          "plaintext:plain-bearer-token",
+				BearerToken:          "plain-bearer-token",
 				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
-					Password: "plaintext:plain-password",
+					Password: "plain-password",
 				},
 			},
 			expectedBearer: "plain-bearer-token",
 			expectedPasswd: "plain-password",
 		},
-		"legacy secrets": {
+		"mixed interpolation and plaintext": {
 			settings: sm.HttpSettings{
-				BearerToken:          "legacy-bearer-token",
+				BearerToken:          "${secrets.bearer-token-key}",
 				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
-					Password: "legacy-password",
-				},
-			},
-			expectedBearer: "legacy-bearer-token",
-			expectedPasswd: "legacy-password",
-		},
-		"mixed secret types": {
-			settings: sm.HttpSettings{
-				BearerToken:          "gsm:bearer-token-key",
-				SecretManagerEnabled: true,
-				BasicAuth: &sm.BasicAuth{
-					Username: "testuser",
-					Password: "plaintext:plain-password",
+					Password: "plain-password",
 				},
 			},
 			expectedBearer: "bearer-secret-value",
 			expectedPasswd: "plain-password",
+		},
+		"complex interpolation": {
+			settings: sm.HttpSettings{
+				BearerToken:          "Bearer ${secrets.bearer-token-key}",
+				SecretManagerEnabled: true,
+				BasicAuth: &sm.BasicAuth{
+					Username: "testuser",
+					Password: "${secrets.password-key}",
+				},
+			},
+			expectedBearer: "Bearer bearer-secret-value",
+			expectedPasswd: "password-secret-value",
 		},
 	}
 
@@ -736,19 +752,19 @@ func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
 			expectedOutput string
 			expectError    bool
 		}{
-			"gsm prefix resolved when capability enabled": {
-				input:          "gsm:my-bearer-token",
+			"secret interpolation resolved when capability enabled": {
+				input:          "${secrets.my-bearer-token}",
 				expectedOutput: "resolved-bearer-token",
 				expectError:    false,
 			},
-			"plaintext prefix resolved when capability enabled": {
-				input:          "plaintext:my-plain-password",
+			"plaintext value unchanged when capability enabled": {
+				input:          "my-plain-password",
 				expectedOutput: "my-plain-password",
 				expectError:    false,
 			},
-			"legacy format unchanged when capability enabled": {
-				input:          "legacy-password",
-				expectedOutput: "legacy-password",
+			"mixed interpolation and plaintext when capability enabled": {
+				input:          "Bearer ${secrets.my-bearer-token}",
+				expectedOutput: "Bearer resolved-bearer-token",
 				expectError:    false,
 			},
 		}
@@ -786,17 +802,17 @@ func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
 			input          string
 			expectedOutput string
 		}{
-			"gsm prefix preserved when capability disabled": {
-				input:          "gsm:my-bearer-token",
-				expectedOutput: "gsm:my-bearer-token",
+			"secret interpolation preserved when capability disabled": {
+				input:          "${secrets.my-bearer-token}",
+				expectedOutput: "${secrets.my-bearer-token}",
 			},
-			"plaintext prefix preserved when capability disabled": {
-				input:          "plaintext:my-plain-password",
-				expectedOutput: "plaintext:my-plain-password",
+			"plaintext value unchanged when capability disabled": {
+				input:          "my-plain-password",
+				expectedOutput: "my-plain-password",
 			},
-			"legacy format unchanged when capability disabled": {
-				input:          "legacy-password",
-				expectedOutput: "legacy-password",
+			"mixed interpolation preserved when capability disabled": {
+				input:          "Bearer ${secrets.my-bearer-token}",
+				expectedOutput: "Bearer ${secrets.my-bearer-token}",
 			},
 		}
 
@@ -864,9 +880,9 @@ func TestUpdatableCapabilityAwareSecretProvider(t *testing.T) {
 		require.False(t, updatableStore.IsProtocolSecretsEnabled())
 
 		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger, false)
+		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, false)
 		require.NoError(t, err)
-		require.Equal(t, "gsm:my-bearer-token", actual)
+		require.Equal(t, "${secrets.my-bearer-token}", actual)
 	})
 
 	t.Run("can be updated to enabled", func(t *testing.T) {
@@ -879,7 +895,7 @@ func TestUpdatableCapabilityAwareSecretProvider(t *testing.T) {
 		require.True(t, updatableStore.IsProtocolSecretsEnabled())
 
 		// Should now resolve secrets
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger, true)
+		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, true)
 		require.NoError(t, err)
 		require.Equal(t, "resolved-bearer-token", actual)
 	})
@@ -894,9 +910,9 @@ func TestUpdatableCapabilityAwareSecretProvider(t *testing.T) {
 		require.False(t, updatableStore.IsProtocolSecretsEnabled())
 
 		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger, false)
+		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, false)
 		require.NoError(t, err)
-		require.Equal(t, "gsm:my-bearer-token", actual)
+		require.Equal(t, "${secrets.my-bearer-token}", actual)
 	})
 
 	t.Run("handles nil capabilities", func(t *testing.T) {
@@ -906,9 +922,9 @@ func TestUpdatableCapabilityAwareSecretProvider(t *testing.T) {
 		require.False(t, updatableStore.IsProtocolSecretsEnabled())
 
 		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", updatableStore, tenantID, logger, false)
+		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, false)
 		require.NoError(t, err)
-		require.Equal(t, "gsm:my-bearer-token", actual)
+		require.Equal(t, "${secrets.my-bearer-token}", actual)
 	})
 }
 
@@ -933,40 +949,40 @@ func TestResolveSecretValueWithSecretManagerEnabled(t *testing.T) {
 		expectedOutput       string
 		expectError          bool
 	}{
-		"secret manager enabled with gsm prefix": {
-			input:                "gsm:my-bearer-token",
+		"secret manager enabled with secret interpolation": {
+			input:                "${secrets.my-bearer-token}",
 			secretManagerEnabled: true,
 			expectedOutput:       "resolved-bearer-token",
 			expectError:          false,
 		},
-		"secret manager enabled with plaintext prefix": {
-			input:                "plaintext:my-plain-password",
+		"secret manager enabled with plaintext value": {
+			input:                "my-plain-password",
 			secretManagerEnabled: true,
 			expectedOutput:       "my-plain-password",
 			expectError:          false,
 		},
-		"secret manager enabled with legacy format": {
-			input:                "legacy-password",
+		"secret manager enabled with mixed interpolation": {
+			input:                "Bearer ${secrets.my-bearer-token}",
 			secretManagerEnabled: true,
-			expectedOutput:       "legacy-password",
+			expectedOutput:       "Bearer resolved-bearer-token",
 			expectError:          false,
 		},
-		"secret manager disabled with gsm prefix": {
-			input:                "gsm:my-bearer-token",
+		"secret manager disabled with secret interpolation": {
+			input:                "${secrets.my-bearer-token}",
 			secretManagerEnabled: false,
-			expectedOutput:       "gsm:my-bearer-token",
+			expectedOutput:       "${secrets.my-bearer-token}",
 			expectError:          false,
 		},
-		"secret manager disabled with plaintext prefix": {
-			input:                "plaintext:my-plain-password",
+		"secret manager disabled with plaintext value": {
+			input:                "my-plain-password",
 			secretManagerEnabled: false,
-			expectedOutput:       "plaintext:my-plain-password",
+			expectedOutput:       "my-plain-password",
 			expectError:          false,
 		},
-		"secret manager disabled with legacy format": {
-			input:                "legacy-password",
+		"secret manager disabled with mixed interpolation": {
+			input:                "Bearer ${secrets.my-bearer-token}",
 			secretManagerEnabled: false,
-			expectedOutput:       "legacy-password",
+			expectedOutput:       "Bearer ${secrets.my-bearer-token}",
 			expectError:          false,
 		},
 	}

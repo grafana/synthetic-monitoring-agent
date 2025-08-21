@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tls"
@@ -204,43 +205,21 @@ func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 	return m, nil
 }
 
-// resolveSecretValue resolves a secret value based on its prefix:
-// - "gsm:" prefix: lookup the secret from the secret store (only if secretManagerEnabled is true)
-// - "plaintext:" prefix: strip the prefix and return the value (only if secretManagerEnabled is true)
-// - no prefix (legacy): return the value as-is
-// If secretManagerEnabled is false, the value is returned as-is regardless of any prefix
+// resolveSecretValue resolves a secret value using string interpolation with ${secrets.secret_name} syntax.
+// If secretManagerEnabled is false, the value is returned as-is without any interpolation.
 func resolveSecretValue(ctx context.Context, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger, secretManagerEnabled bool) (string, error) {
 	if value == "" {
 		return "", nil
 	}
 
-	// If secret manager is not enabled, return the value as-is regardless of any prefix
+	// If secret manager is not enabled, return the value as-is
 	if !secretManagerEnabled {
 		return value, nil
 	}
 
-	if strings.HasPrefix(value, "gsm:") {
-		secretKey := strings.TrimPrefix(value, "gsm:")
-		if secretKey == "" {
-			return "", fmt.Errorf("empty secret key after gsm: prefix")
-		}
-
-		logger.Debug().Str("secretKey", secretKey).Int64("tenantId", int64(tenantID)).Msg("resolving secret from GSM")
-
-		secretValue, err := secretStore.GetSecretValue(ctx, tenantID, secretKey)
-		if err != nil {
-			return "", fmt.Errorf("failed to get secret '%s' from GSM: %w", secretKey, err)
-		}
-
-		return secretValue, nil
-	}
-
-	if strings.HasPrefix(value, "plaintext:") {
-		return strings.TrimPrefix(value, "plaintext:"), nil
-	}
-
-	// Legacy format - treat as plaintext
-	return value, nil
+	// Create a resolver that only handles secrets (no variables)
+	resolver := interpolation.NewResolver(nil, secretStore, tenantID, logger, secretManagerEnabled)
+	return resolver.Resolve(ctx, value)
 }
 
 func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider, tenantID model.GlobalID) (promconfig.HTTPClientConfig, error) {
