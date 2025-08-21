@@ -339,6 +339,13 @@ func TestTenantPusher(t *testing.T) {
 		// Tick once, which should make the push fail
 		td.tickAndWait()
 
+		// Wait for the push goroutine to complete and update metrics
+		select {
+		case <-tc.completeChan:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for push completion")
+		}
+
 		// Verify sent data
 		tc.assert(t, getTestDataset(0).message)
 
@@ -363,6 +370,13 @@ func TestTenantPusher(t *testing.T) {
 
 		// Tick once, which should make the push fail
 		td.tickAndWait()
+
+		// Wait for the push goroutine to complete and update metrics
+		select {
+		case <-tc.completeChan:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for push completion")
+		}
 
 		// Verify sent data
 		tc.assert(t, getTestDataset(0).message)
@@ -395,8 +409,8 @@ func setupTest(t *testing.T) (*testDriver, *testTelemetryClient, *RegionPusher, 
 		wg              = &sync.WaitGroup{}
 		testCtx, cancel = context.WithCancel(t.Context())
 		ticker          = &testTicker{c: make(chan time.Time)}
-		td              = testDriver{wg: wg, cancel: cancel, ticker: ticker}
-		tc              = &testTelemetryClient{wg: wg}
+		tc              = &testTelemetryClient{wg: wg, pushChan: make(chan struct{}, 10), completeChan: make(chan struct{}, 10)}
+		td              = testDriver{wg: wg, cancel: cancel, ticker: ticker, tc: tc}
 		logger          = testhelper.Logger(t)
 		metrics         = RegionMetrics{
 			pushRequestsActive:   prom.NewGauge(prom.GaugeOpts{}),
@@ -419,33 +433,41 @@ type testDriver struct {
 	wg     *sync.WaitGroup
 	cancel context.CancelFunc
 	ticker *testTicker
+	tc     *testTelemetryClient
 }
 
 // tickAndWait will tick the ticker once, so the push
 // process starts, and wait for the push client to finish
 func (td *testDriver) tickAndWait() {
-	td.wg.Add(1)
-	defer td.wg.Wait()
 	td.ticker.c <- time.Now()
+	// Wait for the push to complete
+	select {
+	case <-td.tc.pushChan:
+	case <-time.After(5 * time.Second):
+		// Timeout after 5 seconds
+	}
 }
 
 // waitForShutdown will cancel the context passed to the
 // tenant pusher and wait for it to finish its work
 func (td *testDriver) shutdownAndWait() {
-	defer td.wg.Wait()
-	// The pusher will send the current accumulated
-	// data before exiting
-	td.wg.Add(1)
-
 	td.cancel()
+	// Wait for the final push to complete (if any)
+	select {
+	case <-td.tc.pushChan:
+	case <-time.After(5 * time.Second):
+		// Timeout after 5 seconds
+	}
 }
 
 type testTelemetryClient struct {
 	mu sync.Mutex
 	wg *sync.WaitGroup
 
-	rr testPushResp
-	mm []sm.RegionTelemetry
+	rr           testPushResp
+	mm           []sm.RegionTelemetry
+	pushChan     chan struct{} // Channel to signal when push happens
+	completeChan chan struct{} // Channel to signal when push goroutine completes
 }
 
 func (tc *testTelemetryClient) PushTelemetry(
@@ -453,9 +475,27 @@ func (tc *testTelemetryClient) PushTelemetry(
 ) (*sm.PushTelemetryResponse, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	defer tc.wg.Done()
+
+	// Signal that a push happened
+	if tc.pushChan != nil {
+		select {
+		case tc.pushChan <- struct{}{}:
+		default:
+		}
+	}
 
 	tc.mm = append(tc.mm, *in)
+
+	// Signal completion after a short delay to simulate the goroutine completing
+	go func() {
+		time.Sleep(10 * time.Millisecond) // Much shorter than the arbitrary 100ms
+		if tc.completeChan != nil {
+			select {
+			case tc.completeChan <- struct{}{}:
+			default:
+			}
+		}
+	}()
 
 	return tc.rr.tr, tc.rr.err
 }
