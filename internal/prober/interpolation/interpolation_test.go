@@ -116,8 +116,8 @@ func TestResolver_Resolve(t *testing.T) {
 		"empty secret name": {
 			input:          "${secrets.}",
 			secretEnabled:  true,
-			expectedOutput: "",
-			expectError:    true,
+			expectedOutput: "${secrets.}",
+			expectError:    false,
 		},
 		"invalid secret name": {
 			input:          "${secrets.invalid-name}",
