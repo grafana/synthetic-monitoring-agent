@@ -675,17 +675,6 @@ func (s *HttpSettings) Validate() error {
 		}
 	}
 
-	// Validate secret manager enabled settings
-	if s.SecretManagerEnabled {
-		if !isValidSecretManagerValue(s.BearerToken) {
-			return ErrInvalidHttpBearerToken
-		}
-
-		if s.BasicAuth != nil && !isValidSecretManagerValue(s.BasicAuth.Password) {
-			return ErrInvalidHttpBasicAuthPassword
-		}
-	}
-
 	return nil
 }
 
@@ -1463,15 +1452,6 @@ func validateTimeout(checkType CheckType, timeout, frequency int64) error {
 // inClosedRange returns true if the value `v` is in [lower, upper].
 func inClosedRange[T constraints.Ordered](v, lower, upper T) bool {
 	return v >= lower && v <= upper
-}
-
-// isValidSecretManagerValue returns true if the value is valid for secret manager.
-// A value is valid if it's empty or starts with "plaintext:" or "gsm:".
-func isValidSecretManagerValue(value string) bool {
-	if len(value) == 0 {
-		return true
-	}
-	return strings.HasPrefix(value, "plaintext:") || strings.HasPrefix(value, "gsm:")
 }
 
 func GetCheckInstance(checkType CheckType) Check {
