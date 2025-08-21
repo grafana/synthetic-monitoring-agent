@@ -18,6 +18,7 @@ import (
 var templateFS embed.FS
 
 var userVariables = regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
+var secretVariables = regexp.MustCompile(`\$\{secret\.([a-zA-Z0-9_][a-zA-Z0-9_\.\-]*)\}`)
 
 func performVariableExpansion(in string) string {
 	if len(in) == 0 {
@@ -26,11 +27,13 @@ func performVariableExpansion(in string) string {
 
 	var s strings.Builder
 	buf := []byte(in)
-	locs := userVariables.FindAllSubmatchIndex(buf, -1)
 
+	// First handle secret variables
+	locs := secretVariables.FindAllSubmatchIndex(buf, -1)
 	p := 0
+
 	for _, loc := range locs {
-		if len(loc) < 4 { // put the bounds checker at ease
+		if len(loc) < 4 {
 			panic("unexpected result while building URL")
 		}
 
@@ -45,24 +48,65 @@ func performVariableExpansion(in string) string {
 			s.WriteRune('+')
 		}
 
-		s.WriteString(`vars['`)
-		// Because of the capture in the regular expression, the result
-		// has two indices that represent the matched substring, and
-		// two more indices that represent the capture group.
+		// Generate async secret lookup
+		s.WriteString(`await secrets.get('`)
 		s.Write(buf[loc[2]:loc[3]])
-		s.WriteString(`']`)
+		s.WriteString(`')`)
 
 		p = loc[1]
 	}
 
-	if len(buf[p:]) > 0 {
-		if s.Len() > 0 {
-			s.WriteRune('+')
-		}
+	// Then handle regular variables in the remaining text
+	remainingText := buf[p:]
+	if len(remainingText) > 0 {
+		regularLocs := userVariables.FindAllSubmatchIndex(remainingText, -1)
 
-		s.WriteRune('\'')
-		template.JSEscape(&s, buf[p:])
-		s.WriteRune('\'')
+		if len(regularLocs) > 0 {
+			if s.Len() > 0 {
+				s.WriteRune('+')
+			}
+
+			p2 := 0
+			for _, loc := range regularLocs {
+				if len(loc) < 4 {
+					panic("unexpected result while building URL")
+				}
+
+				if s.Len() > 0 {
+					s.WriteRune('+')
+				}
+
+				if pre := remainingText[p2:loc[0]]; len(pre) > 0 {
+					s.WriteRune('\'')
+					template.JSEscape(&s, pre)
+					s.WriteRune('\'')
+					s.WriteRune('+')
+				}
+
+				s.WriteString(`vars['`)
+				s.Write(remainingText[loc[2]:loc[3]])
+				s.WriteString(`']`)
+
+				p2 = loc[1]
+			}
+
+			if len(remainingText[p2:]) > 0 {
+				if s.Len() > 0 {
+					s.WriteRune('+')
+				}
+				s.WriteRune('\'')
+				template.JSEscape(&s, remainingText[p2:])
+				s.WriteRune('\'')
+			}
+		} else {
+			// No regular variables, just append the remaining text
+			if s.Len() > 0 {
+				s.WriteRune('+')
+			}
+			s.WriteRune('\'')
+			template.JSEscape(&s, remainingText)
+			s.WriteRune('\'')
+		}
 	}
 
 	return s.String()
@@ -113,13 +157,19 @@ func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []st
 	default:
 		var buf strings.Builder
 
-		matches := userVariables.FindAllString(string(body.Payload), -1)
-		parsedMatches := make(map[string]struct{})
-		out := make([]string, 0, len(matches))
+		// Find both regular and secret variables using submatch indices
+		regularMatches := userVariables.FindAllSubmatchIndex(body.Payload, -1)
+		secretMatches := secretVariables.FindAllSubmatchIndex(body.Payload, -1)
 
-		// For every instance of ${variable} in the body,
-		// this block returns {bodyVarName} = {bodyVarName}.replaceAll('${variable}', vars['variable'])
-		for _, m := range matches {
+		parsedMatches := make(map[string]struct{})
+		out := make([]string, 0, len(regularMatches)+len(secretMatches))
+
+		// Handle regular variables
+		for _, match := range regularMatches {
+			if len(match) < 4 {
+				continue
+			}
+			m := string(body.Payload[match[0]:match[1]])
 			if _, found := parsedMatches[m]; found {
 				continue
 			}
@@ -132,10 +182,33 @@ func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []st
 			buf.WriteString(m)
 			buf.WriteString("', vars['")
 			// writing the variable name from between ${ and }
-			for i := 2; i < len(m)-1; i++ {
-				buf.WriteByte(m[i])
-			}
+			buf.Write(body.Payload[match[2]:match[3]])
 			buf.WriteString("'])")
+			out = append(out, buf.String())
+
+			parsedMatches[m] = struct{}{}
+		}
+
+		// Handle secret variables
+		for _, match := range secretMatches {
+			if len(match) < 4 {
+				continue
+			}
+			m := string(body.Payload[match[0]:match[1]])
+			if _, found := parsedMatches[m]; found {
+				continue
+			}
+
+			buf.Reset()
+			buf.WriteString(bodyVarName)
+			buf.WriteString("=")
+			buf.WriteString(bodyVarName)
+			buf.WriteString(".replaceAll('")
+			buf.WriteString(m)
+			buf.WriteString("', await secrets.get('")
+			// writing the secret name from the capture group
+			buf.Write(body.Payload[match[2]:match[3]])
+			buf.WriteString("'))")
 			out = append(out, buf.String())
 
 			parsedMatches[m] = struct{}{}
@@ -422,6 +495,35 @@ func buildVars(variable *sm.MultiHttpEntryVariable) string {
 	return b.String()
 }
 
+func hasSecretVariables(settings *sm.MultiHttpSettings) bool {
+	for _, entry := range settings.Entries {
+		// Check URL
+		if secretVariables.MatchString(entry.Request.Url) {
+			return true
+		}
+
+		// Check headers
+		for _, header := range entry.Request.Headers {
+			if secretVariables.MatchString(header.Value) {
+				return true
+			}
+		}
+
+		// Check query fields
+		for _, field := range entry.Request.QueryFields {
+			if secretVariables.MatchString(field.Name) || secretVariables.MatchString(field.Value) {
+				return true
+			}
+		}
+
+		// Check body
+		if entry.Request.Body != nil && secretVariables.MatchString(string(entry.Request.Body.Payload)) {
+			return true
+		}
+	}
+	return false
+}
+
 func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
 	// Convert settings to script using a Go template
 	tmpl, err := template.
@@ -442,9 +544,18 @@ func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
 
 	var buf bytes.Buffer
 
+	// Create template data with secret variable detection
+	templateData := struct {
+		*sm.MultiHttpSettings
+		HasSecretVariables bool
+	}{
+		MultiHttpSettings:  settings,
+		HasSecretVariables: hasSecretVariables(settings),
+	}
+
 	// TODO(mem): figure out if we need to transform the data in some way
 	// before executing the template
-	if err := tmpl.ExecuteTemplate(&buf, "script.tmpl", settings); err != nil {
+	if err := tmpl.ExecuteTemplate(&buf, "script.tmpl", templateData); err != nil {
 		return nil, fmt.Errorf("executing script template: %w", err)
 	}
 
