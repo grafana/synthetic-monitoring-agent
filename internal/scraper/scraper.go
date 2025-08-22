@@ -3,6 +3,7 @@ package scraper
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -757,59 +758,69 @@ func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.
 }
 
 func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair) Streams {
-	var line strings.Builder
-
-	dec := logfmt.NewDecoder(bytes.NewReader(logs))
-
 	labels := make([]labelPair, 0, len(sharedLabels))
 	var entries []logproto.Entry
-RECORD:
-	for dec.ScanRecord() {
-		var t time.Time
 
-		line.Reset()
+	// Split logs into lines and process each JSON line
+	lines := strings.Split(string(logs), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
 
-		enc := logfmt.NewEncoder(&line)
+		// Parse JSON log entry
+		var logEntry map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &logEntry); err != nil {
+			s.logger.Warn().Err(err).Str("line", line).Msg("invalid JSON log entry")
+			continue
+		}
 
-		labels = labels[:0]
-		labels = append(labels, sharedLabels...)
+		// Extract timestamp
+		logTime := s.extractLogTimestamp(logEntry, t)
 
-		for dec.ScanKeyval() {
-			value := dec.Value()
+		// Convert JSON back to logfmt format for consistency
+		var logfmtLine strings.Builder
+		enc := logfmt.NewEncoder(&logfmtLine)
 
-			switch key := dec.Key(); string(key) {
-			case "ts":
-				var err error
-				t, err = time.Parse(time.RFC3339Nano, string(value))
-				if err != nil {
-					// We should never hit this as the timestamp string in the log should be valid.
-					// Without a timestamp we cannot do anything. And we cannot use something like
-					// time.Now() because that would mess up other entries
-					s.logger.Warn().Err(err).Bytes("value", value).Msg("invalid timestamp scanning logs")
-					continue RECORD
-				}
+		for key, value := range logEntry {
+			// Skip the time field as it's handled separately
+			if key == "time" {
+				continue
+			}
 
+			var valueStr string
+			switch v := value.(type) {
+			case string:
+				valueStr = v
+			case float64:
+				valueStr = strconv.FormatFloat(v, 'f', -1, 64)
+			case bool:
+				valueStr = strconv.FormatBool(v)
+			case nil:
+				valueStr = ""
 			default:
-				if err := enc.EncodeKeyval(key, value); err != nil {
-					// We should never hit this because all the entries are valid.
-					s.logger.Warn().Err(err).Bytes("key", key).Bytes("value", value).Msg("invalid entry scanning logs")
-					continue RECORD
-				}
+				valueStr = fmt.Sprintf("%v", v)
+			}
+
+			if err := enc.EncodeKeyval([]byte(key), []byte(valueStr)); err != nil {
+				s.logger.Warn().Err(err).Str("key", key).Str("value", valueStr).Msg("invalid logfmt encoding")
+				continue
 			}
 		}
 
 		if err := enc.EndRecord(); err != nil {
 			s.logger.Warn().Err(err).Msg("encoding logs")
 		}
+
 		entries = append(entries, logproto.Entry{
-			Timestamp: t,
-			Line:      line.String(),
+			Timestamp: logTime,
+			Line:      logfmtLine.String(),
 		})
 	}
 
-	if err := dec.Err(); err != nil {
-		s.logger.Error().Err(err).Msg("decoding logs")
-	}
+	// Copy shared labels
+	labels = append(labels, sharedLabels...)
 
 	return Streams{
 		logproto.Stream{
@@ -817,6 +828,28 @@ RECORD:
 			Entries: entries,
 		},
 	}
+}
+
+// extractLogTimestamp extracts and parses the timestamp from a log entry
+func (s Scraper) extractLogTimestamp(logEntry map[string]interface{}, fallbackTime time.Time) time.Time {
+	// Try to get timestamp as string first
+	if tsStr, ok := logEntry["time"].(string); ok {
+		if ts, err := time.Parse(time.RFC3339Nano, tsStr); err == nil {
+			return ts
+		}
+		// If string parsing fails, try as float64 (Unix timestamp)
+		if tsFloat, ok := logEntry["time"].(float64); ok {
+			return time.Unix(int64(tsFloat), 0)
+		}
+	}
+	
+	// Try to get timestamp as float64 directly
+	if tsFloat, ok := logEntry["time"].(float64); ok {
+		return time.Unix(int64(tsFloat), 0)
+	}
+	
+	// Fallback to provided time
+	return fallbackTime
 }
 
 func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair) TimeSeries {
