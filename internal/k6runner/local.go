@@ -36,8 +36,6 @@ func (r Local) WithLogger(logger *zerolog.Logger) Runner {
 }
 
 func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
-	logger := r.logger.With().Object("checkInfo", &script.CheckInfo).Logger()
-
 	afs := afero.Afero{Fs: r.fs}
 
 	checkTimeout := time.Duration(script.Settings.Timeout) * time.Millisecond
@@ -52,7 +50,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 
 	defer func() {
 		if err := r.fs.RemoveAll(workdir); err != nil {
-			logger.Error().Err(err).Str("severity", "critical").Msg("cannot remove temporary directory")
+			r.logger.Error().Err(err).Str("severity", "critical").Msg("cannot remove temporary directory")
 		}
 	}()
 
@@ -93,7 +91,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		}
 		defer cleanup()
 
-		logger.Debug().
+		r.logger.Debug().
 			Str("secret_config_file", configFile).
 			Str("secrets_url", secretStore.Url).
 			Msg("Using secret config file")
@@ -119,7 +117,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	cmd.Env = k6Env(os.Environ())
 
 	start := time.Now()
-	logger.Info().Str("command", cmd.String()).Msg("running k6 script")
+	r.logger.Info().Str("command", cmd.String()).Msg("running k6 script")
 	err = cmd.Run()
 
 	duration := time.Since(start)
@@ -129,7 +127,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	err = errors.Join(err, ctx.Err())
 
 	if err != nil && !isUserError(err) {
-		logger.Error().
+		r.logger.Error().
 			Err(err).
 			Dur("duration", duration).
 			Msg("cannot run k6")
@@ -157,7 +155,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		return nil, fmt.Errorf("reading k6 logs: %w", err)
 	}
 	if truncated {
-		logger.Warn().
+		r.logger.Warn().
 			Str("filename", logsFn).
 			Int("limitBytes", maxLogsSizeBytes).
 			Msg("Logs output larger than limit, truncating")
@@ -171,7 +169,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		return nil, fmt.Errorf("reading k6 metrics: %w", err)
 	}
 	if truncated {
-		logger.Warn().
+		r.logger.Warn().
 			Str("filename", metricsFn).
 			Int("limitBytes", maxMetricsSizeBytes).
 			Msg("Metrics output larger than limit, truncating")
