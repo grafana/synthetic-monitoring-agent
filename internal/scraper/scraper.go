@@ -842,12 +842,12 @@ func (s Scraper) extractLogTimestamp(logEntry map[string]interface{}, fallbackTi
 			return time.Unix(int64(tsFloat), 0)
 		}
 	}
-	
+
 	// Try to get timestamp as float64 directly
 	if tsFloat, ok := logEntry["time"].(float64); ok {
 		return time.Unix(int64(tsFloat), 0)
 	}
-	
+
 	// Fallback to provided time
 	return fallbackTime
 }
