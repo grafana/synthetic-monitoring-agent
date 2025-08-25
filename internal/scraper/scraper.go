@@ -3,6 +3,7 @@ package scraper
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -13,8 +14,6 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 
-	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
-	"github.com/go-kit/kit/log/level"  //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-logfmt/logfmt"
 	"github.com/mmcloughlin/geohash"
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,6 +27,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -505,16 +505,15 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
-	bl := kitlog.NewLogfmtLogger(&logs)
+	zl := zerolog.New(&logs).With().Timestamp().Logger()
 
-	// set up logger to capture all the labels as part of the log entry
-	loggerLabels := make([]interface{}, 0, 2*(2+len(logLabels)))
-	loggerLabels = append(loggerLabels, "ts", kitlog.DefaultTimestampUTC, "target", target)
+	// Add labels to the logger
 	for _, l := range logLabels {
-		loggerLabels = append(loggerLabels, l.name, l.value)
+		zl = zl.With().Str(l.name, l.value).Logger()
 	}
 
-	sl := kitlog.With(bl, loggerLabels...)
+	// Create adapter for prober interface
+	sl := logger.FromZerolog(zl)
 
 	var timeout time.Duration
 	switch s.CheckType() {
@@ -628,7 +627,7 @@ func getProbeMetrics(
 	checkInfoLabels map[string]string,
 	summaries map[uint64]prometheus.Summary,
 	histograms map[uint64]prometheus.Histogram,
-	logger kitlog.Logger,
+	logger logger.Logger,
 	basicMetricsOnly bool,
 ) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
@@ -663,11 +662,11 @@ func runProber(
 	timeout time.Duration,
 	registry *prometheus.Registry,
 	checkInfoLabels map[string]string,
-	logger kitlog.Logger,
+	logger logger.Logger,
 ) bool {
 	start := time.Now()
 
-	_ = level.Info(logger).Log("msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
+	_ = logger.Log("level", "info", "msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
 
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -702,10 +701,10 @@ func runProber(
 
 	if success {
 		probeSuccessGauge.Set(1)
-		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", probeDuration)
+		_ = logger.Log("level", "info", "msg", "Check succeeded", "duration_seconds", probeDuration)
 	} else {
 		probeSuccessGauge.Set(0)
-		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", probeDuration)
+		_ = logger.Log("level", "error", "msg", "Check failed", "duration_seconds", probeDuration)
 	}
 
 	smCheckInfo.Set(1)
@@ -759,59 +758,69 @@ func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.
 }
 
 func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair) Streams {
-	var line strings.Builder
-
-	dec := logfmt.NewDecoder(bytes.NewReader(logs))
-
 	labels := make([]labelPair, 0, len(sharedLabels))
 	var entries []logproto.Entry
-RECORD:
-	for dec.ScanRecord() {
-		var t time.Time
 
-		line.Reset()
+	// Split logs into lines and process each JSON line
+	lines := strings.Split(string(logs), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
 
-		enc := logfmt.NewEncoder(&line)
+		// Parse JSON log entry
+		var logEntry map[string]interface{}
+		if err := json.Unmarshal([]byte(line), &logEntry); err != nil {
+			s.logger.Warn().Err(err).Str("line", line).Msg("invalid JSON log entry")
+			continue
+		}
 
-		labels = labels[:0]
-		labels = append(labels, sharedLabels...)
+		// Extract timestamp
+		logTime := s.extractLogTimestamp(logEntry, t)
 
-		for dec.ScanKeyval() {
-			value := dec.Value()
+		// Convert JSON back to logfmt format for consistency
+		var logfmtLine strings.Builder
+		enc := logfmt.NewEncoder(&logfmtLine)
 
-			switch key := dec.Key(); string(key) {
-			case "ts":
-				var err error
-				t, err = time.Parse(time.RFC3339Nano, string(value))
-				if err != nil {
-					// We should never hit this as the timestamp string in the log should be valid.
-					// Without a timestamp we cannot do anything. And we cannot use something like
-					// time.Now() because that would mess up other entries
-					s.logger.Warn().Err(err).Bytes("value", value).Msg("invalid timestamp scanning logs")
-					continue RECORD
-				}
+		for key, value := range logEntry {
+			// Skip the time field as it's handled separately
+			if key == "time" {
+				continue
+			}
 
+			var valueStr string
+			switch v := value.(type) {
+			case string:
+				valueStr = v
+			case float64:
+				valueStr = strconv.FormatFloat(v, 'f', -1, 64)
+			case bool:
+				valueStr = strconv.FormatBool(v)
+			case nil:
+				valueStr = ""
 			default:
-				if err := enc.EncodeKeyval(key, value); err != nil {
-					// We should never hit this because all the entries are valid.
-					s.logger.Warn().Err(err).Bytes("key", key).Bytes("value", value).Msg("invalid entry scanning logs")
-					continue RECORD
-				}
+				valueStr = fmt.Sprintf("%v", v)
+			}
+
+			if err := enc.EncodeKeyval([]byte(key), []byte(valueStr)); err != nil {
+				s.logger.Warn().Err(err).Str("key", key).Str("value", valueStr).Msg("invalid logfmt encoding")
+				continue
 			}
 		}
 
 		if err := enc.EndRecord(); err != nil {
 			s.logger.Warn().Err(err).Msg("encoding logs")
 		}
+
 		entries = append(entries, logproto.Entry{
-			Timestamp: t,
-			Line:      line.String(),
+			Timestamp: logTime,
+			Line:      logfmtLine.String(),
 		})
 	}
 
-	if err := dec.Err(); err != nil {
-		s.logger.Error().Err(err).Msg("decoding logs")
-	}
+	// Copy shared labels
+	labels = append(labels, sharedLabels...)
 
 	return Streams{
 		logproto.Stream{
@@ -819,6 +828,28 @@ RECORD:
 			Entries: entries,
 		},
 	}
+}
+
+// extractLogTimestamp extracts and parses the timestamp from a log entry
+func (s Scraper) extractLogTimestamp(logEntry map[string]interface{}, fallbackTime time.Time) time.Time {
+	// Try to get timestamp as string first
+	if tsStr, ok := logEntry["time"].(string); ok {
+		if ts, err := time.Parse(time.RFC3339Nano, tsStr); err == nil {
+			return ts
+		}
+		// If string parsing fails, try as float64 (Unix timestamp)
+		if tsFloat, ok := logEntry["time"].(float64); ok {
+			return time.Unix(int64(tsFloat), 0)
+		}
+	}
+
+	// Try to get timestamp as float64 directly
+	if tsFloat, ok := logEntry["time"].(float64); ok {
+		return time.Unix(int64(tsFloat), 0)
+	}
+
+	// Fallback to provided time
+	return fallbackTime
 }
 
 func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair) TimeSeries {

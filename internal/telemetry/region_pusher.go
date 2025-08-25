@@ -42,15 +42,6 @@ func (m *RegionMetrics) start() (start time.Time) {
 	return time.Now()
 }
 
-// end handles region metrics after a push telemetry request.
-func (m *RegionMetrics) end(err error, start time.Time) {
-	m.pushRequestsActive.Dec()
-	m.pushRequestsDuration.Observe(time.Since(start).Seconds())
-	if err != nil {
-		m.pushRequestsError.Inc()
-	}
-}
-
 // NewRegionPusher builds a new RegionPusher.
 // Notice that the effective time span used to dictate the pace for periodic
 // push events will be defined based on the given time span plus a random
@@ -176,7 +167,11 @@ func (p *RegionPusher) push(m sm.RegionTelemetry) {
 	)
 
 	start := p.metrics.start()
-	defer func() { p.metrics.end(err, start) }()
+	defer func() {
+		p.metrics.pushRequestsActive.Dec()
+		p.metrics.pushRequestsDuration.Observe(time.Since(start).Seconds())
+		// Error metric is handled immediately, not in defer
+	}()
 
 	// We don't want to cancel a possibly ongoing request even if the agent
 	// context is done, therefore use background context
@@ -184,6 +179,8 @@ func (p *RegionPusher) push(m sm.RegionTelemetry) {
 	r, err = p.client.PushTelemetry(ctx, &m)
 	if err != nil {
 		p.logger.Err(err).Msg("error pushing telemetry")
+		// Increment error metric immediately
+		p.metrics.pushRequestsError.Inc()
 		return
 	}
 	if r.Status.Code != sm.StatusCode_OK {
@@ -193,5 +190,7 @@ func (p *RegionPusher) push(m sm.RegionTelemetry) {
 			Int32("statusCode", int32(r.Status.Code)).
 			Str("statusMessage", r.Status.Message).
 			Msg("error pushing telemetry")
+		// Increment error metric immediately
+		p.metrics.pushRequestsError.Inc()
 	}
 }

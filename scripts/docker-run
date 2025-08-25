@@ -10,7 +10,7 @@ if test -z "${ROOTDIR}" ; then
 	if test -z "${ROOTDIR}" ; then
 		ROOTDIR=$(git rev-parse --show-toplevel)
 	fi
-	ROOTDIR=$(realpath -m "${ROOTDIR}")
+	ROOTDIR=$(/opt/homebrew/opt/coreutils/libexec/gnubin/realpath -m "${ROOTDIR}")
 fi
 
 . "${ROOTDIR}/.gbt.mk"
