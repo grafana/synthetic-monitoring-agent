@@ -342,6 +342,9 @@ func TestTenantPusher(t *testing.T) {
 		// Verify sent data
 		tc.assert(t, getTestDataset(0).message)
 
+		// Add a small delay to ensure the goroutine has time to execute
+		time.Sleep(10 * time.Millisecond)
+
 		// Verify error metric
 		errsMetric := getMetricFromCollector(t, metrics.pushRequestsError)
 		require.Equal(t, 1, int(*errsMetric.Counter.Value))
@@ -366,6 +369,9 @@ func TestTenantPusher(t *testing.T) {
 
 		// Verify sent data
 		tc.assert(t, getTestDataset(0).message)
+
+		// Add a small delay to ensure the goroutine has time to execute
+		time.Sleep(10 * time.Millisecond)
 
 		// Verify error metric
 		errsMetric := getMetricFromCollector(t, metrics.pushRequestsError)
