@@ -42,15 +42,6 @@ func (m *RegionMetrics) start() (start time.Time) {
 	return time.Now()
 }
 
-// end handles region metrics after a push telemetry request.
-func (m *RegionMetrics) end(err error, start time.Time) {
-	m.pushRequestsActive.Dec()
-	m.pushRequestsDuration.Observe(time.Since(start).Seconds())
-	if err != nil {
-		m.pushRequestsError.Inc()
-	}
-}
-
 // NewRegionPusher builds a new RegionPusher.
 // Notice that the effective time span used to dictate the pace for periodic
 // push events will be defined based on the given time span plus a random
@@ -176,7 +167,7 @@ func (p *RegionPusher) push(m sm.RegionTelemetry) {
 	)
 
 	start := p.metrics.start()
-	defer func() { 
+	defer func() {
 		p.metrics.pushRequestsActive.Dec()
 		p.metrics.pushRequestsDuration.Observe(time.Since(start).Seconds())
 		// Error metric is handled immediately, not in defer
