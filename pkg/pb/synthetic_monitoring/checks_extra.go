@@ -371,8 +371,8 @@ func (c Check) validateTarget() error {
 
 func (c Check) validateFrequency() error {
 	var (
-		minFrequency int64 = minCheckFrequency.Milliseconds()
-		maxFrequency int64 = maxCheckFrequency.Milliseconds()
+		minFrequency = minCheckFrequency.Milliseconds()
+		maxFrequency = maxCheckFrequency.Milliseconds()
 	)
 
 	// Some check types have different allowed values for the frequency.
@@ -620,7 +620,7 @@ func (s *HttpSettings) Validate() error {
 			return ErrInvalidProxyUrl
 		}
 
-		if !(u.Scheme == "http" || u.Scheme == "https") {
+		if u.Scheme != "http" && u.Scheme != "https" {
 			return ErrInvalidProxyUrl
 		}
 	}
@@ -982,7 +982,7 @@ func (b *HttpRequestBody) Validate() error {
 		return ErrInvalidHttpRequestBodyContentType
 	}
 
-	for _, v := range strings.Split(b.ContentType, ",") {
+	for v := range strings.SplitSeq(b.ContentType, ",") {
 		_, _, err := mime.ParseMediaType(v)
 		if err != nil {
 			return ErrInvalidHttpRequestBodyContentType
@@ -1036,7 +1036,7 @@ func (l Label) Validate() error {
 	// /^[a-zA-Z0-9_]+$/ because these names are going to be
 	// prefixed with "label_".
 	for _, b := range l.Name {
-		if !((b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_' || (b >= '0' && b <= '9')) {
+		if (b < 'a' || b > 'z') && (b < 'A' || b > 'Z') && b != '_' && (b < '0' || b > '9') {
 			return ErrInvalidLabelName
 		}
 	}
@@ -1275,7 +1275,7 @@ func validateHttpUrl(target string) error {
 		return ErrHttpUrlContainsUsername
 	}
 
-	if !(u.Scheme == "http" || u.Scheme == "https") {
+	if u.Scheme != "http" && u.Scheme != "https" {
 		return ErrInvalidHttpUrl
 	}
 
@@ -1285,9 +1285,10 @@ func validateHttpUrl(target string) error {
 
 	hasPort := func(h string) bool {
 		for l := len(h) - 1; l > 0; l-- {
-			if h[l] == ':' {
+			switch h[l] {
+			case ':':
 				return true
-			} else if h[l] == ']' || h[l] == '.' {
+			case ']', '.':
 				return false
 			}
 		}
@@ -1599,7 +1600,7 @@ func (ri RemoteInfo) MarshalZerologObject(e *zerolog.Event) {
 
 func (ri RemoteInfo) MarshalJSON() ([]byte, error) {
 	type T RemoteInfo
-	var tmp T = T(ri)
+	var tmp = T(ri)
 
 	tmp.Password = `<encrypted>`
 

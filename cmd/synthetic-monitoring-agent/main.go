@@ -340,7 +340,7 @@ func run(args []string, stdout io.Writer) error {
 		UsageReporter:  usageReporter,
 	})
 	if err != nil {
-		return fmt.Errorf("Cannot create checks updater: %w", err)
+		return fmt.Errorf("cannot create checks updater: %w", err)
 	}
 
 	g.Go(func() error {
@@ -359,7 +359,7 @@ func run(args []string, stdout io.Writer) error {
 		TenantSecrets:  secrets,
 	})
 	if err != nil {
-		return fmt.Errorf("Cannot create ad-hoc checks handler: %w", err)
+		return fmt.Errorf("cannot create ad-hoc checks handler: %w", err)
 	}
 
 	g.Go(func() error {
@@ -384,7 +384,7 @@ func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 	select {
 	case sig := <-sigCh:
 		logger.Info().Str("signal", sig.String()).Msg("shutting down")
-		return fmt.Errorf("Got signal %s", sig)
+		return fmt.Errorf("got signal %s", sig)
 
 	case <-ctx.Done():
 		logger.Info().Msg("shutting down")
