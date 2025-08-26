@@ -34,7 +34,6 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	"github.com/grafana/synthetic-monitoring-agent/internal/usage"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
-	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -507,9 +506,9 @@ func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities)
 // ping will use the provided client to send a health signal to the GRPC
 // server. Any error is returned, the caller should take the necessary
 // steps to correct the problem.
-func ping(ctx context.Context, client synthetic_monitoring.ChecksClient) error {
+func ping(ctx context.Context, client sm.ChecksClient) error {
 	var (
-		req  synthetic_monitoring.PingRequest
+		req  sm.PingRequest
 		opts = []grpc.CallOption{
 			grpc.WaitForReady(false),
 		}
@@ -536,7 +535,7 @@ func ping(ctx context.Context, client synthetic_monitoring.ChecksClient) error {
 
 	req.Sequence++
 
-	ticker := time.NewTicker(synthetic_monitoring.HealthCheckInterval)
+	ticker := time.NewTicker(sm.HealthCheckInterval)
 	defer ticker.Stop()
 
 	for {

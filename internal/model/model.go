@@ -22,7 +22,7 @@ func (c *Check) FromSM(check sm.Check) error {
 		return fmt.Errorf("failed to marshal check %d tenant %d: %w", check.Id, check.TenantId, err)
 	}
 
-	if err := c.Check.Unmarshal(data); err != nil {
+	if err := c.Unmarshal(data); err != nil {
 		return fmt.Errorf("failed to unmarshal data for check %d tenant %d: %w", check.Id, check.TenantId, err)
 	}
 

@@ -1,104 +1,90 @@
 # yaml-language-server: $schema=https://golangci-lint.run/jsonschema/golangci.jsonschema.json
 
+version: "2"
 linters:
-  disable-all: true
+  default: none
   enable:
     - bodyclose
-    # TODO(mem): - containedctx
-    # TODO(mem):- contextcheck
-    # TODO(mem): - cyclop
     - decorder
-    # - depguard
     - dogsled
-    # TODO(mem): - dupl
     - dupword
     - durationcheck
-    - errchkjson
     - errcheck
+    - errchkjson
     - errname
-    # TODO(mem): - errorlint
-    # TODO(mem): - exhaustive
     - gocheckcompilerdirectives
-    # - TODO(mem): gochecknoglobals
     - gochecknoinits
     - goconst
     - gocritic
-    # - gocognit
     - gocyclo
-    - gofmt
-    # - gofumpt
-    - goimports
-    # - golint
-    # TODO(mem): - gomnd
     - goprintffuncname
-    # - gosec
     - gosmopolitan
-    - grouper
-    - gosimple
     - govet
-    # TODO(mem): fails because we are runnig in a container?: - importas
+    - grouper
     - ineffassign
     - interfacebloat
-    # TODO(mem): - ireturn
-    # - lll
     - loggercheck
-    # TODO(mem): - maintidx
     - mirror
     - misspell
-    # TODO(mem): fails because it's trying to run `go list all`?: - musttag
     - nakedret
     - nestif
-    # TODO(mem): - noctx
     - nolintlint
     - nosprintfhostport
-    # TODO(mem): - paralleltest
-    # TODO(mem): - prealloc
-    # TODO(mem): - promlinter
     - reassign
-    # TODO(mem): - revive
     - rowserrcheck
     - sqlclosecheck
     - staticcheck
-    # TODO(mem): - tagalign
     - testableexamples
-    # TODO(mem): - thelper
-    - typecheck
     - unconvert
-    # TODO(mem): - unparam
-    # TODO(mem): - varnamelen
-    - wastedassign
     - unused
+    - wastedassign
     - whitespace
-    # TODO(mem): - wsl
     - zerologlint
-
-linters-settings:
-  goconst:
-    ignore-tests: false
-    min-len: 5
-    min-occurrences: 5
-  gocyclo:
-    min-complexity: 20
-  rowserrcheck:
-    packages:
-      - github.com/jmoiron/sqlx
-  gocritic:
-    enabled-checks:
-      # This augments the default checks.
-      - ruleguard
-      - stringXbytes
-    settings:
-      ruleguard:
-        rules: "internal/rules/rules.go"
-  importas:
-    no-unaliased: true
-    no-extra-aliases: true
-    alias:
-      - pkg: github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring
-        alias: sm
-      - pkg: github.com/prometheus/client_model/go
-        alias: dto
-
-issues:
-  exclude:
-    - "(func|method|type|var|struct field|func parameter|method parameter) [^ ]+ should be .*"
+  settings:
+    goconst:
+      min-len: 5
+      min-occurrences: 5
+    gocritic:
+      enabled-checks:
+        - ruleguard
+        - stringXbytes
+      settings:
+        ruleguard:
+          rules: internal/rules/rules.go
+    gocyclo:
+      min-complexity: 20
+    importas:
+      alias:
+        - pkg: github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring
+          alias: sm
+        - pkg: github.com/prometheus/client_model/go
+          alias: dto
+      no-unaliased: true
+      no-extra-aliases: true
+    rowserrcheck:
+      packages:
+        - github.com/jmoiron/sqlx
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - path: (.+)\.go$
+        text: (func|method|type|var|struct field|func parameter|method parameter) [^ ]+ should be .*
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
