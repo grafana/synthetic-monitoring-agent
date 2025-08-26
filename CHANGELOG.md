@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.41.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.40.1...v0.41.0) (2025-08-26)
+
+
+### Features
+
+* runner/local: run k6 with `--throw` to raise common errors as exceptions ([f31a1d1](https://github.com/grafana/synthetic-monitoring-agent/commit/f31a1d1e5287bc8c086f69d01f521023fb15a20c))
+
+
+### Fixes
+
+* Remove the requirement for a prefix on secret strings ([#1446](https://github.com/grafana/synthetic-monitoring-agent/issues/1446)) ([f311bd1](https://github.com/grafana/synthetic-monitoring-agent/commit/f311bd10f5f99bde57f8f0405703e92601e0ed78))
+* Workaround issues in build-push-to-dockerhub ([02ded1f](https://github.com/grafana/synthetic-monitoring-agent/commit/02ded1f6e030dc7483f8b6e894dfd1632a6443c5))
+
+
+### Miscellaneous Chores
+
+* Update actions/create-github-app-token action to v2.1.1 ([b9c3258](https://github.com/grafana/synthetic-monitoring-agent/commit/b9c32584e05b1d246457a09350a3173777302574))
+* Update dependency grafana/xk6-sm to v0.6.1 ([223f443](https://github.com/grafana/synthetic-monitoring-agent/commit/223f443d8e059fd402818613a8c2760cad93f97a))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v139 ([78a2939](https://github.com/grafana/synthetic-monitoring-agent/commit/78a2939091d968d18545bea25d53e351e6ce6a70))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:139.0.7258.66-r0-3.22.1 Docker digest to 3e6e533 ([767abcf](https://github.com/grafana/synthetic-monitoring-agent/commit/767abcf28cc2eb06a36a1e0873379383fcc79127))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.14.0 ([f14a619](https://github.com/grafana/synthetic-monitoring-agent/commit/f14a6190f9c6160db4dcee33b49377094c38eb9b))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.15.0 ([bcc4cb4](https://github.com/grafana/synthetic-monitoring-agent/commit/bcc4cb4dbde8a13de535cdf6c2fd1ca8d71c24c3))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.16.0 ([#1451](https://github.com/grafana/synthetic-monitoring-agent/issues/1451)) ([2e7d83b](https://github.com/grafana/synthetic-monitoring-agent/commit/2e7d83b81b9cd289461b9de7ec16864007da53e7))
+* Update golang.org/x/exp digest to 8b4c13b ([6b7d008](https://github.com/grafana/synthetic-monitoring-agent/commit/6b7d008a01d405d53a228408436ced162ca783bc))
+* Update googleapis/release-please-action action to v4.3.0 ([5808b0d](https://github.com/grafana/synthetic-monitoring-agent/commit/5808b0dbeab1811edf9efdb20c27d7034605c98d))
+* Update grafana/shared-workflows digest to 8bb65cb ([2de21f1](https://github.com/grafana/synthetic-monitoring-agent/commit/2de21f1d342097d3eedbfab27016c9071a2df726))
+* Update module github.com/stretchr/testify to v1.11.0 ([#1449](https://github.com/grafana/synthetic-monitoring-agent/issues/1449)) ([6333526](https://github.com/grafana/synthetic-monitoring-agent/commit/6333526e8cfcb7ef5c1bcf9723a5b719436ff427))
+* Update module google.golang.org/grpc to v1.75.0 ([326e626](https://github.com/grafana/synthetic-monitoring-agent/commit/326e626f9bf581853e31cc2f090d5881a4f11dec))
+
 ## [0.40.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.40.0...v0.40.1) (2025-08-15)
 
 
