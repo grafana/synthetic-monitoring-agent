@@ -21,7 +21,7 @@ require (
 	github.com/prometheus/common v0.65.0
 	github.com/prometheus/prometheus v0.304.2
 	github.com/rs/zerolog v1.34.0
-	github.com/stretchr/testify v1.11.0
+	github.com/stretchr/testify v1.11.1
 	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
 	golang.org/x/net v0.43.0
 	golang.org/x/sync v0.16.0
