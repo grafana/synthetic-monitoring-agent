@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.41.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.41.0...v0.41.1) (2025-08-27)
+
+
+### Fixes
+
+* Migrate golangci-lint to v2 ([ce7fbb2](https://github.com/grafana/synthetic-monitoring-agent/commit/ce7fbb27b6b10ca857c0afd0f0612c753febcfc0))
+* properly classify codes.Unavailable errors as TransientError ([#1457](https://github.com/grafana/synthetic-monitoring-agent/issues/1457)) ([2435423](https://github.com/grafana/synthetic-monitoring-agent/commit/2435423d3e8e7c19baa55b4bedff94f41a14c72b))
+
+
+### Miscellaneous Chores
+
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.16.1 ([c13c0d7](https://github.com/grafana/synthetic-monitoring-agent/commit/c13c0d7a96558c793fc1bc7715a4f87f48cac94d))
+* Update module github.com/stretchr/testify to v1.11.1 ([446cc2b](https://github.com/grafana/synthetic-monitoring-agent/commit/446cc2b1bbcf1d08ac31cb3caebcdb0709c380b8))
+
 ## [0.41.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.40.1...v0.41.0) (2025-08-26)
 
 
