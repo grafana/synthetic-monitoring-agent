@@ -287,6 +287,9 @@ func handleError(ctx context.Context, logger zerolog.Logger, backoff Backoffer, 
 		fatalError   FatalError
 	)
 
+	// Add logging to see what error we're dealing with
+	logger.Debug().Err(err).Str("error_type", fmt.Sprintf("%T", err)).Msg("handling error in handleError")
+
 	switch {
 	case err == nil:
 		return true, nil
@@ -316,8 +319,7 @@ func handleError(ctx context.Context, logger zerolog.Logger, backoff Backoffer, 
 		return true, nil
 
 	default:
-		logger.Warn().
-			Msg("handling check changes")
+		logger.Warn().Err(err).Str("error_type", fmt.Sprintf("%T", err)).Msg("unhandled error type, treating as transient")
 
 		// TODO(mem): this might be a transient error (e.g. bad connection). We probably need to
 		// fine-tune GRPPC's backoff parameters. We might also need to keep count of the reconnects, and
@@ -353,6 +355,10 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		case status.Message() == "transport is closing":
 			// the other end is shutting down
 			return errTransportClosing
+
+		case status.Code() == codes.Unavailable:
+			// Network errors, connection resets, etc. are transient
+			return TransientError(fmt.Sprintf("%s: %s", action, status.Message()))
 
 		case status.Code() == codes.PermissionDenied:
 			return errNotAuthorized
