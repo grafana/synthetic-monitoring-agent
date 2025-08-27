@@ -58,7 +58,7 @@ func (m *RegionMetrics) end(err error, start time.Time) {
 func NewRegionPusher(
 	ctx context.Context, timeSpan time.Duration,
 	client sm.TelemetryClient, logger zerolog.Logger, instance string, regionID int32,
-	metrics RegionMetrics, opts ...any,
+	metrics RegionMetrics, options ...RegionPusherOption,
 ) *RegionPusher {
 	tp := &RegionPusher{
 		client:    client,
@@ -69,24 +69,56 @@ func NewRegionPusher(
 		metrics:   metrics,
 	}
 
-	var ticker ticker = newStdTicker(timeSpan)
+	var opts regionPusherOptions
 
-	for _, o := range opts {
-		switch o := o.(type) { //nolint:gocritic
-		case withTicker:
-			ticker = o
-		}
+	for _, opt := range options {
+		opt(&opts)
 	}
 
-	go tp.run(ctx, ticker)
+	opts.ApplyDefaults(timeSpan)
+
+	opts.wg.Add(1)
+
+	go func() {
+		defer opts.wg.Done()
+		tp.run(ctx, opts.ticker, opts.wg)
+	}()
 
 	return tp
 }
 
-type withTicker ticker
+type regionPusherOptions struct {
+	ticker ticker
+	wg     *sync.WaitGroup
+}
 
-func (p *RegionPusher) run(ctx context.Context, ticker ticker) {
+func (opts *regionPusherOptions) ApplyDefaults(timeSpan time.Duration) {
+	if opts.ticker == nil {
+		opts.ticker = newStdTicker(timeSpan)
+	}
+
+	if opts.wg == nil {
+		opts.wg = new(sync.WaitGroup)
+	}
+}
+
+type RegionPusherOption func(opts *regionPusherOptions)
+
+func WithTicker(t ticker) RegionPusherOption {
+	return func(opts *regionPusherOptions) {
+		opts.ticker = t
+	}
+}
+
+func WithWaitGroup(wg *sync.WaitGroup) RegionPusherOption {
+	return func(opts *regionPusherOptions) {
+		opts.wg = wg
+	}
+}
+
+func (p *RegionPusher) run(ctx context.Context, ticker ticker, wg *sync.WaitGroup) {
 	p.logger.Info().Msg("region pusher starting")
+	defer p.logger.Debug().Msg("region pusher stopped")
 
 	// TODO: We could potentially create here a pushCtx, pass that to push, and
 	// from push keep retrying sending the data if it fails initially until the
@@ -99,13 +131,22 @@ LOOP:
 		select {
 		case <-ticker.C():
 			p.logger.Info().Msg("pushing telemetry")
+
 			m := p.next()
-			go p.push(m) // Avoid blocking
+			wg.Add(1)
+			// Avoid blocking
+			go func() {
+				defer wg.Done()
+				p.push(m)
+			}()
+
 		case <-ctx.Done():
 			p.logger.Debug().Msg("region pusher stopping")
+
 			m := p.next()
 			p.push(m)
 			ticker.Stop()
+
 			break LOOP
 		}
 	}
