@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.41.1...v0.41.2) (2025-08-27)
+
+
+### Fixes
+
+* Set up DinD in build and publish workflow ([e20fd35](https://github.com/grafana/synthetic-monitoring-agent/commit/e20fd35556ac3155cc72eaf73305b705e7b68a17))
+
 ## [0.41.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.41.0...v0.41.1) (2025-08-27)
 
 
