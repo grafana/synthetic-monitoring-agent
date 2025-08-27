@@ -40,11 +40,19 @@ jobs:
     if: ${{ always() && needs.preflight.result == 'success' }}
     strategy:
       matrix:
-        arch: [ x64-large, arm64 ]
-    runs-on: github-hosted-ubuntu-${{ matrix.arch }}
+        runner:
+          - ubuntu-x64-large
+          - ubuntu-arm64
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: write # needed to upload build artifacts
       id-token: none
+    services:
+      docker:
+        image: docker:dind@sha256:c0872aae4791ff427e6eda52769afa04f17b5cf756f8267e0d52774c99d5c9de
+        options: --privileged --shm-size=2g
+        volumes:
+          - /var/run/docker.sock:/var/run/docker.sock:ro
 
     container:
       image: ghcr.io/grafana/grafana-build-tools:1.16.1@sha256:d44664a2a6115deb50d9663aa58f5addbabe605581f031d1522df83e7a8de180
@@ -59,6 +67,12 @@ jobs:
       version_bare: ${{ steps.version.outputs.bare_value }}
 
     steps:
+      - name: build info
+        id: build-info
+        run: |
+          echo "arch=$(go env GOARCH)" >> "$GITHUB_OUTPUT"
+          echo "os=$(go env GOOS)" >> "$GITHUB_OUTPUT"
+
       - name: checkout
         uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
@@ -76,12 +90,6 @@ jobs:
       - name: Restore Go cache
         id: restore-go-cache
         uses: ./.github/actions/go-cache-restore
-
-      - name: build info
-        id: build-info
-        run: |
-          echo "os=$(go env GOOS)" >> "$GITHUB_OUTPUT"
-          echo "arch=$(go env GOARCH)" >> "$GITHUB_OUTPUT"
 
       - name: ensure dependencies are up-to-date
         run: |
@@ -121,8 +129,10 @@ jobs:
           file: Dockerfile.build
           target: release
           outputs: type=tar,dest=dist/container-image.no-browser.${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+          cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
+          cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache,mode=min
 
       - name: build docker image (browser)
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
@@ -132,8 +142,10 @@ jobs:
           file: Dockerfile.build
           target: with-browser
           outputs: type=tar,dest=dist/container-image.browser.${{ steps.build-info.outputs.os }}-${{ steps.build-info.outputs.arch }}.tar
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+          cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
+          cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache,mode=min
 
       - name: create build artfact
         env:
@@ -166,7 +178,7 @@ jobs:
       - preflight
       - validate
     if: ${{ always() && needs.validate.result == 'success' && needs.preflight.result == 'success' }}
-    runs-on: github-hosted-ubuntu-x64-small
+    runs-on: ubuntu-x64
     permissions:
       contents: read
       id-token: write
