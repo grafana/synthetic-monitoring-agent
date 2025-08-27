@@ -343,8 +343,19 @@ func TestTenantPusher(t *testing.T) {
 		tc.assert(t, getTestDataset(0).message)
 
 		// Verify error metric
-		errsMetric := getMetricFromCollector(t, metrics.pushRequestsError)
-		require.Equal(t, 1, int(*errsMetric.Counter.Value))
+		//
+		// The problem we have here is that the metric is incremented in a separate
+		// goroutine that is created when the ticker ticks. Sometimes by the time we arrive
+		// here, the goroutine hasn't had a chance to run yet. That's why we try reading the
+		// value a few times. Fixing that logic is a little too complicated and invasive.
+		for range 5 {
+			errsMetric := getMetricFromCollector(t, metrics.pushRequestsError)
+			if *errsMetric.Counter.Value < 1 {
+				time.Sleep(1 * time.Millisecond)
+				continue
+			}
+			require.Equal(t, 1, int(*errsMetric.Counter.Value))
+		}
 	})
 
 	t.Run("should report push error on unexpected status", func(t *testing.T) {
@@ -367,9 +378,20 @@ func TestTenantPusher(t *testing.T) {
 		// Verify sent data
 		tc.assert(t, getTestDataset(0).message)
 
-		// Verify error metric
-		errsMetric := getMetricFromCollector(t, metrics.pushRequestsError)
-		require.Equal(t, 1, int(*errsMetric.Counter.Value))
+		// Verify error metric.
+		//
+		// The problem we have here is that the metric is incremented in a separate
+		// goroutine that is created when the ticker ticks. Sometimes by the time we arrive
+		// here, the goroutine hasn't had a chance to run yet. That's why we try reading the
+		// value a few times. Fixing that logic is a little too complicated and invasive.
+		for range 5 {
+			errsMetric := getMetricFromCollector(t, metrics.pushRequestsError)
+			if *errsMetric.Counter.Value < 1 {
+				time.Sleep(1 * time.Millisecond)
+				continue
+			}
+			require.Equal(t, 1, int(*errsMetric.Counter.Value))
+		}
 	})
 }
 
@@ -392,11 +414,11 @@ type testPushResp struct {
 
 func setupTest(t *testing.T) (*testDriver, *testTelemetryClient, *RegionPusher, RegionMetrics) {
 	var (
-		wg              = &sync.WaitGroup{}
+		testSyncGroup   = &sync.WaitGroup{}
 		testCtx, cancel = context.WithCancel(t.Context())
 		ticker          = &testTicker{c: make(chan time.Time)}
-		td              = testDriver{wg: wg, cancel: cancel, ticker: ticker}
-		tc              = &testTelemetryClient{wg: wg}
+		td              = testDriver{wg: testSyncGroup, cancel: cancel, ticker: ticker}
+		tc              = &testTelemetryClient{wg: testSyncGroup}
 		logger          = testhelper.Logger(t)
 		metrics         = RegionMetrics{
 			pushRequestsActive:   prom.NewGauge(prom.GaugeOpts{}),
@@ -405,12 +427,34 @@ func setupTest(t *testing.T) (*testDriver, *testTelemetryClient, *RegionPusher, 
 			pushRequestsError:    prom.NewCounter(prom.CounterOpts{}),
 			addExecutionDuration: prom.NewHistogram(prom.HistogramOpts{}),
 		}
-		opt withTicker = ticker
 	)
 
-	t.Cleanup(cancel)
+	// This weird construction we have here is due to the fact that this code is spawining
+	// several goroutines at different points. Because of that, sometimes we end up in a
+	// situation where the goroutine is still running after the test is done and it tries to use
+	// the logger, which will cause an intentional datarace.
+	//
+	// Create a waitgroup here, so that we can wait until all goroutines are done before ending
+	// the test.
 
-	pusher := NewRegionPusher(testCtx, 1*time.Second, tc, logger, instance, regionID, metrics, opt)
+	wg := new(sync.WaitGroup)
+
+	t.Cleanup(func() {
+		cancel()  // cancel the context first, so that stuff waiting for that signal exits.
+		wg.Wait() // Wait for stuff to be done.
+	})
+
+	pusher := NewRegionPusher(
+		testCtx,
+		1*time.Second,
+		tc,
+		logger,
+		instance,
+		regionID,
+		metrics,
+		WithTicker(ticker),
+		WithWaitGroup(wg),
+	)
 
 	return &td, tc, pusher, metrics
 }
