@@ -276,11 +276,13 @@ func setupHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Che
 		},
 	}
 
+	var store noopSecretStore
 	prober, err := httpProber.NewProber(
 		ctx,
 		check,
 		zerolog.New(io.Discard),
 		http.Header{},
+		store,
 	)
 	if err != nil {
 		t.Fatalf("cannot create HTTP prober: %s", err)
@@ -310,11 +312,13 @@ func setupHTTPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 		},
 	}
 
+	var store noopSecretStore
 	prober, err := httpProber.NewProber(
 		ctx,
 		check,
 		zerolog.New(io.Discard),
 		http.Header{},
+		store,
 	)
 	if err != nil {
 		t.Fatalf("cannot create HTTP prober: %s", err)
