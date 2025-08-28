@@ -226,8 +226,6 @@ func TestTenantPusher(t *testing.T) {
 	}
 
 	t.Run("should send telemetry data once", func(t *testing.T) {
-		t.Parallel()
-
 		td, tc, pusher, _ := setupTest(t)
 
 		t.Cleanup(td.shutdownAndWait)
@@ -246,8 +244,6 @@ func TestTenantPusher(t *testing.T) {
 	})
 
 	t.Run("should retry sending data once", func(t *testing.T) {
-		t.Parallel()
-
 		td, tc, pusher, _ := setupTest(t)
 
 		t.Cleanup(td.shutdownAndWait)
@@ -267,8 +263,6 @@ func TestTenantPusher(t *testing.T) {
 	})
 
 	t.Run("should retry and send more data", func(t *testing.T) {
-		t.Parallel()
-
 		td, tc, pusher, _ := setupTest(t)
 
 		t.Cleanup(td.shutdownAndWait)
@@ -295,8 +289,6 @@ func TestTenantPusher(t *testing.T) {
 	})
 
 	t.Run("should push on context done", func(t *testing.T) {
-		t.Parallel()
-
 		td, tc, pusher, _ := setupTest(t)
 
 		// Add some executions
@@ -324,8 +316,6 @@ func TestTenantPusher(t *testing.T) {
 	})
 
 	t.Run("should report push error", func(t *testing.T) {
-		t.Parallel()
-
 		td, tc, pusher, metrics := setupTest(t)
 
 		t.Cleanup(td.shutdownAndWait)
@@ -348,8 +338,6 @@ func TestTenantPusher(t *testing.T) {
 	})
 
 	t.Run("should report push error on unexpected status", func(t *testing.T) {
-		t.Parallel()
-
 		td, tc, pusher, metrics := setupTest(t)
 
 		t.Cleanup(td.shutdownAndWait)
