@@ -2,12 +2,15 @@ package testhelper
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
@@ -73,4 +76,29 @@ func K6Path(t *testing.T) string {
 	require.FileExistsf(t, k6path, "k6 program must exist at %s", k6path)
 
 	return k6path
+}
+
+// NoopSecretStore is a test implementation of the SecretProvider interface
+// that returns an empty secret store. Use this in tests when you need a
+// secret store but don't care about the actual secrets.
+type NoopSecretStore struct{}
+
+func (n NoopSecretStore) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
+	return &sm.SecretStore{}, nil
+}
+
+// TestSecretStore is a test implementation of the SecretProvider interface
+// that returns a mock secret store with test credentials. Use this in tests
+// when you need to test behavior that depends on having actual secret values.
+type TestSecretStore struct{}
+
+func (s TestSecretStore) GetSecretCredentials(ctx context.Context, tenantId model.GlobalID) (*sm.SecretStore, error) {
+	if tenantId == 0 {
+		return nil, errors.New("invalid tenant ID")
+	}
+
+	return &sm.SecretStore{
+		Url:   "http://example.com",
+		Token: "test-token",
+	}, nil
 }

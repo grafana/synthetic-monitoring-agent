@@ -457,7 +457,7 @@ func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, model
 		}
 	}
 
-	var store noopSecretStore
+	var store testhelper.NoopSecretStore
 
 	prober, err := scripted.NewProber(
 		ctx,
@@ -499,7 +499,7 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 	}
 
 	var runner k6runner.Runner
-	var store noopSecretStore
+	var store testhelper.NoopSecretStore
 
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
 		runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
@@ -544,7 +544,7 @@ func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 	}
 
 	var runner k6runner.Runner
-	var store noopSecretStore
+	var store testhelper.NoopSecretStore
 
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
 		runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
@@ -2024,10 +2024,4 @@ func TestTickWithOffset(t *testing.T) {
 			require.Equal(t, tc.expected, results)
 		})
 	}
-}
-
-type noopSecretStore struct{}
-
-func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
-	return &sm.SecretStore{}, nil
 }

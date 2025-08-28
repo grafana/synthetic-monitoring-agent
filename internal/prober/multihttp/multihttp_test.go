@@ -123,7 +123,7 @@ func TestNewProber(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			var runner noopRunner
-			var store noopSecretStore
+			var store testhelper.NoopSecretStore
 			checkId := tc.check.Id
 			reservedHeaders := http.Header{}
 			reservedHeaders.Add("x-sm-id", fmt.Sprintf("%d-%d", checkId, checkId))
@@ -157,10 +157,4 @@ func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 
 func (noopRunner) Run(ctx context.Context, script k6runner.Script, secretStore k6runner.SecretStore) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
-}
-
-type noopSecretStore struct{}
-
-func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
-	return &sm.SecretStore{}, nil
 }

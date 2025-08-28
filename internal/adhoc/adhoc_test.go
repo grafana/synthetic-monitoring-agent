@@ -19,10 +19,10 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
-	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -352,20 +352,6 @@ func (p *testProber) Probe(ctx context.Context, target string, registry *prometh
 	return true, 1
 }
 
-// Add mock secrets store
-type testSecretStore struct{}
-
-func (s testSecretStore) GetSecretCredentials(ctx context.Context, tenantId model.GlobalID) (*sm.SecretStore, error) {
-	if tenantId == 0 {
-		return nil, errors.New("invalid tenant ID")
-	}
-
-	return &sm.SecretStore{
-		Url:   "http://example.com",
-		Token: "test-token",
-	}, nil
-}
-
 func TestDefaultRunnerFactory(t *testing.T) {
 	t.Parallel()
 
@@ -379,7 +365,7 @@ func TestDefaultRunnerFactory(t *testing.T) {
 
 	// Initialize the mockRunner and secretStore
 	mockRunner := &testK6Runner{}
-	secretStore := &testSecretStore{}
+	secretStore := &testhelper.TestSecretStore{}
 
 	testcases := map[string]struct {
 		request     *sm.AdHocRequest
