@@ -5,10 +5,10 @@ import (
 	"embed"
 	"encoding/base64"
 	"fmt"
-	"regexp"
 	"strings"
 	"text/template"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -17,99 +17,11 @@ import (
 //go:embed script.tmpl
 var templateFS embed.FS
 
-var userVariables = regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
-var secretVariables = regexp.MustCompile(`\$\{secret\.([a-zA-Z0-9_][a-zA-Z0-9_\.\-]*)\}`)
+// Using shared interpolation regexes from interpolation package
 
 func performVariableExpansion(in string) string {
-	if len(in) == 0 {
-		return `''`
-	}
-
-	var s strings.Builder
-	buf := []byte(in)
-
-	// First handle secret variables
-	locs := secretVariables.FindAllSubmatchIndex(buf, -1)
-	p := 0
-
-	for _, loc := range locs {
-		if len(loc) < 4 {
-			panic("unexpected result while building URL")
-		}
-
-		if s.Len() > 0 {
-			s.WriteRune('+')
-		}
-
-		if pre := buf[p:loc[0]]; len(pre) > 0 {
-			s.WriteRune('\'')
-			template.JSEscape(&s, pre)
-			s.WriteRune('\'')
-			s.WriteRune('+')
-		}
-
-		// Generate async secret lookup
-		s.WriteString(`await secrets.get('`)
-		s.Write(buf[loc[2]:loc[3]])
-		s.WriteString(`')`)
-
-		p = loc[1]
-	}
-
-	// Then handle regular variables in the remaining text
-	remainingText := buf[p:]
-	if len(remainingText) > 0 {
-		regularLocs := userVariables.FindAllSubmatchIndex(remainingText, -1)
-
-		if len(regularLocs) > 0 {
-			if s.Len() > 0 {
-				s.WriteRune('+')
-			}
-
-			p2 := 0
-			for _, loc := range regularLocs {
-				if len(loc) < 4 {
-					panic("unexpected result while building URL")
-				}
-
-				if s.Len() > 0 {
-					s.WriteRune('+')
-				}
-
-				if pre := remainingText[p2:loc[0]]; len(pre) > 0 {
-					s.WriteRune('\'')
-					template.JSEscape(&s, pre)
-					s.WriteRune('\'')
-					s.WriteRune('+')
-				}
-
-				s.WriteString(`vars['`)
-				s.Write(remainingText[loc[2]:loc[3]])
-				s.WriteString(`']`)
-
-				p2 = loc[1]
-			}
-
-			if len(remainingText[p2:]) > 0 {
-				if s.Len() > 0 {
-					s.WriteRune('+')
-				}
-				s.WriteRune('\'')
-				template.JSEscape(&s, remainingText[p2:])
-				s.WriteRune('\'')
-			}
-		} else {
-			// No regular variables, just append the remaining text
-			if s.Len() > 0 {
-				s.WriteRune('+')
-			}
-			s.WriteRune('\'')
-			template.JSEscape(&s, remainingText)
-			s.WriteRune('\'')
-		}
-	}
-
-	return s.String()
+	// Use the shared interpolation logic for JavaScript generation with secrets support
+	return interpolation.ToJavaScriptWithSecrets(in)
 }
 
 // Query params must be appended to a URL that has already been created.
@@ -155,66 +67,8 @@ func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []st
 		return nil
 
 	default:
-		var buf strings.Builder
-
-		// Find both regular and secret variables using submatch indices
-		regularMatches := userVariables.FindAllSubmatchIndex(body.Payload, -1)
-		secretMatches := secretVariables.FindAllSubmatchIndex(body.Payload, -1)
-
-		parsedMatches := make(map[string]struct{})
-		out := make([]string, 0, len(regularMatches)+len(secretMatches))
-
-		// Handle regular variables
-		for _, match := range regularMatches {
-			if len(match) < 4 {
-				continue
-			}
-			m := string(body.Payload[match[0]:match[1]])
-			if _, found := parsedMatches[m]; found {
-				continue
-			}
-
-			buf.Reset()
-			buf.WriteString(bodyVarName)
-			buf.WriteString("=")
-			buf.WriteString(bodyVarName)
-			buf.WriteString(".replaceAll('")
-			buf.WriteString(m)
-			buf.WriteString("', vars['")
-			// writing the variable name from between ${ and }
-			buf.Write(body.Payload[match[2]:match[3]])
-			buf.WriteString("'])")
-			out = append(out, buf.String())
-
-			parsedMatches[m] = struct{}{}
-		}
-
-		// Handle secret variables
-		for _, match := range secretMatches {
-			if len(match) < 4 {
-				continue
-			}
-			m := string(body.Payload[match[0]:match[1]])
-			if _, found := parsedMatches[m]; found {
-				continue
-			}
-
-			buf.Reset()
-			buf.WriteString(bodyVarName)
-			buf.WriteString("=")
-			buf.WriteString(bodyVarName)
-			buf.WriteString(".replaceAll('")
-			buf.WriteString(m)
-			buf.WriteString("', await secrets.get('")
-			// writing the secret name from the capture group
-			buf.Write(body.Payload[match[2]:match[3]])
-			buf.WriteString("'))")
-			out = append(out, buf.String())
-
-			parsedMatches[m] = struct{}{}
-		}
-
-		return out
+		// Use the shared interpolation logic for body variable replacements
+		return interpolation.ToBodyVariableReplacements(bodyVarName, body.Payload)
 	}
 }
 
@@ -498,26 +352,26 @@ func buildVars(variable *sm.MultiHttpEntryVariable) string {
 func hasSecretVariables(settings *sm.MultiHttpSettings) bool {
 	for _, entry := range settings.Entries {
 		// Check URL
-		if secretVariables.MatchString(entry.Request.Url) {
+		if interpolation.SecretRegex.MatchString(entry.Request.Url) {
 			return true
 		}
 
 		// Check headers
 		for _, header := range entry.Request.Headers {
-			if secretVariables.MatchString(header.Value) {
+			if interpolation.SecretRegex.MatchString(header.Value) {
 				return true
 			}
 		}
 
 		// Check query fields
 		for _, field := range entry.Request.QueryFields {
-			if secretVariables.MatchString(field.Name) || secretVariables.MatchString(field.Value) {
+			if interpolation.SecretRegex.MatchString(field.Name) || interpolation.SecretRegex.MatchString(field.Value) {
 				return true
 			}
 		}
 
 		// Check body
-		if entry.Request.Body != nil && secretVariables.MatchString(string(entry.Request.Body.Payload)) {
+		if entry.Request.Body != nil && interpolation.SecretRegex.MatchString(string(entry.Request.Body.Payload)) {
 			return true
 		}
 	}

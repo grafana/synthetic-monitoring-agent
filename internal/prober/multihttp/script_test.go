@@ -12,6 +12,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mccutchen/go-httpbin/v2/httpbin"
@@ -101,7 +102,7 @@ func TestBuildQueryParamsWithSecretVariables(t *testing.T) {
 			request: sm.MultiHttpEntryRequest{
 				QueryFields: []*sm.QueryField{
 					{
-						Name:  "${secret.api_key}",
+						Name:  "${secrets.api_key}",
 						Value: "value",
 					},
 				},
@@ -113,7 +114,7 @@ func TestBuildQueryParamsWithSecretVariables(t *testing.T) {
 				QueryFields: []*sm.QueryField{
 					{
 						Name:  "key",
-						Value: "${secret.api_secret}",
+						Value: "${secrets.api_secret}",
 					},
 				},
 			},
@@ -123,8 +124,8 @@ func TestBuildQueryParamsWithSecretVariables(t *testing.T) {
 			request: sm.MultiHttpEntryRequest{
 				QueryFields: []*sm.QueryField{
 					{
-						Name:  "${secret.param_name}",
-						Value: "${secret.param_value}",
+						Name:  "${secrets.param_name}",
+						Value: "${secrets.param_value}",
 					},
 				},
 			},
@@ -135,7 +136,7 @@ func TestBuildQueryParamsWithSecretVariables(t *testing.T) {
 				QueryFields: []*sm.QueryField{
 					{
 						Name:  "${variable}",
-						Value: "${secret.api_key}",
+						Value: "${secrets.api_key}",
 					},
 				},
 			},
@@ -146,7 +147,7 @@ func TestBuildQueryParamsWithSecretVariables(t *testing.T) {
 				QueryFields: []*sm.QueryField{
 					{
 						Name:  "q",
-						Value: "${secret.prefix}and${secret.suffix}",
+						Value: "${secrets.prefix}and${secrets.suffix}",
 					},
 				},
 			},
@@ -208,25 +209,25 @@ func TestBuildUrlWithSecretVariables(t *testing.T) {
 	}{
 		"secret variable in url": {
 			request: sm.MultiHttpEntryRequest{
-				Url: "${secret.api_endpoint}",
+				Url: "${secrets.api_endpoint}",
 			},
 			expected: `await secrets.get('api_endpoint')`,
 		},
 		"multiple secret variables in url": {
 			request: sm.MultiHttpEntryRequest{
-				Url: "https://www.${secret.domain}.com/${secret.path}",
+				Url: "https://www.${secrets.domain}.com/${secrets.path}",
 			},
 			expected: `'https://www.'+await secrets.get('domain')+'.com/'+await secrets.get('path')`,
 		},
 		"mixed regular and secret variables in url": {
 			request: sm.MultiHttpEntryRequest{
-				Url: "https://www.${variable}.com/${secret.api_path}",
+				Url: "https://www.${variable}.com/${secrets.api_path}",
 			},
 			expected: `'https://www.${variable}.com/'+await secrets.get('api_path')`,
 		},
 		"secret variable with query params": {
 			request: sm.MultiHttpEntryRequest{
-				Url: "${secret.base_url}",
+				Url: "${secrets.base_url}",
 				QueryFields: []*sm.QueryField{
 					{
 						Name:  "q",
@@ -434,7 +435,7 @@ func TestBuildHeadersWithSecretVariables(t *testing.T) {
 			headers: []*sm.HttpHeader{
 				{
 					Name:  "Authorization",
-					Value: "Bearer ${secret.auth_token}",
+					Value: "Bearer ${secrets.auth_token}",
 				},
 			},
 			expected: `{"Authorization":'Bearer '+await secrets.get('auth_token')}`,
@@ -442,17 +443,17 @@ func TestBuildHeadersWithSecretVariables(t *testing.T) {
 		"secret variable in header name": {
 			headers: []*sm.HttpHeader{
 				{
-					Name:  "${secret.header_name}",
+					Name:  "${secrets.header_name}",
 					Value: "value",
 				},
 			},
-			expected: `{"${secret.header_name}":'value'}`,
+			expected: `{"${secrets.header_name}":'value'}`,
 		},
 		"mixed regular and secret variables in headers": {
 			headers: []*sm.HttpHeader{
 				{
 					Name:  "X-API-Key",
-					Value: "${secret.api_key}",
+					Value: "${secrets.api_key}",
 				},
 				{
 					Name:  "X-User-ID",
@@ -465,7 +466,7 @@ func TestBuildHeadersWithSecretVariables(t *testing.T) {
 			headers: []*sm.HttpHeader{
 				{
 					Name:  "Authorization",
-					Value: "${secret.token}",
+					Value: "${secrets.token}",
 				},
 			},
 			body: &sm.HttpRequestBody{
@@ -562,36 +563,36 @@ func TestInterpolateBodyVariablesWithSecrets(t *testing.T) {
 		"secret variable in body": {
 			bodyVarName: "body",
 			body: &sm.HttpRequestBody{
-				Payload: []byte(`{"password": "${secret.user_password}"}`),
+				Payload: []byte(`{"password": "${secrets.user_password}"}`),
 			},
-			expected: []string{`body=body.replaceAll('${secret.user_password}', await secrets.get('user_password'))`},
+			expected: []string{`body=body.replaceAll('${secrets.user_password}', await secrets.get('user_password'))`},
 		},
 		"multiple secret variables in body": {
 			bodyVarName: "body",
 			body: &sm.HttpRequestBody{
-				Payload: []byte(`{"username": "${secret.username}", "password": "${secret.password}"}`),
+				Payload: []byte(`{"username": "${secrets.username}", "password": "${secrets.password}"}`),
 			},
 			expected: []string{
-				`body=body.replaceAll('${secret.username}', await secrets.get('username'))`,
-				`body=body.replaceAll('${secret.password}', await secrets.get('password'))`,
+				`body=body.replaceAll('${secrets.username}', await secrets.get('username'))`,
+				`body=body.replaceAll('${secrets.password}', await secrets.get('password'))`,
 			},
 		},
 		"mixed regular and secret variables in body": {
 			bodyVarName: "body",
 			body: &sm.HttpRequestBody{
-				Payload: []byte(`{"user": "${user_id}", "token": "${secret.auth_token}"}`),
+				Payload: []byte(`{"user": "${user_id}", "token": "${secrets.auth_token}"}`),
 			},
 			expected: []string{
 				`body=body.replaceAll('${user_id}', vars['user_id'])`,
-				`body=body.replaceAll('${secret.auth_token}', await secrets.get('auth_token'))`,
+				`body=body.replaceAll('${secrets.auth_token}', await secrets.get('auth_token'))`,
 			},
 		},
 		"duplicate secret variables in body": {
 			bodyVarName: "body",
 			body: &sm.HttpRequestBody{
-				Payload: []byte(`{"token1": "${secret.token}", "token2": "${secret.token}"}`),
+				Payload: []byte(`{"token1": "${secrets.token}", "token2": "${secrets.token}"}`),
 			},
-			expected: []string{`body=body.replaceAll('${secret.token}', await secrets.get('token'))`},
+			expected: []string{`body=body.replaceAll('${secrets.token}', await secrets.get('token'))`},
 		},
 	}
 
@@ -1149,7 +1150,7 @@ func TestHasSecretVariables(t *testing.T) {
 				Entries: []*sm.MultiHttpEntry{
 					{
 						Request: &sm.MultiHttpEntryRequest{
-							Url: "${secret.api_endpoint}",
+							Url: "${secrets.api_endpoint}",
 						},
 					},
 				},
@@ -1163,7 +1164,7 @@ func TestHasSecretVariables(t *testing.T) {
 						Request: &sm.MultiHttpEntryRequest{
 							Url: "https://example.com",
 							Headers: []*sm.HttpHeader{
-								{Name: "Authorization", Value: "Bearer ${secret.token}"},
+								{Name: "Authorization", Value: "Bearer ${secrets.token}"},
 							},
 						},
 					},
@@ -1178,7 +1179,7 @@ func TestHasSecretVariables(t *testing.T) {
 						Request: &sm.MultiHttpEntryRequest{
 							Url: "https://example.com",
 							QueryFields: []*sm.QueryField{
-								{Name: "key", Value: "${secret.api_key}"},
+								{Name: "key", Value: "${secrets.api_key}"},
 							},
 						},
 					},
@@ -1193,7 +1194,7 @@ func TestHasSecretVariables(t *testing.T) {
 						Request: &sm.MultiHttpEntryRequest{
 							Url: "https://example.com",
 							Body: &sm.HttpRequestBody{
-								Payload: []byte(`{"password": "${secret.user_password}"}`),
+								Payload: []byte(`{"password": "${secrets.user_password}"}`),
 							},
 						},
 					},
@@ -1211,7 +1212,7 @@ func TestHasSecretVariables(t *testing.T) {
 					},
 					{
 						Request: &sm.MultiHttpEntryRequest{
-							Url: "${secret.api_url}",
+							Url: "${secrets.api_url}",
 						},
 					},
 				},
@@ -1238,27 +1239,27 @@ func TestSecretVariableEdgeCases(t *testing.T) {
 			expected: `''`,
 		},
 		"only secret variable": {
-			input:    "${secret.key}",
+			input:    "${secrets.key}",
 			expected: `await secrets.get('key')`,
 		},
 		"secret variable with special characters": {
-			input:    "${secret.api-key_123}",
+			input:    "${secrets.api-key_123}",
 			expected: `await secrets.get('api-key_123')`,
 		},
 		"secret variable with periods": {
-			input:    "${secret.api.v1.key}",
+			input:    "${secrets.api.v1.key}",
 			expected: `await secrets.get('api.v1.key')`,
 		},
 		"mixed content with secret variable": {
-			input:    "prefix${secret.key}suffix",
+			input:    "prefix${secrets.key}suffix",
 			expected: `'prefix'+await secrets.get('key')+'suffix'`,
 		},
 		"multiple secret variables": {
-			input:    "${secret.key1}${secret.key2}",
+			input:    "${secrets.key1}${secrets.key2}",
 			expected: `await secrets.get('key1')+await secrets.get('key2')`,
 		},
 		"secret variable with escaped content": {
-			input:    "https://example.com/${secret.path}?q=test",
+			input:    "https://example.com/${secrets.path}?q=test",
 			expected: `'https://example.com/'+await secrets.get('path')+'?q\u003Dtest'`,
 		},
 	}
@@ -1279,270 +1280,270 @@ func TestSecretNameFormatValidation(t *testing.T) {
 	}{
 		// Valid formats - should match and generate correct output
 		"simple lowercase": {
-			input:       "${secret.key}",
+			input:       "${secrets.key}",
 			expected:    `await secrets.get('key')`,
 			shouldMatch: true,
 		},
 		"with uppercase": {
-			input:       "${secret.API_KEY}",
+			input:       "${secrets.API_KEY}",
 			expected:    `await secrets.get('API_KEY')`,
 			shouldMatch: true,
 		},
 		"with numbers": {
-			input:       "${secret.key123}",
+			input:       "${secrets.key123}",
 			expected:    `await secrets.get('key123')`,
 			shouldMatch: true,
 		},
 		"with dashes": {
-			input:       "${secret.api-key}",
+			input:       "${secrets.api-key}",
 			expected:    `await secrets.get('api-key')`,
 			shouldMatch: true,
 		},
 		"with periods": {
-			input:       "${secret.api.v1.key}",
+			input:       "${secrets.api.v1.key}",
 			expected:    `await secrets.get('api.v1.key')`,
 			shouldMatch: true,
 		},
 		"with underscores": {
-			input:       "${secret.api_key}",
+			input:       "${secrets.api_key}",
 			expected:    `await secrets.get('api_key')`,
 			shouldMatch: true,
 		},
 		"mixed characters": {
-			input:       "${secret.api-v1.key_123}",
+			input:       "${secrets.api-v1.key_123}",
 			expected:    `await secrets.get('api-v1.key_123')`,
 			shouldMatch: true,
 		},
 		"starts with number": {
-			input:       "${secret.123key}",
+			input:       "${secrets.123key}",
 			expected:    `await secrets.get('123key')`,
 			shouldMatch: true,
 		},
 		"single character": {
-			input:       "${secret.a}",
+			input:       "${secrets.a}",
 			expected:    `await secrets.get('a')`,
 			shouldMatch: true,
 		},
 		"single number": {
-			input:       "${secret.1}",
+			input:       "${secrets.1}",
 			expected:    `await secrets.get('1')`,
 			shouldMatch: true,
 		},
 		"multiple periods": {
-			input:       "${secret.a.b.c.d}",
+			input:       "${secrets.a.b.c.d}",
 			expected:    `await secrets.get('a.b.c.d')`,
 			shouldMatch: true,
 		},
 		"consecutive dashes": {
-			input:       "${secret.api--key}",
+			input:       "${secrets.api--key}",
 			expected:    `await secrets.get('api--key')`,
 			shouldMatch: true,
 		},
 		"consecutive periods": {
-			input:       "${secret.api..key}",
+			input:       "${secrets.api..key}",
 			expected:    `await secrets.get('api..key')`,
 			shouldMatch: true,
 		},
 		"consecutive underscores": {
-			input:       "${secret.api__key}",
+			input:       "${secrets.api__key}",
 			expected:    `await secrets.get('api__key')`,
 			shouldMatch: true,
 		},
 		"starts with dash": {
-			input:       "${secret.-key}",
-			expected:    `'${secret.-key}'`,
+			input:       "${secrets.-key}",
+			expected:    `'${secrets.-key}'`,
 			shouldMatch: false,
 		},
 		"starts with period": {
-			input:       "${secret..key}",
-			expected:    `'${secret..key}'`,
+			input:       "${secrets..key}",
+			expected:    `'${secrets..key}'`,
 			shouldMatch: false,
 		},
 		"starts with underscore": {
-			input:       "${secret._key}",
+			input:       "${secrets._key}",
 			expected:    `await secrets.get('_key')`,
 			shouldMatch: true,
 		},
 		"ends with dash": {
-			input:       "${secret.key-}",
+			input:       "${secrets.key-}",
 			expected:    `await secrets.get('key-')`,
 			shouldMatch: true,
 		},
 		"ends with period": {
-			input:       "${secret.key.}",
+			input:       "${secrets.key.}",
 			expected:    `await secrets.get('key.')`,
 			shouldMatch: true,
 		},
 		"ends with underscore": {
-			input:       "${secret.key_}",
+			input:       "${secrets.key_}",
 			expected:    `await secrets.get('key_')`,
 			shouldMatch: true,
 		},
 		"all dashes": {
-			input:       "${secret.---}",
-			expected:    `'${secret.---}'`,
+			input:       "${secrets.---}",
+			expected:    `'${secrets.---}'`,
 			shouldMatch: false,
 		},
 		"all periods": {
-			input:       "${secret...}",
-			expected:    `'${secret...}'`,
+			input:       "${secrets...}",
+			expected:    `'${secrets...}'`,
 			shouldMatch: false,
 		},
 		"all underscores": {
-			input:       "${secret.___}",
+			input:       "${secrets.___}",
 			expected:    `await secrets.get('___')`,
 			shouldMatch: true,
 		},
 		"very long name": {
-			input:       "${secret.this-is-a-very-long-secret-name-with-many-characters-and-numbers-123456789}",
+			input:       "${secrets.this-is-a-very-long-secret-name-with-many-characters-and-numbers-123456789}",
 			expected:    `await secrets.get('this-is-a-very-long-secret-name-with-many-characters-and-numbers-123456789')`,
 			shouldMatch: true,
 		},
 		"complex nested structure": {
-			input:       "${secret.prod.api.v1.user.auth.token}",
+			input:       "${secrets.prod.api.v1.user.auth.token}",
 			expected:    `await secrets.get('prod.api.v1.user.auth.token')`,
 			shouldMatch: true,
 		},
 
 		// Invalid formats - should not match and return literal string
 		"invalid character space": {
-			input:       "${secret.key name}",
-			expected:    `'${secret.key name}'`,
+			input:       "${secrets.key name}",
+			expected:    `'${secrets.key name}'`,
 			shouldMatch: false,
 		},
 		"invalid character at": {
-			input:       "${secret.key@name}",
-			expected:    `'${secret.key@name}'`,
+			input:       "${secrets.key@name}",
+			expected:    `'${secrets.key@name}'`,
 			shouldMatch: false,
 		},
 		"invalid character hash": {
-			input:       "${secret.key#name}",
-			expected:    `'${secret.key#name}'`,
+			input:       "${secrets.key#name}",
+			expected:    `'${secrets.key#name}'`,
 			shouldMatch: false,
 		},
 		"invalid character dollar": {
-			input:       "${secret.key$name}",
-			expected:    `'${secret.key$name}'`,
+			input:       "${secrets.key$name}",
+			expected:    `'${secrets.key$name}'`,
 			shouldMatch: false,
 		},
 		"invalid character percent": {
-			input:       "${secret.key%name}",
-			expected:    `'${secret.key%name}'`,
+			input:       "${secrets.key%name}",
+			expected:    `'${secrets.key%name}'`,
 			shouldMatch: false,
 		},
 		"invalid character caret": {
-			input:       "${secret.key^name}",
-			expected:    `'${secret.key^name}'`,
+			input:       "${secrets.key^name}",
+			expected:    `'${secrets.key^name}'`,
 			shouldMatch: false,
 		},
 		"invalid character ampersand": {
-			input:       "${secret.key&name}",
-			expected:    `'${secret.key\u0026name}'`,
+			input:       "${secrets.key&name}",
+			expected:    `'${secrets.key\u0026name}'`,
 			shouldMatch: false,
 		},
 		"invalid character asterisk": {
-			input:       "${secret.key*name}",
-			expected:    `'${secret.key*name}'`,
+			input:       "${secrets.key*name}",
+			expected:    `'${secrets.key*name}'`,
 			shouldMatch: false,
 		},
 		"invalid character parentheses": {
-			input:       "${secret.key(name)}",
-			expected:    `'${secret.key(name)}'`,
+			input:       "${secrets.key(name)}",
+			expected:    `'${secrets.key(name)}'`,
 			shouldMatch: false,
 		},
 		"invalid character brackets": {
-			input:       "${secret.key[name]}",
-			expected:    `'${secret.key[name]}'`,
+			input:       "${secrets.key[name]}",
+			expected:    `'${secrets.key[name]}'`,
 			shouldMatch: false,
 		},
 		"invalid character braces": {
-			input:       "${secret.key{name}}",
-			expected:    `'${secret.key{name}}'`,
+			input:       "${secrets.key{name}}",
+			expected:    `'${secrets.key{name}}'`,
 			shouldMatch: false,
 		},
 		"invalid character pipe": {
-			input:       "${secret.key|name}",
-			expected:    `'${secret.key|name}'`,
+			input:       "${secrets.key|name}",
+			expected:    `'${secrets.key|name}'`,
 			shouldMatch: false,
 		},
 		"invalid character backslash": {
-			input:       "${secret.key\\name}",
-			expected:    `'${secret.key\\name}'`,
+			input:       "${secrets.key\\name}",
+			expected:    `'${secrets.key\\name}'`,
 			shouldMatch: false,
 		},
 		"invalid character forward slash": {
-			input:       "${secret.key/name}",
-			expected:    `'${secret.key/name}'`,
+			input:       "${secrets.key/name}",
+			expected:    `'${secrets.key/name}'`,
 			shouldMatch: false,
 		},
 		"invalid character semicolon": {
-			input:       "${secret.key;name}",
-			expected:    `'${secret.key;name}'`,
+			input:       "${secrets.key;name}",
+			expected:    `'${secrets.key;name}'`,
 			shouldMatch: false,
 		},
 		"invalid character colon": {
-			input:       "${secret.key:name}",
-			expected:    `'${secret.key:name}'`,
+			input:       "${secrets.key:name}",
+			expected:    `'${secrets.key:name}'`,
 			shouldMatch: false,
 		},
 		"invalid character quote": {
-			input:       "${secret.key\"name}",
-			expected:    `'${secret.key\"name}'`,
+			input:       "${secrets.key\"name}",
+			expected:    `'${secrets.key\"name}'`,
 			shouldMatch: false,
 		},
 		"invalid character single quote": {
-			input:       "${secret.key'name}",
-			expected:    `'${secret.key\'name}'`,
+			input:       "${secrets.key'name}",
+			expected:    `'${secrets.key\'name}'`,
 			shouldMatch: false,
 		},
 		"invalid character comma": {
-			input:       "${secret.key,name}",
-			expected:    `'${secret.key,name}'`,
+			input:       "${secrets.key,name}",
+			expected:    `'${secrets.key,name}'`,
 			shouldMatch: false,
 		},
 		"invalid character question mark": {
-			input:       "${secret.key?name}",
-			expected:    `'${secret.key?name}'`,
+			input:       "${secrets.key?name}",
+			expected:    `'${secrets.key?name}'`,
 			shouldMatch: false,
 		},
 		"invalid character exclamation": {
-			input:       "${secret.key!name}",
-			expected:    `'${secret.key!name}'`,
+			input:       "${secrets.key!name}",
+			expected:    `'${secrets.key!name}'`,
 			shouldMatch: false,
 		},
 		"invalid character tilde": {
-			input:       "${secret.key~name}",
-			expected:    `'${secret.key~name}'`,
+			input:       "${secrets.key~name}",
+			expected:    `'${secrets.key~name}'`,
 			shouldMatch: false,
 		},
 		"invalid character backtick": {
-			input:       "${secret.key`name}",
-			expected:    `'${secret.key` + "`" + `name}'`,
+			input:       "${secrets.key`name}",
+			expected:    `'${secrets.key` + "`" + `name}'`,
 			shouldMatch: false,
 		},
 		"invalid character plus": {
-			input:       "${secret.key+name}",
-			expected:    `'${secret.key+name}'`,
+			input:       "${secrets.key+name}",
+			expected:    `'${secrets.key+name}'`,
 			shouldMatch: false,
 		},
 		"invalid character equals": {
-			input:       "${secret.key=name}",
-			expected:    `'${secret.key\u003Dname}'`,
+			input:       "${secrets.key=name}",
+			expected:    `'${secrets.key\u003Dname}'`,
 			shouldMatch: false,
 		},
 		"invalid character less than": {
-			input:       "${secret.key<name}",
-			expected:    `'${secret.key\u003Cname}'`,
+			input:       "${secrets.key<name}",
+			expected:    `'${secrets.key\u003Cname}'`,
 			shouldMatch: false,
 		},
 		"invalid character greater than": {
-			input:       "${secret.key>name}",
-			expected:    `'${secret.key\u003Ename}'`,
+			input:       "${secrets.key>name}",
+			expected:    `'${secrets.key\u003Ename}'`,
 			shouldMatch: false,
 		},
 		"empty secret name": {
-			input:       "${secret.}",
-			expected:    `'${secret.}'`,
+			input:       "${secrets.}",
+			expected:    `'${secrets.}'`,
 			shouldMatch: false,
 		},
 		"missing secret prefix": {
@@ -1576,18 +1577,18 @@ func TestSecretNameFormatValidation(t *testing.T) {
 			shouldMatch: false,
 		},
 		"unicode characters": {
-			input:       "${secret.kéy}",
-			expected:    `'${secret.kéy}'`,
+			input:       "${secrets.kéy}",
+			expected:    `'${secrets.kéy}'`,
 			shouldMatch: false,
 		},
 		"emoji characters": {
-			input:       "${secret.key🔑}",
-			expected:    `'${secret.key🔑}'`,
+			input:       "${secrets.key🔑}",
+			expected:    `'${secrets.key🔑}'`,
 			shouldMatch: false,
 		},
 		"control characters": {
-			input:       "${secret.key\x00name}",
-			expected:    `'${secret.key\u0000name}'`,
+			input:       "${secrets.key\x00name}",
+			expected:    `'${secrets.key\u0000name}'`,
 			shouldMatch: false,
 		},
 	}
@@ -1598,7 +1599,7 @@ func TestSecretNameFormatValidation(t *testing.T) {
 			require.Equal(t, tc.expected, actual)
 
 			// Additional validation: check if the regex actually matches
-			matches := secretVariables.MatchString(tc.input)
+			matches := interpolation.SecretRegex.MatchString(tc.input)
 			require.Equal(t, tc.shouldMatch, matches,
 				"Regex match result doesn't match expected. Input: %s, Expected match: %v, Actual match: %v",
 				tc.input, tc.shouldMatch, matches)
@@ -1630,7 +1631,7 @@ func TestSecretNameFormatInContexts(t *testing.T) {
 		"in request body": {
 			context:    "body",
 			secretName: "user.password.encrypted",
-			expected:   `body=body.replaceAll('${secret.user.password.encrypted}', await secrets.get('user.password.encrypted'))`,
+			expected:   `body=body.replaceAll('${secrets.user.password.encrypted}', await secrets.get('user.password.encrypted'))`,
 		},
 		"mixed with regular variables": {
 			context:    "mixed",
@@ -1644,28 +1645,28 @@ func TestSecretNameFormatInContexts(t *testing.T) {
 			var actual string
 			switch tc.context {
 			case "url":
-				actual = performVariableExpansion("${secret." + tc.secretName + "}")
+				actual = performVariableExpansion("${secrets." + tc.secretName + "}")
 			case "header":
 				headers := []*sm.HttpHeader{
-					{Name: "Authorization", Value: "${secret." + tc.secretName + "}"},
+					{Name: "Authorization", Value: "${secrets." + tc.secretName + "}"},
 				}
 				actual = buildHeaders(headers, nil)
 			case "query":
 				req := sm.MultiHttpEntryRequest{
 					QueryFields: []*sm.QueryField{
-						{Name: "key", Value: "${secret." + tc.secretName + "}"},
+						{Name: "key", Value: "${secrets." + tc.secretName + "}"},
 					},
 				}
 				result := buildQueryParams("url", &req)
 				actual = result[0]
 			case "body":
 				body := &sm.HttpRequestBody{
-					Payload: []byte(`{"password": "${secret.` + tc.secretName + `}"}`),
+					Payload: []byte(`{"password": "${secrets.` + tc.secretName + `}"}`),
 				}
 				result := interpolateBodyVariables("body", body)
 				actual = result[0]
 			case "mixed":
-				actual = performVariableExpansion("https://api.${env}.com/${secret." + tc.secretName + "}")
+				actual = performVariableExpansion("https://api.${env}.com/${secrets." + tc.secretName + "}")
 			}
 			require.Equal(t, tc.expected, actual)
 		})
@@ -1679,67 +1680,67 @@ func TestSecretNameFormatEdgeCases(t *testing.T) {
 		description string
 	}{
 		"zero length name": {
-			input:       "${secret.}",
-			expected:    `'${secret.}'`,
+			input:       "${secrets.}",
+			expected:    `'${secrets.}'`,
 			description: "Empty secret name should not match",
 		},
 		"single dot": {
-			input:       "${secret..}",
-			expected:    `'${secret..}'`,
+			input:       "${secrets..}",
+			expected:    `'${secrets..}'`,
 			description: "Single dot should not match as it doesn't start with a valid character",
 		},
 		"single dash": {
-			input:       "${secret.-}",
-			expected:    `'${secret.-}'`,
+			input:       "${secrets.-}",
+			expected:    `'${secrets.-}'`,
 			description: "Single dash should not match as it doesn't start with a valid character",
 		},
 		"single underscore": {
-			input:       "${secret._}",
+			input:       "${secrets._}",
 			expected:    `await secrets.get('_')`,
 			description: "Single underscore should match as it starts with a valid character",
 		},
 		"leading and trailing dots": {
-			input:       "${secret..key..}",
-			expected:    `'${secret..key..}'`,
+			input:       "${secrets..key..}",
+			expected:    `'${secrets..key..}'`,
 			description: "Leading and trailing dots should not match as it doesn't start with a valid character",
 		},
 		"leading and trailing dashes": {
-			input:       "${secret.--key--}",
-			expected:    `'${secret.--key--}'`,
+			input:       "${secrets.--key--}",
+			expected:    `'${secrets.--key--}'`,
 			description: "Leading and trailing dashes should not match as it doesn't start with a valid character",
 		},
 		"leading and trailing underscores": {
-			input:       "${secret.__key__}",
+			input:       "${secrets.__key__}",
 			expected:    `await secrets.get('__key__')`,
 			description: "Leading and trailing underscores should be preserved",
 		},
 		"alternating special characters": {
-			input:       "${secret.a-b_c.d-e_f}",
+			input:       "${secrets.a-b_c.d-e_f}",
 			expected:    `await secrets.get('a-b_c.d-e_f')`,
 			description: "Alternating special characters should be preserved",
 		},
 		"consecutive special characters": {
-			input:       "${secret.a--b__c..d}",
+			input:       "${secrets.a--b__c..d}",
 			expected:    `await secrets.get('a--b__c..d')`,
 			description: "Consecutive special characters should be preserved",
 		},
 		"numbers only": {
-			input:       "${secret.123456789}",
+			input:       "${secrets.123456789}",
 			expected:    `await secrets.get('123456789')`,
 			description: "Numbers only should be valid",
 		},
 		"mixed case with numbers": {
-			input:       "${secret.ApiKey123}",
+			input:       "${secrets.ApiKey123}",
 			expected:    `await secrets.get('ApiKey123')`,
 			description: "Mixed case with numbers should be valid",
 		},
 		"complex nested structure": {
-			input:       "${secret.prod.api.v1.user.auth.token.encrypted}",
+			input:       "${secrets.prod.api.v1.user.auth.token.encrypted}",
 			expected:    `await secrets.get('prod.api.v1.user.auth.token.encrypted')`,
 			description: "Complex nested structure should be valid",
 		},
 		"very long name with all valid characters": {
-			input:       "${secret.this-is-a-very-long-secret-name-with-many-characters-and-numbers-123456789-and-underscores_and_periods.and.more}",
+			input:       "${secrets.this-is-a-very-long-secret-name-with-many-characters-and-numbers-123456789-and-underscores_and_periods.and.more}",
 			expected:    `await secrets.get('this-is-a-very-long-secret-name-with-many-characters-and-numbers-123456789-and-underscores_and_periods.and.more')`,
 			description: "Very long name with all valid characters should be valid",
 		},
