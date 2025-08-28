@@ -5,10 +5,10 @@ import (
 	"embed"
 	"encoding/base64"
 	"fmt"
-	"regexp"
 	"strings"
 	"text/template"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -17,55 +17,11 @@ import (
 //go:embed script.tmpl
 var templateFS embed.FS
 
-var userVariables = regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
+// Using shared interpolation regexes from interpolation package
 
 func performVariableExpansion(in string) string {
-	if len(in) == 0 {
-		return `''`
-	}
-
-	var s strings.Builder
-	buf := []byte(in)
-	locs := userVariables.FindAllSubmatchIndex(buf, -1)
-
-	p := 0
-	for _, loc := range locs {
-		if len(loc) < 4 { // put the bounds checker at ease
-			panic("unexpected result while building URL")
-		}
-
-		if s.Len() > 0 {
-			s.WriteRune('+')
-		}
-
-		if pre := buf[p:loc[0]]; len(pre) > 0 {
-			s.WriteRune('\'')
-			template.JSEscape(&s, pre)
-			s.WriteRune('\'')
-			s.WriteRune('+')
-		}
-
-		s.WriteString(`vars['`)
-		// Because of the capture in the regular expression, the result
-		// has two indices that represent the matched substring, and
-		// two more indices that represent the capture group.
-		s.Write(buf[loc[2]:loc[3]])
-		s.WriteString(`']`)
-
-		p = loc[1]
-	}
-
-	if len(buf[p:]) > 0 {
-		if s.Len() > 0 {
-			s.WriteRune('+')
-		}
-
-		s.WriteRune('\'')
-		template.JSEscape(&s, buf[p:])
-		s.WriteRune('\'')
-	}
-
-	return s.String()
+	// Use the shared interpolation logic for JavaScript generation with secrets support
+	return interpolation.ToJavaScriptWithSecrets(in)
 }
 
 // Query params must be appended to a URL that has already been created.
@@ -111,37 +67,8 @@ func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []st
 		return nil
 
 	default:
-		var buf strings.Builder
-
-		matches := userVariables.FindAllString(string(body.Payload), -1)
-		parsedMatches := make(map[string]struct{})
-		out := make([]string, 0, len(matches))
-
-		// For every instance of ${variable} in the body,
-		// this block returns {bodyVarName} = {bodyVarName}.replaceAll('${variable}', vars['variable'])
-		for _, m := range matches {
-			if _, found := parsedMatches[m]; found {
-				continue
-			}
-
-			buf.Reset()
-			buf.WriteString(bodyVarName)
-			buf.WriteString("=")
-			buf.WriteString(bodyVarName)
-			buf.WriteString(".replaceAll('")
-			buf.WriteString(m)
-			buf.WriteString("', vars['")
-			// writing the variable name from between ${ and }
-			for i := 2; i < len(m)-1; i++ {
-				buf.WriteByte(m[i])
-			}
-			buf.WriteString("'])")
-			out = append(out, buf.String())
-
-			parsedMatches[m] = struct{}{}
-		}
-
-		return out
+		// Use the shared interpolation logic for body variable replacements
+		return interpolation.ToBodyVariableReplacements(bodyVarName, body.Payload)
 	}
 }
 
@@ -422,6 +349,35 @@ func buildVars(variable *sm.MultiHttpEntryVariable) string {
 	return b.String()
 }
 
+func hasSecretVariables(settings *sm.MultiHttpSettings) bool {
+	for _, entry := range settings.Entries {
+		// Check URL
+		if interpolation.SecretRegex.MatchString(entry.Request.Url) {
+			return true
+		}
+
+		// Check headers
+		for _, header := range entry.Request.Headers {
+			if interpolation.SecretRegex.MatchString(header.Value) {
+				return true
+			}
+		}
+
+		// Check query fields
+		for _, field := range entry.Request.QueryFields {
+			if interpolation.SecretRegex.MatchString(field.Name) || interpolation.SecretRegex.MatchString(field.Value) {
+				return true
+			}
+		}
+
+		// Check body
+		if entry.Request.Body != nil && interpolation.SecretRegex.MatchString(string(entry.Request.Body.Payload)) {
+			return true
+		}
+	}
+	return false
+}
+
 func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
 	// Convert settings to script using a Go template
 	tmpl, err := template.
@@ -442,9 +398,18 @@ func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
 
 	var buf bytes.Buffer
 
+	// Create template data with secret variable detection
+	templateData := struct {
+		*sm.MultiHttpSettings
+		HasSecretVariables bool
+	}{
+		MultiHttpSettings:  settings,
+		HasSecretVariables: hasSecretVariables(settings),
+	}
+
 	// TODO(mem): figure out if we need to transform the data in some way
 	// before executing the template
-	if err := tmpl.ExecuteTemplate(&buf, "script.tmpl", settings); err != nil {
+	if err := tmpl.ExecuteTemplate(&buf, "script.tmpl", templateData); err != nil {
 		return nil, fmt.Errorf("executing script template: %w", err)
 	}
 
