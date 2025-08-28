@@ -87,6 +87,10 @@ func (n NoopSecretStore) GetSecretCredentials(ctx context.Context, tenantID mode
 	return &sm.SecretStore{}, nil
 }
 
+func (n NoopSecretStore) GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+	return "", nil
+}
+
 // TestSecretStore is a test implementation of the SecretProvider interface
 // that returns a mock secret store with test credentials. Use this in tests
 // when you need to test behavior that depends on having actual secret values.
@@ -101,4 +105,13 @@ func (s TestSecretStore) GetSecretCredentials(ctx context.Context, tenantId mode
 		Url:   "http://example.com",
 		Token: "test-token",
 	}, nil
+}
+
+func (s TestSecretStore) GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+	if tenantID == 0 {
+		return "", errors.New("invalid tenant ID")
+	}
+
+	// For testing purposes, return a mock secret value
+	return "test-secret-value", nil
 }
