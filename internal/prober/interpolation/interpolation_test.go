@@ -1,12 +1,10 @@
 package interpolation
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/model"
-	"github.com/rs/zerolog"
+	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,22 +20,8 @@ func (m *mockVariableProvider) GetVariable(name string) (string, error) {
 	return "", fmt.Errorf("variable '%s' not found", name)
 }
 
-// mockSecretProvider is a mock implementation of SecretProvider for testing
-type mockSecretProvider struct {
-	secrets map[string]string
-}
-
-func (m *mockSecretProvider) GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
-	if value, exists := m.secrets[secretKey]; exists {
-		return value, nil
-	}
-	return "", fmt.Errorf("secret '%s' not found", secretKey)
-}
-
 func TestResolver_Resolve(t *testing.T) {
-	ctx := context.Background()
-	logger := zerolog.New(nil)
-	tenantID := model.GlobalID(123)
+	ctx, logger, tenantID := testhelper.CommonTestSetup()
 
 	// Mock providers
 	variableProvider := &mockVariableProvider{
@@ -49,15 +33,13 @@ func TestResolver_Resolve(t *testing.T) {
 		},
 	}
 
-	secretProvider := &mockSecretProvider{
-		secrets: map[string]string{
-			"api-token":       "secret-token-123",
-			"db-password":     "secret-password",
-			"empty-secret":    "",
-			"auth-config":     "username=${username}&token=${api-token}",
-			"random-password": "my-password-${random}",
-		},
-	}
+	secretProvider := testhelper.NewMockSecretProvider(map[string]string{
+		"api-token":       "secret-token-123",
+		"db-password":     "secret-password",
+		"empty-secret":    "",
+		"auth-config":     "username=${username}&token=${api-token}",
+		"random-password": "my-password-${random}",
+	})
 
 	testcases := map[string]struct {
 		input          string
