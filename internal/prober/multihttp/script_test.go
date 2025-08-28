@@ -851,7 +851,7 @@ func TestSettingsToScript(t *testing.T) {
 
 	k6path := testhelper.K6Path(t)
 	runner := k6runner.New(k6runner.RunnerOpts{Uri: k6path})
-	store := noopSecretStore{}
+	store := testhelper.NoopSecretStore{}
 
 	logger := testhelper.Logger(t)
 	prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store)

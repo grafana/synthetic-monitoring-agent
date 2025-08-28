@@ -7,6 +7,7 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,7 @@ func TestNewProber(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			var runner noopRunner
-			var store noopSecretStore
+			var store testhelper.NoopSecretStore
 			p, err := NewProber(ctx, tc.check, logger, runner, store)
 			if tc.expectFailure {
 				require.Error(t, err)
@@ -81,12 +82,6 @@ func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 
 func (noopRunner) Run(ctx context.Context, script k6runner.Script, secretStore k6runner.SecretStore) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
-}
-
-type noopSecretStore struct{}
-
-func (n noopSecretStore) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
-	return &sm.SecretStore{}, nil
 }
 
 func testContext(t *testing.T) (context.Context, func()) {
