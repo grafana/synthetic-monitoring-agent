@@ -42,16 +42,20 @@ func TestResolver_Resolve(t *testing.T) {
 	// Mock providers
 	variableProvider := &mockVariableProvider{
 		variables: map[string]string{
-			"username": "admin",
-			"domain":   "example.com",
+			"username":             "admin",
+			"domain":               "example.com",
+			"random":               "123",
+			"variable-with-secret": "${secrets.api-token}",
 		},
 	}
 
 	secretProvider := &mockSecretProvider{
 		secrets: map[string]string{
-			"api-token":    "secret-token-123",
-			"db-password":  "secret-password",
-			"empty-secret": "",
+			"api-token":       "secret-token-123",
+			"db-password":     "secret-password",
+			"empty-secret":    "",
+			"auth-config":     "username=${username}&token=${api-token}",
+			"random-password": "my-password-${random}",
 		},
 	}
 
@@ -145,11 +149,42 @@ func TestResolver_Resolve(t *testing.T) {
 			expectedOutput: "${some-variable}",
 			expectError:    false,
 		},
+		"secret containing variables": {
+			input:          "https://api.example.com/auth?${secrets.auth-config}",
+			secretEnabled:  true,
+			expectedOutput: "https://api.example.com/auth?username=${username}&token=${api-token}",
+			expectError:    false,
+		},
+		"secret with variable-like pattern": {
+			input:          "Password: ${secrets.random-password}",
+			secretEnabled:  true,
+			expectedOutput: "Password: my-password-${random}",
+			expectError:    false,
+		},
+		"variable with secret": {
+			input:          "${variable-with-secret}",
+			secretEnabled:  true,
+			expectedOutput: "${secrets.api-token}",
+			expectError:    false,
+		},
+		"variables disabled": {
+			input:          "Hello ${username} with token ${secrets.api-token}",
+			secretEnabled:  true,
+			expectedOutput: "Hello ${username} with token secret-token-123",
+			expectError:    false,
+		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			resolver := NewResolver(variableProvider, secretProvider, tenantID, logger, tc.secretEnabled)
+			var resolver *Resolver
+			if name == "variables disabled" {
+				// Create resolver with no variable provider to test variables disabled
+				resolver = NewResolver(nil, secretProvider, tenantID, logger, tc.secretEnabled)
+			} else {
+				resolver = NewResolver(variableProvider, secretProvider, tenantID, logger, tc.secretEnabled)
+			}
+
 			actual, err := resolver.Resolve(ctx, tc.input)
 
 			if tc.expectError {
