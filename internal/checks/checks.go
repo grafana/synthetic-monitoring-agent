@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -22,7 +23,6 @@ import (
 	"google.golang.org/grpc/status"
 
 	logproto "github.com/grafana/loki/pkg/push"
-
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -81,7 +81,7 @@ type Updater struct {
 	k6Runner       k6runner.Runner
 	scraperFactory scraper.Factory
 	tenantLimits   *limits.TenantLimits
-	tenantSecrets  *secrets.TenantSecrets
+	tenantSecrets  secrets.SecretProvider
 	telemeter      *telemetry.Telemeter
 	usageReporter  usage.Reporter
 }
@@ -108,7 +108,7 @@ type (
 type UpdaterOptions struct {
 	Conn           *grpc.ClientConn
 	Logger         zerolog.Logger
-	Backoff        Backoffer
+	Backoff        *backoff.Backoff
 	Publisher      pusher.Publisher
 	TenantCh       chan<- sm.Tenant
 	IsConnected    func(bool)
@@ -117,8 +117,8 @@ type UpdaterOptions struct {
 	K6Runner       k6runner.Runner
 	ScraperFactory scraper.Factory
 	TenantLimits   *limits.TenantLimits
+	TenantSecrets  secrets.SecretProvider
 	Telemeter      *telemetry.Telemeter
-	TenantSecrets  *secrets.TenantSecrets
 	UsageReporter  usage.Reporter
 }
 
@@ -243,6 +243,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantLimits:   opts.TenantLimits,
 		tenantSecrets:  opts.TenantSecrets,
 		telemeter:      opts.Telemeter,
+		usageReporter:  opts.UsageReporter,
 		metrics: metrics{
 			changeErrorsCounter: changeErrorsCounter,
 			changesCounter:      changesCounter,
@@ -252,7 +253,6 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 			scrapeErrorCounter:  scrapeErrorCounter,
 			scrapesCounter:      scrapesCounter,
 		},
-		usageReporter: opts.UsageReporter,
 	}, nil
 }
 
@@ -332,7 +332,6 @@ func handleError(ctx context.Context, logger zerolog.Logger, backoff Backoffer, 
 	return false, nil
 }
 
-//goland:noinspection GoBoolExpressions
 func (c *Updater) loop(ctx context.Context) (bool, error) {
 	connected := false
 
@@ -399,9 +398,23 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	c.probe = &result.Probe
 
-	err = c.usageReporter.ReportProbe(ctx, result.Probe, c.features)
-	if err != nil {
-		c.logger.Warn().Err(err).Msg("reporting usage failed")
+	// Report usage if reporter is configured
+	if c.usageReporter != nil {
+		err := c.usageReporter.ReportProbe(ctx, result.Probe, c.features)
+		if err != nil {
+			c.logger.Warn().Err(err).Msg("reporting usage failed")
+		}
+	}
+
+	// Update secret provider with probe capabilities if it supports it
+	if updatableSecretProvider, ok := c.tenantSecrets.(secrets.UpdatableCapabilityAwareSecretProvider); ok {
+		updatableSecretProvider.UpdateCapabilities(c.probe.Capabilities)
+		logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
+		enableProtocolSecrets := false
+		if c.probe.Capabilities != nil {
+			enableProtocolSecrets = c.probe.Capabilities.EnableProtocolSecrets
+		}
+		logger.Debug().Bool("enable_protocol_secrets", enableProtocolSecrets).Msg("updated secret provider with probe capabilities")
 	}
 
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
