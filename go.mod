@@ -5,7 +5,6 @@ go 1.24.0
 toolchain go1.24.6
 
 require (
-	github.com/go-kit/kit v0.13.0
 	github.com/go-logfmt/logfmt v0.6.0
 	github.com/gogo/googleapis v1.4.1
 	github.com/gogo/protobuf v1.3.2
@@ -32,7 +31,6 @@ require (
 	github.com/KimMachineGun/automemlimit v0.7.4
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/felixge/httpsnoop v1.0.4
-	github.com/go-kit/log v0.2.1
 	github.com/gogo/status v1.1.1
 	github.com/grafana/loki/pkg/push v0.0.0-20241004191050-c2f38e18c6b8
 	github.com/jpillora/backoff v1.0.0

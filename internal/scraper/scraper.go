@@ -13,8 +13,6 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 
-	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
-	"github.com/go-kit/kit/log/level"  //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-logfmt/logfmt"
 	"github.com/mmcloughlin/geohash"
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,6 +26,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -505,16 +504,15 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
-	bl := kitlog.NewLogfmtLogger(&logs)
+	zl := zerolog.New(&logs).With().Timestamp().Logger()
 
-	// set up logger to capture all the labels as part of the log entry
-	loggerLabels := make([]interface{}, 0, 2*(2+len(logLabels)))
-	loggerLabels = append(loggerLabels, "ts", kitlog.DefaultTimestampUTC, "target", target)
+	// Add labels to the logger
 	for _, l := range logLabels {
-		loggerLabels = append(loggerLabels, l.name, l.value)
+		zl = zl.With().Str(l.name, l.value).Logger()
 	}
 
-	sl := kitlog.With(bl, loggerLabels...)
+	// Create adapter for prober interface
+	sl := logger.FromZerolog(zl)
 
 	var timeout time.Duration
 	switch s.CheckType() {
@@ -628,7 +626,7 @@ func getProbeMetrics(
 	checkInfoLabels map[string]string,
 	summaries map[uint64]prometheus.Summary,
 	histograms map[uint64]prometheus.Histogram,
-	logger kitlog.Logger,
+	logger logger.Logger,
 	basicMetricsOnly bool,
 ) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
@@ -663,11 +661,11 @@ func runProber(
 	timeout time.Duration,
 	registry *prometheus.Registry,
 	checkInfoLabels map[string]string,
-	logger kitlog.Logger,
+	logger logger.Logger,
 ) bool {
 	start := time.Now()
 
-	_ = level.Info(logger).Log("msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
+	_ = logger.Log("level", "info", "msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
 
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -702,10 +700,10 @@ func runProber(
 
 	if success {
 		probeSuccessGauge.Set(1)
-		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", probeDuration)
+		_ = logger.Log("level", "info", "msg", "Check succeeded", "duration_seconds", probeDuration)
 	} else {
 		probeSuccessGauge.Set(0)
-		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", probeDuration)
+		_ = logger.Log("level", "error", "msg", "Check failed", "duration_seconds", probeDuration)
 	}
 
 	smCheckInfo.Set(1)
@@ -820,6 +818,7 @@ RECORD:
 		},
 	}
 }
+
 
 func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair) TimeSeries {
 	return extractTimeseries(t, metrics, sharedLabels, s.summaries, s.histograms, s.logger)
