@@ -11,7 +11,7 @@ import (
 )
 
 // VariableRegex matches ${variable_name} patterns
-var VariableRegex = regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
+var VariableRegex = regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_-]*)\}`)
 
 // SecretRegex matches ${secrets.secret_name} patterns
 var SecretRegex = regexp.MustCompile(`\$\{secrets\.([^}]*)\}`)
@@ -33,6 +33,7 @@ type Resolver struct {
 	tenantID         model.GlobalID
 	logger           zerolog.Logger
 	secretEnabled    bool
+	variableEnabled  bool
 }
 
 // NewResolver creates a new interpolation resolver
@@ -43,85 +44,94 @@ func NewResolver(variableProvider VariableProvider, secretProvider SecretProvide
 		tenantID:         tenantID,
 		logger:           logger,
 		secretEnabled:    secretEnabled,
+		variableEnabled:  variableProvider != nil,
 	}
 }
 
-// Resolve performs string interpolation, replacing both variables and secrets
+// Resolve performs string interpolation, replacing both variables and secrets in a single pass
 func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 	if value == "" {
 		return "", nil
 	}
 
-	// First resolve secrets if enabled
-	if r.secretEnabled {
-		resolvedValue, err := r.resolveSecrets(ctx, value)
-		if err != nil {
-			return "", err
-		}
-		value = resolvedValue
+	// If secrets are disabled, just process variables in the entire string
+	if !r.secretEnabled {
+		return r.processVariables(value), nil
 	}
 
-	// Then resolve variables
-	if r.variableProvider != nil {
-		resolvedValue, err := r.resolveVariables(value)
-		if err != nil {
-			return "", err
-		}
-		value = resolvedValue
+	// Step 1: Find all secret matches with their positions
+	type secretMatch struct {
+		start, end  int
+		name        string
+		placeholder string
 	}
 
-	return value, nil
-}
-
-// resolveSecrets resolves ${secrets.secret_name} patterns
-func (r *Resolver) resolveSecrets(ctx context.Context, value string) (string, error) {
-	matches := SecretRegex.FindAllStringSubmatch(value, -1)
-	if len(matches) == 0 {
-		return value, nil
-	}
-
-	result := value
+	var secretMatches []secretMatch
+	matches := SecretRegex.FindAllStringSubmatchIndex(value, -1)
 	for _, match := range matches {
-		if len(match) < 2 {
+		if len(match) < 4 {
 			continue
 		}
 
-		secretName := match[1]
-		placeholder := match[0] // ${secrets.secret_name}
+		secretName := value[match[2]:match[3]]
+		placeholder := value[match[0]:match[1]]
 
-		// Validate secret name follows Kubernetes DNS subdomain convention
+		// Validate secret name follows Kubernetes DNS subdomain naming convention
 		if !isValidSecretName(secretName) {
 			return "", fmt.Errorf("invalid secret name '%s': must follow Kubernetes DNS subdomain naming convention", secretName)
 		}
 
-		r.logger.Debug().Str("secretName", secretName).Int64("tenantId", int64(r.tenantID)).Msg("resolving secret from GSM")
+		secretMatches = append(secretMatches, secretMatch{
+			start:       match[0],
+			end:         match[1],
+			name:        secretName,
+			placeholder: placeholder,
+		})
+	}
 
-		secretValue, err := r.secretProvider.GetSecretValue(ctx, r.tenantID, secretName)
-		if err != nil {
-			return "", fmt.Errorf("failed to get secret '%s' from GSM: %w", secretName, err)
+	// Step 2: Split string into parts and process each part
+	var result strings.Builder
+	lastPos := 0
+
+	for _, secretMatch := range secretMatches {
+		// Process the part before this secret (non-secret part)
+		nonSecretPart := value[lastPos:secretMatch.start]
+		if nonSecretPart != "" {
+			processedPart := r.processVariables(nonSecretPart)
+			result.WriteString(processedPart)
 		}
 
-		// Replace the placeholder with the actual secret value
-		result = strings.ReplaceAll(result, placeholder, secretValue)
+		// Process the secret part
+		r.logger.Debug().Str("secretName", secretMatch.name).Int64("tenantId", int64(r.tenantID)).Msg("resolving secret from GSM")
+
+		secretValue, err := r.secretProvider.GetSecretValue(ctx, r.tenantID, secretMatch.name)
+		if err != nil {
+			return "", fmt.Errorf("failed to get secret '%s' from GSM: %w", secretMatch.name, err)
+		}
+
+		result.WriteString(secretValue)
+		lastPos = secretMatch.end
 	}
 
-	return result, nil
+	// Process the remaining part after the last secret (non-secret part)
+	remainingPart := value[lastPos:]
+	if remainingPart != "" {
+		processedPart := r.processVariables(remainingPart)
+		result.WriteString(processedPart)
+	}
+
+	return result.String(), nil
 }
 
-// resolveVariables resolves ${variable_name} patterns
-func (r *Resolver) resolveVariables(value string) (string, error) {
-	// If no variable provider is set, return the value as-is
-	if r.variableProvider == nil {
-		return value, nil
-	}
-
-	matches := VariableRegex.FindAllStringSubmatch(value, -1)
-	if len(matches) == 0 {
-		return value, nil
+// processVariables resolves ${variable_name} patterns in a string
+func (r *Resolver) processVariables(value string) string {
+	if !r.variableEnabled {
+		return value
 	}
 
 	result := value
-	for _, match := range matches {
+	variableMatches := VariableRegex.FindAllStringSubmatch(result, -1)
+	for _, match := range variableMatches {
 		if len(match) < 2 {
 			continue
 		}
@@ -131,14 +141,16 @@ func (r *Resolver) resolveVariables(value string) (string, error) {
 
 		varValue, err := r.variableProvider.GetVariable(varName)
 		if err != nil {
-			return "", fmt.Errorf("failed to get variable '%s': %w", varName, err)
+			// If variable is not found, leave the placeholder as-is
+			// This allows for backward compatibility and flexible configuration
+			continue
 		}
 
 		// Replace the placeholder with the actual variable value
 		result = strings.ReplaceAll(result, placeholder, varValue)
 	}
 
-	return result, nil
+	return result
 }
 
 // isValidSecretName validates that a secret name follows Kubernetes DNS subdomain naming convention.
