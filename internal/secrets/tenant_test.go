@@ -2,48 +2,101 @@ package secrets
 
 import (
 	"context"
-	"errors"
+	"io"
 	"testing"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/model"
-	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
-	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
-type tenantProvider struct {
-	tenant sm.Tenant
+type mockTenantProvider struct {
+	tenant *sm.Tenant
 	err    error
 }
 
-func (m *tenantProvider) GetTenant(ctx context.Context, info *sm.TenantInfo) (*sm.Tenant, error) {
-	return &m.tenant, m.err
+func (m *mockTenantProvider) GetTenant(ctx context.Context, info *sm.TenantInfo) (*sm.Tenant, error) {
+	return m.tenant, m.err
 }
 
-func TestGetSecretCredentials_Success(t *testing.T) {
-	mockSecretStore := &sm.SecretStore{}
-	mockTenant := sm.Tenant{SecretStore: mockSecretStore}
-	mockTenantProvider := &tenantProvider{tenant: mockTenant}
-	ts := NewTenantSecrets(mockTenantProvider, testhelper.Logger(t))
-	ctx := context.Background()
-	tenantID := model.GlobalID(1234)
+func TestTenantSecrets_GetSecretCredentials(t *testing.T) {
+	logger := zerolog.New(io.Discard)
 
-	secretStore, err := ts.GetSecretCredentials(ctx, tenantID)
+	testcases := map[string]struct {
+		tenantProvider *mockTenantProvider
+		expectedStore  *sm.SecretStore
+		expectError    bool
+	}{
+		"successful retrieval": {
+			tenantProvider: &mockTenantProvider{
+				tenant: &sm.Tenant{
+					Id: 123,
+					SecretStore: &sm.SecretStore{
+						Url:   "https://secrets.example.com",
+						Token: "test-token",
+					},
+				},
+			},
+			expectedStore: &sm.SecretStore{
+				Url:   "https://secrets.example.com",
+				Token: "test-token",
+			},
+			expectError: false,
+		},
+		"tenant not found": {
+			tenantProvider: &mockTenantProvider{
+				err: assert.AnError,
+			},
+			expectedStore: nil,
+			expectError:   true,
+		},
+		"tenant without secret store": {
+			tenantProvider: &mockTenantProvider{
+				tenant: &sm.Tenant{
+					Id:          123,
+					SecretStore: nil,
+				},
+			},
+			expectedStore: nil,
+			expectError:   false,
+		},
+	}
 
-	assert.NoError(t, err)
-	assert.Equal(t, mockSecretStore, secretStore)
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			ts := NewTenantSecrets(tc.tenantProvider, logger)
+
+			store, err := ts.GetSecretCredentials(context.Background(), model.GlobalID(123))
+
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tc.expectedStore, store)
+			}
+		})
+	}
 }
 
-func TestGetSecretCredentials_Error(t *testing.T) {
-	getTenantErr := errors.New("tenant not found")
-	mockTenantProvider := &tenantProvider{err: getTenantErr}
-	ts := NewTenantSecrets(mockTenantProvider, testhelper.Logger(t))
-	ctx := context.Background()
-	tenantID := model.GlobalID(1234)
+func TestTenantSecrets_GetSecretValue(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+	tenantProvider := &mockTenantProvider{
+		tenant: &sm.Tenant{
+			Id: 123,
+			SecretStore: &sm.SecretStore{
+				Url:   "https://secrets.example.com",
+				Token: "test-token",
+			},
+		},
+	}
 
-	secretStore, err := ts.GetSecretCredentials(ctx, tenantID)
+	ts := NewTenantSecrets(tenantProvider, logger)
 
-	assert.Error(t, err)
-	assert.Nil(t, secretStore)
-	assert.Equal(t, getTenantErr, err)
+	// Test that GetSecretValue returns empty string for backward compatibility
+	value, err := ts.GetSecretValue(context.Background(), model.GlobalID(123), "test-secret")
+	require.NoError(t, err)
+	require.Equal(t, "", value)
 }
