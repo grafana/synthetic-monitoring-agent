@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.41.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.41.2...v0.41.3) (2025-08-30)
+
+
+### Fixes
+
+* extract testSecretStore helpers to testhelper package ([#1463](https://github.com/grafana/synthetic-monitoring-agent/issues/1463)) ([c21d763](https://github.com/grafana/synthetic-monitoring-agent/commit/c21d763fd435913bc20ae3d13d6fc57b3c40af9f))
+* Make tests less flaky ([9f4e479](https://github.com/grafana/synthetic-monitoring-agent/commit/9f4e479ce46fb2e729ced943ce01febb321bb69d))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm to v0.6.2 ([12726d8](https://github.com/grafana/synthetic-monitoring-agent/commit/12726d84cc0d9e8288c426addc0fec6be25b7fab))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v139.0.7258.154-r0-3.22.1 ([9288f87](https://github.com/grafana/synthetic-monitoring-agent/commit/9288f875a3ff0dd9c7dad83c5d4fb6eb69c8ad92))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.17.0 ([f9de2c3](https://github.com/grafana/synthetic-monitoring-agent/commit/f9de2c3ad4f871ccb7b3edf73eb504f47302ef01))
+
 ## [0.41.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.41.1...v0.41.2) (2025-08-27)
 
 
