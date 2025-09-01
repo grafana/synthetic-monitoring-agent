@@ -230,24 +230,26 @@ func ToJavaScriptWithSecrets(value string) string {
 	buf := []byte(value)
 
 	// First handle secret variables
+	p := handleSecretVariables(&s, buf, 0)
+
+	// Then handle regular variables in the remaining text
+	handleRegularVariables(&s, buf[p:])
+
+	return s.String()
+}
+
+// handleSecretVariables processes secret variables in the buffer and returns the position after the last secret
+func handleSecretVariables(s *strings.Builder, buf []byte, startPos int) int {
 	locs := SecretRegex.FindAllSubmatchIndex(buf, -1)
-	p := 0
+	p := startPos
 
 	for _, loc := range locs {
 		if len(loc) < 4 {
 			panic("unexpected result while building JavaScript")
 		}
 
-		if s.Len() > 0 {
-			s.WriteRune('+')
-		}
-
-		if pre := buf[p:loc[0]]; len(pre) > 0 {
-			s.WriteRune('\'')
-			escapeJavaScript(&s, pre)
-			s.WriteRune('\'')
-			s.WriteRune('+')
-		}
+		writePlusIfNeeded(s)
+		writeTextBeforeMatch(s, buf, p, loc[0])
 
 		// Generate async secret lookup
 		s.WriteString(`await secrets.get('`)
@@ -257,60 +259,79 @@ func ToJavaScriptWithSecrets(value string) string {
 		p = loc[1]
 	}
 
-	// Then handle regular variables in the remaining text
-	remainingText := buf[p:]
-	if len(remainingText) > 0 {
-		regularLocs := VariableRegex.FindAllSubmatchIndex(remainingText, -1)
-
-		if len(regularLocs) > 0 {
-			if s.Len() > 0 {
-				s.WriteRune('+')
-			}
-
-			p2 := 0
-			for _, loc := range regularLocs {
-				if len(loc) < 4 {
-					panic("unexpected result while building JavaScript")
-				}
-
-				if s.Len() > 0 {
-					s.WriteRune('+')
-				}
-
-				if pre := remainingText[p2:loc[0]]; len(pre) > 0 {
-					s.WriteRune('\'')
-					escapeJavaScript(&s, pre)
-					s.WriteRune('\'')
-					s.WriteRune('+')
-				}
-
-				s.WriteString(`vars['`)
-				s.Write(remainingText[loc[2]:loc[3]])
-				s.WriteString(`']`)
-
-				p2 = loc[1]
-			}
-
-			if len(remainingText[p2:]) > 0 {
-				if s.Len() > 0 {
-					s.WriteRune('+')
-				}
-				s.WriteRune('\'')
-				escapeJavaScript(&s, remainingText[p2:])
-				s.WriteRune('\'')
-			}
-		} else {
-			// No regular variables, just append the remaining text
-			if s.Len() > 0 {
-				s.WriteRune('+')
-			}
-			s.WriteRune('\'')
-			escapeJavaScript(&s, remainingText)
-			s.WriteRune('\'')
-		}
+	// Write any remaining text after secrets
+	if len(buf[p:]) > 0 {
+		writePlusIfNeeded(s)
+		writeQuotedText(s, buf[p:])
 	}
 
-	return s.String()
+	return p
+}
+
+// handleRegularVariables processes regular variables in the remaining text
+func handleRegularVariables(s *strings.Builder, remainingText []byte) {
+	if len(remainingText) == 0 {
+		return
+	}
+
+	regularLocs := VariableRegex.FindAllSubmatchIndex(remainingText, -1)
+
+	if len(regularLocs) > 0 {
+		processRegularVariableMatches(s, remainingText, regularLocs)
+	} else {
+		// No regular variables, just append the remaining text
+		writePlusIfNeeded(s)
+		writeQuotedText(s, remainingText)
+	}
+}
+
+// processRegularVariableMatches processes the matches found by VariableRegex
+func processRegularVariableMatches(s *strings.Builder, remainingText []byte, regularLocs [][]int) {
+	writePlusIfNeeded(s)
+
+	p2 := 0
+	for _, loc := range regularLocs {
+		if len(loc) < 4 {
+			panic("unexpected result while building JavaScript")
+		}
+
+		writePlusIfNeeded(s)
+		writeTextBeforeMatch(s, remainingText, p2, loc[0])
+
+		s.WriteString(`vars['`)
+		s.Write(remainingText[loc[2]:loc[3]])
+		s.WriteString(`']`)
+
+		p2 = loc[1]
+	}
+
+	// Write any remaining text after the last variable
+	if len(remainingText[p2:]) > 0 {
+		writePlusIfNeeded(s)
+		writeQuotedText(s, remainingText[p2:])
+	}
+}
+
+// writePlusIfNeeded writes a plus sign if the builder already has content
+func writePlusIfNeeded(s *strings.Builder) {
+	if s.Len() > 0 {
+		s.WriteRune('+')
+	}
+}
+
+// writeTextBeforeMatch writes the text before a regex match, quoted and escaped
+func writeTextBeforeMatch(s *strings.Builder, buf []byte, start, matchStart int) {
+	if pre := buf[start:matchStart]; len(pre) > 0 {
+		writeQuotedText(s, pre)
+		s.WriteRune('+')
+	}
+}
+
+// writeQuotedText writes text as a quoted JavaScript string with proper escaping
+func writeQuotedText(s *strings.Builder, text []byte) {
+	s.WriteRune('\'')
+	escapeJavaScript(s, text)
+	s.WriteRune('\'')
 }
 
 // escapeJavaScript escapes a byte slice for use in JavaScript strings
