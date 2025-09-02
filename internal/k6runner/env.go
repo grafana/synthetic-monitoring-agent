@@ -13,7 +13,8 @@ func k6Env(localEnv []string) []string {
 	// envDefaults maps environment variables to their value. They will be set only if the environment variable is not
 	// already present on localEnv.
 	envDefaults := map[string]string{
-		"K6_BROWSER_LOG": "info",
+		"K6_BROWSER_LOG":               "info",
+		"K6_AUTO_EXTENSION_RESOLUTION": "false",
 	}
 
 	for env, val := range envDefaults {
