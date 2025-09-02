@@ -10,9 +10,16 @@ import (
 // environment.
 // TODO: Make this a clean slate on the next major release, as a breaking change.
 func k6Env(localEnv []string) []string {
-	// Set K6_BROWSER_LOG=info if it is not set already.
-	if !slices.ContainsFunc(localEnv, func(e string) bool { return strings.HasPrefix(e, "K6_BROWSER_LOG=") }) {
-		localEnv = append(localEnv, "K6_BROWSER_LOG=info")
+	// envDefaults maps environment variables to their value. They will be set only if the environment variable is not
+	// already present on localEnv.
+	envDefaults := map[string]string{
+		"K6_BROWSER_LOG": "info",
+	}
+
+	for env, val := range envDefaults {
+		if !slices.ContainsFunc(localEnv, func(e string) bool { return strings.HasPrefix(e, env+"=") }) {
+			localEnv = append(localEnv, env+"="+val)
+		}
 	}
 
 	return localEnv
