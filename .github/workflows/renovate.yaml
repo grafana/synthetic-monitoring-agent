@@ -1,8 +1,6 @@
-name: Self-hosted Renovate
+name: Self-hosted Renovate (Deprecated)
 
 on:
-  schedule:
-    - cron: "10 */4 * * *"
   workflow_dispatch:
 
 permissions:

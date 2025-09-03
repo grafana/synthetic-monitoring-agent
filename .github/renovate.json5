@@ -6,6 +6,10 @@
     "github>grafana/sm-renovate//presets/go.json5",
     "github>grafana/sm-renovate//presets/grafana-build-tools.json5"
   ],
+  "ignorePresets": [
+    "github>grafana/grafana-renovate-config//presets/shared-workflows",
+    "github>grafana/grafana-renovate-config//presets/automerge"
+  ],
   "packageRules": [
     {
       // The default "docker" versioning will try to restrict upgrades to versions that do not change everything after
