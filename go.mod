@@ -34,7 +34,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/go-kit/log v0.2.1
 	github.com/gogo/status v1.1.1
-	github.com/grafana/loki/pkg/push v0.0.0-20241004191050-c2f38e18c6b8
+	github.com/grafana/loki/pkg/push/v3 v3.5.3
 	github.com/jpillora/backoff v1.0.0
 	github.com/mccutchen/go-httpbin/v2 v2.18.3
 	github.com/prometheus-community/pro-bing v0.7.0
