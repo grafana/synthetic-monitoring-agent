@@ -11,17 +11,20 @@ import (
 
 type SecretProvider interface {
 	GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error)
+	GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
 }
 
 type TenantProvider interface {
 	GetTenant(context.Context, *sm.TenantInfo) (*sm.Tenant, error)
 }
 
+// TenantSecrets provides backward compatibility with existing code
 type TenantSecrets struct {
 	tp     TenantProvider
 	logger zerolog.Logger
 }
 
+// NewTenantSecrets creates a new TenantSecrets instance for backward compatibility
 func NewTenantSecrets(tp TenantProvider, logger zerolog.Logger) *TenantSecrets {
 	return &TenantSecrets{
 		tp:     tp,
@@ -29,6 +32,7 @@ func NewTenantSecrets(tp TenantProvider, logger zerolog.Logger) *TenantSecrets {
 	}
 }
 
+// GetSecretCredentials gets the secret store configuration for a tenant (backward compatibility)
 func (ts *TenantSecrets) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
 	if ts.logger.GetLevel() <= zerolog.DebugLevel {
 		tenantID, regionID := model.GetLocalAndRegionIDs(tenantID)
@@ -44,4 +48,11 @@ func (ts *TenantSecrets) GetSecretCredentials(ctx context.Context, tenantID mode
 	}
 
 	return tenant.SecretStore, nil
+}
+
+// GetSecretValue implements SecretProvider interface (backward compatibility)
+func (ts *TenantSecrets) GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
+	// For backward compatibility, return empty string
+	// This will be replaced by the full implementation in PR 2
+	return "", nil
 }
