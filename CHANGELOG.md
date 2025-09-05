@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.42.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.41.3...v0.42.0) (2025-09-05)
+
+
+### Features
+
+* lay groundwork for protocol secrets and string interpolation system ([#1468](https://github.com/grafana/synthetic-monitoring-agent/issues/1468)) ([8d634bb](https://github.com/grafana/synthetic-monitoring-agent/commit/8d634bb30f64a7eda9e367cdc8af7eb65c5ab8cd))
+
+
+### Miscellaneous Chores
+
+* k6runner/env: modularize set-env-if-empty code ([b1b8307](https://github.com/grafana/synthetic-monitoring-agent/commit/b1b8307cad5598ada4883d2e2ef5a7679ddd64b7))
+* k6runner/env: set `K6_AUTO_EXTENSION_RESOLUTION=false` by default ([c237b99](https://github.com/grafana/synthetic-monitoring-agent/commit/c237b9969fdcde759be7a8e9c67364b6842377c5))
+* switch to platform-managed renovate ([1ecfa1b](https://github.com/grafana/synthetic-monitoring-agent/commit/1ecfa1b0114d28084ba59f4d47750cfb559af3aa))
+* Update dependency grafana/xk6-sm to v0.6.3 ([2f00786](https://github.com/grafana/synthetic-monitoring-agent/commit/2f007860179d9df8f9ed325b76fa8d80e6d9a7a6))
+* Update docker:dind Docker digest to 8316442 ([90ab790](https://github.com/grafana/synthetic-monitoring-agent/commit/90ab79056c112fe8c165fa9528610156ab99bc9b))
+* Update docker:dind Docker digest to a56b3bd ([5db203d](https://github.com/grafana/synthetic-monitoring-agent/commit/5db203da6864bcaace908bdc285cb1ad2134e82e))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.18.1 ([f5cd0e9](https://github.com/grafana/synthetic-monitoring-agent/commit/f5cd0e99b108ad52fcf16097cf134f6ad5f1e198))
+* Update grafana/shared-workflows digest to bee55b8 ([c31b3ad](https://github.com/grafana/synthetic-monitoring-agent/commit/c31b3ada1b5b5bd9b19e855b6337de2d4835c236))
+
 ## [0.41.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.41.2...v0.41.3) (2025-08-30)
 
 
