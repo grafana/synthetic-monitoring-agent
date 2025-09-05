@@ -23,6 +23,17 @@ The documentation for other targets is available thru:
 $ make help
 ```
 
+Livereload Development
+----------------------
+
+Install [air](https://github.com/air-verse/air?tab=readme-ov-file#installation) and ensure `SM_AGENT_API_TOKEN` is set prior to running.
+
+```
+$ air
+```
+
+Any code changes will now trigger air to rebuild the agent and run the generated executable.
+
 Linting
 -------
 
