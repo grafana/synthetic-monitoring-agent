@@ -81,7 +81,7 @@ type Updater struct {
 	k6Runner       k6runner.Runner
 	scraperFactory scraper.Factory
 	tenantLimits   *limits.TenantLimits
-	tenantSecrets  *secrets.TenantSecrets
+	tenantSecrets  secrets.SecretProvider
 	telemeter      *telemetry.Telemeter
 	usageReporter  usage.Reporter
 }
@@ -117,8 +117,8 @@ type UpdaterOptions struct {
 	K6Runner       k6runner.Runner
 	ScraperFactory scraper.Factory
 	TenantLimits   *limits.TenantLimits
+	SecretProvider secrets.SecretProvider
 	Telemeter      *telemetry.Telemeter
-	TenantSecrets  *secrets.TenantSecrets
 	UsageReporter  usage.Reporter
 }
 
@@ -241,7 +241,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		k6Runner:       opts.K6Runner,
 		scraperFactory: scraperFactory,
 		tenantLimits:   opts.TenantLimits,
-		tenantSecrets:  opts.TenantSecrets,
+		tenantSecrets:  opts.SecretProvider,
 		telemeter:      opts.Telemeter,
 		metrics: metrics{
 			changeErrorsCounter: changeErrorsCounter,
