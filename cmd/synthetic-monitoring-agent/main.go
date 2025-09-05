@@ -203,8 +203,7 @@ func run(args []string, stdout io.Writer) error {
 	if features.IsSet(feature.K6) {
 		newUri, err := validateK6URI(config.K6URI)
 		if err != nil {
-			config.K6URI = ""
-			zl.Warn().Str("k6URI", config.K6URI).Err(err).Msg("invalid k6 URI")
+			return err
 		} else if newUri != config.K6URI {
 			config.K6URI = newUri
 		}
