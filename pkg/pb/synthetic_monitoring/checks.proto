@@ -342,6 +342,7 @@ enum HttpMethod {
   POST = 5;
   PUT = 6;
   TRACE = 7;
+  PATCH = 8;
 }
 
 // HttpSettings provides the settings for a HTTP check.
