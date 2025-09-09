@@ -177,7 +177,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    999,
 			expectSuccess: false,
 			expectError:   ErrUnexpectedStatus,
-			expectLogs:    `{"level":"warn","error":"retryable\nunexpected status code 999","after":997.365291,"message":"retrying retryable error"}` + "\n" +
+			expectLogs: `{"level":"warn","error":"retryable\nunexpected status code 999","after":997.365291,"message":"retrying retryable error"}` + "\n" +
 				`{"level":"warn","error":"retryable\nunexpected status code 999","after":2819.742557,"message":"retrying retryable error"}` + "\n" +
 				`{"level":"warn","error":"retryable\nunexpected status code 999","after":4263.609863,"message":"retrying retryable error"}` + "\n" +
 				`{"level":"error","error":"retryable\nunexpected status code 999","message":"retries exhausted"}` + "\n" +
@@ -196,7 +196,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectError:   ErrFromRunner,
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
-				`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}` + "\n",
+				`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}`+"\n",
 				"something went wrong",
 				"something-wrong",
 			),
@@ -214,7 +214,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectError:   nil,
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
-				`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}` + "\n",
+				`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}`+"\n",
 				"syntax error somewhere or something",
 				"aborted",
 			),
@@ -231,8 +231,8 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectErrorAs: &logfmt.SyntaxError{},
 			expectLogs: `{"level":"error","time":"2025-09-09T10:20:01Z","level":"error"}` + "\n" + fmt.Sprintf(
-				`{"level":"debug","error":"logfmt syntax error at pos 19 on line 1: unterminated quoted value","message":"cannot load logs to logger"}` + "\n" +
-				`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}` + "\n",
+				`{"level":"debug","error":"logfmt syntax error at pos 19 on line 1: unterminated quoted value","message":"cannot load logs to logger"}`+"\n"+
+					`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}`+"\n",
 				"we killed k6",
 				"aborted",
 			),
@@ -249,9 +249,9 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectErrorAs: expfmt.ParseError{},
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
-				`{"level":"error","error":"text format parsing error in line 1: unexpected end of input stream","message":"decoding prometheus metrics"}` + "\n" +
-				`{"level":"debug","error":"decoding prometheus metrics: text format parsing error in line 1: unexpected end of input stream","message":"cannot extract metric samples"}` + "\n" +
-				`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}` + "\n",
+				`{"level":"error","error":"text format parsing error in line 1: unexpected end of input stream","message":"decoding prometheus metrics"}`+"\n"+
+					`{"level":"debug","error":"decoding prometheus metrics: text format parsing error in line 1: unexpected end of input stream","message":"cannot extract metric samples"}`+"\n"+
+					`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}`+"\n",
 				"we killed k6",
 				"aborted",
 			),
@@ -292,7 +292,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
 			expectError:   context.DeadlineExceeded,
-			expectLogs:    `{"level":"error","error":"Post \"http://127.0.0.1:42731/run\": context deadline exceeded","message":"sending request"}` + "\n" +
+			expectLogs: `{"level":"error","error":"Post \"http://127.0.0.1:42731/run\": context deadline exceeded","message":"sending request"}` + "\n" +
 				`{"level":"warn","error":"retryable\nmaking request: Post \"http://127.0.0.1:42731/run\": context deadline exceeded","after":0,"message":"retrying retryable error"}` + "\n" +
 				`{"level":"error","error":"Post \"http://127.0.0.1:42731/run\": context deadline exceeded","message":"sending request"}` + "\n" +
 				`{"level":"warn","error":"retryable\nmaking request: Post \"http://127.0.0.1:42731/run\": context deadline exceeded","after":23.035135,"message":"retrying retryable error"}` + "\n" +
