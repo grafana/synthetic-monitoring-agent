@@ -335,8 +335,7 @@ func TestScriptHTTPRun(t *testing.T) {
 				zlogger  = zerolog.New(&logBuf)
 			)
 
-			succest
-			, err := script.Run(ctx, registry, zlogger, SecretStore{})
+			success, err := script.Run(ctx, registry, zlogger, SecretStore{})
 			require.Equal(t, tc.expectSuccess, success)
 			require.Equal(t, tc.expectLogs, logBuf.String())
 			if tc.expectErrorAs == nil {
