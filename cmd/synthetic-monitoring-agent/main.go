@@ -313,7 +313,7 @@ func run(args []string, stdout io.Writer) error {
 
 	publisher := publisherFactory(ctx, tm, zl.With().Str("subsystem", "publisher").Str("version", config.SelectedPublisher).Logger(), promRegisterer)
 	limits := limits.NewTenantLimits(tm)
-	secrets := secrets.NewTenantSecrets(tm, zl.With().Str("subsystem", "secretstore").Logger())
+	secretProvider := secrets.NewSecretProvider(tm, 60*time.Second, zl.With().Str("subsystem", "secretstore").Logger())
 
 	telemetry := telemetry.NewTelemeter(
 		ctx, uuid.New().String(), time.Duration(config.TelemetryTimeSpan)*time.Minute,
@@ -334,7 +334,7 @@ func run(args []string, stdout io.Writer) error {
 		K6Runner:       k6Runner,
 		ScraperFactory: scraper.New,
 		TenantLimits:   limits,
-		TenantSecrets:  secrets,
+		SecretProvider: secretProvider,
 		Telemeter:      telemetry,
 		UsageReporter:  usageReporter,
 	})
@@ -355,7 +355,7 @@ func run(args []string, stdout io.Writer) error {
 		PromRegisterer: promRegisterer,
 		Features:       features,
 		K6Runner:       k6Runner,
-		TenantSecrets:  secrets,
+		SecretProvider: secretProvider,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create ad-hoc checks handler: %w", err)
