@@ -318,7 +318,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			var (
 				registry = prometheus.NewRegistry()
 				logBuf   = bytes.Buffer{}
-				zlogger  = zerolog.New(&logBuf)
+			zlogger  = zerolog.New(&logBuf)
 			)
 
 			success, err := script.Run(ctx, registry, zlogger, SecretStore{})
