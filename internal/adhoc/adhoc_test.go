@@ -143,7 +143,7 @@ func (grpcTestConn) GetState() connectivity.State {
 	return connectivity.Ready
 }
 
-func (grpcTestConn) Invoke(context.Context, string, interface{}, interface{}, ...grpc.CallOption) error {
+func (grpcTestConn) Invoke(context.Context, string, any, any, ...grpc.CallOption) error {
 	return nil
 }
 
@@ -322,12 +322,12 @@ func (c *testGetAdhocChecksClient) Trailer() metadata.MD {
 	return nil
 }
 
-func (c *testGetAdhocChecksClient) RecvMsg(interface{}) error {
+func (c *testGetAdhocChecksClient) RecvMsg(any) error {
 	c.logger.Info().Str("func", "RecvMsg").Caller(0).Send()
 	return nil
 }
 
-func (c *testGetAdhocChecksClient) SendMsg(interface{}) error {
+func (c *testGetAdhocChecksClient) SendMsg(any) error {
 	c.logger.Info().Str("func", "SendMsg").Caller(0).Send()
 	return nil
 }
@@ -523,7 +523,6 @@ func TestDefaultRunnerFactory(t *testing.T) {
 	}
 
 	for name, tc := range testcases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 

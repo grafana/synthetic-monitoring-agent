@@ -157,22 +157,22 @@ type icmpLogger struct {
 	logger log.Logger
 }
 
-func (l icmpLogger) Fatalf(format string, v ...interface{}) {
+func (l icmpLogger) Fatalf(format string, v ...any) {
 	_ = level.Error(l.logger).Log("msg", fmt.Sprintf(format, v...))
 }
 
-func (l icmpLogger) Errorf(format string, v ...interface{}) {
+func (l icmpLogger) Errorf(format string, v ...any) {
 	_ = level.Error(l.logger).Log("msg", fmt.Sprintf(format, v...))
 }
 
-func (l icmpLogger) Warnf(format string, v ...interface{}) {
+func (l icmpLogger) Warnf(format string, v ...any) {
 	_ = level.Warn(l.logger).Log("msg", fmt.Sprintf(format, v...))
 }
 
-func (l icmpLogger) Infof(format string, v ...interface{}) {
+func (l icmpLogger) Infof(format string, v ...any) {
 	_ = level.Info(l.logger).Log("msg", fmt.Sprintf(format, v...))
 }
 
-func (l icmpLogger) Debugf(format string, v ...interface{}) {
+func (l icmpLogger) Debugf(format string, v ...any) {
 	_ = level.Debug(l.logger).Log("msg", fmt.Sprintf(format, v...))
 }

@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//nolint
+// nolint
 package prober
 
 import (
@@ -19,6 +19,7 @@ import (
 	"errors"
 	"net"
 	"regexp"
+	"slices"
 	"time"
 
 	"github.com/go-kit/log"
@@ -116,11 +117,9 @@ func validRcode(rcode int, valid []string, logger log.Logger) bool {
 			validRcodes = append(validRcodes, rc)
 		}
 	}
-	for _, rc := range validRcodes {
-		if rcode == rc {
-			level.Info(logger).Log("msg", "Rcode is valid", "rcode", rcode, "string_rcode", dns.RcodeToString[rcode])
-			return true
-		}
+	if slices.Contains(validRcodes, rcode) {
+		level.Info(logger).Log("msg", "Rcode is valid", "rcode", rcode, "string_rcode", dns.RcodeToString[rcode])
+		return true
 	}
 	level.Error(logger).Log("msg", "Rcode is not one of the valid rcodes", "rcode", rcode, "string_rcode", dns.RcodeToString[rcode], "valid_rcodes", validRcodes)
 	return false

@@ -50,12 +50,12 @@ func TestCondition(t *testing.T) {
 		const iterations = 100
 		a, b := newCondition(), newCondition()
 		go func() {
-			for i := 0; i < iterations; i++ {
+			for range iterations {
 				a.Signal()
 				wait(t, &b, true, timeout)
 			}
 		}()
-		for i := 0; i < iterations; i++ {
+		for range iterations {
 			wait(t, &a, true, timeout)
 			b.Signal()
 		}

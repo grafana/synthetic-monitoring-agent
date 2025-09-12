@@ -135,7 +135,7 @@ func TestTenantManagerGetTenant(t *testing.T) {
 	// here we don't know if the tenant has been added to the list
 	// of known tenants or not; busy-loop waiting for the tenant to
 	// show up in the internal list kept by the tenant manager
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		tm.tenantsMutex.Lock()
 		_, found := tm.tenants[t3.Id]
 		tm.tenantsMutex.Unlock()
