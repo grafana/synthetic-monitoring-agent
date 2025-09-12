@@ -11,7 +11,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// nolint
 package config
 
 import (
@@ -134,7 +133,7 @@ func (sc *SafeConfig) ReloadConfig(confFile string, logger log.Logger) (err erro
 			module.HTTP.NoFollowRedirects = nil
 			c.Modules[name] = module
 			if logger != nil {
-				level.Warn(logger).Log("msg", "no_follow_redirects is deprecated and will be removed in the next release. It is replaced by follow_redirects.", "module", name)
+				_ = level.Warn(logger).Log("msg", "no_follow_redirects is deprecated and will be removed in the next release. It is replaced by follow_redirects.", "module", name)
 			}
 		}
 	}
@@ -340,8 +339,7 @@ func (s *HTTPProbe) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 
 	for key, value := range s.Headers {
-		switch textproto.CanonicalMIMEHeaderKey(key) {
-		case "Accept-Encoding":
+		if textproto.CanonicalMIMEHeaderKey(key) == "Accept-Encoding" {
 			if !isCompressionAcceptEncodingValid(s.Compression, value) {
 				return fmt.Errorf(`invalid configuration "%s: %s", "compression: %s"`, key, value, s.Compression)
 			}
@@ -446,7 +444,10 @@ func (s *HeaderMatch) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("header name must be set for HTTP header matchers")
 	}
 
-	if s.Regexp.Regexp == nil || s.Regexp.Regexp.String() == "" {
+	// @pokom: It's not obvious if `s.Regexp.String()` would be equivalent.
+	// I suppose a test could have been written to validate if they are.
+	// nolint:staticcheck
+	if s.Regexp.Regexp == nil || s.Regexp.String() == "" {
 		return errors.New("regexp must be set for HTTP header matchers")
 	}
 
