@@ -61,7 +61,6 @@ time="2024-07-12T16:48:01+02:00" level=error msg="Uncaught (in promise) Error: f
 			expect: nil, // FIXME: Probably the parser should tolerate malformed lines.
 		},
 	} {
-
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
