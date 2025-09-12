@@ -23,7 +23,7 @@ ARG HOST_DIST=$TARGETOS-$TARGETARCH
 
 RUN adduser -D -u 12345 -g 12345 sm
 
-ADD --chown=sm:sm --chmod=0500 https://github.com/grafana/xk6-sm/releases/download/v0.6.3/sm-k6-${TARGETOS}-${TARGETARCH} /usr/local/bin/sm-k6
+ADD --chown=sm:sm --chmod=0500 https://github.com/grafana/xk6-sm/releases/download/v0.6.4/sm-k6-${TARGETOS}-${TARGETARCH} /usr/local/bin/sm-k6
 COPY --chown=sm:sm --chmod=0500 --from=setcapper /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
 COPY --chown=sm:sm scripts/pre-stop.sh /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
