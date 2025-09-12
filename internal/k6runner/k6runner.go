@@ -362,7 +362,7 @@ func k6LogsToLogger(logs []byte, logger logger.Logger) error {
 
 NEXT_RECORD:
 	for dec.ScanRecord() {
-		var line []interface{}
+		var line []any
 		var source, level string
 		for dec.ScanKeyval() {
 			key := string(dec.Key())

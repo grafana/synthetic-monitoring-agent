@@ -36,7 +36,7 @@ func (c Collection) Set(s string) error {
 		return ErrInvalidCollection
 	}
 
-	for _, elem := range strings.Split(s, ",") {
+	for elem := range strings.SplitSeq(s, ",") {
 		feature := strings.TrimSpace(elem)
 		if feature == "" {
 			continue

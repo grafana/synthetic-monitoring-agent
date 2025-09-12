@@ -1,5 +1,5 @@
 package logger
 
 type Logger interface {
-	Log(keyvals ...interface{}) error
+	Log(keyvals ...any) error
 }

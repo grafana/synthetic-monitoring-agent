@@ -1089,7 +1089,7 @@ func TestValidateLabel(t *testing.T) {
 	genString := func(n int) string {
 		var s strings.Builder
 		s.Grow(n)
-		for i := 0; i < n; i++ {
+		for range n {
 			_ = s.WriteByte('x')
 		}
 		return s.String()
@@ -1337,7 +1337,7 @@ func TestCompressionAlgorithmUnmarshal(t *testing.T) {
 	}
 }
 
-func checkError(t *testing.T, expectError bool, err error, input interface{}) {
+func checkError(t *testing.T, expectError bool, err error, input any) {
 	t.Helper()
 
 	switch {
@@ -1859,7 +1859,7 @@ func TestMultiHttpSettingsValidate(t *testing.T) {
 	createEntries := func(n int, method HttpMethod, url string) []*MultiHttpEntry {
 		entries := make([]*MultiHttpEntry, n)
 
-		for i := 0; i < n; i++ {
+		for i := range n {
 			entries[i] = &MultiHttpEntry{
 				Request: &MultiHttpEntryRequest{
 					Method: method,

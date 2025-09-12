@@ -508,7 +508,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	bl := kitlog.NewLogfmtLogger(&logs)
 
 	// set up logger to capture all the labels as part of the log entry
-	loggerLabels := make([]interface{}, 0, 2*(2+len(logLabels)))
+	loggerLabels := make([]any, 0, 2*(2+len(logLabels)))
 	loggerLabels = append(loggerLabels, "ts", kitlog.DefaultTimestampUTC, "target", target)
 	for _, l := range logLabels {
 		loggerLabels = append(loggerLabels, l.name, l.value)

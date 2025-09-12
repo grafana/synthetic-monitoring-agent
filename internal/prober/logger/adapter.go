@@ -22,7 +22,7 @@ func (h slogHandler) Enabled(ctx context.Context, level slog.Level) bool {
 
 func (h slogHandler) Handle(ctx context.Context, r slog.Record) error {
 	// Convert slog.Record to key-value pairs for logger.Logger
-	attrs := make([]interface{}, 0)
+	attrs := make([]any, 0)
 	attrs = append(attrs, "level", r.Level.String())
 	attrs = append(attrs, "msg", r.Message)
 	attrs = append(attrs, "time", r.Time.Format(time.RFC3339))

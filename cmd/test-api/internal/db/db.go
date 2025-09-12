@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"slices"
 	"sync"
 	"time"
 
@@ -278,10 +279,8 @@ func (db *Db) DeleteProbe(ctx context.Context, id int64) error {
 	}
 
 	for _, check := range db.checks {
-		for _, pId := range check.Probes {
-			if pId == id {
-				return errors.New("probe is still referenced by check")
-			}
+		if slices.Contains(check.Probes, id) {
+			return errors.New("probe is still referenced by check")
 		}
 	}
 

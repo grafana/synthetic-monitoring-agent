@@ -470,7 +470,7 @@ type jsonLogger struct {
 }
 
 // Log takes key-value pairs and logs them.
-func (l *jsonLogger) Log(keyvals ...interface{}) error {
+func (l *jsonLogger) Log(keyvals ...any) error {
 	m := make(map[string]string)
 	if len(keyvals)%2 != 0 {
 		return fmt.Errorf("expected even number of keyvals, got %d", len(keyvals))
