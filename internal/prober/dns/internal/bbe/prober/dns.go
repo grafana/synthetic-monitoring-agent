@@ -17,12 +17,11 @@ package prober
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net"
 	"regexp"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/miekg/dns"
 	"github.com/prometheus/client_golang/prometheus"
 	pconfig "github.com/prometheus/common/config"
@@ -31,36 +30,36 @@ import (
 )
 
 // validRRs checks a slice of RRs received from the server against a DNSRRValidator.
-func validRRs(rrs *[]dns.RR, v *config.DNSRRValidator, logger log.Logger) bool {
+func validRRs(rrs *[]dns.RR, v *config.DNSRRValidator, logger *slog.Logger) bool {
 	var anyMatch bool = false
 	var allMatch bool = true
 	// Fail the probe if there are no RRs of a given type, but a regexp match is required
 	// (i.e. FailIfNotMatchesRegexp or FailIfNoneMatchesRegexp is set).
 	if len(*rrs) == 0 && len(v.FailIfNotMatchesRegexp) > 0 {
-		level.Error(logger).Log("msg", "fail_if_not_matches_regexp specified but no RRs returned")
+		logger.Error("fail_if_not_matches_regexp specified but no RRs returned")
 		return false
 	}
 	if len(*rrs) == 0 && len(v.FailIfNoneMatchesRegexp) > 0 {
-		level.Error(logger).Log("msg", "fail_if_none_matches_regexp specified but no RRs returned")
+		logger.Error("fail_if_none_matches_regexp specified but no RRs returned")
 		return false
 	}
 	for _, rr := range *rrs {
-		level.Info(logger).Log("msg", "Validating RR", "rr", rr)
+		logger.Info("Validating RR", "rr", rr)
 		for _, re := range v.FailIfMatchesRegexp {
 			match, err := regexp.MatchString(re, rr.String())
 			if err != nil {
-				level.Error(logger).Log("msg", "Error matching regexp", "regexp", re, "err", err)
+				logger.Error("Error matching regexp", "regexp", re, "err", err)
 				return false
 			}
 			if match {
-				level.Error(logger).Log("msg", "At least one RR matched regexp", "regexp", re, "rr", rr)
+				logger.Error("At least one RR matched regexp", "regexp", re, "rr", rr)
 				return false
 			}
 		}
 		for _, re := range v.FailIfAllMatchRegexp {
 			match, err := regexp.MatchString(re, rr.String())
 			if err != nil {
-				level.Error(logger).Log("msg", "Error matching regexp", "regexp", re, "err", err)
+				logger.Error("Error matching regexp", "regexp", re, "err", err)
 				return false
 			}
 			if !match {
@@ -70,18 +69,18 @@ func validRRs(rrs *[]dns.RR, v *config.DNSRRValidator, logger log.Logger) bool {
 		for _, re := range v.FailIfNotMatchesRegexp {
 			match, err := regexp.MatchString(re, rr.String())
 			if err != nil {
-				level.Error(logger).Log("msg", "Error matching regexp", "regexp", re, "err", err)
+				logger.Error("Error matching regexp", "regexp", re, "err", err)
 				return false
 			}
 			if !match {
-				level.Error(logger).Log("msg", "At least one RR did not match regexp", "regexp", re, "rr", rr)
+				logger.Error("At least one RR did not match regexp", "regexp", re, "rr", rr)
 				return false
 			}
 		}
 		for _, re := range v.FailIfNoneMatchesRegexp {
 			match, err := regexp.MatchString(re, rr.String())
 			if err != nil {
-				level.Error(logger).Log("msg", "Error matching regexp", "regexp", re, "err", err)
+				logger.Error("Error matching regexp", "regexp", re, "err", err)
 				return false
 			}
 			if match {
@@ -90,18 +89,18 @@ func validRRs(rrs *[]dns.RR, v *config.DNSRRValidator, logger log.Logger) bool {
 		}
 	}
 	if len(v.FailIfAllMatchRegexp) > 0 && !allMatch {
-		level.Error(logger).Log("msg", "Not all RRs matched regexp")
+		logger.Error("Not all RRs matched regexp")
 		return false
 	}
 	if len(v.FailIfNoneMatchesRegexp) > 0 && !anyMatch {
-		level.Error(logger).Log("msg", "None of the RRs did matched any regexp")
+		logger.Error("None of the RRs did matched any regexp")
 		return false
 	}
 	return true
 }
 
 // validRcode checks rcode in the response against a list of valid rcodes.
-func validRcode(rcode int, valid []string, logger log.Logger) bool {
+func validRcode(rcode int, valid []string, logger *slog.Logger) bool {
 	var validRcodes []int
 	// If no list of valid rcodes is specified, only NOERROR is considered valid.
 	if valid == nil {
@@ -110,7 +109,7 @@ func validRcode(rcode int, valid []string, logger log.Logger) bool {
 		for _, rcode := range valid {
 			rc, ok := dns.StringToRcode[rcode]
 			if !ok {
-				level.Error(logger).Log("msg", "Invalid rcode", "rcode", rcode, "known_rcode", dns.RcodeToString)
+				logger.Error("Invalid rcode", "rcode", rcode, "known_rcode", dns.RcodeToString)
 				return false
 			}
 			validRcodes = append(validRcodes, rc)
@@ -118,20 +117,20 @@ func validRcode(rcode int, valid []string, logger log.Logger) bool {
 	}
 	for _, rc := range validRcodes {
 		if rcode == rc {
-			level.Info(logger).Log("msg", "Rcode is valid", "rcode", rcode, "string_rcode", dns.RcodeToString[rcode])
+			logger.Info("Rcode is valid", "rcode", rcode, "string_rcode", dns.RcodeToString[rcode])
 			return true
 		}
 	}
-	level.Error(logger).Log("msg", "Rcode is not one of the valid rcodes", "rcode", rcode, "string_rcode", dns.RcodeToString[rcode], "valid_rcodes", validRcodes)
+	logger.Error("Rcode is not one of the valid rcodes", "rcode", rcode, "string_rcode", dns.RcodeToString[rcode], "valid_rcodes", validRcodes)
 	return false
 }
 
-func ProbeDNS(ctx context.Context, target string, module config.Module, registry *prometheus.Registry, logger log.Logger) bool {
+func ProbeDNS(ctx context.Context, target string, module config.Module, registry *prometheus.Registry, logger *slog.Logger) bool {
 	success, _ := ProbeDNSWithError(ctx, target, module, registry, logger)
 	return success
 }
 
-func ProbeDNSWithError(ctx context.Context, target string, module config.Module, registry *prometheus.Registry, logger log.Logger) (bool, error) {
+func ProbeDNSWithError(ctx context.Context, target string, module config.Module, registry *prometheus.Registry, logger *slog.Logger) (bool, error) {
 	var dialProtocol string
 	probeDNSDurationGaugeVec := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "probe_dns_duration_seconds",
@@ -169,7 +168,7 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 		var ok bool
 		qc, ok = dns.StringToClass[module.DNS.QueryClass]
 		if !ok {
-			level.Error(logger).Log("msg", "Invalid query class", "Class seen", module.DNS.QueryClass, "Existing classes", dns.ClassToString)
+			logger.Error("Invalid query class", "Class seen", module.DNS.QueryClass, "Existing classes", dns.ClassToString)
 			return false, errors.New("Invalid query class")
 		}
 	}
@@ -179,7 +178,7 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 		var ok bool
 		qt, ok = dns.StringToType[module.DNS.QueryType]
 		if !ok {
-			level.Error(logger).Log("msg", "Invalid query type", "Type seen", module.DNS.QueryType, "Existing types", dns.TypeToString)
+			logger.Error("Invalid query type", "Type seen", module.DNS.QueryType, "Existing types", dns.TypeToString)
 			return false, errors.New("Invalid query type")
 		}
 	}
@@ -190,7 +189,7 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 		module.DNS.TransportProtocol = "udp"
 	}
 	if !(module.DNS.TransportProtocol == "udp" || module.DNS.TransportProtocol == "tcp") {
-		level.Error(logger).Log("msg", "Configuration error: Expected transport protocol udp or tcp", "protocol", module.DNS.TransportProtocol)
+		logger.Error("Configuration error: Expected transport protocol udp or tcp", "protocol", module.DNS.TransportProtocol)
 		return false, errors.New("Invalid transport protocol")
 	}
 
@@ -206,7 +205,7 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 	}
 	ip, lookupTime, err := chooseProtocol(ctx, module.DNS.IPProtocol, module.DNS.IPProtocolFallback, targetAddr, registry, logger)
 	if err != nil {
-		level.Error(logger).Log("msg", "Error resolving address", "err", err)
+		logger.Error("Error resolving address", "err", err)
 		return false, errors.Join(err, errors.New("Error resolving address"))
 	}
 	probeDNSDurationGaugeVec.WithLabelValues("resolve").Add(lookupTime)
@@ -222,7 +221,7 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 		if module.DNS.TransportProtocol == "tcp" {
 			dialProtocol += "-tls"
 		} else {
-			level.Error(logger).Log("msg", "Configuration error: Expected transport protocol tcp for DoT", "protocol", module.DNS.TransportProtocol)
+			logger.Error("Configuration error: Expected transport protocol tcp for DoT", "protocol", module.DNS.TransportProtocol)
 			return false, errors.New("Invalid transport protocol")
 		}
 	}
@@ -233,7 +232,7 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 	if module.DNS.DNSOverTLS {
 		tlsConfig, err := pconfig.NewTLSConfig(&module.DNS.TLSConfig)
 		if err != nil {
-			level.Error(logger).Log("msg", "Failed to create TLS configuration", "err", err)
+			logger.Error("Failed to create TLS configuration", "err", err)
 			return false, errors.Join(err, errors.New("Failed to create TLS configuration"))
 		}
 		if tlsConfig.ServerName == "" {
@@ -248,10 +247,10 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 	if len(module.DNS.SourceIPAddress) > 0 {
 		srcIP := net.ParseIP(module.DNS.SourceIPAddress)
 		if srcIP == nil {
-			level.Error(logger).Log("msg", "Error parsing source ip address", "srcIP", module.DNS.SourceIPAddress)
+			logger.Error("Error parsing source ip address", "srcIP", module.DNS.SourceIPAddress)
 			return false, errors.New("Error parsing source ip address")
 		}
-		level.Info(logger).Log("msg", "Using local address", "srcIP", srcIP)
+		logger.Info("Using local address", "srcIP", srcIP)
 		client.Dialer = &net.Dialer{}
 		if module.DNS.TransportProtocol == "tcp" {
 			client.Dialer.LocalAddr = &net.TCPAddr{IP: srcIP}
@@ -267,7 +266,7 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 		msg.Question = make([]dns.Question, 1)
 		msg.Question[0] = dns.Question{Name: dns.Fqdn(module.DNS.QueryName), Qtype: qt, Qclass: qc}
 
-		level.Info(logger).Log("msg", "Making DNS query", "target", targetIP, "dial_protocol", dialProtocol, "query", module.DNS.QueryName, "type", qt, "class", qc, "retry", retry)
+		logger.Info("Making DNS query", "target", targetIP, "dial_protocol", dialProtocol, "query", module.DNS.QueryName, "type", qt, "class", qc, "retry", retry)
 
 		if module.DNS.RetryTimeout > 0 {
 			client.Timeout = module.DNS.RetryTimeout
@@ -286,7 +285,7 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 		probeDNSDurationGaugeVec.WithLabelValues("request").Set(rtt.Seconds())
 
 		if err != nil {
-			level.Error(logger).Log("msg", "Error while sending a DNS query", "err", err)
+			logger.Error("Error while sending a DNS query", "err", err)
 
 			if errors.Is(err, context.DeadlineExceeded) {
 				// We ran out of time. The probe was not successful.
@@ -302,7 +301,7 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 			return false, errors.Join(err, errors.New("Error while sending a DNS query"))
 		}
 
-		level.Info(logger).Log("msg", "Got response", "response", response, "retry", retry)
+		logger.Info("Got response", "response", response, "retry", retry)
 
 		probeDNSAnswerRRSGauge.Set(float64(len(response.Answer)))
 		probeDNSAuthorityRRSGauge.Set(float64(len(response.Ns)))
@@ -326,19 +325,19 @@ func ProbeDNSWithError(ctx context.Context, target string, module config.Module,
 		if !validRcode(response.Rcode, module.DNS.ValidRcodes, logger) {
 			return false, errors.New("Invalid rcode")
 		}
-		level.Info(logger).Log("msg", "Validating Answer RRs")
+		logger.Info("Validating Answer RRs")
 		if !validRRs(&response.Answer, &module.DNS.ValidateAnswer, logger) {
-			level.Error(logger).Log("msg", "Answer RRs validation failed")
+			logger.Error("Answer RRs validation failed")
 			return false, errors.New("Answer RRs validation failed")
 		}
-		level.Info(logger).Log("msg", "Validating Authority RRs")
+		logger.Info("Validating Authority RRs")
 		if !validRRs(&response.Ns, &module.DNS.ValidateAuthority, logger) {
-			level.Error(logger).Log("msg", "Authority RRs validation failed")
+			logger.Error("Authority RRs validation failed")
 			return false, errors.New("Authority RRs validation failed")
 		}
-		level.Info(logger).Log("msg", "Validating Additional RRs")
+		logger.Info("Validating Additional RRs")
 		if !validRRs(&response.Extra, &module.DNS.ValidateAdditional, logger) {
-			level.Error(logger).Log("msg", "Additional RRs validation failed")
+			logger.Error("Additional RRs validation failed")
 			return false, errors.New("Additional RRs validation failed")
 		}
 

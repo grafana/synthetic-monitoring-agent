@@ -146,7 +146,7 @@ func TestScriptHTTPRun(t *testing.T) {
 		// nonkdebugLogLine is the only line on testLogs that does not have level=debug, therefore the only one that is
 		// actually submitted. We use it in the test table below as a sentinel to assert whether logs have been
 		// submitted or not.
-		nonDebugLogLine = `time="2023-06-01T13:40:26-06:00" level="test" msg="Non-debug message, for testing!"` + "\n"
+		nonDebugLogLine = `{"level":"info","time":"2025-09-09T10:20:01Z","time":"2023-06-01T13:40:26-06:00","level":"test","message":"Non-debug message, for testing!"}` + "\n"
 	)
 
 	for _, tc := range []struct {
@@ -177,6 +177,11 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    999,
 			expectSuccess: false,
 			expectError:   ErrUnexpectedStatus,
+			expectLogs: `{"level":"warn","error":"retryable\nunexpected status code 999","after":997.365291,"message":"retrying retryable error"}` + "\n" +
+				`{"level":"warn","error":"retryable\nunexpected status code 999","after":2819.742557,"message":"retrying retryable error"}` + "\n" +
+				`{"level":"warn","error":"retryable\nunexpected status code 999","after":4263.609863,"message":"retrying retryable error"}` + "\n" +
+				`{"level":"error","error":"retryable\nunexpected status code 999","message":"retries exhausted"}` + "\n" +
+				`{"level":"debug","error":"cannot retry further: retryable\nunexpected status code 999\ncontext deadline exceeded","message":"k6 script exited with error code"}` + "\n",
 		},
 		{
 			// HTTP runner should report failure and an error when the error is unknown.
@@ -191,7 +196,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectError:   ErrFromRunner,
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
-				"level=\"error\" msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}`+"\n",
 				"something went wrong",
 				"something-wrong",
 			),
@@ -209,7 +214,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectError:   nil,
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
-				"level=\"error\" msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}`+"\n",
 				"syntax error somewhere or something",
 				"aborted",
 			),
@@ -225,8 +230,9 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusUnprocessableEntity,
 			expectSuccess: false,
 			expectErrorAs: &logfmt.SyntaxError{},
-			expectLogs: `level="error"` + "\n" + fmt.Sprintf(
-				"level=\"error\" msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+			expectLogs: `{"level":"error","time":"2025-09-09T10:20:01Z","level":"error"}` + "\n" + fmt.Sprintf(
+				`{"level":"debug","error":"logfmt syntax error at pos 19 on line 1: unterminated quoted value","message":"cannot load logs to logger"}`+"\n"+
+					`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}`+"\n",
 				"we killed k6",
 				"aborted",
 			),
@@ -243,7 +249,9 @@ func TestScriptHTTPRun(t *testing.T) {
 			expectSuccess: false,
 			expectErrorAs: expfmt.ParseError{},
 			expectLogs: nonDebugLogLine + fmt.Sprintf(
-				"level=\"error\" msg=\"script did not execute successfully\" error=%q errorCode=%q\n",
+				`{"level":"error","error":"text format parsing error in line 1: unexpected end of input stream","message":"decoding prometheus metrics"}`+"\n"+
+					`{"level":"debug","error":"decoding prometheus metrics: text format parsing error in line 1: unexpected end of input stream","message":"cannot extract metric samples"}`+"\n"+
+					`{"level":"error","time":"2025-09-09T10:20:01Z","error":%q,"errorCode":%q,"message":"script did not execute successfully"}`+"\n",
 				"we killed k6",
 				"aborted",
 			),
@@ -259,7 +267,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
 			expectError:   ErrBuggyRunner,
-			expectLogs:    "",
+			expectLogs:    `{"level":"debug","metrics":"probe_data_sent_bytes{scenario=\"default\"} 0\nprobe_data_received_bytes{scenario=\"default\"} 0\nprobe_iteration_duration_seconds{scenario=\"default\"} 1.3029e-05\n","logs":"time=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Logger format: TEXT\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"k6 version: v0.43.1 ((devel), go1.20.4, linux/amd64)\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Resolving and reading test 'internal/k6runner/testdata/test.js'...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=Loading... moduleSpecifier=\"file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js\" originalModuleSpecifier=internal/k6runner/testdata/test.js\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"'internal/k6runner/testdata/test.js' resolved to 'file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js' and successfully loaded 31 bytes!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Gathering k6 runtime options...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Initializing k6 runner for 'internal/k6runner/testdata/test.js' (file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js)...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Detecting test type for...\" test_path=\"file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Trying to load as a JS test...\" test_path=\"file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Babel: Transformed\" t=8.993963ms\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Runner successfully initialized!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Parsing CLI flags...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Consolidating config layers...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Parsing thresholds and validating config...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Initializing the execution scheduler...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Starting 2 outputs...\" component=output-manager\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=Starting... component=metrics-engine-ingester\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Started!\" component=metrics-engine-ingester\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Trapping interrupt signals so k6 can handle them gracefully...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Starting the REST API server on localhost:6565\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Starting emission of VUs and VUsMax metrics...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Start of initialization\" executorsCount=1 neededVUs=1 phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Initialized VU #1\" phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Finished initializing needed VUs, start initializing executors...\" phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Initialized executor default\" phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Initialization completed\" phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Start of test run\" executorsCount=1 phase=execution-scheduler-run\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"setup() is not defined or not exported, skipping!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Start all executors...\" phase=execution-scheduler-run\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Starting executor\" executor=default startTime=0s type=shared-iterations\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Starting executor run...\" executor=shared-iterations iterations=1 maxDuration=10s scenario=default type=shared-iterations vus=1\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Regular duration is done, waiting for iterations to gracefully finish\" executor=shared-iterations gracefulStop=30s scenario=default\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Executor finished successfully\" executor=default startTime=0s type=shared-iterations\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"teardown() is not defined or not exported, skipping!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Test finished cleanly\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Stopping vus and vux_max metrics emission...\" phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Metrics emission of VUs and VUsMax metrics stopped\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Releasing signal trap...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Waiting for metric processing to finish...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Metrics processing finished!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Stopping outputs...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Stopping 2 outputs...\" component=output-manager\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=Stopping... component=metrics-engine-ingester\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Stopped!\" component=metrics-engine-ingester\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Generating the end-of-test summary...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Everything has finished, exiting k6 normally!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=test msg=\"Non-debug message, for testing!\"\n","message":"script result"}` + "\n",
 		},
 		{
 			name: "inconsistent runner response B",
@@ -272,7 +280,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
 			expectError:   ErrBuggyRunner,
-			expectLogs:    "",
+			expectLogs:    `{"level":"debug","metrics":"probe_data_sent_bytes{scenario=\"default\"} 0\nprobe_data_received_bytes{scenario=\"default\"} 0\nprobe_iteration_duration_seconds{scenario=\"default\"} 1.3029e-05\n","logs":"time=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Logger format: TEXT\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"k6 version: v0.43.1 ((devel), go1.20.4, linux/amd64)\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Resolving and reading test 'internal/k6runner/testdata/test.js'...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=Loading... moduleSpecifier=\"file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js\" originalModuleSpecifier=internal/k6runner/testdata/test.js\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"'internal/k6runner/testdata/test.js' resolved to 'file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js' and successfully loaded 31 bytes!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Gathering k6 runtime options...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Initializing k6 runner for 'internal/k6runner/testdata/test.js' (file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js)...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Detecting test type for...\" test_path=\"file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Trying to load as a JS test...\" test_path=\"file:///home/marcelo/devel/grafana/sm-agent/internal/k6runner/testdata/test.js\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Babel: Transformed\" t=8.993963ms\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Runner successfully initialized!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Parsing CLI flags...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Consolidating config layers...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Parsing thresholds and validating config...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Initializing the execution scheduler...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Starting 2 outputs...\" component=output-manager\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=Starting... component=metrics-engine-ingester\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Started!\" component=metrics-engine-ingester\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Trapping interrupt signals so k6 can handle them gracefully...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Starting the REST API server on localhost:6565\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Starting emission of VUs and VUsMax metrics...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Start of initialization\" executorsCount=1 neededVUs=1 phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Initialized VU #1\" phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Finished initializing needed VUs, start initializing executors...\" phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Initialized executor default\" phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Initialization completed\" phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Start of test run\" executorsCount=1 phase=execution-scheduler-run\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"setup() is not defined or not exported, skipping!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Start all executors...\" phase=execution-scheduler-run\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Starting executor\" executor=default startTime=0s type=shared-iterations\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Starting executor run...\" executor=shared-iterations iterations=1 maxDuration=10s scenario=default type=shared-iterations vus=1\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Regular duration is done, waiting for iterations to gracefully finish\" executor=shared-iterations gracefulStop=30s scenario=default\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Executor finished successfully\" executor=default startTime=0s type=shared-iterations\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"teardown() is not defined or not exported, skipping!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Test finished cleanly\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Stopping vus and vux_max metrics emission...\" phase=execution-scheduler-init\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Metrics emission of VUs and VUsMax metrics stopped\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Releasing signal trap...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Waiting for metric processing to finish...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Metrics processing finished!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Stopping outputs...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Stopping 2 outputs...\" component=output-manager\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=Stopping... component=metrics-engine-ingester\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Stopped!\" component=metrics-engine-ingester\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Generating the end-of-test summary...\"\ntime=\"2023-06-01T13:40:26-06:00\" level=debug msg=\"Everything has finished, exiting k6 normally!\"\ntime=\"2023-06-01T13:40:26-06:00\" level=test msg=\"Non-debug message, for testing!\"\n","message":"script result"}` + "\n",
 		},
 		{
 			name: "request timeout",
@@ -284,6 +292,12 @@ func TestScriptHTTPRun(t *testing.T) {
 			statusCode:    http.StatusInternalServerError,
 			expectSuccess: false,
 			expectError:   context.DeadlineExceeded,
+			expectLogs: `{"level":"error","error":"Post \"http://127.0.0.1:42731/run\": context deadline exceeded","message":"sending request"}` + "\n" +
+				`{"level":"warn","error":"retryable\nmaking request: Post \"http://127.0.0.1:42731/run\": context deadline exceeded","after":0,"message":"retrying retryable error"}` + "\n" +
+				`{"level":"error","error":"Post \"http://127.0.0.1:42731/run\": context deadline exceeded","message":"sending request"}` + "\n" +
+				`{"level":"warn","error":"retryable\nmaking request: Post \"http://127.0.0.1:42731/run\": context deadline exceeded","after":23.035135,"message":"retrying retryable error"}` + "\n" +
+				`{"level":"error","error":"retryable\nmaking request: Post \"http://127.0.0.1:42731/run\": context deadline exceeded","message":"retries exhausted"}` + "\n" +
+				`{"level":"debug","error":"cannot retry further: retryable\nmaking request: Post \"http://127.0.0.1:42731/run\": context deadline exceeded\ncontext deadline exceeded","message":"k6 script exited with error code"}` + "\n",
 		},
 	} {
 		tc := tc
@@ -318,13 +332,12 @@ func TestScriptHTTPRun(t *testing.T) {
 			var (
 				registry = prometheus.NewRegistry()
 				logBuf   = bytes.Buffer{}
-				logger   = recordingLogger{buf: &logBuf}
-				zlogger  = testhelper.Logger(t)
+				zlogger  = zerolog.New(&logBuf)
 			)
 
-			success, err := script.Run(ctx, registry, logger, zlogger, SecretStore{})
+			success, err := script.Run(ctx, registry, zlogger, SecretStore{})
 			require.Equal(t, tc.expectSuccess, success)
-			require.Equal(t, tc.expectLogs, logger.buf.String())
+			require.Equal(t, tc.expectLogs, logBuf.String())
 			if tc.expectErrorAs == nil {
 				require.ErrorIs(t, err, tc.expectError)
 			} else {
@@ -454,10 +467,9 @@ func TestHTTPProcessorRetries(t *testing.T) {
 
 				var (
 					registry = prometheus.NewRegistry()
-					logger   testLogger
 					zlogger  = zerolog.New(io.Discard)
 				)
-				success, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
+				success, err := processor.Run(ctx, registry, zlogger, SecretStore{})
 				require.ErrorIs(t, err, tc.expectError)
 				require.Equal(t, tc.expectError == nil, success)
 				require.Equal(t, tc.expectRequests, requests.Load())
@@ -500,10 +512,9 @@ func TestHTTPProcessorRetries(t *testing.T) {
 
 		var (
 			registry = prometheus.NewRegistry()
-			logger   testLogger
 			zlogger  = zerolog.New(io.Discard)
 		)
-		success, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
+		success, err := processor.Run(ctx, registry, zlogger, SecretStore{})
 		require.NoError(t, err)
 		require.True(t, success)
 	})

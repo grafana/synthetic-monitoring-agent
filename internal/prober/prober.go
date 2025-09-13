@@ -16,7 +16,6 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/scripted"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/tcp"
@@ -30,10 +29,10 @@ const errUnsupportedCheckType = error_types.BasicError("unsupported check type")
 
 type Prober interface {
 	Name() string
-	Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64)
+	Probe(ctx context.Context, target string, registry *prometheus.Registry, logger zerolog.Logger) (bool, float64)
 }
 
-func Run(ctx context.Context, p Prober, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func Run(ctx context.Context, p Prober, target string, registry *prometheus.Registry, logger zerolog.Logger) (bool, float64) {
 	return p.Probe(ctx, target, registry, logger)
 }
 

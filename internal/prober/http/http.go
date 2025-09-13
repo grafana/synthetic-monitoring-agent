@@ -56,13 +56,14 @@ func (p Prober) Name() string {
 	return "http"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger) (bool, float64) {
-	slogger := logger.ToSlog(l)
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, zlogger zerolog.Logger) (bool, float64) {
 	if p.cacheBustingQueryParamName != "" {
 		// FIXME(mem): the second target argument should be the probe's name
 		target = addCacheBustParam(target, p.cacheBustingQueryParamName, target)
 	}
 
+	// Convert zerolog to slog for BBE using samber/slog-zerolog
+	slogger := logger.NewSlogFromZerolog(zlogger)
 	return bbeprober.ProbeHTTP(ctx, target, p.config, registry, slogger), 0
 }
 

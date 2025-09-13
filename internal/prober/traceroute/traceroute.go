@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
@@ -54,7 +53,7 @@ func (p Prober) Name() string {
 	return "traceroute"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, zlogger zerolog.Logger) (bool, float64) {
 	m, ch, err := mtr.NewMTR(
 		target,
 		p.config.srcAddr,
@@ -67,11 +66,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		p.config.ptrLookup,
 	)
 	if err != nil {
-		logErr := logger.Log(err)
-		if logErr != nil {
-			p.logger.Error().Err(logErr).Msg("logging error")
-			return false, 0
-		}
+		zlogger.Error().Err(err).Msg("failed to create MTR")
 		return false, 0
 	}
 
@@ -86,10 +81,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	success := true
 	err = m.RunWithContext(ctx, p.config.count)
 	if err != nil {
-		err = logger.Log("Level", "error", "msg", err.Error())
-		if err != nil {
-			p.logger.Err(err).Msg("logging error")
-		}
+		zlogger.Error().Err(err).Msg("traceroute failed")
 		success = false
 	}
 	tracerouteID := uuid.New()
@@ -108,11 +100,15 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		}
 		t := strings.Join(targets, ",")
 		hosts[ttl] = t
-		err := logger.Log("Level", "info", "Destination", m.Address, "Hosts", t, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TracerouteID", tracerouteID)
-		if err != nil {
-			p.logger.Error().Err(err).Msg("logging error")
-			continue
-		}
+		zlogger.Info().
+			Str("destination", m.Address).
+			Str("hosts", t).
+			Int("ttl", hop.TTL).
+			Dur("elapsed_time", avgElapsedTime).
+			Float64("loss_percent", hop.Loss()).
+			Int("sent", hop.Sent).
+			Str("traceroute_id", tracerouteID.String()).
+			Msg("traceroute hop")
 	}
 
 	hostsKeys := make([]int, 0, len(hosts))
@@ -128,7 +124,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	traceHash := fnv.New32()
 	_, err = traceHash.Write([]byte(hostsString))
 	if err != nil {
-		p.logger.Error().Err(err).Msg("computing trace hash")
+		zlogger.Error().Err(err).Msg("computing trace hash")
 		return false, 0
 	}
 

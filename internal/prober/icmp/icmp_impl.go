@@ -3,16 +3,15 @@ package icmp
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"time"
 
-	"github.com/go-kit/kit/log"       //nolint:staticcheck // TODO(mem): replace in BBE
-	"github.com/go-kit/kit/log/level" //nolint:staticcheck // TODO(mem): replace in BBE
 	ping "github.com/prometheus-community/pro-bing"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func probeICMP(ctx context.Context, target string, module Module, registry *prometheus.Registry, logger log.Logger) (success bool, duration float64) {
+func probeICMP(ctx context.Context, target string, module Module, registry *prometheus.Registry, logger *slog.Logger) (success bool, duration float64) {
 	var (
 		durationGaugeVec = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Name: "probe_icmp_duration_seconds",
@@ -63,7 +62,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	dstIPAddr, lookupTime, err := chooseProtocol(ctx, module.ICMP.IPProtocol, module.ICMP.IPProtocolFallback, target, int(module.MaxResolveRetries), registry, logger)
 	if err != nil {
-		_ = level.Error(logger).Log("msg", "Error resolving address", "err", err)
+		logger.Error("Error resolving address", "err", err)
 		return false, 0
 	}
 
@@ -76,7 +75,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	if err := pinger.Resolve(); err != nil {
 		// This should never happen, the address is already resolved.
-		_ = level.Error(logger).Log("msg", "Error resolving address", "err", err)
+		logger.Error("Error resolving address", "err", err)
 		return false, 0
 	}
 
@@ -96,12 +95,12 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 			duration += setupDuration
 			setupDone = true
 		}
-		_ = level.Info(logger).Log("msg", "Using source address", "srcIP", pinger.Source)
+		logger.Info("Using source address", "srcIP", pinger.Source)
 	}
 
 	pinger.OnSend = func(pkt *ping.Packet) {
-		_ = level.Info(logger).Log("msg", "Creating ICMP packet", "seq", strconv.Itoa(pkt.Seq))
-		_ = level.Info(logger).Log("msg", "Waiting for reply packets")
+		logger.Info("Creating ICMP packet", "seq", strconv.Itoa(pkt.Seq))
+		logger.Info("Waiting for reply packets")
 	}
 
 	pinger.OnRecv = func(pkt *ping.Packet) {
@@ -110,11 +109,11 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 			hopLimitGauge.Set(float64(pkt.TTL))
 		}
 
-		_ = level.Info(logger).Log("msg", "Found matching reply packet", "seq", strconv.Itoa(pkt.Seq))
+		logger.Info("Found matching reply packet", "seq", strconv.Itoa(pkt.Seq))
 	}
 
 	pinger.OnDuplicateRecv = func(pkt *ping.Packet) {
-		_ = level.Info(logger).Log("msg", "Duplicate packet received", "seq", strconv.Itoa(pkt.Seq))
+		logger.Info("Duplicate packet received", "seq", strconv.Itoa(pkt.Seq))
 	}
 
 	pinger.OnFinish = func(stats *ping.Statistics) {
@@ -125,7 +124,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 		durationStddevGauge.Set(stats.StdDevRtt.Seconds())
 		packetsSentGauge.Set(float64(stats.PacketsSent))
 		packetsReceivedGauge.Set(float64(stats.PacketsRecv))
-		_ = level.Info(logger).Log("msg", "Probe finished", "packets_sent", stats.PacketsSent, "packets_received", stats.PacketsRecv)
+		logger.Info("Probe finished", "packets_sent", stats.PacketsSent, "packets_received", stats.PacketsRecv)
 	}
 
 	pinger.SetDoNotFragment(module.ICMP.DontFragment)
@@ -143,10 +142,10 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	setupStart = time.Now()
 
-	_ = level.Info(logger).Log("msg", "Creating socket")
+	logger.Info("Creating socket")
 
 	if err := pinger.RunWithContext(ctx); err != nil {
-		_ = level.Info(logger).Log("msg", "failed to run ping", "err", err.Error())
+		logger.Info("failed to run ping", "err", err.Error())
 		return false, 0
 	}
 
@@ -154,25 +153,25 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 }
 
 type icmpLogger struct {
-	logger log.Logger
+	logger *slog.Logger
 }
 
 func (l icmpLogger) Fatalf(format string, v ...interface{}) {
-	_ = level.Error(l.logger).Log("msg", fmt.Sprintf(format, v...))
+	l.logger.Error(fmt.Sprintf(format, v...))
 }
 
 func (l icmpLogger) Errorf(format string, v ...interface{}) {
-	_ = level.Error(l.logger).Log("msg", fmt.Sprintf(format, v...))
+	l.logger.Error(fmt.Sprintf(format, v...))
 }
 
 func (l icmpLogger) Warnf(format string, v ...interface{}) {
-	_ = level.Warn(l.logger).Log("msg", fmt.Sprintf(format, v...))
+	l.logger.Warn(fmt.Sprintf(format, v...))
 }
 
 func (l icmpLogger) Infof(format string, v ...interface{}) {
-	_ = level.Info(l.logger).Log("msg", fmt.Sprintf(format, v...))
+	l.logger.Info(fmt.Sprintf(format, v...))
 }
 
 func (l icmpLogger) Debugf(format string, v ...interface{}) {
-	_ = level.Debug(l.logger).Log("msg", fmt.Sprintf(format, v...))
+	l.logger.Debug(fmt.Sprintf(format, v...))
 }
