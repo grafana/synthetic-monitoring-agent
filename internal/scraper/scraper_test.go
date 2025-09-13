@@ -927,17 +927,16 @@ func TestValidateLabels(t *testing.T) {
 	// maxProbeLogLabels returns the maximum number of labels for any
 	// log stream from probeData
 	maxProbeLogLabels := func(t *testing.T, ss Streams) int {
-		max := 0
+		n := 0
+
 		for _, s := range ss {
 			labels, err := parser.ParseMetric(s.Labels)
 			require.NoError(t, err)
 
-			nLabels := len(labels)
-			if nLabels > max {
-				max = nLabels
-			}
+			n = max(n, labels.Len())
 		}
-		return max
+
+		return n
 	}
 
 	timeout := 10 * time.Second
@@ -1309,7 +1308,6 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 	return l.maxLogLabels, nil
 }
 
-//nolint:gocyclo
 func TestScraperCollectData(t *testing.T) {
 	const (
 		checkName     = "check name"
@@ -1521,17 +1519,19 @@ func TestScraperCollectData(t *testing.T) {
 	}
 
 	validateStreams := func(t *testing.T, s Scraper, stream logproto.Stream, tc testcase) {
-		labels, err := parser.ParseMetric(stream.Labels)
+		sLabels, err := parser.ParseMetric(stream.Labels)
 		require.NoError(t, err)
 
 		// Verify that all the expected log labels are present as labels in the stream labels.
 		found := 0
-		for _, label := range labels {
+
+		sLabels.Range(func(label labels.Label) {
 			expected, ok := tc.expectedLogLabels[label.Name]
 			require.Truef(t, ok, "key=%s value=%s labels=%s", label.Name, label.Value, stream.Labels)
 			require.Equalf(t, expected, label.Value, "key=%s", label.Name)
 			found++
-		}
+		})
+
 		require.Equal(t, len(tc.expectedLogLabels), found, stream.Labels)
 
 		// Verify that all the expected log labels are present as part of the actual log entry.
