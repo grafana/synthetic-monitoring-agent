@@ -8,7 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	maps0 "maps"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -1694,10 +1694,10 @@ func (l *testLogger) Log(kv ...any) error {
 	return nil
 }
 
-func mergeMaps(maps ...map[string]string) map[string]string {
+func mergeMaps(mmaps ...map[string]string) map[string]string {
 	out := make(map[string]string)
-	for _, m := range maps {
-		maps0.Copy(out, m)
+	for _, m := range mmaps {
+		maps.Copy(out, m)
 	}
 	return out
 }
