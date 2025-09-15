@@ -1545,7 +1545,7 @@ func TestScraperCollectData(t *testing.T) {
 					key := string(dec.Key())
 					val := string(dec.Value())
 					switch key {
-					case "level", "msg", "timeout_seconds", "duration_seconds":
+					case "level", "msg", "timeout_seconds", "duration_seconds", "walltime_seconds":
 					case "target":
 						require.Equal(t, s.target, val)
 					case "type":

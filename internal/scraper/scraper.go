@@ -674,10 +674,11 @@ func runProber(
 
 	success, duration := prober.Probe(checkCtx, target, registry, logger)
 
-	probeDuration := time.Since(start).Seconds()
+	wallDuration := time.Since(start).Seconds()
 
-	if duration == 0 { // If the prober did not provide their own duration, fallback to probeDuration.
-		duration = probeDuration
+	if duration == 0 {
+		// If the prober did not provide their own duration, fallback to the wall time the scraper took to run.
+		duration = wallDuration
 	}
 
 	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -702,10 +703,10 @@ func runProber(
 
 	if success {
 		probeSuccessGauge.Set(1)
-		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", probeDuration)
+		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", duration, "walltime_seconds", wallDuration)
 	} else {
 		probeSuccessGauge.Set(0)
-		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", probeDuration)
+		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", duration, "walltime_seconds", wallDuration)
 	}
 
 	smCheckInfo.Set(1)
