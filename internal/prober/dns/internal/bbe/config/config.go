@@ -11,6 +11,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// @Pokom: We do not want to lint this file as this is a direct copy from the upstream project with modifications to
+// handle multiple retries. See https://github.com/grafana/synthetic-monitoring-agent/commit/ee78463dd44c4738bab6bba5dda9c939b823933e#diff-6fa34ebdd41f86b2840a8a2bceee4a309e682a5999f8c697889d94ea5d236652 for more details on the initial pass.
+// See https://github.com/prometheus/blackbox_exporter/pull/1267/files the attempted implementation in the upstream repo.
+//
+//nolint:all
 package config
 
 import (
@@ -133,7 +138,7 @@ func (sc *SafeConfig) ReloadConfig(confFile string, logger log.Logger) (err erro
 			module.HTTP.NoFollowRedirects = nil
 			c.Modules[name] = module
 			if logger != nil {
-				_ = level.Warn(logger).Log("msg", "no_follow_redirects is deprecated and will be removed in the next release. It is replaced by follow_redirects.", "module", name)
+				level.Warn(logger).Log("msg", "no_follow_redirects is deprecated and will be removed in the next release. It is replaced by follow_redirects.", "module", name)
 			}
 		}
 	}
@@ -339,9 +344,12 @@ func (s *HTTPProbe) UnmarshalYAML(unmarshal func(any) error) error {
 	}
 
 	for key, value := range s.Headers {
-		if textproto.CanonicalMIMEHeaderKey(key) == "Accept-Encoding" {
-			if !isCompressionAcceptEncodingValid(s.Compression, value) {
-				return fmt.Errorf(`invalid configuration "%s: %s", "compression: %s"`, key, value, s.Compression)
+		switch textproto.CanonicalMIMEHeaderKey(key) {
+		case "Accept-Encoding":
+			{
+				if !isCompressionAcceptEncodingValid(s.Compression, value) {
+					return fmt.Errorf(`invalid configuration "%s: %s", "compression: %s"`, key, value, s.Compression)
+				}
 			}
 		}
 	}
@@ -444,9 +452,6 @@ func (s *HeaderMatch) UnmarshalYAML(unmarshal func(any) error) error {
 		return errors.New("header name must be set for HTTP header matchers")
 	}
 
-	// @pokom: It's not obvious if `s.Regexp.String()` would be equivalent.
-	// I suppose a test could have been written to validate if they are.
-	// nolint:staticcheck
 	if s.Regexp.Regexp == nil || s.Regexp.String() == "" {
 		return errors.New("regexp must be set for HTTP header matchers")
 	}
@@ -483,7 +488,7 @@ func isCompressionAcceptEncodingValid(encoding, acceptEncoding string) bool {
 
 	var encodings []encodingQuality
 
-	for parts := range strings.SplitSeq(acceptEncoding, ",") {
+	for _, parts := range strings.Split(acceptEncoding, ",") {
 		var e encodingQuality
 
 		if idx := strings.LastIndexByte(parts, ';'); idx == -1 {

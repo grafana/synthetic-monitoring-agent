@@ -11,6 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// @Pokom: We do not want to lint this file as this is a direct copy from the upstream project with modifications to
+// handle multiple retries. See https://github.com/grafana/synthetic-monitoring-agent/commit/ee78463dd44c4738bab6bba5dda9c939b823933e#diff-6fa34ebdd41f86b2840a8a2bceee4a309e682a5999f8c697889d94ea5d236652 for more details on the initial pass.
+// See https://github.com/prometheus/blackbox_exporter/pull/1267/files the attempted implementation in the upstream repo.
+//
 //nolint:all
 package prober
 
