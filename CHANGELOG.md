@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.43.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.42.0...v0.43.0) (2025-09-15)
+
+
+### Features
+
+* Add air configuration ([#1489](https://github.com/grafana/synthetic-monitoring-agent/issues/1489)) ([acbe385](https://github.com/grafana/synthetic-monitoring-agent/commit/acbe385f0f61b90fb3ba1fb2c478085dbfd220bd))
+* Add PATCH as a valid HTTP method ([cbcbc16](https://github.com/grafana/synthetic-monitoring-agent/commit/cbcbc16dc89b6f856727e3c751619bf1f8b5fe2e))
+
+
+### Fixes
+
+* Fail earlier if sm-k6 isn't on path ([#1488](https://github.com/grafana/synthetic-monitoring-agent/issues/1488)) ([eb46b7d](https://github.com/grafana/synthetic-monitoring-agent/commit/eb46b7dcf1ca781c58ddfdc6afcb5934c939c8ea))
+* make log `duration_seconds` the same as the namesake metric ([96a7682](https://github.com/grafana/synthetic-monitoring-agent/commit/96a7682dd916e5bd27727134e0f957004a4cd36f))
+* Update active series estimates ([ad83d38](https://github.com/grafana/synthetic-monitoring-agent/commit/ad83d382e8cac6cfed07fedbd8e50e413b458722))
+
+
+### Miscellaneous Chores
+
+* k6/http: log checkInfo when when retries are exhausted ([9f88089](https://github.com/grafana/synthetic-monitoring-agent/commit/9f880896c785d7132f5abf19afb56fabb1ff3279))
+* Update actions/setup-go action to v6 ([dc52803](https://github.com/grafana/synthetic-monitoring-agent/commit/dc5280392d2e439a486e075d3219294d5e482ca3))
+* Update dependency grafana/xk6-sm to v0.6.4 ([ddb1588](https://github.com/grafana/synthetic-monitoring-agent/commit/ddb15889bd9212e3c7fe28bc250b4f22a62184de))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:139.0.7258.154-r0-3.22.1 Docker digest to 59612ba ([f1c47ce](https://github.com/grafana/synthetic-monitoring-agent/commit/f1c47ce25a6105687f88d634dd05ace87e6c6f27))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:139.0.7258.154-r0-3.22.1 Docker digest to 6b2ac21 ([833ed3a](https://github.com/grafana/synthetic-monitoring-agent/commit/833ed3a974382a7cf3df2f6ba65682a702f4b507))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.19.0 ([8d14313](https://github.com/grafana/synthetic-monitoring-agent/commit/8d14313f7cc9aed477e70a110aeaf0b9c3033104))
+* update grafana.com/loki/pkg/push ([c2c60af](https://github.com/grafana/synthetic-monitoring-agent/commit/c2c60af723e09bae1207d82490e179cd20cf70a7))
+* Update module github.com/spf13/afero to v1.15.0 ([d6ee6eb](https://github.com/grafana/synthetic-monitoring-agent/commit/d6ee6eb371942a3bbc8dba7853487a1bbf058e15))
+* Update module golang.org/x/net to v0.44.0 ([5d32e94](https://github.com/grafana/synthetic-monitoring-agent/commit/5d32e94cf128e0ee409d84ada97ec8d24332c645))
+* Update module google.golang.org/grpc to v1.75.1 ([26fd4c0](https://github.com/grafana/synthetic-monitoring-agent/commit/26fd4c0da77cd5e476f0cee06e2622df469d6a13))
+
 ## [0.42.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.41.3...v0.42.0) (2025-09-08)
 
 
