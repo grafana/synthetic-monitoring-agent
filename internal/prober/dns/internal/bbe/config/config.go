@@ -11,7 +11,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//nolint
+// @Pokom: We do not want to lint this file as this is a direct copy from the upstream project with modifications to
+// handle multiple retries. See https://github.com/grafana/synthetic-monitoring-agent/commit/ee78463dd44c4738bab6bba5dda9c939b823933e#diff-6fa34ebdd41f86b2840a8a2bceee4a309e682a5999f8c697889d94ea5d236652 for more details on the initial pass.
+// See https://github.com/prometheus/blackbox_exporter/pull/1267/files the attempted implementation in the upstream repo.
+//
+//nolint:all
 package config
 
 import (
@@ -163,7 +167,7 @@ func NewRegexp(s string) (Regexp, error) {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (re *Regexp) UnmarshalYAML(unmarshal func(any) error) error {
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
@@ -177,7 +181,7 @@ func (re *Regexp) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // MarshalYAML implements the yaml.Marshaler interface.
-func (re Regexp) MarshalYAML() (interface{}, error) {
+func (re Regexp) MarshalYAML() (any, error) {
 	if re.original != "" {
 		return re.original, nil
 	}
@@ -291,7 +295,7 @@ type DNSRRValidator struct {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (s *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *Config) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain Config
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
@@ -300,7 +304,7 @@ func (s *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (s *Module) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *Module) UnmarshalYAML(unmarshal func(any) error) error {
 	*s = DefaultModule
 	type plain Module
 	if err := unmarshal((*plain)(s)); err != nil {
@@ -310,7 +314,7 @@ func (s *Module) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (s *HTTPProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *HTTPProbe) UnmarshalYAML(unmarshal func(any) error) error {
 	*s = DefaultHTTPProbe
 	type plain HTTPProbe
 	if err := unmarshal((*plain)(s)); err != nil {
@@ -342,8 +346,10 @@ func (s *HTTPProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	for key, value := range s.Headers {
 		switch textproto.CanonicalMIMEHeaderKey(key) {
 		case "Accept-Encoding":
-			if !isCompressionAcceptEncodingValid(s.Compression, value) {
-				return fmt.Errorf(`invalid configuration "%s: %s", "compression: %s"`, key, value, s.Compression)
+			{
+				if !isCompressionAcceptEncodingValid(s.Compression, value) {
+					return fmt.Errorf(`invalid configuration "%s: %s", "compression: %s"`, key, value, s.Compression)
+				}
 			}
 		}
 	}
@@ -352,7 +358,7 @@ func (s *HTTPProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (s *GRPCProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *GRPCProbe) UnmarshalYAML(unmarshal func(any) error) error {
 	*s = DefaultGRPCProbe
 	type plain GRPCProbe
 	if err := unmarshal((*plain)(s)); err != nil {
@@ -362,7 +368,7 @@ func (s *GRPCProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (s *DNSProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *DNSProbe) UnmarshalYAML(unmarshal func(any) error) error {
 	*s = DefaultDNSProbe
 	type plain DNSProbe
 	if err := unmarshal((*plain)(s)); err != nil {
@@ -386,7 +392,7 @@ func (s *DNSProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (s *TCPProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *TCPProbe) UnmarshalYAML(unmarshal func(any) error) error {
 	*s = DefaultTCPProbe
 	type plain TCPProbe
 	if err := unmarshal((*plain)(s)); err != nil {
@@ -396,7 +402,7 @@ func (s *TCPProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (s *DNSRRValidator) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *DNSRRValidator) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain DNSRRValidator
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
@@ -405,7 +411,7 @@ func (s *DNSRRValidator) UnmarshalYAML(unmarshal func(interface{}) error) error 
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (s *ICMPProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *ICMPProbe) UnmarshalYAML(unmarshal func(any) error) error {
 	*s = DefaultICMPProbe
 	type plain ICMPProbe
 	if err := unmarshal((*plain)(s)); err != nil {
@@ -426,7 +432,7 @@ func (s *ICMPProbe) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (s *QueryResponse) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *QueryResponse) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain QueryResponse
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
@@ -436,7 +442,7 @@ func (s *QueryResponse) UnmarshalYAML(unmarshal func(interface{}) error) error {
 }
 
 // UnmarshalYAML implements the yaml.Unmarshaler interface.
-func (s *HeaderMatch) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (s *HeaderMatch) UnmarshalYAML(unmarshal func(any) error) error {
 	type plain HeaderMatch
 	if err := unmarshal((*plain)(s)); err != nil {
 		return err
@@ -446,7 +452,7 @@ func (s *HeaderMatch) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		return errors.New("header name must be set for HTTP header matchers")
 	}
 
-	if s.Regexp.Regexp == nil || s.Regexp.Regexp.String() == "" {
+	if s.Regexp.Regexp == nil || s.Regexp.String() == "" {
 		return errors.New("regexp must be set for HTTP header matchers")
 	}
 

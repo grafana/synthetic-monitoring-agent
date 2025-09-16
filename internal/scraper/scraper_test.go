@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -950,7 +951,6 @@ func TestValidateLabels(t *testing.T) {
 	)
 
 	for name, tc := range testCases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			prober, check, stop := tc.setup(ctx, t)
 			defer stop()
@@ -1037,7 +1037,6 @@ func TestMakeTimeseries(t *testing.T) {
 	}
 
 	for name, tc := range testcases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			actual := makeTimeseries(tc.t, tc.value, tc.labels...)
 			require.Equal(t, len(tc.labels), len(actual.Labels))
@@ -1266,7 +1265,6 @@ func TestAppendDtoToTimeseries(t *testing.T) {
 	}
 
 	for name, tc := range testcases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			actual := appendDtoToTimeseries(
 				nil,
@@ -1353,7 +1351,7 @@ func TestScraperCollectData(t *testing.T) {
 
 	generateLabels := func(offset, count int, valuePrefix string) []sm.Label {
 		var labels []sm.Label
-		for i := 0; i < count; i++ {
+		for i := range count {
 			n := strconv.Itoa(offset + i)
 			labels = append(labels, sm.Label{
 				Name:  "l" + n,
@@ -1365,7 +1363,7 @@ func TestScraperCollectData(t *testing.T) {
 
 	generateLabelSet := func(offset, count int, valuePrefix string) map[string]string {
 		labels := make(map[string]string)
-		for i := 0; i < count; i++ {
+		for i := range count {
 			n := strconv.Itoa(offset + i)
 			labels["label_l"+n] = valuePrefix + n
 		}
@@ -1564,7 +1562,6 @@ func TestScraperCollectData(t *testing.T) {
 	}
 
 	for name, tc := range testcases {
-		tc := tc
 		t.Run(name, func(t *testing.T) {
 			s := Scraper{
 				checkName: checkName,
@@ -1666,7 +1663,7 @@ type testLogger struct {
 	w io.Writer
 }
 
-func (l *testLogger) Log(kv ...interface{}) error {
+func (l *testLogger) Log(kv ...any) error {
 	var buf strings.Builder
 
 	for i, v := range kv {
@@ -1697,12 +1694,10 @@ func (l *testLogger) Log(kv ...interface{}) error {
 	return nil
 }
 
-func mergeMaps(maps ...map[string]string) map[string]string {
+func mergeMaps(mmaps ...map[string]string) map[string]string {
 	out := make(map[string]string)
-	for _, m := range maps {
-		for k, v := range m {
-			out[k] = v
-		}
+	for _, m := range mmaps {
+		maps.Copy(out, m)
 	}
 	return out
 }

@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"os"
@@ -224,9 +225,7 @@ func NewClient(remoteName string, conf *ClientConfig, retriesCounter counterMetr
 	}
 
 	// Copy other headers
-	for k, v := range conf.Headers {
-		headers[k] = v
-	}
+	maps.Copy(headers, conf.Headers)
 
 	return &Client{
 		remoteName:       remoteName,
@@ -555,8 +554,6 @@ func cloneRequest(r *http.Request) *http.Request {
 	*r2 = *r
 	// Deep copy of the Header.
 	r2.Header = make(http.Header)
-	for k, s := range r.Header {
-		r2.Header[k] = s
-	}
+	maps.Copy(r2.Header, r.Header)
 	return r2
 }

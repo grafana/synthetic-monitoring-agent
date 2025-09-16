@@ -66,7 +66,7 @@ var (
 
 		pool: bufferPool{
 			inner: &sync.Pool{
-				New: func() interface{} {
+				New: func() any {
 					buf := make([]byte, 0, defaultBufferCapacity)
 					return &buf
 				},
@@ -172,10 +172,7 @@ func (b *backoffer) wait(ctx context.Context) error {
 	if b.last < b.min {
 		b.last = b.min
 	} else {
-		b.last = 2 * b.last
-		if b.last > b.max {
-			b.last = b.max
-		}
+		b.last = min(2*b.last, b.max)
 	}
 	return sleepCtx(ctx, b.last)
 }

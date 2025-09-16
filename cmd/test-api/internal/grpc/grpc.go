@@ -98,7 +98,7 @@ func (s *Server) Stop() {
 	s.srv.Stop()
 }
 
-func (s *Server) unaryHandler(ctx context.Context, req interface{}, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func (s *Server) unaryHandler(ctx context.Context, req any, _ *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	probeID, err := s.validateToken(ctx)
 	if err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func (s *Server) unaryHandler(ctx context.Context, req interface{}, _ *grpc.Unar
 	return handler(contextWithProbeId(ctx, probeID), req)
 }
 
-func (s *Server) streamHandler(srv interface{}, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (s *Server) streamHandler(srv any, ss grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	probeID, err := s.validateToken(ss.Context())
 	if err != nil {
 		return err
