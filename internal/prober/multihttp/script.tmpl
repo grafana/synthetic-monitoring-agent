@@ -7,6 +7,7 @@ import { test } from 'k6/execution';
 import encoding from 'k6/encoding';
 import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js';
 import { URL } from 'https://jslib.k6.io/url/1.0.0/index.js';
+{{ if .HasSecretVariables }}import secrets from 'k6/secrets';{{ end }}
 
 export const options = {
 	scenarios: {
@@ -65,7 +66,7 @@ function assertHeader(headers, name, matcher) {
 	return false;
 }
 
-export default function() {
+export default {{ if .HasSecretVariables }}async {{ end }}function() {
 	let response;
 	let body;
 	let url;
