@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.43.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.43.0...v0.43.1) (2025-09-19)
+
+
+### Fixes
+
+* Modernize the agent ([#1503](https://github.com/grafana/synthetic-monitoring-agent/issues/1503)) ([fa27e0e](https://github.com/grafana/synthetic-monitoring-agent/commit/fa27e0ed99d837da612762c53f942229aca0d9f1))
+
+
+### Miscellaneous Chores
+
+* Update actions/create-github-app-token action to v2.1.4 ([f91c3ee](https://github.com/grafana/synthetic-monitoring-agent/commit/f91c3ee92401d4e926170d1484b2471b6e3971f2))
+* Update dependency grafana/xk6-sm to v0.6.5 ([2854c82](https://github.com/grafana/synthetic-monitoring-agent/commit/2854c8216ceb4e22ac89708414f322c95f37cde4))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:139.0.7258.154-r0-3.22.1 Docker digest to 8a396e1 ([8f40016](https://github.com/grafana/synthetic-monitoring-agent/commit/8f400166765dae4b87c3f9c1bdd3fd5fa61e0496))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.20.0 ([d9e0998](https://github.com/grafana/synthetic-monitoring-agent/commit/d9e0998dc16e042c5d82b8ec1b9a9aefab35755d))
+* Update golang.org/x/exp digest to df92998 ([2316bf4](https://github.com/grafana/synthetic-monitoring-agent/commit/2316bf446ff42ee43d504a516786f46f9f08f4f6))
+* Update grafana/shared-workflows digest to c194c0f ([bd5b343](https://github.com/grafana/synthetic-monitoring-agent/commit/bd5b34388e08a233578e9d03ec503fd043251d88))
+
 ## [0.43.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.42.0...v0.43.0) (2025-09-15)
 
 
