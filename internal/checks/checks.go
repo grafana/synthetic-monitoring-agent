@@ -399,11 +399,6 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	c.probe = &result.Probe
 
-	err = c.usageReporter.ReportProbe(ctx, result.Probe, c.features)
-	if err != nil {
-		c.logger.Warn().Err(err).Msg("reporting usage failed")
-	}
-
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
 
 	logger.Info().Str("probe_name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
@@ -489,6 +484,24 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		logger.Warn().Err(err).Msg("processing changes stopped")
 		return err
 	})
+
+	go func() {
+		// Do this in a goroutine to avoid blocking the rest of the process.
+		//
+		// This error is not fatal, so simply log it instead of returning it.
+		// That would cause the rest of the check-handling to stop.
+		//
+		// Add a 30 second timeout to guarantee that this goroutine will finish.
+		// The internal timeout in the usage reporter should take care of that.
+
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+
+		err := c.usageReporter.ReportProbe(ctx, result.Probe, c.features)
+		if err != nil {
+			c.logger.Warn().Err(err).Msg("reporting usage failed")
+		}
+	}()
 
 	err = g.Wait()
 
