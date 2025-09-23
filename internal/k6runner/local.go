@@ -97,6 +97,8 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 			Str("secret_config_file", configFile).
 			Str("secrets_url", secretStore.Url).
 			Msg("Using secret config file")
+	} else {
+		logger.Warn().Msg("No secret store configuration available")
 	}
 
 	args, err := r.buildK6Args(script, metricsFn, logsFn, scriptFn, configFile)
