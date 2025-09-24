@@ -100,7 +100,8 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.EnablePProf, "enable-pprof", config.EnablePProf, "exposes profiling data via HTTP /debug/pprof/ endpoint")
 	flags.StringVar(&config.HttpListenAddr, "listen-address", config.HttpListenAddr, "listen address")
 	flags.StringVar(&config.K6URI, "k6-uri", config.K6URI, "how to run k6 (path or URL)")
-	flags.StringVar(&config.K6BlacklistedIP, "blocked-nets", config.K6BlacklistedIP, "IP networks to block in CIDR notation, disabled if empty")
+	flags.StringVar(&config.K6BlacklistedIP, "blocked-nets", config.K6BlacklistedIP,
+		"IP networks to block in CIDR notation. Setting this to an empty string, or '0.0.0.0/32', will disable the blocklist.")
 	flags.StringVar(&config.SelectedPublisher, "publisher", config.SelectedPublisher, "publisher type")
 	flags.IntVar(&config.TelemetryTimeSpan, "telemetry-time-span", config.TelemetryTimeSpan, "time span between telemetry push executions per tenant")
 	flags.BoolVar(&config.AutoMemLimit, "enable-auto-memlimit", config.AutoMemLimit, "automatically set GOMEMLIMIT")
