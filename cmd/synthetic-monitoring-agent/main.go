@@ -183,7 +183,7 @@ func run(args []string, stdout io.Writer) error {
 		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
 	default:
-		zerolog.SetGlobalLevel(zerolog.ErrorLevel)
+		zerolog.SetGlobalLevel(zerolog.WarnLevel)
 	}
 
 	g.Go(func() error {
