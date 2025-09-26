@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.43.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.43.1...v0.43.2) (2025-09-26)
+
+
+### Fixes
+
+* Change default logging level to WarnLevel ([#1525](https://github.com/grafana/synthetic-monitoring-agent/issues/1525)) ([d21a1aa](https://github.com/grafana/synthetic-monitoring-agent/commit/d21a1aa88a1c62e8c0726551e3b07823819b8dd0))
+* Do not block during probe registration ([f691bdb](https://github.com/grafana/synthetic-monitoring-agent/commit/f691bdb03c0e809d98b8c86af1b78ccf9e30012f))
+
+
+### Miscellaneous Chores
+
+* improve wording about how to disable default blocked networks ([19c7f3f](https://github.com/grafana/synthetic-monitoring-agent/commit/19c7f3fceeb0fed1b951b172d83e30278d3f0f9e))
+* Update docker:dind Docker digest to 2ceb471 ([1e0bcd9](https://github.com/grafana/synthetic-monitoring-agent/commit/1e0bcd9380f6dc06c9ca4cafe39dbf0bdeba7351))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v140 ([1815e22](https://github.com/grafana/synthetic-monitoring-agent/commit/1815e227d475ff6b05b13580b054b20f5f6a8fab))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:140.0.7339.185-r0-3.22.1 Docker digest to 130fb63 ([0de3468](https://github.com/grafana/synthetic-monitoring-agent/commit/0de34683a6edc4b239d880af358bcdc8fdd2eade))
+* Update grafana/shared-workflows digest to bfeac15 ([aaa8c04](https://github.com/grafana/synthetic-monitoring-agent/commit/aaa8c0445d619cbbc10235e1dfb6ea62b23b7093))
+
 ## [0.43.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.43.0...v0.43.1) (2025-09-23)
 
 
