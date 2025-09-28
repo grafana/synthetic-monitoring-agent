@@ -38,7 +38,7 @@ require (
 	github.com/jpillora/backoff v1.0.0
 	github.com/mccutchen/go-httpbin/v2 v2.18.3
 	github.com/prometheus-community/pro-bing v0.7.0
-	github.com/quasilyte/go-ruleguard/dsl v0.3.22
+	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/spf13/afero v1.15.0
 	golang.org/x/exp v0.0.0-20250911091902-df9299821621
 	gopkg.in/yaml.v3 v3.0.1
