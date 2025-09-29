@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.43.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.43.1...v0.43.2) (2025-09-29)
+
+
+### Fixes
+
+* Change default logging level to WarnLevel ([#1525](https://github.com/grafana/synthetic-monitoring-agent/issues/1525)) ([d21a1aa](https://github.com/grafana/synthetic-monitoring-agent/commit/d21a1aa88a1c62e8c0726551e3b07823819b8dd0))
+* Do not block during probe registration ([f691bdb](https://github.com/grafana/synthetic-monitoring-agent/commit/f691bdb03c0e809d98b8c86af1b78ccf9e30012f))
+
+
+### Miscellaneous Chores
+
+* improve wording about how to disable default blocked networks ([19c7f3f](https://github.com/grafana/synthetic-monitoring-agent/commit/19c7f3fceeb0fed1b951b172d83e30278d3f0f9e))
+* Update actions/cache action to v4.3.0 ([1ac7f7a](https://github.com/grafana/synthetic-monitoring-agent/commit/1ac7f7a1651b6e467d1d279648de6fd267a040e1))
+* Update dependency grafana/xk6-sm to v0.6.6 ([a0d1e89](https://github.com/grafana/synthetic-monitoring-agent/commit/a0d1e89aebd61fee4e0db76a536d5435010f7cd0))
+* Update docker:dind Docker digest to 2ceb471 ([1e0bcd9](https://github.com/grafana/synthetic-monitoring-agent/commit/1e0bcd9380f6dc06c9ca4cafe39dbf0bdeba7351))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v140 ([1815e22](https://github.com/grafana/synthetic-monitoring-agent/commit/1815e227d475ff6b05b13580b054b20f5f6a8fab))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:140.0.7339.185-r0-3.22.1 Docker digest to 130fb63 ([0de3468](https://github.com/grafana/synthetic-monitoring-agent/commit/0de34683a6edc4b239d880af358bcdc8fdd2eade))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.21.0 ([78ad18f](https://github.com/grafana/synthetic-monitoring-agent/commit/78ad18f389dea40b583f1bb05422826310b9e753))
+* Update grafana/shared-workflows digest to 052ae53 ([a7428ff](https://github.com/grafana/synthetic-monitoring-agent/commit/a7428ff1f8d6db81102050e4fe7cc51a842fe132))
+* Update grafana/shared-workflows digest to bfeac15 ([aaa8c04](https://github.com/grafana/synthetic-monitoring-agent/commit/aaa8c0445d619cbbc10235e1dfb6ea62b23b7093))
+* Update module github.com/quasilyte/go-ruleguard/dsl to v0.3.23 ([ae78cbd](https://github.com/grafana/synthetic-monitoring-agent/commit/ae78cbdd2bc7dc9f8b4b8c5c086e63ea2941f968))
+
 ## [0.43.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.43.0...v0.43.1) (2025-09-23)
 
 
