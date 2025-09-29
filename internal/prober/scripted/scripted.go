@@ -71,7 +71,8 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		return false, 0
 	}
 
-	success, err := p.processor.Run(ctx, registry, logger, p.logger, secretStore)
+	runLogger := p.logger.With().Object("checkInfo", &p.module.Script.CheckInfo).Logger()
+	success, err := p.processor.Run(ctx, registry, logger, runLogger, secretStore)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("running probe")
 		return false, 0
