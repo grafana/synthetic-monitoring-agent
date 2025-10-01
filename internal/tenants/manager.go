@@ -126,6 +126,12 @@ func (tm *Manager) updateTenant(tenant sm.Tenant) {
 
 	info.mutex.Lock()
 	if info.tenant == nil || info.tenant.Modified < tenant.Modified {
+		if tenant.SecretStore == nil {
+			tm.logger.Warn().
+				Int64("tenantId", tenant.Id).
+				Msg("tenant received from API without secret store details")
+		}
+
 		// Set validUntil to the earlier of:
 		// - Now + timeout
 		// - Secret store expiration date (if set)
@@ -180,6 +186,12 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 
 	// If tenant was retrieved from the API, update it in the cache
 	if err == nil {
+		if tenant.SecretStore == nil {
+			tm.logger.Warn().
+				Int64("tenantId", req.Id).
+				Msg("tenant retrieved from API without secret store details")
+		}
+
 		// Set validUntil to the earlier of:
 		// - Now + timeout
 		// - Secret store expiration date (if set)
