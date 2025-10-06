@@ -23,6 +23,7 @@ import (
 
 	logproto "github.com/grafana/loki/pkg/push"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -84,6 +85,7 @@ type Updater struct {
 	tenantSecrets  secrets.SecretProvider
 	telemeter      *telemetry.Telemeter
 	usageReporter  usage.Reporter
+	tenantCals     *cals.TenantCals
 }
 
 type apiInfo struct {
@@ -106,20 +108,21 @@ type (
 )
 
 type UpdaterOptions struct {
-	Conn           *grpc.ClientConn
-	Logger         zerolog.Logger
-	Backoff        Backoffer
-	Publisher      pusher.Publisher
-	TenantCh       chan<- sm.Tenant
-	IsConnected    func(bool)
-	PromRegisterer prometheus.Registerer
-	Features       feature.Collection
-	K6Runner       k6runner.Runner
-	ScraperFactory scraper.Factory
-	TenantLimits   *limits.TenantLimits
-	SecretProvider secrets.SecretProvider
-	Telemeter      *telemetry.Telemeter
-	UsageReporter  usage.Reporter
+	Conn                  *grpc.ClientConn
+	Logger                zerolog.Logger
+	Backoff               Backoffer
+	Publisher             pusher.Publisher
+	TenantCh              chan<- sm.Tenant
+	IsConnected           func(bool)
+	PromRegisterer        prometheus.Registerer
+	Features              feature.Collection
+	K6Runner              k6runner.Runner
+	ScraperFactory        scraper.Factory
+	TenantLimits          *limits.TenantLimits
+	SecretProvider        secrets.SecretProvider
+	Telemeter             *telemetry.Telemeter
+	UsageReporter         usage.Reporter
+	CostAttributionLabels *cals.TenantCals
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -253,6 +256,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 			scrapesCounter:      scrapesCounter,
 		},
 		usageReporter: opts.UsageReporter,
+		tenantCals:    opts.CostAttributionLabels,
 	}, nil
 }
 
@@ -935,8 +939,9 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		c.logger,
 		metrics,
 		c.k6Runner,
-		c.tenantLimits, c.telemeter, c.tenantSecrets,
+		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals,
 	)
+
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}

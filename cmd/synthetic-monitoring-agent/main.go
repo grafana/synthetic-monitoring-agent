@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/adhoc"
+	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
@@ -315,6 +316,7 @@ func run(args []string, stdout io.Writer) error {
 	publisher := publisherFactory(ctx, tm, zl.With().Str("subsystem", "publisher").Str("version", config.SelectedPublisher).Logger(), promRegisterer)
 	limits := limits.NewTenantLimits(tm)
 	secretProvider := secrets.NewSecretProvider(tm, 60*time.Second, zl.With().Str("subsystem", "secretstore").Logger())
+	cals := cals.NewTenantCals(tm)
 
 	telemetry := telemetry.NewTelemeter(
 		ctx, uuid.New().String(), time.Duration(config.TelemetryTimeSpan)*time.Minute,
@@ -324,21 +326,23 @@ func run(args []string, stdout io.Writer) error {
 	)
 
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
-		Conn:           conn,
-		Logger:         zl.With().Str("subsystem", "updater").Logger(),
-		Backoff:        newConnectionBackoff(),
-		Publisher:      publisher,
-		TenantCh:       tenantCh,
-		IsConnected:    readynessHandler.Set,
-		PromRegisterer: promRegisterer,
-		Features:       features,
-		K6Runner:       k6Runner,
-		ScraperFactory: scraper.New,
-		TenantLimits:   limits,
-		SecretProvider: secretProvider,
-		Telemeter:      telemetry,
-		UsageReporter:  usageReporter,
+		Conn:                  conn,
+		Logger:                zl.With().Str("subsystem", "updater").Logger(),
+		Backoff:               newConnectionBackoff(),
+		Publisher:             publisher,
+		TenantCh:              tenantCh,
+		IsConnected:           readynessHandler.Set,
+		PromRegisterer:        promRegisterer,
+		Features:              features,
+		K6Runner:              k6Runner,
+		ScraperFactory:        scraper.New,
+		TenantLimits:          limits,
+		SecretProvider:        secretProvider,
+		Telemeter:             telemetry,
+		UsageReporter:         usageReporter,
+		CostAttributionLabels: cals,
 	})
+
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
 	}
