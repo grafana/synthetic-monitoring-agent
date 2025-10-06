@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.43.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.43.2...v0.43.3) (2025-10-06)
+
+
+### Fixes
+
+* add warning when tenant received without secret store details ([#1533](https://github.com/grafana/synthetic-monitoring-agent/issues/1533)) ([708100b](https://github.com/grafana/synthetic-monitoring-agent/commit/708100b81fd0e0b861260a2dcceebb2d2fa37e6f))
+
+
+### Miscellaneous Chores
+
+* add further debug logging around secrets ([#1542](https://github.com/grafana/synthetic-monitoring-agent/issues/1542)) ([ad27c2a](https://github.com/grafana/synthetic-monitoring-agent/commit/ad27c2aca7759ad14d7107364f856f26a060f437))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v140.0.7339.207-r0-3.22.1 ([#1532](https://github.com/grafana/synthetic-monitoring-agent/issues/1532)) ([344d0de](https://github.com/grafana/synthetic-monitoring-agent/commit/344d0de713b75c272f73193a7b9c1a736e0730ce))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:140.0.7339.207-r0-3.22.1 Docker digest to 109f5c2 ([#1535](https://github.com/grafana/synthetic-monitoring-agent/issues/1535)) ([0d5fe00](https://github.com/grafana/synthetic-monitoring-agent/commit/0d5fe000a2158681abde2816af1901d53c310a40))
+
 ## [0.43.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.43.1...v0.43.2) (2025-09-29)
 
 
