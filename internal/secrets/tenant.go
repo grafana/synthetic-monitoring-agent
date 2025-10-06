@@ -34,10 +34,12 @@ func NewTenantSecrets(tp TenantProvider, logger zerolog.Logger) *TenantSecrets {
 
 // GetSecretCredentials gets the secret store configuration for a tenant (backward compatibility)
 func (ts *TenantSecrets) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
-	if ts.logger.GetLevel() <= zerolog.DebugLevel {
-		tenantID, regionID := model.GetLocalAndRegionIDs(tenantID)
-		ts.logger.Debug().Int("regionID", regionID).Int64("tenantId", tenantID).Msg("getting secret credentials")
-	}
+	localTenantID, regionID := model.GetLocalAndRegionIDs(tenantID)
+	ts.logger.Debug().
+		Int("regionID", regionID).
+		Int64("tenantId", localTenantID).
+		Int64("globalTenantID", int64(tenantID)).
+		Msg("getting secret credentials")
 
 	tenant, err := ts.tp.GetTenant(ctx, &sm.TenantInfo{
 		Id: int64(tenantID),
@@ -45,6 +47,20 @@ func (ts *TenantSecrets) GetSecretCredentials(ctx context.Context, tenantID mode
 	if err != nil {
 		ts.logger.Warn().Err(err).Int64("tenantId", int64(tenantID)).Msg("failed to get tenant")
 		return nil, err
+	}
+
+	ts.logger.Debug().
+		Int64("tenantId", localTenantID).
+		Bool("tenantHasSecretStore", tenant.SecretStore != nil).
+		Msg("tenant retrieved for secret credentials")
+
+	if tenant.SecretStore != nil {
+		ts.logger.Debug().
+			Int64("tenantId", localTenantID).
+			Str("secretStoreUrl", tenant.SecretStore.Url).
+			Bool("hasSecretStoreToken", tenant.SecretStore.Token != "").
+			Float64("secretStoreExpiry", tenant.SecretStore.Expiry).
+			Msg("secret store configuration retrieved successfully")
 	}
 
 	return tenant.SecretStore, nil
