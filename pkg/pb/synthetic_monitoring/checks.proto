@@ -195,6 +195,8 @@ message Tenant {
   string reason = 7 [(gogoproto.jsontag) = "reason"]; // reason provided for the status
   TenantLimits limits = 8 [(gogoproto.jsontag) = "limits"]; // check and label limits
 
+  repeated string costAttributionLabels = 9 [(gogoproto.jsontag) = "costAttributionLabels"]; // list of cost attribution label keys that must be set on checks
+
   double created = 100 [(gogoproto.jsontag) = "created"]; // time the check was created
   double modified = 101 [(gogoproto.jsontag) = "modified"]; // last time modified
   SecretStore secretStore = 102 [(gogoproto.jsontag) = "secretStore"]; // secret store details
@@ -289,7 +291,6 @@ message Check {
   string job = 11 [(gogoproto.jsontag) = "job"]; // name of job this check belongs to
   bool basicMetricsOnly = 12 [(gogoproto.jsontag) = "basicMetricsOnly"]; // include only basic metrics
   string alertSensitivity = 13 [(gogoproto.jsontag) = "alertSensitivity"];
-
   double created = 100 [(gogoproto.jsontag) = "created"]; // time the check was created
   double modified = 101 [(gogoproto.jsontag) = "modified"]; // last time modified
 }
