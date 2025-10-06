@@ -66,6 +66,18 @@ func (tm *Manager) run(ctx context.Context) {
 func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 	now := time.Now()
 
+	tm.logger.Debug().
+		Int64("tenantId", tenant.Id).
+		Bool("hasSecretStore", tenant.SecretStore != nil).
+		Float64("secretStoreExpiry", func() float64 {
+			if tenant.SecretStore != nil {
+				return tenant.SecretStore.Expiry
+			}
+			return 0
+		}()).
+		Dur("configuredTimeout", tm.timeout).
+		Msg("calculating tenant validity period")
+
 	if tenant.SecretStore != nil && tenant.SecretStore.Expiry > 0 {
 		seconds, nanonseconds := math.Modf(tenant.SecretStore.Expiry)
 		// Subtract MaxScriptedTimeout to ensure the token is valid for the maximum running time.
@@ -73,13 +85,28 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 
 		delta := expirationTime.Sub(now)
 
+		tm.logger.Debug().
+			Int64("tenantId", tenant.Id).
+			Time("secretStoreExpirationTime", expirationTime).
+			Dur("deltaFromNow", delta).
+			Dur("maxScriptedTimeout", sm.MaxScriptedTimeout).
+			Msg("secret store expiry calculation")
+
 		switch {
 		case delta < 0:
 			// The token is already expired, return the current time
+			tm.logger.Warn().
+				Int64("tenantId", tenant.Id).
+				Time("secretStoreExpirationTime", expirationTime).
+				Msg("secret store token already expired")
 			return now
 
 		case delta < sm.MaxScriptedTimeout:
 			// The token is valid for less than MaxScriptedTimeout, return the expiration time
+			tm.logger.Debug().
+				Int64("tenantId", tenant.Id).
+				Time("validUntil", expirationTime).
+				Msg("using secret store expiration time (less than MaxScriptedTimeout)")
 			return expirationTime
 
 		default:
@@ -89,11 +116,22 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 			// Pick the smallest value between the calculated delta and the configured timeout.
 			delta = min(delta, tm.timeout)
 
-			return now.Add(delta)
+			validUntil := now.Add(delta)
+			tm.logger.Debug().
+				Int64("tenantId", tenant.Id).
+				Time("validUntil", validUntil).
+				Dur("calculatedDelta", delta).
+				Msg("using calculated validity period")
+			return validUntil
 		}
 	}
 
-	return now.Add(tm.timeout)
+	validUntil := now.Add(tm.timeout)
+	tm.logger.Debug().
+		Int64("tenantId", tenant.Id).
+		Time("validUntil", validUntil).
+		Msg("using configured timeout (no secret store expiry)")
+	return validUntil
 }
 
 func (tm *Manager) updateTenant(tenant sm.Tenant) {

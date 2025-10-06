@@ -78,7 +78,7 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 
 	p.processor = processor
 	p.logger = logger
-	p.secretsRetriever = newCredentialsRetriever(store, check.GlobalTenantID())
+	p.secretsRetriever = newCredentialsRetriever(store, check.GlobalTenantID(), p.logger)
 
 	return p, nil
 }
@@ -129,12 +129,20 @@ func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 	}
 }
 
-func newCredentialsRetriever(provider secrets.SecretProvider, tenantID model.GlobalID) func(context.Context) (k6runner.SecretStore, error) {
+func newCredentialsRetriever(provider secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) func(context.Context) (k6runner.SecretStore, error) {
 	return func(ctx context.Context) (k6runner.SecretStore, error) {
 		var store k6runner.SecretStore
 
+		logger.Debug().
+			Int64("tenantId", int64(tenantID)).
+			Msg("credentials retriever: getting secret credentials")
+
 		credentials, err := provider.GetSecretCredentials(ctx, tenantID)
 		if err != nil {
+			logger.Error().
+				Err(err).
+				Int64("tenantId", int64(tenantID)).
+				Msg("credentials retriever: failed to get secret credentials")
 			return store, err
 		}
 
@@ -143,6 +151,16 @@ func newCredentialsRetriever(provider secrets.SecretProvider, tenantID model.Glo
 				Url:   credentials.Url,
 				Token: credentials.Token,
 			}
+			logger.Debug().
+				Int64("tenantId", int64(tenantID)).
+				Str("secretStoreUrl", credentials.Url).
+				Bool("hasSecretStoreToken", credentials.Token != "").
+				Float64("secretStoreExpiry", credentials.Expiry).
+				Msg("credentials retriever: secret store configured")
+		} else {
+			logger.Debug().
+				Int64("tenantId", int64(tenantID)).
+				Msg("credentials retriever: no secret store configuration")
 		}
 
 		return store, nil

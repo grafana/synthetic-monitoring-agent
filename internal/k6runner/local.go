@@ -85,6 +85,12 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	defer cancel()
 
 	var configFile string
+	logger.Debug().
+		Bool("secretStoreIsConfigured", secretStore.IsConfigured()).
+		Str("secretStoreUrl", secretStore.Url).
+		Bool("hasSecretStoreToken", secretStore.Token != "").
+		Msg("checking secret store configuration")
+
 	if secretStore.IsConfigured() {
 		var cleanup func()
 		configFile, cleanup, err = createSecretConfigFile(secretStore.Url, secretStore.Token)
@@ -219,6 +225,13 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 	// Add secretStore configuration if available
 	if configFile != "" {
 		args = append(args, "--secret-source", "grafanasecrets=config="+configFile)
+		if r.logger != nil {
+			r.logger.Debug().
+				Str("configFile", configFile).
+				Msg("Adding secret source configuration to k6")
+		}
+	} else if r.logger != nil {
+		r.logger.Debug().Msg("No secret source configuration to add to k6")
 	}
 
 	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
