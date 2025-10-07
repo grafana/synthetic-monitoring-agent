@@ -82,7 +82,7 @@ type Scraper struct {
 	summaries     map[uint64]prometheus.Summary
 	histograms    map[uint64]prometheus.Histogram
 	telemeter     Telemeter
-	cals          *cals.TenantCals
+	cals          TenantCals
 }
 
 type Factory func(
@@ -153,7 +153,7 @@ type ScraperOpts struct {
 	ProbeFactory          prober.ProberFactory
 	LabelsLimiter         LabelsLimiter
 	Telemeter             Telemeter
-	CostAttributionLabels *cals.TenantCals
+	CostAttributionLabels TenantCals
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
