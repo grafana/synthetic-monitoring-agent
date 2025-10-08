@@ -34,7 +34,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/go-kit/log v0.2.1
 	github.com/gogo/status v1.1.1
-	github.com/grafana/gsm-api-go-client v0.0.0-20250408225536-13991b80a507
+	github.com/grafana/gsm-api-go-client v0.2.0
 	github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96
 	github.com/jpillora/backoff v1.0.0
 	github.com/mccutchen/go-httpbin/v2 v2.18.3
@@ -64,19 +64,20 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/oapi-codegen/runtime v1.1.1 // indirect
+	github.com/oapi-codegen/runtime v1.1.2 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
-	go.k6.io/k6 v0.58.0 // indirect
+	go.k6.io/k6 v1.1.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/time v0.12.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250804133106-a7a43d27e69b // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250804133106-a7a43d27e69b // indirect
