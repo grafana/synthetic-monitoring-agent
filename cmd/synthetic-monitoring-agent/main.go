@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/adhoc"
+	"github.com/grafana/synthetic-monitoring-agent/internal/agenttelemetry"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
@@ -76,6 +77,7 @@ func run(args []string, stdout io.Writer) error {
 			MemLimitRatio        float64
 			DisableK6            bool
 			DisableUsageReports  bool
+			EnableAgentTelemetry bool
 		}{
 			GrpcApiServerAddr: "localhost:4031",
 			HttpListenAddr:    "localhost:4050",
@@ -107,6 +109,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.AutoMemLimit, "enable-auto-memlimit", config.AutoMemLimit, "automatically set GOMEMLIMIT")
 	flags.BoolVar(&config.DisableK6, "disable-k6", config.DisableK6, "disables running k6 checks on this probe")
 	flags.BoolVar(&config.DisableUsageReports, "disable-usage-reports", config.DisableUsageReports, "Disable anonymous usage reports")
+	flags.BoolVar(&config.EnableAgentTelemetry, "enable-agent-telemetry", config.EnableAgentTelemetry, "enable sending agent logs and metrics to customer Loki/Mimir instances")
 	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
 	flags.Var(&features, "features", "optional feature flags")
 
@@ -322,6 +325,60 @@ func run(args []string, stdout io.Writer) error {
 		zl.With().Str("subsystem", "telemetry").Logger(),
 		promRegisterer,
 	)
+
+	// Initialize agent telemetry if enabled
+	var agentTelemetryCollector *agenttelemetry.Collector
+	var agentTelemetrySender *agenttelemetry.Sender
+	if config.EnableAgentTelemetry {
+		agentTelemetryCollector = agenttelemetry.NewCollector(
+			zl.With().Str("subsystem", "agent-telemetry").Logger(),
+			1000, // max logs
+			1000, // max metrics
+		)
+		agentTelemetryCollector.Enable() // Enable the collector
+		agentTelemetrySender = agenttelemetry.NewSender(
+			agentTelemetryCollector,
+			publisher,
+			tm, // tenant manager
+			zl.With().Str("subsystem", "agent-telemetry-sender").Logger(),
+			30*time.Second, // send interval
+		)
+		agentTelemetrySender.Enable()
+		agentTelemetrySender.Start(ctx)
+
+		// Add zerolog hook to capture agent logs
+		hook := agenttelemetry.NewHook(agentTelemetryCollector)
+		zl = zl.Hook(hook)
+
+		// Start periodic metrics collection
+		g.Go(func() error {
+			ticker := time.NewTicker(30 * time.Second)
+			defer ticker.Stop()
+
+			// Add some test data immediately
+			agentTelemetryCollector.AddLog("info", "agent telemetry test message", map[string]interface{}{
+				"test": "agent-telemetry",
+				"time": time.Now().Unix(),
+			})
+
+			for {
+				select {
+				case <-ctx.Done():
+					return nil
+				case <-ticker.C:
+					if err := agentTelemetryCollector.AddMetrics(promRegisterer); err != nil {
+						zl.Error().Err(err).Msg("failed to collect agent metrics")
+					}
+
+					// Add a test log every 30 seconds
+					agentTelemetryCollector.AddLog("info", "periodic agent telemetry test", map[string]interface{}{
+						"test": "periodic",
+						"time": time.Now().Unix(),
+					})
+				}
+			}
+		})
+	}
 
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:           conn,
