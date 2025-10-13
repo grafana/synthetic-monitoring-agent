@@ -197,6 +197,7 @@ func TestCalculateValidUntil(t *testing.T) {
 			timeout: 7*time.Minute + 30*time.Second,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
+					Url:    "https://secrets.example.com",
 					Token:  "token",
 					Expiry: float64(now.Add(2*time.Minute).UnixNano()) / 1e9,
 				},
@@ -207,6 +208,7 @@ func TestCalculateValidUntil(t *testing.T) {
 			timeout: 7*time.Minute + 30*time.Second,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
+					Url:    "https://secrets.example.com",
 					Token:  "token",
 					Expiry: float64(now.Add(5*time.Minute).UnixNano()) / 1e9,
 				},
@@ -217,6 +219,7 @@ func TestCalculateValidUntil(t *testing.T) {
 			timeout: 7*time.Minute + 30*time.Second,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
+					Url:    "https://secrets.example.com",
 					Token:  "token",
 					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
 				},
@@ -228,6 +231,7 @@ func TestCalculateValidUntil(t *testing.T) {
 			timeout: 10 * time.Minute,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
+					Url:    "https://secrets.example.com",
 					Token:  "token",
 					Expiry: float64(now.Add(2*time.Minute).UnixNano()) / 1e9,
 				},
@@ -238,6 +242,7 @@ func TestCalculateValidUntil(t *testing.T) {
 			timeout: 10 * time.Minute,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
+					Url:    "https://secrets.example.com",
 					Token:  "token",
 					Expiry: float64(now.Add(5*time.Minute).UnixNano()) / 1e9,
 				},
@@ -248,6 +253,7 @@ func TestCalculateValidUntil(t *testing.T) {
 			timeout: 10 * time.Minute,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
+					Url:    "https://secrets.example.com",
 					Token:  "token",
 					Expiry: float64(now.Add(10*time.Minute).UnixNano()) / 1e9,
 				},
@@ -258,11 +264,45 @@ func TestCalculateValidUntil(t *testing.T) {
 			timeout: 10 * time.Minute,
 			tenant: &sm.Tenant{
 				SecretStore: &sm.SecretStore{
+					Url:    "https://secrets.example.com",
 					Token:  "token",
 					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
 				},
 			},
 			want: 10 * time.Minute,
+		},
+		"10 minute timeout, secret store with empty URL (not configured)": {
+			timeout: 10 * time.Minute,
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{
+					Url:    "",
+					Token:  "token",
+					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
+				},
+			},
+			want: 0, // Cache should be invalid immediately
+		},
+		"10 minute timeout, secret store with empty token (not configured)": {
+			timeout: 10 * time.Minute,
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{
+					Url:    "https://secrets.example.com",
+					Token:  "",
+					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
+				},
+			},
+			want: 0, // Cache should be invalid immediately
+		},
+		"10 minute timeout, secret store with both URL and token empty (not configured)": {
+			timeout: 10 * time.Minute,
+			tenant: &sm.Tenant{
+				SecretStore: &sm.SecretStore{
+					Url:    "",
+					Token:  "",
+					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
+				},
+			},
+			want: 0, // Cache should be invalid immediately
 		},
 	}
 
