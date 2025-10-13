@@ -26,10 +26,6 @@ var (
 		// 0: Disabled
 		maxQueuedBytes: 1024 * 1024,
 
-		// Max items (check results) to hold in memory (per tenant per type)
-		// 0: Disabled
-		maxQueuedItems: 128,
-
 		// Max time to keep an item in the queue before it's discarded
 		// Note that loki/mimir will probably reject data older than 1h anyway.
 		// 0: Disabled
@@ -78,7 +74,6 @@ var (
 type pusherOptions struct {
 	maxPushBytes      uint64        // Max bytes to send on a single push request
 	maxQueuedBytes    uint64        // Max bytes to hold queued
-	maxQueuedItems    int           // Max items (check results) to hold in memory
 	maxQueuedTime     time.Duration // Max time an item can be queued until it expires
 	maxRetries        int           // Max retries for a push
 	minBackoff        time.Duration

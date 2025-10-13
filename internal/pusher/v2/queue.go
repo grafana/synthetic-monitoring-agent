@@ -155,23 +155,10 @@ func (q *queue) insert(data *[]byte) {
 }
 
 func (q *queue) applyLimits() {
-	numDropped := q.limitNumItems(q.options.maxQueuedItems) + q.limitBytes(q.options.maxQueuedBytes) + q.limitAge(q.options.maxQueuedTime)
+	numDropped := q.limitBytes(q.options.maxQueuedBytes) + q.limitAge(q.options.maxQueuedTime)
 	if numDropped > 0 {
 		q.options.metrics.DroppedCounter.WithLabelValues().Add(float64(numDropped))
 	}
-}
-
-func (q *queue) limitNumItems(max int) (numRemoved int) {
-	var (
-		n      = len(q.data)
-		excess = n - max
-	)
-	if max <= 0 || excess <= 0 {
-		return 0
-	}
-	q.options.pool.returnAll(q.data[:excess])
-	q.data = q.data[excess:]
-	return excess
 }
 
 func (q *queue) limitBytes(max uint64) (numRemoved int) {
