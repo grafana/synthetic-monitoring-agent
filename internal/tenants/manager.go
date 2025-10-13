@@ -85,15 +85,15 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 		Dur("configuredTimeout", tm.timeout).
 		Msg("calculating tenant validity period")
 
-	// If secret store is not properly configured, consider cache invalid immediately
-	if !isSecretStoreConfigured(tenant.SecretStore) {
+	// If secret store is configured but not properly set up, consider cache invalid immediately
+	if tenant.SecretStore != nil && !isSecretStoreConfigured(tenant.SecretStore) {
 		tm.logger.Warn().
 			Int64("tenantId", tenant.Id).
 			Msg("secret store not properly configured, considering cache invalid")
 		return now
 	}
 
-	if tenant.SecretStore.Expiry > 0 {
+	if tenant.SecretStore != nil && tenant.SecretStore.Expiry > 0 {
 		seconds, nanonseconds := math.Modf(tenant.SecretStore.Expiry)
 		// Subtract MaxScriptedTimeout to ensure the token is valid for the maximum running time.
 		expirationTime := time.Unix(int64(seconds), int64(nanonseconds*1e9))
