@@ -37,11 +37,11 @@ var (
 
 		// Max number of retries in case of network(retriable) error.
 		// Ideally we make this big and have data expired with the above limits.
-		maxRetries: 20,
+		maxRetries: 50,
 
 		// Backoff between retries. Doubling at each attempt.
-		minBackoff: time.Millisecond * 30,
-		maxBackoff: time.Second * 2,
+		minBackoff: time.Millisecond * 50,
+		maxBackoff: time.Second * 30,
 
 		// Max time a tenant pusher is active. This is useful to cause the tenant info
 		// to be refreshed.
