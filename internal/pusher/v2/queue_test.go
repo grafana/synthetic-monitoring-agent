@@ -190,6 +190,11 @@ func TestQueuePush(t *testing.T) {
 			_, _ = w.Write([]byte(body))
 		}
 	}
+
+	testOptions := defaultPusherOptions
+	testOptions.minBackoff = 10 * time.Millisecond
+	testOptions.maxBackoff = 50 * time.Millisecond
+
 	for title, tc := range map[string]struct {
 		options     *pusherOptions
 		responses   []http.HandlerFunc
@@ -240,7 +245,7 @@ func TestQueuePush(t *testing.T) {
 		},
 		"max retries": {
 			options: func() *pusherOptions {
-				opt := defaultPusherOptions
+				opt := testOptions
 				opt.maxRetries = 3
 				return &opt
 			}(),
@@ -293,7 +298,7 @@ func TestQueuePush(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 			defer cancel()
 
-			opt := defaultPusherOptions
+			opt := testOptions
 			if tc.options != nil {
 				opt = *tc.options
 			}
