@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.44.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.43.3...v0.44.0) (2025-10-13)
+
+
+### Features
+
+* Add cost attribution labels to tenants ([#1543](https://github.com/grafana/synthetic-monitoring-agent/issues/1543)) ([cf8f746](https://github.com/grafana/synthetic-monitoring-agent/commit/cf8f74603c188f61900b01d27d8b7c857ec856d5))
+
+
+### Fixes
+
+* don't cache tenants if the secret store is not configured ([36ea8a7](https://github.com/grafana/synthetic-monitoring-agent/commit/36ea8a79f4a4f7e0ae47f1ca82c42df30b0a2fce))
+* handle nil secret store in calculateValidUntil ([f19ed84](https://github.com/grafana/synthetic-monitoring-agent/commit/f19ed84e04a76348598a1a75fc7d7b81139f56d9))
+* Short circuit get tenant request ([#1556](https://github.com/grafana/synthetic-monitoring-agent/issues/1556)) ([f5634c0](https://github.com/grafana/synthetic-monitoring-agent/commit/f5634c0ee60a64a3df5609d234a68c85f427d728))
+
+
+### Miscellaneous Chores
+
+* Update docker:dind Docker digest to 2417311 ([a8b3ba3](https://github.com/grafana/synthetic-monitoring-agent/commit/a8b3ba3ce6b9f6ea2cb0e79baa9ba1207ceac347))
+* Update docker:dind Docker digest to c090c93 ([c5e71f4](https://github.com/grafana/synthetic-monitoring-agent/commit/c5e71f49d36f6aec7469396ac50b012b8120e481))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v141 ([874fdfd](https://github.com/grafana/synthetic-monitoring-agent/commit/874fdfda02f1fe56b550018f1489394e7d0a9ddd))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:140.0.7339.207-r0-3.22.1 Docker digest to 44e30e6 ([af8e47e](https://github.com/grafana/synthetic-monitoring-agent/commit/af8e47e1e24ffb7a41d91d0c71937e890e10471a))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.21.1 ([f2521c9](https://github.com/grafana/synthetic-monitoring-agent/commit/f2521c9e12a68d19b5149677ec11f175fb425f2f))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.21.2 ([a0c4dfe](https://github.com/grafana/synthetic-monitoring-agent/commit/a0c4dfec85a414f22c715c6a7e123dc03c0f8088))
+* Update golang.org/x/exp digest to 27f1f14 ([3639836](https://github.com/grafana/synthetic-monitoring-agent/commit/36398363acfa14b21e539164cc74bd5c7628a9cc))
+* Update grafana/shared-workflows digest to f248984 ([98dd64c](https://github.com/grafana/synthetic-monitoring-agent/commit/98dd64cd7e64aadf56e4711457f496c7641d2ba8))
+* Update module github.com/go-logfmt/logfmt to v0.6.1 ([37c1f35](https://github.com/grafana/synthetic-monitoring-agent/commit/37c1f3565b0e6b806393c7a979998d9819bfed6d))
+
 ## [0.43.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.43.2...v0.43.3) (2025-10-06)
 
 
