@@ -13,6 +13,11 @@ import (
 
 const getTenantTimeout = 5 * time.Second
 
+// isSecretStoreConfigured returns true if the SecretStore has both URL and token configured.
+func isSecretStoreConfigured(secretStore *sm.SecretStore) bool {
+	return secretStore != nil && secretStore.Url != "" && secretStore.Token != ""
+}
+
 type Manager struct {
 	tenantCh      <-chan sm.Tenant
 	tenantsClient sm.TenantsClient
@@ -65,12 +70,14 @@ func (tm *Manager) run(ctx context.Context) {
 
 // calculateValidUntil determines the expiration time for a tenant based on the timeout
 // and the secret store expiration date (if set), returning the earlier of the two.
+// If the secret store is not properly configured, the cache is considered invalid immediately.
 func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 	now := time.Now()
 
 	tm.logger.Debug().
 		Int64("tenantId", tenant.Id).
 		Bool("hasSecretStore", tenant.SecretStore != nil).
+		Bool("secretStoreIsConfigured", isSecretStoreConfigured(tenant.SecretStore)).
 		Float64("secretStoreExpiry", func() float64 {
 			if tenant.SecretStore != nil {
 				return tenant.SecretStore.Expiry
@@ -79,6 +86,14 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 		}()).
 		Dur("configuredTimeout", tm.timeout).
 		Msg("calculating tenant validity period")
+
+	// If secret store is configured but not properly set up, consider cache invalid immediately
+	if tenant.SecretStore != nil && !isSecretStoreConfigured(tenant.SecretStore) {
+		tm.logger.Warn().
+			Int64("tenantId", tenant.Id).
+			Msg("secret store not properly configured, considering cache invalid")
+		return now
+	}
 
 	if tenant.SecretStore != nil && tenant.SecretStore.Expiry > 0 {
 		seconds, nanonseconds := math.Modf(tenant.SecretStore.Expiry)
@@ -170,6 +185,10 @@ func (tm *Manager) updateTenant(tenant sm.Tenant) {
 			tm.logger.Warn().
 				Int64("tenantId", tenant.Id).
 				Msg("tenant received from API without secret store details")
+		} else if !isSecretStoreConfigured(tenant.SecretStore) {
+			tm.logger.Warn().
+				Int64("tenantId", tenant.Id).
+				Msg("tenant received from API with incomplete secret store configuration")
 		}
 
 		// Set validUntil to the earlier of:
@@ -233,6 +252,10 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 			tm.logger.Warn().
 				Int64("tenantId", req.Id).
 				Msg("tenant retrieved from API without secret store details")
+		} else if !isSecretStoreConfigured(tenant.SecretStore) {
+			tm.logger.Warn().
+				Int64("tenantId", req.Id).
+				Msg("tenant retrieved from API with incomplete secret store configuration")
 		}
 
 		// Set validUntil to the earlier of:
