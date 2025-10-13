@@ -11,6 +11,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const getTenantTimeout = 5 * time.Second
+
 type Manager struct {
 	tenantCh      <-chan sm.Tenant
 	tenantsClient sm.TenantsClient
@@ -209,7 +211,10 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 	}
 
 	// Request the tenant from the API
-	tenant, err := tm.tenantsClient.GetTenant(ctx, req)
+	timeoutCtx, cancel := context.WithTimeout(ctx, getTenantTimeout)
+	defer cancel()
+	tenant, err := tm.tenantsClient.GetTenant(timeoutCtx, req)
+
 	// Treat every error in the same way, whether it's network or app related.
 	// As example of application errors: If the API has issues reaching the DB,
 	// we still don't want to block the agents. If the tenant is disabled, it
