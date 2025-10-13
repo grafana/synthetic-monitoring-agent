@@ -53,7 +53,7 @@ var (
 		// How long without receiving check results until a tenant pusher is stopped.
 		// This is to cleanup tenants that don't have active checks anymore.
 		// Set it to a value higher than the max interval between a single check run.
-		maxIdleTime: 5 * time.Minute,
+		maxIdleTime: 65 * time.Minute,
 
 		// How long to wait before refreshing tenant due to an error.
 		tenantDelay: 10 * time.Second,
