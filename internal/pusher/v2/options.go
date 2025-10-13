@@ -24,7 +24,7 @@ var (
 
 		// Max bytes to hold queued
 		// 0: Disabled
-		maxQueuedBytes: 128 * 1024,
+		maxQueuedBytes: 1024 * 1024,
 
 		// Max items (check results) to hold in memory (per tenant per type)
 		// 0: Disabled
