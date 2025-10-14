@@ -488,7 +488,7 @@ func isCompressionAcceptEncodingValid(encoding, acceptEncoding string) bool {
 
 	var encodings []encodingQuality
 
-	for _, parts := range strings.Split(acceptEncoding, ",") {
+	for parts := range strings.SplitSeq(acceptEncoding, ",") {
 		var e encodingQuality
 
 		if idx := strings.LastIndexByte(parts, ';'); idx == -1 {
