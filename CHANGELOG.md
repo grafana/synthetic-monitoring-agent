@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.44.0...v0.44.1) (2025-10-14)
+
+
+### Fixes
+
+* Revert "fix: Short circuit get tenant request ([#1556](https://github.com/grafana/synthetic-monitoring-agent/issues/1556))" ([#1560](https://github.com/grafana/synthetic-monitoring-agent/issues/1560)) ([1d998b1](https://github.com/grafana/synthetic-monitoring-agent/commit/1d998b1fdeb4abab8901d87ca1b451bc634ceecc))
+
 ## [0.44.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.43.3...v0.44.0) (2025-10-13)
 
 
