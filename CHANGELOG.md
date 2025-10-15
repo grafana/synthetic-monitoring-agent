@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.44.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.44.1...v0.44.2) (2025-10-15)
+
+
+### Miscellaneous Chores
+
+* Update alpine Docker tag to v3.22.2 ([8f637a5](https://github.com/grafana/synthetic-monitoring-agent/commit/8f637a53f2bf5dc829f406866520bfe0117bee1b))
+* Update dependency grafana/xk6-sm to v0.6.7 ([78e82fc](https://github.com/grafana/synthetic-monitoring-agent/commit/78e82fca503c03514c19cfd3ff6fb63745700342))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v141.0.7390.76-r0-3.22.2 ([bd6a7c4](https://github.com/grafana/synthetic-monitoring-agent/commit/bd6a7c475b6d88fdbbc98f95ca7fc252aa769fd2))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.21.3 ([a57e2a4](https://github.com/grafana/synthetic-monitoring-agent/commit/a57e2a4d7b86b28881085eb1ec087a9759adf4d5))
+* Update golang.org/x/exp digest to d2f985d ([e4d957b](https://github.com/grafana/synthetic-monitoring-agent/commit/e4d957bbaa2f0d1f4bd062a0587f2f512ee1af77))
+* Update module golang.org/x/net to v0.46.0 ([73c4182](https://github.com/grafana/synthetic-monitoring-agent/commit/73c4182c2fb5e1ceaad260b54840b25e084dfd5d))
+* Update module google.golang.org/grpc to v1.76.0 ([469d75b](https://github.com/grafana/synthetic-monitoring-agent/commit/469d75bbbd67c532792e3e1702b7df38a2f0c242))
+
 ## [0.44.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.44.0...v0.44.1) (2025-10-14)
 
 
