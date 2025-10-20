@@ -347,7 +347,7 @@ jobs:
       - name: Trigger argo workflow
         # trigger-argo-workflow hasn't been released yet, so we're using a
         # commit hash to reference it that has no associated version.
-        uses: grafana/shared-workflows/actions/trigger-argo-workflow@f248984f0c1de543c352b10f7128d9dad4f1908e
+        uses: grafana/shared-workflows/actions/trigger-argo-workflow@eed69781bdf177e1c126172712690dae79b0bc11
         with:
           namespace: synthetic-monitoring-cd
           workflow_template: deploy-${{ needs.preflight.outputs.repo_name }}
