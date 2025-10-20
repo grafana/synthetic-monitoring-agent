@@ -8,7 +8,7 @@ define sm-k6
 $(DISTDIR)/$(1)-$(2)/sm-k6:
 	mkdir -p "$(DISTDIR)/$(1)-$(2)"
 	# Renovate updates the following line. Keep its syntax as it is.
-	curl -sSL https://github.com/grafana/xk6-sm/releases/download/v0.6.7/sm-k6-$(1)-$(2) -o "$$@"
+	curl -sSL https://github.com/grafana/xk6-sm/releases/download/v0.6.8/sm-k6-$(1)-$(2) -o "$$@"
 	chmod +x "$$@"
 
 sm-k6: $(DISTDIR)/$(1)-$(2)/sm-k6
