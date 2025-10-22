@@ -94,7 +94,7 @@ type Factory func(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore *secrets.TenantSecrets,
-	costAttributionLabels *cals.TenantCals,
+	costAttributionLabels *cals.TenantCostAttributionLabels,
 ) (*Scraper, error)
 
 type (
@@ -129,7 +129,7 @@ func New(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore *secrets.TenantSecrets,
-	cals *cals.TenantCals,
+	cals *cals.TenantCostAttributionLabels,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
