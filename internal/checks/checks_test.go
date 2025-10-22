@@ -475,6 +475,7 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 	labelsLimiter scraper.LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
+	cals *cals.TenantCostAttributionLabels,
 ) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,

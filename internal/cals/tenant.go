@@ -11,17 +11,20 @@ type TenantProvider interface {
 	GetTenant(context.Context, *sm.TenantInfo) (*sm.Tenant, error)
 }
 
-type TenantCals struct {
+// TenantCostAttributionLabels has a TenantProvider that pulls data about a specific tenant
+type TenantCostAttributionLabels struct {
 	provider TenantProvider
 }
 
-func NewTenantCals(provider TenantProvider) *TenantCals {
-	return &TenantCals{
+// NewTenantCostAttributionLabels is a helper method to create a NewTenantCostAttributionLabels provider
+func NewTenantCostAttributionLabels(provider TenantProvider) *TenantCostAttributionLabels {
+	return &TenantCostAttributionLabels{
 		provider: provider,
 	}
 }
 
-func (tcal TenantCals) CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error) {
+// CostAttributionLabels will call TenantProvider.GetTenant to search for a specific tenant and returns Tenant.CostAttributionLabel
+func (tcal TenantCostAttributionLabels) CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error) {
 	tenant, err := tcal.provider.GetTenant(ctx, &sm.TenantInfo{
 		Id: int64(tenantID),
 	})
