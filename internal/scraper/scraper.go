@@ -94,7 +94,7 @@ type Factory func(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
-	costAttributionLabels *cals.TenantCostAttributionLabels,
+	costAttributionLabels *cals.CostAttributionLabels,
 ) (*Scraper, error)
 
 type (
@@ -129,7 +129,7 @@ func New(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
-	cals *cals.TenantCostAttributionLabels,
+	cals *cals.CostAttributionLabels,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
@@ -302,6 +302,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 
 	costAttributionLabels, err := h.scraper.cals.CostAttributionLabels(ctx, h.payload.tenantId)
 	if err != nil {
+		// If cal's can't be found, do not block
 		h.scraper.logger.Error().
 			Int64("tenantId", int64(h.payload.tenantId)).
 			Msg("Could not load cals")
@@ -317,7 +318,8 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 		LocalTenantID: h.scraper.check.TenantId,
 		RegionID:      int32(h.scraper.check.RegionId),
 		CheckClass:    h.scraper.check.Class(),
-		Duration:      duration,
+		// TODO(@pokom): Add cost attribution label bits here
+		Duration: duration,
 	})
 
 	if h.payload != nil {
@@ -493,6 +495,7 @@ func tickWithOffset(
 	}
 }
 
+// collectDate sets up the metrics and log labels for the specific scraper that is being run. It then makes a call to Scraper.
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
 	var (
 		target = s.target

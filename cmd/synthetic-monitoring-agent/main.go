@@ -316,7 +316,7 @@ func run(args []string, stdout io.Writer) error {
 	publisher := publisherFactory(ctx, tm, zl.With().Str("subsystem", "publisher").Str("version", config.SelectedPublisher).Logger(), promRegisterer)
 	limits := limits.NewTenantLimits(tm)
 	secretProvider := secrets.NewSecretProvider(tm, 60*time.Second, zl.With().Str("subsystem", "secretstore").Logger())
-	cals := cals.NewTenantCals(tm)
+	cals := cals.NewCostAttributionLabels(tm)
 
 	telemetry := telemetry.NewTelemeter(
 		ctx, uuid.New().String(), time.Duration(config.TelemetryTimeSpan)*time.Minute,
