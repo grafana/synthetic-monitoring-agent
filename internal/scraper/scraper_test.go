@@ -1316,7 +1316,6 @@ func (t testCalTenants) CostAttributionLabels(_ context.Context, tenantID model.
 	return t.costAttributionLabels, nil
 }
 
-//nolint:gocyclo
 func TestScraperCollectData(t *testing.T) {
 	const (
 		checkName     = "check name"
