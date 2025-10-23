@@ -85,7 +85,7 @@ type Updater struct {
 	tenantSecrets  *secrets.TenantSecrets
 	telemeter      *telemetry.Telemeter
 	usageReporter  usage.Reporter
-	tenantCals     *cals.TenantCostAttributionLabels
+	tenantCals     *cals.CostAttributionLabels
 }
 
 type apiInfo struct {
@@ -122,7 +122,7 @@ type UpdaterOptions struct {
 	Telemeter             *telemetry.Telemeter
 	TenantSecrets         *secrets.TenantSecrets
 	UsageReporter         usage.Reporter
-	CostAttributionLabels *cals.TenantCostAttributionLabels
+	CostAttributionLabels *cals.CostAttributionLabels
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
