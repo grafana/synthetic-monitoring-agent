@@ -23,7 +23,7 @@ func NewCostAttributionLabels(provider TenantProvider) *CostAttributionLabels {
 	}
 }
 
-// CostAttributionLabels will call TenantProvider.GetTenant to search for a specific tenant and returns Tenant.CostAttributionLabel
+// CostAttributionLabels will call TenantProvider.GetTenant to search for a specific tenant and returns Tenant.CostAttributionLabels
 func (tcal CostAttributionLabels) CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error) {
 	tenant, err := tcal.provider.GetTenant(ctx, &sm.TenantInfo{
 		Id: int64(tenantID),
