@@ -302,7 +302,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 
 	costAttributionLabels, err := h.scraper.cals.CostAttributionLabels(ctx, h.payload.tenantId)
 	if err != nil {
-		// If cal's can't be found, do not block
+		// If cals can't be found, do not block
 		h.scraper.logger.Error().
 			Int64("tenantId", int64(h.payload.tenantId)).
 			Msg("Could not load cals")
@@ -311,7 +311,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	h.scraper.logger.Debug().
 		Int64("tenantId", int64(h.payload.tenantId)).
 		Int("costAttributionLabelsCount", len(costAttributionLabels)).
-		Msgf("Cost Atttribution Labels: %v", costAttributionLabels)
+		Msgf("Cost Attribution Labels: %v", costAttributionLabels)
 
 	// If we are dropping the data in case of errors, we should not count that execution.
 	h.scraper.telemeter.AddExecution(telemetry.Execution{
@@ -495,7 +495,6 @@ func tickWithOffset(
 	}
 }
 
-// collectDate sets up the metrics and log labels for the specific scraper that is being run. It then makes a call to Scraper.
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
 	var (
 		target = s.target

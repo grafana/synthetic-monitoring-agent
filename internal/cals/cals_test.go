@@ -36,7 +36,7 @@ func TestTenantCostAttributionLabels_GetCostAttributionLabels(t *testing.T) {
 		"Handle returning an error": {
 			tenantProvider: &mockTenantProvider{
 				tenant: &sm.Tenant{},
-				err:    fmt.Errorf("Error getting tenant info"),
+				err:    fmt.Errorf("error getting tenant info"),
 			},
 			expectedCostAttributionLabels: []string{},
 			expectError:                   true,
