@@ -55,9 +55,12 @@ const (
 	errProbeUnregistered   = Error("probe no longer registered")
 	errIncompatibleApi     = Error("API does not support required features")
 	errInvalidAdHocRequest = Error("invalid ad-hoc request")
+	errIdleTimeout         = Error("connection idle timeout")
 
 	k6AdhocGraceTime = 20 * time.Second
 )
+
+// Removed HTTP status code parsing; we treat all codes.Unavailable as idle timeout.
 
 type runner struct {
 	logger  zerolog.Logger
@@ -205,6 +208,22 @@ func (h *Handler) Run(ctx context.Context) error {
 
 			continue
 
+		case errors.Is(err, errIdleTimeout):
+			// connection idle timeout - this is normal behavior when adhoc checks aren't used frequently
+			h.logger.Info().
+				Str("connection_state", h.api.conn.GetState().String()).
+				Msg("connection idle timeout, reconnecting")
+
+			// After idle timeout, reset the backoff counter to start afresh.
+			h.backoff.Reset()
+
+			// Sleep to allow context cancellation to be checked
+			if err := sleepCtx(ctx, h.backoff.Duration()); err != nil {
+				return err
+			}
+
+			continue
+
 		case errors.Is(err, context.Canceled):
 			// context was cancelled, clean up
 			h.logger.Error().
@@ -254,10 +273,10 @@ func (h *Handler) loop(ctx context.Context) error {
 
 	grpcErrorHandler := func(action string, err error) error {
 		status, ok := status.FromError(err)
-		h.logger.Error().Err(err).Bool("ok", ok).Str("action", action).Uint32("code", uint32(status.Code())).Msg(status.Message())
 
 		switch {
 		case !ok:
+			h.logger.Error().Err(err).Bool("ok", ok).Str("action", action).Msg("unknown error")
 			return fmt.Errorf("%s: %w", action, err)
 
 		case status.Code() == codes.Canceled:
@@ -268,13 +287,20 @@ func (h *Handler) loop(ctx context.Context) error {
 			// the other end is shutting down
 			return errTransportClosing
 
+		case status.Code() == codes.Unavailable:
+			// Treat all Unavailable as idle timeout; allow reconnect loop.
+			return errIdleTimeout
+
 		case status.Code() == codes.PermissionDenied:
+			h.logger.Error().Err(err).Bool("ok", ok).Str("action", action).Uint32("code", uint32(status.Code())).Msg(status.Message())
 			return errNotAuthorized
 
 		case status.Code() == codes.Unimplemented:
+			h.logger.Error().Err(err).Bool("ok", ok).Str("action", action).Uint32("code", uint32(status.Code())).Msg(status.Message())
 			return errIncompatibleApi
 
 		default:
+			h.logger.Error().Err(err).Bool("ok", ok).Str("action", action).Uint32("code", uint32(status.Code())).Msg(status.Message())
 			return status.Err()
 		}
 	}
