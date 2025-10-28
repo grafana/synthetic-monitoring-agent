@@ -223,21 +223,21 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 	}
 
     // Add secretStore configuration if available
-	if configFile != "" {
-		args = append(args, "--secret-source", "grafanasecrets=config="+configFile)
-		if r.logger != nil {
-			r.logger.Debug().
-				Str("configFile", configFile).
-				Msg("Adding secret source configuration to k6")
+    if configFile != "" {
+        args = append(args, "--secret-source", "grafanasecrets=config="+configFile)
+        if r.logger != nil {
+            r.logger.Debug().
+                Str("configFile", configFile).
+                Msg("Adding secret source configuration to k6")
+        }
+    } else if r.logger != nil {
+        r.logger.Debug().Msg("No secret source configuration to add to k6")
     }
 
     // Add blacklist flag only if configured to avoid passing empty value.
     if strings.TrimSpace(r.blacklistedIP) != "" {
         args = append(args, "--blacklist-ip", r.blacklistedIP)
     }
-	} else if r.logger != nil {
-		r.logger.Debug().Msg("No secret source configuration to add to k6")
-	}
 
 	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
 		args = append(args,
