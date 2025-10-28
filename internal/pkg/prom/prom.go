@@ -85,9 +85,9 @@ func withBackoff(ctx context.Context, client PrometheusClient, store func(ctx co
 		return a
 	}
 
-	var err error
+    var err error
 
-	backoff := minBackoff
+    backoff := minBackoff
 
 	retries := maxRetries
 	defer func() {
@@ -113,10 +113,20 @@ func withBackoff(ctx context.Context, client PrometheusClient, store func(ctx co
 
 		retries--
 
-		if retries > 0 {
-			time.Sleep(backoff)
-			backoff = clampBackoff(2 * backoff)
-		}
+        if retries > 0 {
+            // Sleep in a context-aware way so cancellations/timeouts don't wait
+            // for the full backoff duration.
+            t := time.NewTimer(backoff)
+            select {
+            case <-ctx.Done():
+                if !t.Stop() {
+                    <-t.C
+                }
+                return ctx.Err()
+            case <-t.C:
+            }
+            backoff = clampBackoff(2 * backoff)
+        }
 	}
 
 	return err

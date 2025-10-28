@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -103,11 +104,11 @@ func TestBuildK6Args(t *testing.T) {
 			scriptFn:      "/tmp/script.js",
 			blacklistedIP: "127.0.0.1",
 			configFile:    "",
-			wantArgs: []string{
-				"--out", "sm=/tmp/metrics.json",
-				"--log-output", "file=/tmp/logs.log",
-				"--blacklist-ip", "127.0.0.1",
-			},
+            wantArgs: []string{
+                "--out", "sm=/tmp/metrics.json",
+                "--log-output", "file=/tmp/logs.log",
+                // blacklist is only present when configured; covered below
+            },
 		},
 		"script with secrets": {
 			script:        Script{},
@@ -134,11 +135,24 @@ func TestBuildK6Args(t *testing.T) {
 				return
 			}
 
-			for _, want := range tt.wantArgs {
+            for _, want := range tt.wantArgs {
 				if !slices.Contains(args, want) {
 					t.Errorf("buildK6Args() missing expected argument got \n%v\nwant \n%v", args, want)
 				}
 			}
+
+            // Verify blacklist flag is added only when non-empty.
+            hasBlacklist := slices.Contains(args, "--blacklist-ip")
+            hasIP := slices.Contains(args, tt.blacklistedIP)
+            if strings.TrimSpace(tt.blacklistedIP) == "" {
+                if hasBlacklist || hasIP {
+                    t.Errorf("expected no blacklist args when empty, got %v", args)
+                }
+            } else {
+                if !hasBlacklist || !hasIP {
+                    t.Errorf("expected blacklist args when set, got %v", args)
+                }
+            }
 		})
 	}
 }

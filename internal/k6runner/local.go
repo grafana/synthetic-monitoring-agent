@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"os"
 	"os/exec"
 	"time"
@@ -199,7 +200,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 }
 
 func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
-	args := []string{
+    args := []string{
 		"run",
 		"--out", "sm=" + metricsFn,
 		"--log-format", "logfmt",
@@ -207,9 +208,8 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 		"--max-redirects", "10",
 		"--batch", "10",
 		"--batch-per-host", "4",
-		"--no-connection-reuse",
-		"--blacklist-ip", r.blacklistedIP,
-		"--block-hostnames", "*.cluster.local", // TODO(mem): make this configurable
+        "--no-connection-reuse",
+        "--block-hostnames", "*.cluster.local", // TODO(mem): make this configurable
 		"--summary-time-unit", "s",
 		// "--discard-response-bodies",                        // TODO(mem): make this configurable
 		"--dns", "ttl=30s,select=random,policy=preferIPv4", // TODO(mem): this needs fixing, preferIPv4 is probably not what we want
@@ -222,14 +222,19 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 		"--throw", // Abort with an exception on certain abnormal cases: https://grafana.com/docs/k6/latest/using-k6/k6-options/reference/#throw
 	}
 
-	// Add secretStore configuration if available
+    // Add secretStore configuration if available
 	if configFile != "" {
 		args = append(args, "--secret-source", "grafanasecrets=config="+configFile)
 		if r.logger != nil {
 			r.logger.Debug().
 				Str("configFile", configFile).
 				Msg("Adding secret source configuration to k6")
-		}
+    }
+
+    // Add blacklist flag only if configured to avoid passing empty value.
+    if strings.TrimSpace(r.blacklistedIP) != "" {
+        args = append(args, "--blacklist-ip", r.blacklistedIP)
+    }
 	} else if r.logger != nil {
 		r.logger.Debug().Msg("No secret source configuration to add to k6")
 	}
