@@ -108,25 +108,28 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 // Overrides any user-provided headers with our own augmented values
 // for 'reserved' headers.
 func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
-	updatedHeaders := []*sm.HttpHeader{}
-	for key, values := range reservedHeaders {
-		updatedHeaders = append(updatedHeaders, &sm.HttpHeader{Name: key, Value: strings.Join(values, ",")})
-	}
+    // Build reserved headers once, then for each entry create a fresh slice
+    // starting from the reserved set to avoid leaking headers across entries.
+    reserved := make([]*sm.HttpHeader, 0, len(reservedHeaders))
+    for key, values := range reservedHeaders {
+        reserved = append(reserved, &sm.HttpHeader{Name: key, Value: strings.Join(values, ",")})
+    }
 
-	for _, entry := range check.Settings.Multihttp.Entries {
-		heads := entry.Request.Headers
-		for _, headerPtr := range heads {
-			_, present := reservedHeaders[http.CanonicalHeaderKey(headerPtr.Name)]
+    for _, entry := range check.Settings.Multihttp.Entries {
+        // Start from a copy of the reserved headers for this specific entry.
+        updatedHeaders := make([]*sm.HttpHeader, 0, len(reserved)+len(entry.Request.Headers))
+        updatedHeaders = append(updatedHeaders, reserved...)
 
-			if present {
-				continue // users can't override reserved headers with their own values
-			}
+        for _, headerPtr := range entry.Request.Headers {
+            // Skip user headers that attempt to override a reserved header.
+            if _, present := reservedHeaders[http.CanonicalHeaderKey(headerPtr.Name)]; present {
+                continue
+            }
+            updatedHeaders = append(updatedHeaders, headerPtr)
+        }
 
-			updatedHeaders = append(updatedHeaders, headerPtr)
-		}
-
-		entry.Request.Headers = updatedHeaders
-	}
+        entry.Request.Headers = updatedHeaders
+    }
 }
 
 func newCredentialsRetriever(provider secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) func(context.Context) (k6runner.SecretStore, error) {
