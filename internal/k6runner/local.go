@@ -137,6 +137,8 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	err = errors.Join(err, ctx.Err())
 
 	if err != nil && !isUserError(err) {
+		// A non-user error occurred. This is usually something like k6 not being found, or other os-level errors trying
+		// to run the binary. In this case, we don't bother to read k6 outputs and report the error immediately.
 		logger.Error().
 			Err(err).
 			Dur("duration", duration).
@@ -160,8 +162,8 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	// than 2.5x.
 	const maxMetricsSizeBytes = 100 * 1024
 
-	logs, truncated, err := readFileLimit(afs.Fs, logsFn, maxLogsSizeBytes)
-	if err != nil {
+	logs, truncated, logsErr := readFileLimit(afs.Fs, logsFn, maxLogsSizeBytes)
+	if logsErr != nil {
 		return nil, fmt.Errorf("reading k6 logs: %w", err)
 	}
 	if truncated {
@@ -174,8 +176,8 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		fmt.Fprintf(logs, `level=error msg="Log output truncated at %d bytes"`+"\n", maxLogsSizeBytes)
 	}
 
-	metrics, truncated, err := readFileLimit(afs.Fs, metricsFn, maxMetricsSizeBytes)
-	if err != nil {
+	metrics, truncated, metricsErr := readFileLimit(afs.Fs, metricsFn, maxMetricsSizeBytes)
+	if metricsErr != nil {
 		return nil, fmt.Errorf("reading k6 metrics: %w", err)
 	}
 	if truncated {
@@ -189,8 +191,9 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	}
 
 	rr := &RunResponse{Metrics: metrics.Bytes(), Logs: logs.Bytes()}
-	if err := errorFromLogs(logs.Bytes()); err != nil {
-		// k6 was run currectly, but the script failed. We capture that failure in the RunResponse.
+	if err := errors.Join(err, errorFromLogs(logs.Bytes())); err != nil {
+		// A user-error occurred: Either a context error, a k6 exit code we recognize as such, or an error was inferred
+		// from the logs. In this case, absorb the error into the RunResponse so it can be reported back to the user.
 		rr.ErrorCode = errorType(err)
 		rr.Error = err.Error()
 	}
