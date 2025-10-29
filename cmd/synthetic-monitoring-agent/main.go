@@ -299,7 +299,7 @@ func run(args []string, stdout io.Writer) error {
 		ctx,
 		synthetic_monitoring.NewTenantsClient(conn),
 		tenantCh,
-		15*time.Minute, // Default timeout for tenant information caching
+		tenants.DefaultCacheTimeout,
 		zl.With().Str("subsystem", "tenant_manager").Logger(),
 	)
 

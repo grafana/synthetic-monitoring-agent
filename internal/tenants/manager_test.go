@@ -67,6 +67,7 @@ func TestTenantManagerGetTenant(t *testing.T) {
 
 	tenantCh := make(chan sm.Tenant)
 	cacheExpirationTime := 200 * time.Millisecond
+	maxCacheExpirationTime := cacheExpirationTime + time.Duration(defaultCacheJitter*float64(cacheExpirationTime))
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	tm := NewManager(ctx, &tc, tenantCh, cacheExpirationTime, logger)
 
@@ -91,7 +92,7 @@ func TestTenantManagerGetTenant(t *testing.T) {
 	// requesting the same tenant after a longer time should evict
 	// the existing tenant and make a new request; make sure we are
 	// not getting a cached copy.
-	time.Sleep(cacheExpirationTime)
+	time.Sleep(maxCacheExpirationTime)
 
 	t1.MetricsRemote.Password += "-new"
 
@@ -151,7 +152,7 @@ func TestTenantManagerGetTenant(t *testing.T) {
 	require.Equal(t, t3, *tenant)
 
 	// wait for tenants to expire
-	time.Sleep(cacheExpirationTime)
+	time.Sleep(maxCacheExpirationTime)
 	// force tenants client to return an error
 	tc.err = errors.New("network error")
 
@@ -171,7 +172,10 @@ func TestCalculateValidUntil(t *testing.T) {
 		// between the time we expect (which is around now+timeout) and
 		// a time that is 1 second later. In other words, tolare a
 		// relative difference of about 1 second in the results we get.
-		epsilon = float64(now.Add(1*time.Second).UnixNano()-now.UnixNano()) / float64(now.UnixNano())
+		defEpsilon = float64(now.Add(1*time.Second).UnixNano()-now.UnixNano()) / float64(now.UnixNano())
+		// For cases on which the secret store expiraiton is not taken into
+		// account, a jitter is applied to the timeout.
+		jitterEpsilon = defaultCacheJitter
 	)
 
 	// Some tests below assume this is true.
@@ -182,16 +186,19 @@ func TestCalculateValidUntil(t *testing.T) {
 		timeout time.Duration
 		tenant  *sm.Tenant
 		want    time.Duration
+		epsilon float64
 	}{
 		"10 minute timeout, no secret store": {
 			timeout: 10 * time.Minute,
 			tenant:  &sm.Tenant{},
 			want:    10 * time.Minute,
+			epsilon: jitterEpsilon,
 		},
 		"1 hour timeout, no secret store": {
 			timeout: 1 * time.Hour,
 			tenant:  &sm.Tenant{},
 			want:    1 * time.Hour,
+			epsilon: jitterEpsilon,
 		},
 		"7.5 minute timeout, secret store expires in 2 minutes (less than MaxScriptedTimeout)": {
 			timeout: 7*time.Minute + 30*time.Second,
@@ -202,7 +209,8 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(2*time.Minute).UnixNano()) / 1e9,
 				},
 			},
-			want: 2 * time.Minute,
+			want:    2 * time.Minute,
+			epsilon: defEpsilon,
 		},
 		"7.5 minute timeout, secret store expires in 5 minutes (more than MaxScriptedTimeout)": {
 			timeout: 7*time.Minute + 30*time.Second,
@@ -213,7 +221,8 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(5*time.Minute).UnixNano()) / 1e9,
 				},
 			},
-			want: 5*time.Minute - sm.MaxScriptedTimeout,
+			want:    5*time.Minute - sm.MaxScriptedTimeout,
+			epsilon: defEpsilon,
 		},
 		"7.5 minute timeout, secret store expires in 1 hour": {
 			timeout: 7*time.Minute + 30*time.Second,
@@ -224,7 +233,8 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
 				},
 			},
-			want: 7*time.Minute + 30*time.Second,
+			want:    7*time.Minute + 30*time.Second,
+			epsilon: defEpsilon,
 		},
 		// This should not make a difference wrt to the previous tests. Make sure that's the case.
 		"10 minute timeout, secret store expires in 2 minutes": {
@@ -236,7 +246,8 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(2*time.Minute).UnixNano()) / 1e9,
 				},
 			},
-			want: 2 * time.Minute,
+			want:    2 * time.Minute,
+			epsilon: defEpsilon,
 		},
 		"10 minute timeout, secret store expires in 5 minutes": {
 			timeout: 10 * time.Minute,
@@ -247,7 +258,8 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(5*time.Minute).UnixNano()) / 1e9,
 				},
 			},
-			want: 5*time.Minute - sm.MaxScriptedTimeout,
+			want:    5*time.Minute - sm.MaxScriptedTimeout,
+			epsilon: defEpsilon,
 		},
 		"10 minute timeout, secret store expires in 10 minutes": {
 			timeout: 10 * time.Minute,
@@ -258,7 +270,8 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(10*time.Minute).UnixNano()) / 1e9,
 				},
 			},
-			want: 10*time.Minute - sm.MaxScriptedTimeout,
+			want:    10*time.Minute - sm.MaxScriptedTimeout,
+			epsilon: defEpsilon,
 		},
 		"10 minute timeout, secret store expires in 1 hour": {
 			timeout: 10 * time.Minute,
@@ -269,7 +282,8 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
 				},
 			},
-			want: 10 * time.Minute,
+			want:    10 * time.Minute,
+			epsilon: defEpsilon,
 		},
 		"10 minute timeout, secret store with empty URL (not configured)": {
 			timeout: 10 * time.Minute,
@@ -280,7 +294,8 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
 				},
 			},
-			want: 0, // Cache should be invalid immediately
+			want:    0, // Cache should be invalid immediately
+			epsilon: defEpsilon,
 		},
 		"10 minute timeout, secret store with empty token (not configured)": {
 			timeout: 10 * time.Minute,
@@ -291,7 +306,8 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
 				},
 			},
-			want: 0, // Cache should be invalid immediately
+			want:    0, // Cache should be invalid immediately
+			epsilon: defEpsilon,
 		},
 		"10 minute timeout, secret store with both URL and token empty (not configured)": {
 			timeout: 10 * time.Minute,
@@ -302,7 +318,8 @@ func TestCalculateValidUntil(t *testing.T) {
 					Expiry: float64(now.Add(1*time.Hour).UnixNano()) / 1e9,
 				},
 			},
-			want: 0, // Cache should be invalid immediately
+			want:    0, // Cache should be invalid immediately
+			epsilon: defEpsilon,
 		},
 	}
 
@@ -315,7 +332,7 @@ func TestCalculateValidUntil(t *testing.T) {
 			expected := time.Now().Add(tc.want)
 			actual := tm.calculateValidUntil(tc.tenant)
 
-			require.InEpsilonf(t, expected.UnixNano(), actual.UnixNano(), epsilon,
+			require.InEpsilonf(t, expected.UnixNano(), actual.UnixNano(), tc.epsilon,
 				"calculateValidUntil() should be within range. expected: %d, actual: %d, delta: %d",
 				expected.Sub(now).Milliseconds(),
 				actual.Sub(now).Milliseconds(),

@@ -3,12 +3,19 @@ package tenants
 import (
 	"context"
 	"math"
+	"math/rand/v2"
 	"sync"
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
+)
+
+const (
+	// DefaultCacheTimeout is the default timeout for the tenant cache.
+	DefaultCacheTimeout = 15 * time.Minute
+	defaultCacheJitter  = 0.25 // 25% jitter
 )
 
 // isSecretStoreConfigured returns true if the SecretStore has both URL and token configured.
@@ -141,11 +148,16 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 		}
 	}
 
-	validUntil := now.Add(tm.timeout)
+	// In case where the expiration time is set based on the default timeout,
+	// apply a jitter to avoid many agents from hitting the API at the same time.
+	jitterDuration := time.Duration(rand.Float64() * defaultCacheJitter * float64(tm.timeout))
+	validUntil := now.Add(tm.timeout).Add(jitterDuration)
+
 	tm.logger.Debug().
 		Int64("tenantId", tenant.Id).
 		Time("validUntil", validUntil).
 		Msg("using configured timeout (no secret store expiry)")
+
 	return validUntil
 }
 
