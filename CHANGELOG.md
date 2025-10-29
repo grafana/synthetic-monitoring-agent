@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.45.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.44.2...v0.45.0) (2025-10-29)
+
+
+### Features
+
+* Adjust publisher options ([#1558](https://github.com/grafana/synthetic-monitoring-agent/issues/1558)) ([b782a3c](https://github.com/grafana/synthetic-monitoring-agent/commit/b782a3c08117d1bf07961847c36095348d5028ac))
+
+
+### Fixes
+
+* Run modernize over source code ([8e7fee2](https://github.com/grafana/synthetic-monitoring-agent/commit/8e7fee2f5383df5c3666120fbc6351f718a008eb))
+* Update some github.com/prometheus/* modules ([67340ec](https://github.com/grafana/synthetic-monitoring-agent/commit/67340ec0f334c30768e0c2b42e222173bdd0b932))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm to v0.6.8 ([#1566](https://github.com/grafana/synthetic-monitoring-agent/issues/1566)) ([2ca5380](https://github.com/grafana/synthetic-monitoring-agent/commit/2ca5380f6c06354256c8fb6286ef969c75e2bd21))
+* Update grafana/shared-workflows digest to c8ac4a2 ([#1573](https://github.com/grafana/synthetic-monitoring-agent/issues/1573)) ([14150a5](https://github.com/grafana/synthetic-monitoring-agent/commit/14150a56737ac3b93b509ae8e4574584e788afee))
+* Update grafana/shared-workflows digest to eed6978 ([#1567](https://github.com/grafana/synthetic-monitoring-agent/issues/1567)) ([082535c](https://github.com/grafana/synthetic-monitoring-agent/commit/082535ccf3a9f93bed55e348392f9e79cb49059e))
+* Update module github.com/KimMachineGun/automemlimit to v0.7.5 ([9dcd051](https://github.com/grafana/synthetic-monitoring-agent/commit/9dcd051df110152d518497515cf7ad931b9aa527))
+
 ## [0.44.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.44.1...v0.44.2) (2025-10-15)
 
 
