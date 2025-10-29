@@ -24,11 +24,7 @@ var (
 
 		// Max bytes to hold queued
 		// 0: Disabled
-		maxQueuedBytes: 128 * 1024,
-
-		// Max items (check results) to hold in memory (per tenant per type)
-		// 0: Disabled
-		maxQueuedItems: 128,
+		maxQueuedBytes: 1024 * 1024,
 
 		// Max time to keep an item in the queue before it's discarded
 		// Note that loki/mimir will probably reject data older than 1h anyway.
@@ -37,11 +33,11 @@ var (
 
 		// Max number of retries in case of network(retriable) error.
 		// Ideally we make this big and have data expired with the above limits.
-		maxRetries: 20,
+		maxRetries: 50,
 
 		// Backoff between retries. Doubling at each attempt.
-		minBackoff: time.Millisecond * 30,
-		maxBackoff: time.Second * 2,
+		minBackoff: time.Millisecond * 50,
+		maxBackoff: time.Second * 30,
 
 		// Max time a tenant pusher is active. This is useful to cause the tenant info
 		// to be refreshed.
@@ -53,7 +49,7 @@ var (
 		// How long without receiving check results until a tenant pusher is stopped.
 		// This is to cleanup tenants that don't have active checks anymore.
 		// Set it to a value higher than the max interval between a single check run.
-		maxIdleTime: 5 * time.Minute,
+		maxIdleTime: 65 * time.Minute,
 
 		// How long to wait before refreshing tenant due to an error.
 		tenantDelay: 10 * time.Second,
@@ -78,7 +74,6 @@ var (
 type pusherOptions struct {
 	maxPushBytes      uint64        // Max bytes to send on a single push request
 	maxQueuedBytes    uint64        // Max bytes to hold queued
-	maxQueuedItems    int           // Max items (check results) to hold in memory
 	maxQueuedTime     time.Duration // Max time an item can be queued until it expires
 	maxRetries        int           // Max retries for a push
 	minBackoff        time.Duration
