@@ -1308,6 +1308,14 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 	return l.maxLogLabels, nil
 }
 
+type testCalTenants struct {
+	costAttributionLabels []string
+}
+
+func (t testCalTenants) CostAttributionLabels(_ context.Context, tenantID model.GlobalID) ([]string, error) {
+	return t.costAttributionLabels, nil
+}
+
 func TestScraperCollectData(t *testing.T) {
 	const (
 		checkName     = "check name"
@@ -1875,6 +1883,9 @@ func TestScraperRun(t *testing.T) {
 			maxLogLabels:    15,
 		},
 		Telemeter: testTelemeter,
+		CostAttributionLabels: testCalTenants{
+			costAttributionLabels: []string{"testing", "you"},
+		},
 	})
 
 	require.NoError(t, err)

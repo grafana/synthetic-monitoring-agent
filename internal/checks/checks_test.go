@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -474,6 +475,7 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 	labelsLimiter scraper.LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore *secrets.TenantSecrets,
+	cals *cals.CostAttributionLabels,
 ) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
