@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"io/fs"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -2044,4 +2048,140 @@ func TestRemoteInfoMarshalJSON(t *testing.T) {
 	expected := `{"name":"the name","url":"https://example.com","username":"the username","password":"\u003cencrypted\u003e"}`
 	actual := strings.TrimSpace(buf.String())
 	require.Equal(t, expected, actual, "JSON encoding of RemoteInfo did not match expected output")
+}
+
+// TestUsesSecretsModuleRe tests that the regular expression used to detect the use of secrets works as expected.
+//
+// When modifying the regular expression, add a case in testdata, following the following naming convention:
+//
+// * script_using_secrets_<description>.js: should be reported as using secrets
+// * script_not_using_secrets_<description>.js: should NOT be reported as using secrets
+func TestUsesSecretsModuleRe(t *testing.T) {
+	t.Parallel()
+
+	testdataDir := `testdata`
+	testdataDirFS := os.DirFS(testdataDir)
+	filenames, err := fs.Glob(testdataDirFS, "script_*.js")
+	require.NoError(t, err)
+
+	for _, filename := range filenames {
+		switch {
+		case strings.HasPrefix(filename, `script_using_secrets_`):
+			script, err := os.ReadFile(filepath.Join(testdataDir, filename))
+			require.NoError(t, err)
+			assert.Truef(t, usesSecretsModuleRe.Match(script), "%s should report true", filename)
+
+		case strings.HasPrefix(filename, `script_not_using_secrets_`):
+			script, err := os.ReadFile(filepath.Join(testdataDir, filename))
+			require.NoError(t, err)
+			assert.False(t, usesSecretsModuleRe.Match(script), "%s should report false", filename)
+
+		default: // skip
+		}
+	}
+}
+
+func TestCheckIsUsingSecrets(t *testing.T) {
+	t.Parallel()
+
+	generateCheck := func(target string, settings CheckSettings) Check {
+		return Check{
+			Id:        1,
+			TenantId:  1000,
+			Target:    target,
+			Job:       "job",
+			Frequency: 60000,
+			Timeout:   10000,
+			Probes:    []int64{1},
+			Settings:  settings,
+		}
+	}
+
+	mustReadFile := func(filename string) []byte {
+		contents, err := os.ReadFile(filename)
+		require.NoError(t, err)
+
+		return contents
+	}
+
+	testcases := map[string]struct {
+		check    Check
+		expected bool
+	}{
+		"ping": {
+			check: generateCheck(
+				"127.0.0.1",
+				CheckSettings{Ping: &PingSettings{}},
+			),
+			expected: false,
+		},
+		"dns": {
+			check: generateCheck(
+				"127.0.0.1",
+				CheckSettings{Dns: &DnsSettings{}},
+			),
+			expected: false,
+		},
+		"http": {
+			check: generateCheck(
+				"http://127.0.0.1/",
+				CheckSettings{Http: &HttpSettings{}},
+			),
+			expected: false,
+		},
+		"tcp": {
+			check: generateCheck(
+				"127.0.0.1:80",
+				CheckSettings{Tcp: &TcpSettings{}},
+			),
+			expected: false,
+		},
+		"grpc": {
+			check: generateCheck(
+				"127.0.0.1",
+				CheckSettings{Grpc: &GrpcSettings{}},
+			),
+			expected: false,
+		},
+		"traceroute": {
+			check: generateCheck(
+				"127.0.0.1",
+				CheckSettings{Traceroute: &TracerouteSettings{}},
+			),
+			expected: false,
+		},
+		"multihttp": {
+			check: generateCheck(
+				"https://grafana.com/",
+				CheckSettings{Multihttp: &MultiHttpSettings{}},
+			),
+			expected: false,
+		},
+		"scripted": {
+			check: generateCheck(
+				"https://grafana.com/",
+				CheckSettings{Scripted: &ScriptedSettings{
+					Script: mustReadFile(`testdata/script_using_secrets_default_import_1.js`),
+				}},
+			),
+			expected: true,
+		},
+		"browser": {
+			check: generateCheck(
+				"https://grafana.com/",
+				CheckSettings{Browser: &BrowserSettings{
+					Script: mustReadFile(`testdata/script_using_secrets_browser_default_import_1.js`),
+				}},
+			),
+			expected: true,
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, testcase.expected, testcase.check.IsUsingSecrets())
+		})
+	}
 }
