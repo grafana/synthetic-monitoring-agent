@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+echo '{"commit":"9.9.9","go_arch":"amd64","go_os":"linux","go_version":"go1.24.6","version":"v9.9.9"}'
