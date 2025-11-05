@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.46.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.45.0...v0.46.0) (2025-11-03)
+
+
+### Features
+
+* add support for secrets in http checks ([#1469](https://github.com/grafana/synthetic-monitoring-agent/issues/1469)) ([61da457](https://github.com/grafana/synthetic-monitoring-agent/commit/61da45730b8a6e0a99b435c76d80d507338a96cc))
+* Apply jitter to tenants cache ([#1576](https://github.com/grafana/synthetic-monitoring-agent/issues/1576)) ([35e4ebe](https://github.com/grafana/synthetic-monitoring-agent/commit/35e4ebe1643ebdd0957ed72feb65f00b730f852b))
+
+
+### Fixes
+
+* k6runner: properly propagate user errors back to the prober ([f58ee35](https://github.com/grafana/synthetic-monitoring-agent/commit/f58ee358b876235e37db47fdfd8df1324ef4ee08))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm to v0.6.9 ([#1586](https://github.com/grafana/synthetic-monitoring-agent/issues/1586)) ([d97c427](https://github.com/grafana/synthetic-monitoring-agent/commit/d97c42799e2ccfe3de05d2b36fc62c653a96e25e))
+* Update docker:dind Docker digest to ea9d204 ([#1585](https://github.com/grafana/synthetic-monitoring-agent/issues/1585)) ([a5018c1](https://github.com/grafana/synthetic-monitoring-agent/commit/a5018c1ab77e3b0bf4bec5a927d9fa34c3e3c55a))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v141.0.7390.122-r0-3.22.2 ([#1570](https://github.com/grafana/synthetic-monitoring-agent/issues/1570)) ([ddd9e72](https://github.com/grafana/synthetic-monitoring-agent/commit/ddd9e7265045bb8c56734d77e9b7257147c5f074))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:141.0.7390.122-r0-3.22.2 Docker digest to a6d31b0 ([78a869e](https://github.com/grafana/synthetic-monitoring-agent/commit/78a869e3b197e435b901f178e255dd7d7270e9cc))
+* Update GitHub Artifact Actions ([#1574](https://github.com/grafana/synthetic-monitoring-agent/issues/1574)) ([38f3dee](https://github.com/grafana/synthetic-monitoring-agent/commit/38f3dee543c5f5e5b0c3a7e985c998abaf33faa7))
+* Update golang.org/x/exp digest to a4bb9ff ([#1572](https://github.com/grafana/synthetic-monitoring-agent/issues/1572)) ([7e978a4](https://github.com/grafana/synthetic-monitoring-agent/commit/7e978a439cf0ad55dbbfc771066447dcc99ba191))
+* Update googleapis/release-please-action action to v4.4.0 ([#1571](https://github.com/grafana/synthetic-monitoring-agent/issues/1571)) ([66001d6](https://github.com/grafana/synthetic-monitoring-agent/commit/66001d6879605b9dc0ee8e4c1a70aaf398a88727))
+* Update grafana/shared-workflows digest to ae92934 ([#1587](https://github.com/grafana/synthetic-monitoring-agent/issues/1587)) ([122997a](https://github.com/grafana/synthetic-monitoring-agent/commit/122997aae5cfa9f102824650577a5842b96c2b8e))
+* Update module github.com/grafana/gsm-api-go-client to v0.2.1 ([#1581](https://github.com/grafana/synthetic-monitoring-agent/issues/1581)) ([58def6b](https://github.com/grafana/synthetic-monitoring-agent/commit/58def6b6d3725793d7f19eef8ee0775954798e1e))
+* Update module kernel.org/pub/linux/libs/security/libcap/cap to v1.2.77 ([#1582](https://github.com/grafana/synthetic-monitoring-agent/issues/1582)) ([496aa33](https://github.com/grafana/synthetic-monitoring-agent/commit/496aa337ef6d769477590e877ed11e707a7146a9))
+
 ## [0.45.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.44.2...v0.45.0) (2025-10-29)
 
 
