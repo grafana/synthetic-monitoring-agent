@@ -37,7 +37,7 @@ require (
 	github.com/grafana/gsm-api-go-client v0.2.1
 	github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96
 	github.com/jpillora/backoff v1.0.0
-	github.com/mccutchen/go-httpbin/v2 v2.18.3
+	github.com/mccutchen/go-httpbin/v2 v2.19.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus-community/pro-bing v0.7.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
