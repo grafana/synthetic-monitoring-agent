@@ -66,20 +66,18 @@ func (p Prober) Name() string {
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
 	secretStore, err := p.secretsRetriever(ctx)
-
 	if err != nil {
 		p.logger.Error().Err(err).Msg("failed to retrieve secret store")
 		return false, 0
 	}
 
-	success, err := p.processor.Run(ctx, registry, logger, p.logger, secretStore)
+	success, duration, err := p.processor.Run(ctx, registry, logger, p.logger, secretStore)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("running probe")
 		return false, 0
 	}
 
-	// TODO(mem): implement custom duration extraction.
-	return success, 0
+	return success, duration.Seconds()
 }
 
 // TODO(mem): This should probably be in the k6runner package.

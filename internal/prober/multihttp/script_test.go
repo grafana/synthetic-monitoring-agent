@@ -869,7 +869,7 @@ func TestSettingsToScript(t *testing.T) {
 	t.Log("Log entries:\n" + buf.String())
 
 	require.True(t, success)
-	require.Equal(t, float64(0), duration)
+	require.NotEqual(t, 0, duration)
 }
 
 func TestReplaceVariablesInString(t *testing.T) {

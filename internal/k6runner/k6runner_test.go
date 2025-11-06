@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
@@ -90,9 +91,10 @@ func TestScriptRun(t *testing.T) {
 	// We already know tha parsing the metrics and the logs is working, so
 	// we are only interested in verifying that the script runs without
 	// errors.
-	success, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
+	success, duration, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
 	require.NoError(t, err)
 	require.True(t, success)
+	require.Equal(t, 500*time.Millisecond, duration)
 }
 
 func TestCheckInfoFromSM(t *testing.T) {

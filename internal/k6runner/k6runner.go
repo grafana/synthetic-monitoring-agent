@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/go-logfmt/logfmt"
 	smmmodel "github.com/grafana/synthetic-monitoring-agent/internal/model"
@@ -147,7 +148,7 @@ var (
 	ErrFromRunner  = errors.New("runner reported an error")
 )
 
-func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger, secretStore SecretStore) (bool, error) {
+func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger, secretStore SecretStore) (bool, time.Duration, error) {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
 	// TODO: This error message is okay to be Debug for local k6 execution, but should be Error for remote runners.
@@ -156,7 +157,7 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		internalLogger.Debug().
 			Err(err).
 			Msg("k6 script exited with error code")
-		return false, err
+		return false, 0, err
 	}
 
 	// If only one of Error and ErrorCode are non-empty, the proxy is misbehaving.
@@ -164,7 +165,7 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 	case result.Error == "" && result.ErrorCode != "":
 		fallthrough
 	case result.Error != "" && result.ErrorCode == "":
-		return false, fmt.Errorf(
+		return false, 0, fmt.Errorf(
 			"%w: only one of error (%q) and errorCode (%q) is non-empty",
 			ErrBuggyRunner, result.Error, result.ErrorCode,
 		)
@@ -194,40 +195,41 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		internalLogger.Debug().
 			Err(err).
 			Msg("cannot load logs to logger")
-		return false, err
+		return false, 0, err
 	}
 
 	var (
-		collector       sampleCollector
-		resultCollector checkResultCollector
+		collector         sampleCollector
+		resultCollector   checkResultCollector
+		durationCollector probeDurationCollector
 	)
 
-	if err := extractMetricSamples(result.Metrics, internalLogger, collector.process, resultCollector.process); err != nil {
+	if err := extractMetricSamples(result.Metrics, internalLogger, collector.process, resultCollector.process, durationCollector.process); err != nil {
 		internalLogger.Debug().
 			Err(err).
 			Msg("cannot extract metric samples")
-		return false, err
+		return false, 0, err
 	}
 
 	if err := registry.Register(&collector.collector); err != nil {
 		internalLogger.Error().
 			Err(err).
 			Msg("cannot register collector")
-		return false, err
+		return false, 0, err
 	}
 
 	// https://github.com/grafana/sm-k6-runner/blob/b811839d444a7e69fd056b0a4e6ccf7e914197f3/internal/mq/runner.go#L51
 	switch result.ErrorCode {
 	case "":
 		// No error, all good.
-		return true, nil
+		return true, durationCollector.duration, nil
 	// TODO: Remove "user" from this list, which has been renamed to "aborted".
 	case "timeout", "killed", "user", "failed", "aborted":
 		// These are user errors. The probe failed, but we don't return an error.
-		return false, nil
+		return false, durationCollector.duration, nil
 	default:
 		// We got an "unknown" error, or some other code we do not recognize. Return it so we log it.
-		return false, fmt.Errorf("%w: %s: %s", ErrFromRunner, result.ErrorCode, result.Error)
+		return false, durationCollector.duration, fmt.Errorf("%w: %s: %s", ErrFromRunner, result.ErrorCode, result.Error)
 	}
 }
 
@@ -298,6 +300,21 @@ func (rc *checkResultCollector) process(mf *dto.MetricFamily, sample *model.Samp
 	if sample.Value != 0 {
 		rc.failure = true
 	}
+
+	return nil
+}
+
+type probeDurationCollector struct {
+	duration time.Duration
+}
+
+func (dc *probeDurationCollector) process(_ *dto.MetricFamily, sample *model.Sample) error {
+	if sample.Metric[model.MetricNameLabel] != "probe_script_duration_seconds" {
+		return nil
+	}
+
+	// TODO: Is there a better way to convert from float seconds to time?
+	dc.duration = time.Duration(sample.Value*1000) * time.Millisecond // This truncates to the nearest millisecond.
 
 	return nil
 }
