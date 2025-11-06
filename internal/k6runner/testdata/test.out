@@ -1,3 +1,4 @@
 probe_data_sent_bytes{scenario="default"} 0
 probe_data_received_bytes{scenario="default"} 0
 probe_iteration_duration_seconds{scenario="default"} 1.3029e-05
+probe_script_duration_seconds 0.500

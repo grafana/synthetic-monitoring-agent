@@ -320,7 +320,7 @@ func TestScriptHTTPRun(t *testing.T) {
 				zlogger  = testhelper.Logger(t)
 			)
 
-			success, err := script.Run(ctx, registry, logger, zlogger, SecretStore{})
+			success, _, err := script.Run(ctx, registry, logger, zlogger, SecretStore{})
 			require.Equal(t, tc.expectSuccess, success)
 			require.Equal(t, tc.expectLogs, logger.buf.String())
 			if tc.expectErrorAs == nil {
@@ -453,7 +453,7 @@ func TestHTTPProcessorRetries(t *testing.T) {
 					logger   testLogger
 					zlogger  = zerolog.New(io.Discard)
 				)
-				success, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
+				success, _, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
 				require.ErrorIs(t, err, tc.expectError)
 				require.Equal(t, tc.expectError == nil, success)
 				require.Equal(t, tc.expectRequests, requests.Load())
@@ -499,7 +499,7 @@ func TestHTTPProcessorRetries(t *testing.T) {
 			logger   testLogger
 			zlogger  = zerolog.New(io.Discard)
 		)
-		success, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
+		success, _, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
 		require.NoError(t, err)
 		require.True(t, success)
 	})

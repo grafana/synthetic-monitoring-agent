@@ -78,14 +78,13 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		Bool("hasSecretStoreToken", secretStore.Token != "").
 		Msg("secret store retrieved for scripted probe")
 
-	success, err := p.processor.Run(ctx, registry, logger, p.logger, secretStore)
+	success, duration, err := p.processor.Run(ctx, registry, logger, p.logger, secretStore)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("running probe")
 		return false, 0
 	}
 
-	// TODO(mem): implement custom duration extraction.
-	return success, 0
+	return success, duration.Seconds()
 }
 
 func newCredentialsRetriever(provider secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) func(context.Context) (k6runner.SecretStore, error) {
