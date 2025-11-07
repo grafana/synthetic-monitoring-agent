@@ -313,8 +313,7 @@ func (dc *probeDurationCollector) process(_ *dto.MetricFamily, sample *model.Sam
 		return nil
 	}
 
-	// TODO: Is there a better way to convert from float seconds to time?
-	dc.duration = time.Duration(sample.Value*1000) * time.Millisecond // This truncates to the nearest millisecond.
+	dc.duration = time.Duration(float64(sample.Value) * float64(time.Second))
 
 	return nil
 }
