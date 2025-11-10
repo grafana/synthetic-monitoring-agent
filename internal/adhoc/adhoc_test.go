@@ -136,6 +136,14 @@ func (testBackoff) Duration() time.Duration {
 
 func (testBackoff) Reset() {}
 
+type timeoutBackoff struct{}
+
+func (timeoutBackoff) Duration() time.Duration {
+	return 100 * time.Millisecond
+}
+
+func (timeoutBackoff) Reset() {}
+
 type grpcTestConn struct {
 }
 
@@ -179,6 +187,10 @@ func TestHandlerRunErrors(t *testing.T) {
 			expectError:        true,
 			registerProbeError: newGrpcTestError(codes.PermissionDenied, "not authorized"),
 		},
+		"idle timeout": {
+			expectError:        true,
+			registerProbeError: newGrpcTestError(codes.Unavailable, "unexpected HTTP status code received from server: 504 (Gateway Timeout); transport: received unexpected content-type \"text/html\""),
+		},
 		// "transport closing": {
 		// 	registerProbeError: newGrpcTestError(codes.Aborted, "transport is closing"),
 		// },
@@ -190,11 +202,18 @@ func TestHandlerRunErrors(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			tc := tc
+
+			// Use timeoutBackoff for idle timeout test to prevent infinite loop
+			var backoff Backoffer = testBackoff{}
+			if name == "idle timeout" {
+				backoff = timeoutBackoff{}
+			}
+
 			opts := HandlerOpts{
 				Conn:           &grpcTestConn{},
 				Logger:         logger,
 				Publisher:      channelPublisher(publishCh),
-				Backoff:        testBackoff{},
+				Backoff:        backoff,
 				TenantCh:       make(chan sm.Tenant),
 				PromRegisterer: prometheus.NewPedanticRegistry(),
 				Features:       features,
@@ -350,6 +369,61 @@ func (p *testProber) Probe(ctx context.Context, target string, registry *prometh
 	registry.MustRegister(g)
 	_ = logger.Log("msg", "test")
 	return true, 1
+}
+
+func TestIdleTimeoutHandling(t *testing.T) {
+	features := feature.NewCollection()
+	require.NoError(t, features.Set("adhoc"))
+
+	logger := zerolog.New(io.Discard)
+	if testing.Verbose() {
+		logger = zerolog.New(os.Stdout)
+	}
+
+	publishCh := make(chan pusher.Payload)
+
+	opts := HandlerOpts{
+		Conn:           &grpcTestConn{},
+		Logger:         logger,
+		Publisher:      channelPublisher(publishCh),
+		Backoff:        testBackoff{},
+		TenantCh:       make(chan sm.Tenant),
+		PromRegisterer: prometheus.NewPedanticRegistry(),
+		Features:       features,
+		runnerFactory: func(ctx context.Context, req *sm.AdHocRequest) (*runner, error) {
+			return &runner{
+				logger: logger,
+				prober: &testProber{logger},
+				id:     req.AdHocCheck.Id,
+				target: req.AdHocCheck.Target,
+				probe:  "testProbe",
+			}, nil
+		},
+		grpcAdhocChecksClientFactory: func(conn ClientConn) (sm.AdHocChecksClient, error) {
+			return &testClient{
+				logger:             logger,
+				registerProbeError: newGrpcTestError(codes.Unavailable, "unexpected HTTP status code received from server: 504 (Gateway Timeout); transport: received unexpected content-type \"text/html\""),
+			}, nil
+		},
+	}
+
+	h, err := NewHandler(opts)
+	require.NoError(t, err)
+	require.NotNil(t, h)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	runErr := h.Run(ctx)
+	require.Error(t, runErr)
+	require.Contains(t, runErr.Error(), "context deadline exceeded")
+
+	// Should not publish anything for idle timeout
+	select {
+	case <-publishCh:
+		t.Fail()
+	default:
+	}
 }
 
 func TestDefaultRunnerFactory(t *testing.T) {
