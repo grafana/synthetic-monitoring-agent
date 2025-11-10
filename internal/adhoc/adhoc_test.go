@@ -416,7 +416,7 @@ func TestIdleTimeoutHandling(t *testing.T) {
 
 	runErr := h.Run(ctx)
 	require.Error(t, runErr)
-	require.Contains(t, runErr.Error(), "context deadline exceeded")
+	require.ErrorIs(t, runErr, context.DeadlineExceeded)
 
 	// Should not publish anything for idle timeout
 	select {
