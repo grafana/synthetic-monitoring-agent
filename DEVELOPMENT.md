@@ -56,7 +56,7 @@ configuration file targets v2.
 
 ### Code generation
 
-Some of the code and support files are generated, especifically:
+Some of the code and support files are generated, specifically:
 
 - internal/scraper/testdata/*.txt
 - pkg/accounting/data.go
@@ -110,8 +110,8 @@ API Server (gRPC) → Updater → Scrapers → Probers → Publisher → Prometh
 **Updater** (`internal/checks/checks.go`)
 - Maintains long-lived gRPC stream to API server via `GetChanges()`
 - Receives check ADD/UPDATE/DELETE operations
-- Manages lifecycle of all scrapers (one per check)
-- Handles reconnection with backoff on failures
+- Manages life cycle of all scrapers (one per check)
+- Handles reconnection with back off on failures
 - Responds to SIGUSR1 for graceful disconnect (enables zero-downtime upgrades)
 
 **Scraper** (`internal/scraper/scraper.go`)
@@ -119,7 +119,7 @@ API Server (gRPC) → Updater → Scrapers → Probers → Publisher → Prometh
 - Executes probe via prober interface
 - Adds user-defined labels and check metadata to all telemetry
 - Implements "republishing" - resends metrics with updated timestamps when check interval > 2min
-- Sends stale markers (NaN) on shutdown for proper Prometheus metric lifecycle
+- Sends stale markers (NaN) on shutdown for proper Prometheus metric life cycle
 - Tracks check state machine (passing/failing thresholds)
 
 **Prober** (`internal/prober/prober.go`)
@@ -131,13 +131,13 @@ API Server (gRPC) → Updater → Scrapers → Probers → Publisher → Prometh
 **k6Runner** (`internal/k6runner/`)
 - Handles scripted, browser, and multihttp checks via k6
 - Two modes: Local (executes k6 binary) or HTTP (remote k6 runner service)
-- HTTP runner includes retry logic with backoff for transient failures
+- HTTP runner includes retry logic with back off for transient failures
 - Grace time: adds 20s to timeout for runner communication overhead
 - Processor parses k6 output and registers metrics in Prometheus format
 
 **Publisher** (`internal/pusher/v2/publisher.go`)
 - V2 is current (V1 exists for compatibility)
-- Per-tenant push handlers with automatic lifecycle management
+- Per-tenant push handlers with automatic life cycle management
 - Batches and sends remote write to Prometheus/Loki
 - Publishers created via registry/factory pattern
 
@@ -188,7 +188,7 @@ Prober (logfmt logger) → Scraper (parse + label) → Publisher → Loki Push A
 ## Important Patterns
 
 ### Error Handling
-- Custom error types: `FatalError` (stop scraper), `TransientError` (retry with backoff)
+- Custom error types: `FatalError` (stop scraper), `TransientError` (retry with back off)
 - Use `pkg/errors.Wrap()` to add context
 - k6 runner retries on retriable errors (timeout, connection refused, etc.)
 
@@ -201,14 +201,14 @@ Prober (logfmt logger) → Scraper (parse + label) → Publisher → Loki Push A
 ### Concurrency
 - Heavy use of `errgroup.Group` for coordinated goroutine management
 - Per-tenant locks in publisher to avoid contention
-- Each scraper has independent context for lifecycle control
+- Each scraper has independent context for life cycle control
 - Context-aware sleep functions for clean shutdown
 
 ### Configuration
 - Check configuration comes from API (not local files)
 - Probe capabilities negotiated during registration
 - Feature flags control which check types are enabled
-- Environment-based config via command-line flags
+- Environment-based configuration via command-line flags
 
 ### Tenant Isolation
 - Every payload tagged with tenant ID
