@@ -24,6 +24,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/adhoc"
+	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
@@ -77,15 +78,22 @@ func run(args []string, stdout io.Writer) error {
 			MemLimitRatio        float64
 			DisableK6            bool
 			DisableUsageReports  bool
+			CacheType            cache.Kind
+			CacheLocalCapacity   int
+			CacheLocalTTL        time.Duration
+			MemcachedServers     StringList
 		}{
-			GrpcApiServerAddr: "localhost:4031",
-			HttpListenAddr:    "localhost:4050",
-			K6URI:             "sm-k6",
-			K6BlacklistedIP:   "10.0.0.0/8",
-			SelectedPublisher: pusherV2.Name,
-			TelemetryTimeSpan: defTelemetryTimeSpan,
-			AutoMemLimit:      true,
-			MemLimitRatio:     0.9,
+			GrpcApiServerAddr:  "localhost:4031",
+			HttpListenAddr:     "localhost:4050",
+			K6URI:              "sm-k6",
+			K6BlacklistedIP:    "10.0.0.0/8",
+			SelectedPublisher:  pusherV2.Name,
+			TelemetryTimeSpan:  defTelemetryTimeSpan,
+			AutoMemLimit:       true,
+			MemLimitRatio:      0.9,
+			CacheType:          cache.KindAuto,
+			CacheLocalCapacity: 10000,
+			CacheLocalTTL:      5 * time.Minute,
 		}
 	)
 
@@ -110,6 +118,10 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.DisableUsageReports, "disable-usage-reports", config.DisableUsageReports, "Disable anonymous usage reports")
 	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
 	flags.Var(&features, "features", "optional feature flags")
+	flags.Var(&config.CacheType, "cache-type", "cache type: auto (memcached if servers provided, else local), memcached, local, or noop")
+	flags.IntVar(&config.CacheLocalCapacity, "cache-local-capacity", config.CacheLocalCapacity, "maximum number of items in local cache")
+	flags.DurationVar(&config.CacheLocalTTL, "cache-local-ttl", config.CacheLocalTTL, "default TTL for local cache items")
+	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -234,6 +246,15 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
+	// Initialize cache client (always non-nil, with fallback chain: memcached → local → noop)
+	cacheClient := setupCache(
+		config.CacheType,
+		config.MemcachedServers,
+		config.CacheLocalCapacity,
+		config.CacheLocalTTL,
+		&zl,
+	)
+
 	// to know if probe is connected to API
 	readynessHandler := NewReadynessHandler()
 
@@ -301,6 +322,7 @@ func run(args []string, stdout io.Writer) error {
 		synthetic_monitoring.NewTenantsClient(conn),
 		tenantCh,
 		tenants.DefaultCacheTimeout,
+		cacheClient,
 		zl.With().Str("subsystem", "tenant_manager").Logger(),
 	)
 
@@ -472,4 +494,85 @@ func setupGoMemLimit(ratio float64) error {
 	}
 
 	return nil
+}
+
+func setupCache(cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) cache.Cache {
+	// Determine effective cache type with auto mode logic:
+	// auto + servers provided -> memcached -> local -> noop
+	// auto + no servers -> local -> noop
+	effectiveType := cacheType
+	if cacheType == "auto" {
+		if len(memcachedServers) > 0 {
+			effectiveType = cache.KindMemcached
+		} else {
+			effectiveType = cache.KindLocal
+		}
+	}
+
+	switch effectiveType {
+	case cache.KindMemcached:
+		if len(memcachedServers) == 0 {
+			logger.Warn().Msg("memcached type selected but no servers configured, falling back to local cache")
+			return setupLocalCache(localCapacity, localTTL, logger)
+		}
+
+		cacheConfig := cache.MemcachedConfig{
+			Servers: memcachedServers,
+			Logger:  logger.With().Str("subsystem", "cache").Logger(),
+			Timeout: 100 * time.Millisecond,
+		}
+
+		cacheClient, err := cache.NewMemcachedClient(cacheConfig)
+		if err != nil {
+			logger.Warn().
+				Err(err).
+				Strs("servers", memcachedServers).
+				Msg("failed to initialize memcached cache, falling back to local cache")
+			return setupLocalCache(localCapacity, localTTL, logger)
+		}
+
+		logger.Info().
+			Strs("servers", memcachedServers).
+			Msg("memcached cache initialized")
+		return cacheClient
+
+	case cache.KindLocal:
+		return setupLocalCache(localCapacity, localTTL, logger)
+
+	case cache.KindNoop:
+		logger.Debug().Msg("noop cache selected")
+		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger())
+
+	default:
+		logger.Warn().
+			Stringer("type", effectiveType).
+			Msg("unknown cache type, falling back to local cache")
+
+		return setupLocalCache(localCapacity, localTTL, logger)
+	}
+}
+
+func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) cache.Cache {
+	localConfig := cache.LocalConfig{
+		MaxCapacity:     capacity,
+		InitialCapacity: capacity / 10, // 10% of max as initial capacity
+		DefaultTTL:      ttl,
+		Logger:          logger.With().Str("subsystem", "cache").Logger(),
+	}
+
+	localCache, err := cache.NewLocal(localConfig)
+	if err != nil {
+		logger.Warn().
+			Err(err).
+			Int("capacity", capacity).
+			Dur("ttl", ttl).
+			Msg("failed to initialize local cache, using noop cache")
+		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger())
+	}
+
+	logger.Info().
+		Int("capacity", capacity).
+		Dur("ttl", ttl).
+		Msg("local cache initialized")
+	return localCache
 }
