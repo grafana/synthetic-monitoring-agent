@@ -2,13 +2,16 @@ package tenants
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"sync"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/rs/zerolog"
 )
 
@@ -27,17 +30,30 @@ type Manager struct {
 	tenantCh      <-chan sm.Tenant
 	tenantsClient sm.TenantsClient
 	timeout       time.Duration
-	tenantsMutex  sync.Mutex
-	tenants       map[int64]*tenantInfo
+	cache         cache.Cache
+	fetchMutexes  *xsync.Map[int64, *sync.Mutex] // for fetch deduplication.
 	logger        zerolog.Logger
 }
 
 var _ pusher.TenantProvider = &Manager{}
 
-type tenantInfo struct {
-	mutex      sync.Mutex // protects the entire structure
-	validUntil time.Time
-	tenant     *sm.Tenant
+// cachedTenant wraps a tenant with caching metadata
+type cachedTenant struct {
+	Tenant     *sm.Tenant
+	ValidUntil time.Time
+	Modified   float64 // Track Modified field to detect stale updates
+}
+
+// cacheKey generates a cache key for a tenant ID
+func cacheKey(tenantID int64) string {
+	return fmt.Sprintf("tenant:%d", tenantID)
+}
+
+// getFetchMutex returns a mutex for the given tenant ID to prevent concurrent API fetches
+func (tm *Manager) getFetchMutex(tenantID int64) *sync.Mutex {
+	actual, _ := tm.fetchMutexes.LoadOrStore(tenantID, &sync.Mutex{})
+
+	return actual
 }
 
 // NewManager creates a new tenant manager that is able to
@@ -47,13 +63,14 @@ type tenantInfo struct {
 //
 // A new goroutine is started which stops when the provided context is
 // cancelled.
-func NewManager(ctx context.Context, tenantsClient sm.TenantsClient, tenantCh <-chan sm.Tenant, timeout time.Duration, logger zerolog.Logger) *Manager {
+func NewManager(ctx context.Context, tenantsClient sm.TenantsClient, tenantCh <-chan sm.Tenant, timeout time.Duration, cache cache.Cache, logger zerolog.Logger) *Manager {
 	tm := &Manager{
 		tenantCh:      tenantCh,
 		tenantsClient: tenantsClient,
 		timeout:       timeout,
-		tenants:       make(map[int64]*tenantInfo),
+		cache:         cache,
 		logger:        logger,
+		fetchMutexes:  xsync.NewMap[int64, *sync.Mutex](),
 	}
 
 	go tm.run(ctx)
@@ -162,128 +179,164 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 }
 
 func (tm *Manager) updateTenant(tenant sm.Tenant) {
-	tm.tenantsMutex.Lock()
+	// Use per-tenant mutex to serialize updates for the same tenant ID
+	mutex := tm.getFetchMutex(tenant.Id)
+	mutex.Lock()
+	defer mutex.Unlock()
 
-	info, found := tm.tenants[tenant.Id]
-	if !found {
-		info = new(tenantInfo)
-		tm.tenants[tenant.Id] = info
+	ctx := context.Background()
+	key := cacheKey(tenant.Id)
+
+	// Check if there's already a cached tenant
+	var existing cachedTenant
+	err := tm.cache.Get(ctx, key, &existing)
+
+	// Only update if this tenant is newer than what's in the cache
+	if err == nil && existing.Tenant != nil && existing.Tenant.Modified >= tenant.Modified {
+		tm.logger.Debug().
+			Int64("tenantId", tenant.Id).
+			Float64("existingModified", existing.Tenant.Modified).
+			Float64("newModified", tenant.Modified).
+			Msg("skipping tenant update, existing version is newer or equal")
+		return
 	}
 
-	tm.tenantsMutex.Unlock()
-
-	// There's a window here where GetTenant got the lock before
-	// this function, didn't find the tenant, created a new one and
-	// added it. In that case `found` above would be true and this
-	// function would not create a new one. Now we are racing to
-	// acquire info.mutex.
-	//
-	// 1. updateTenant acquires it first: it simply inserts the new
-	// tenant and GetTenant sees it and uses it;
-	//
-	// 2. GetTenant acquires it first: That's why we need to release
-	// the lock _before_ operating on info, so that we don't end up
-	// waiting for GetTenant to fetch the information from the API
-	// and blocking other goroutines from retrieving a different
-	// tenant. In that case, when updateTenant acquires the lock
-	// below, make sure the tenant we have is in fact newer than the
-	// one that is already there, if there's one.
-
-	info.mutex.Lock()
-	if info.tenant == nil || info.tenant.Modified < tenant.Modified {
-		if tenant.SecretStore == nil {
-			tm.logger.Warn().
-				Int64("tenantId", tenant.Id).
-				Msg("tenant received from API without secret store details")
-		} else if !isSecretStoreConfigured(tenant.SecretStore) {
-			tm.logger.Warn().
-				Int64("tenantId", tenant.Id).
-				Msg("tenant received from API with incomplete secret store configuration")
-		}
-
-		// Set validUntil to the earlier of:
-		// - Now + timeout
-		// - Secret store expiration date (if set)
-		info.validUntil = tm.calculateValidUntil(&tenant)
-		info.tenant = &tenant
+	// Validate secret store configuration
+	if tenant.SecretStore == nil {
+		tm.logger.Warn().
+			Int64("tenantId", tenant.Id).
+			Msg("tenant received from API without secret store details")
+	} else if !isSecretStoreConfigured(tenant.SecretStore) {
+		tm.logger.Warn().
+			Int64("tenantId", tenant.Id).
+			Msg("tenant received from API with incomplete secret store configuration")
 	}
 
-	info.mutex.Unlock()
+	// Calculate expiration time using existing logic
+	validUntil := tm.calculateValidUntil(&tenant)
+
+	// Create cached tenant
+	cached := cachedTenant{
+		Tenant:     &tenant,
+		ValidUntil: validUntil,
+		Modified:   tenant.Modified,
+	}
+
+	// Store in cache without TTL - we'll check ValidUntil manually
+	// This allows us to return stale data if the API is unavailable
+	if err := tm.cache.Set(ctx, key, cached, 0); err != nil {
+		tm.logger.Error().
+			Err(err).
+			Int64("tenantId", tenant.Id).
+			Msg("failed to update tenant in cache")
+		return
+	}
+
+	tm.logger.Debug().
+		Int64("tenantId", tenant.Id).
+		Time("validUntil", validUntil).
+		Msg("tenant updated in cache")
 }
 
-// GetTenant retrieves the tenant specified by `req`, either from a local cache
+// GetTenant retrieves the tenant specified by `req`, either from the cache
 // or by making a request to the API. Notice that this method will favour
 // returning expired tenant data from the cache if new data can not be retrieved
 // from the API.
 func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenant, error) {
-	tm.tenantsMutex.Lock()
+	key := cacheKey(req.Id)
 	now := time.Now()
-	info, found := tm.tenants[req.Id]
-	if !found {
-		info = new(tenantInfo)
-		tm.tenants[req.Id] = info
-	}
-	tm.tenantsMutex.Unlock()
 
-	info.mutex.Lock()
-	defer info.mutex.Unlock()
+	// Try to get tenant from cache
+	var cached cachedTenant
+	err := tm.cache.Get(ctx, key, &cached)
 
-	// If there is a valid tenant in the cache, return it
-	if info.validUntil.After(now) {
+	// If found and still valid, return it
+	if err == nil && cached.Tenant != nil && cached.ValidUntil.After(now) {
 		tm.logger.Debug().
 			Int64("tenantId", req.Id).
-			Time("validUntil", info.validUntil).
-			Dur("validFor", info.validUntil.Sub(now)).
+			Time("validUntil", cached.ValidUntil).
+			Dur("validFor", cached.ValidUntil.Sub(now)).
 			Msg("returning tenant from cache")
-
-		return info.tenant, nil
+		return cached.Tenant, nil
 	}
 
-	// Request the tenant from the API
-	tenant, err := tm.tenantsClient.GetTenant(ctx, req)
+	// Cache miss or expired - need to fetch from API
+	// Use per-tenant mutex to prevent concurrent fetches for the same tenant
+	mutex := tm.getFetchMutex(req.Id)
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	// Check cache again after acquiring lock (another goroutine might have fetched it)
+	err = tm.cache.Get(ctx, key, &cached)
+	if err == nil && cached.Tenant != nil && cached.ValidUntil.After(now) {
+		tm.logger.Debug().
+			Int64("tenantId", req.Id).
+			Msg("tenant was fetched by another goroutine")
+		return cached.Tenant, nil
+	}
+
+	// Fetch from API
+	tenant, fetchErr := tm.tenantsClient.GetTenant(ctx, req)
+
 	// Treat every error in the same way, whether it's network or app related.
 	// As example of application errors: If the API has issues reaching the DB,
 	// we still don't want to block the agents. If the tenant is disabled, it
 	// should be propagated through other paths, and this component should act
 	// "silly" on it.
-	if err != nil && (!found || info.tenant == nil) {
-		tm.logger.Error().Err(err).Int64("tenantId", req.Id).Msg("failed to retrieve remote tenant information")
-		// Only return error if tenant was not found in the cache or
-		// is not a valid entry, and can not be retrieved from the API
-		return nil, err
-	}
-
-	// If tenant was retrieved from the API, update it in the cache
-	if err == nil {
-		if tenant.SecretStore == nil {
+	if fetchErr != nil {
+		// If we have stale cached data, return it as fallback
+		if err == nil && cached.Tenant != nil {
 			tm.logger.Warn().
+				Err(fetchErr).
 				Int64("tenantId", req.Id).
-				Msg("tenant retrieved from API without secret store details")
-		} else if !isSecretStoreConfigured(tenant.SecretStore) {
-			tm.logger.Warn().
-				Int64("tenantId", req.Id).
-				Msg("tenant retrieved from API with incomplete secret store configuration")
+				Time("cachedValidUntil", cached.ValidUntil).
+				Msg("API fetch failed, returning stale cached data")
+			return cached.Tenant, nil
 		}
 
-		// Set validUntil to the earlier of:
-		// - Now + timeout
-		// - Secret store expiration date (if set)
-		info.validUntil = tm.calculateValidUntil(tenant)
-		info.tenant = tenant
-
-		tm.logger.Debug().
+		// No cached data available
+		tm.logger.Error().
+			Err(fetchErr).
 			Int64("tenantId", req.Id).
-			Time("validUntil", info.validUntil).
-			Msg("tenant retrieved from API")
+			Msg("failed to retrieve remote tenant information and no cached data available")
+		return nil, fetchErr
+	}
+
+	// Validate secret store configuration
+	if tenant.SecretStore == nil {
+		tm.logger.Warn().
+			Int64("tenantId", req.Id).
+			Msg("tenant retrieved from API without secret store details")
+	} else if !isSecretStoreConfigured(tenant.SecretStore) {
+		tm.logger.Warn().
+			Int64("tenantId", req.Id).
+			Msg("tenant retrieved from API with incomplete secret store configuration")
+	}
+
+	// Calculate expiration time using existing logic
+	validUntil := tm.calculateValidUntil(tenant)
+
+	// Create cached tenant
+	newCached := cachedTenant{
+		Tenant:     tenant,
+		ValidUntil: validUntil,
+		Modified:   tenant.Modified,
+	}
+
+	// Store in cache without TTL - we'll check ValidUntil manually
+	// This allows us to return stale data if the API is unavailable
+	if err := tm.cache.Set(ctx, key, newCached, 0); err != nil {
+		tm.logger.Error().
+			Err(err).
+			Int64("tenantId", req.Id).
+			Msg("failed to store tenant in cache")
+		// Don't fail the request if cache storage fails
 	}
 
 	tm.logger.Debug().
 		Int64("tenantId", req.Id).
-		Time("validUntil", info.validUntil).
-		Dur("validFor", info.validUntil.Sub(now)).
-		Msg("returning tenant")
+		Time("validUntil", validUntil).
+		Msg("tenant retrieved from API")
 
-	// At this point we are either returning the new tenant data retrieved
-	// from the API, or the stale tenant data that was present in the cache
-	return info.tenant, nil
+	return tenant, nil
 }
