@@ -331,6 +331,8 @@ message PingSettings {
   // custom settings not present in blackbox-exporter
 
   int64 packetCount = 900 [(gogoproto.jsontag) = "packetCount"]; // number of ping packets to send
+  int64 waitCount = 901 [(gogoproto.jsontag) = "waitCount"]; // number of ping packets to wait for
+  int64 successCount = 902 [(gogoproto.jsontag) = "successCount"]; // number of ping packets to receive for the check to be considered successful
 }
 
 // HttpMethod represents the HTTP method used when making HTTP requests.
