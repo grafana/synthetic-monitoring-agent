@@ -1,5 +1,4 @@
 //go:build ruleguard
-// +build ruleguard
 
 package gorules
 
