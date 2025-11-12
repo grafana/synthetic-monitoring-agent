@@ -42,6 +42,7 @@ type Handler struct {
 	runnerFactory                func(context.Context, *sm.AdHocRequest) (*runner, error)
 	grpcAdhocChecksClientFactory func(conn ClientConn) (sm.AdHocChecksClient, error)
 	proberFactory                prober.ProberFactory
+	supportsProtocolSecrets      bool
 }
 
 // Error represents errors returned from this package.
@@ -106,15 +107,16 @@ func (b constantBackoff) Duration() time.Duration { return time.Duration(b) }
 
 // HandlerOpts is used to pass configuration options to the Handler.
 type HandlerOpts struct {
-	Conn           ClientConn
-	Logger         zerolog.Logger
-	Backoff        Backoffer
-	Publisher      pusher.Publisher
-	TenantCh       chan<- sm.Tenant
-	PromRegisterer prometheus.Registerer
-	Features       feature.Collection
-	K6Runner       k6runner.Runner
-	SecretProvider secrets.SecretProvider
+	Conn                    ClientConn
+	Logger                  zerolog.Logger
+	Backoff                 Backoffer
+	Publisher               pusher.Publisher
+	TenantCh                chan<- sm.Tenant
+	PromRegisterer          prometheus.Registerer
+	Features                feature.Collection
+	K6Runner                k6runner.Runner
+	SecretProvider          secrets.SecretProvider
+	SupportsProtocolSecrets bool
 
 	// these two fields exists so that tests can pass alternate
 	// implementations, they are unexported so that clients of this
@@ -148,6 +150,7 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		runnerFactory:                opts.runnerFactory,
 		grpcAdhocChecksClientFactory: opts.grpcAdhocChecksClientFactory,
 		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features, opts.SecretProvider),
+		supportsProtocolSecrets:      opts.SupportsProtocolSecrets,
 		api: apiInfo{
 			conn: opts.Conn,
 		},
@@ -308,11 +311,10 @@ func (h *Handler) loop(ctx context.Context) error {
 	result, err := client.RegisterProbe(
 		ctx,
 		&sm.ProbeInfo{
-			Version:    version.Short(),
-			Commit:     version.Commit(),
-			Buildstamp: version.Buildstamp(),
-			// TODO(d0ugal): We will switch this to true when the implementation is complete in the Agent and API.
-			SupportsProtocolSecrets: false,
+			Version:                 version.Short(),
+			Commit:                  version.Commit(),
+			Buildstamp:              version.Buildstamp(),
+			SupportsProtocolSecrets: h.supportsProtocolSecrets,
 		},
 	)
 	if err != nil {

@@ -66,8 +66,29 @@ func TestNewUpdater(t *testing.T) {
 			require.NotNil(t, u.metrics.scrapesCounter)
 			require.NotNil(t, u.metrics.scrapeErrorCounter)
 			require.NotNil(t, u.metrics.probeInfo)
+			require.False(t, u.supportsProtocolSecrets, "default value should be false")
 		})
 	}
+}
+
+func TestNewUpdaterSupportsProtocolSecrets(t *testing.T) {
+	testFeatureCollection := feature.NewCollection()
+	require.NotNil(t, testFeatureCollection)
+
+	opts := UpdaterOptions{
+		Conn:                    new(grpc.ClientConn),
+		PromRegisterer:          prometheus.NewPedanticRegistry(),
+		Publisher:               channelPublisher(make(chan pusher.Payload)),
+		TenantCh:                make(chan<- sm.Tenant),
+		Logger:                  testhelper.Logger(t),
+		Features:                testFeatureCollection,
+		SupportsProtocolSecrets: true,
+	}
+
+	u, err := NewUpdater(opts)
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	require.True(t, u.supportsProtocolSecrets, "should be set to true")
 }
 
 func TestInstallSignalHandler(t *testing.T) {
