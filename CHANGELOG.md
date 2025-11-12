@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.46.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.46.0...v0.46.1) (2025-11-12)
+
+
+### Fixes
+
+* Handle 504 Gateway Timeout false alarms in adhoc checks ([#1578](https://github.com/grafana/synthetic-monitoring-agent/issues/1578)) ([6a9302d](https://github.com/grafana/synthetic-monitoring-agent/commit/6a9302d7490af22b512c4c8515d47a3aefe36021))
+* Update DEVELOPMENT.md ([#1600](https://github.com/grafana/synthetic-monitoring-agent/issues/1600)) ([d99b4db](https://github.com/grafana/synthetic-monitoring-agent/commit/d99b4db283ba443fbe016b8497fa959e431ae14b))
+* Use ErrorIs instead of string comparison for context deadline ([#1597](https://github.com/grafana/synthetic-monitoring-agent/issues/1597)) ([2992b76](https://github.com/grafana/synthetic-monitoring-agent/commit/2992b7633fed6966284c97b74c859c3580e8b93f))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm to v0.6.10 ([c11ff5b](https://github.com/grafana/synthetic-monitoring-agent/commit/c11ff5bb152b1dc114f517e81e2eece2be60b14b))
+* Update docker:dind Docker digest to 2a232a4 ([a90a0f3](https://github.com/grafana/synthetic-monitoring-agent/commit/a90a0f390482da1ac77ddaa4316af31988cba263))
+* Update docker:dind Docker digest to 96789d5 ([#1599](https://github.com/grafana/synthetic-monitoring-agent/issues/1599)) ([fd12617](https://github.com/grafana/synthetic-monitoring-agent/commit/fd126176da5b2fbe6c217f77ca8872bc857db7cc))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v142 ([#1588](https://github.com/grafana/synthetic-monitoring-agent/issues/1588)) ([4e008d8](https://github.com/grafana/synthetic-monitoring-agent/commit/4e008d8f7d059b48bcbeb3036b53c384a4bdf523))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:142.0.7444.59-r0-3.22.2 Docker digest to 5dcd595 ([#1598](https://github.com/grafana/synthetic-monitoring-agent/issues/1598)) ([f537d70](https://github.com/grafana/synthetic-monitoring-agent/commit/f537d70d7ebe69ea2d0f2ba39ea695e65feebaa9))
+* Update grafana/shared-workflows digest to 80f9be5 ([a62efa5](https://github.com/grafana/synthetic-monitoring-agent/commit/a62efa5ef6caf68f0882deb580ab75ed954a9477))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.19.0 ([#1589](https://github.com/grafana/synthetic-monitoring-agent/issues/1589)) ([0628cc6](https://github.com/grafana/synthetic-monitoring-agent/commit/0628cc6a43fbc7ac6f7ee8b03383730f3d74d977))
+* Update module golang.org/x/sync to v0.18.0 ([0abb7b0](https://github.com/grafana/synthetic-monitoring-agent/commit/0abb7b0107845ce0517fc19c53ceae2ba40bedbd))
+
 ## [0.46.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.45.0...v0.46.0) (2025-11-03)
 
 
