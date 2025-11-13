@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.47.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.46.1...v0.47.0) (2025-11-13)
+
+
+### Features
+
+* make `probe_duration_seconds` match `probe_script_duration_seconds` ([eb7901c](https://github.com/grafana/synthetic-monitoring-agent/commit/eb7901c3e4ccb6785c0958254df32308b5816bed))
+
+
+### Fixes
+
+* Remove old +build directives ([22a3d7d](https://github.com/grafana/synthetic-monitoring-agent/commit/22a3d7d1d2d70b23bd3aeac656e4d537985395b2))
+
+
+### Miscellaneous Chores
+
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.23.0 ([15e62bf](https://github.com/grafana/synthetic-monitoring-agent/commit/15e62bf58daf655169fc8e738b426d917a8051ea))
+* use the obviously superior way to `Unseconds()` ([dae01e8](https://github.com/grafana/synthetic-monitoring-agent/commit/dae01e8d18595880ac288ba47ff820718ddf1c62))
+
 ## [0.46.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.46.0...v0.46.1) (2025-11-12)
 
 
