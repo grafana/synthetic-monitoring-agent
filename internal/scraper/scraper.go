@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/recall"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 
 	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
@@ -77,6 +78,7 @@ type Scraper struct {
 	summaries     map[uint64]prometheus.Summary
 	histograms    map[uint64]prometheus.Histogram
 	telemeter     Telemeter
+	recaller      recall.Recaller
 }
 
 type Factory func(
@@ -88,6 +90,7 @@ type Factory func(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
+	recaller recall.Recaller,
 ) (*Scraper, error)
 
 type (
@@ -122,6 +125,7 @@ func New(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
+	recaller recall.Recaller,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:         probe,
@@ -131,6 +135,7 @@ func New(
 		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id, features, secretStore),
 		LabelsLimiter: labelsLimiter,
 		Telemeter:     telemeter,
+		Recaller:      recaller,
 	})
 }
 
@@ -144,6 +149,7 @@ type ScraperOpts struct {
 	ProbeFactory  prober.ProberFactory
 	LabelsLimiter LabelsLimiter
 	Telemeter     Telemeter
+	Recaller      recall.Recaller
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
@@ -181,6 +187,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		summaries:     make(map[uint64]prometheus.Summary),
 		histograms:    make(map[uint64]prometheus.Histogram),
 		telemeter:     opts.Telemeter,
+		recaller:      opts.Recaller,
 	}, nil
 }
 
@@ -231,13 +238,26 @@ func (s *Scraper) Run(ctx context.Context) {
 	// TODO(mem): keep count of the number of successive errors and
 	// collect logs if threshold is reached.
 
-	var (
-		frequency = ms(s.check.Frequency)
-		offset    = ms(s.check.Offset)
-	)
+	frequency := ms(s.check.Frequency)
 
-	if offset == 0 {
+	recallCtx, cancelRecall := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelRecall()
+
+	lastRun, err := s.recaller.Recall(recallCtx, s.check.Id)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("could not fetch time for last run")
+	}
+
+	offset := time.Until(lastRun.Add(frequency))
+
+	if offset < 0 {
+		s.logger.Debug().Msg("no last run found for check, assuming it was never run")
 		offset = randDuration(min(frequency, maxPublishInterval))
+	}
+
+	if configOffset := ms(s.check.Offset); configOffset != 0 {
+		s.logger.Debug().Dur("configOffset", configOffset).Dur("computedOffset", offset).
+			Msg("Using fixed offset from config instead of computed one")
 	}
 
 	scrapeHandler := scrapeHandler{scraper: s}
@@ -264,11 +284,17 @@ type scrapeHandler struct {
 func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	h.scraper.metrics.AddScrape()
 
-	var (
-		err      error
-		duration time.Duration
-	)
+	recallCtx, cancelRecall := context.WithTimeout(ctx, 5*time.Second)
+	defer cancelRecall()
 
+	// Record time of last execution, for as long as 2x frequency of the check. Past that it's really not worth keeping,
+	// as we'd need to run it as soon as possible anyway.
+	err := h.scraper.recaller.Remember(recallCtx, h.scraper.check.Id, 2*ms(h.scraper.check.Frequency))
+	if err != nil {
+		h.scraper.logger.Warn().Err(err).Msg("could not store last execution time")
+	}
+
+	var duration time.Duration
 	h.payload, duration, err = h.scraper.collectData(ctx, t)
 
 	switch {

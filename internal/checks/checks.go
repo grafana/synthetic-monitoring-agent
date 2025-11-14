@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/recall"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
@@ -84,6 +85,7 @@ type Updater struct {
 	tenantSecrets  secrets.SecretProvider
 	telemeter      *telemetry.Telemeter
 	usageReporter  usage.Reporter
+	recaller       recall.Recaller
 }
 
 type apiInfo struct {
@@ -120,6 +122,7 @@ type UpdaterOptions struct {
 	SecretProvider secrets.SecretProvider
 	Telemeter      *telemetry.Telemeter
 	UsageReporter  usage.Reporter
+	Recaller       recall.Recaller
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -243,6 +246,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantLimits:   opts.TenantLimits,
 		tenantSecrets:  opts.SecretProvider,
 		telemeter:      opts.Telemeter,
+		recaller:       opts.Recaller,
 		metrics: metrics{
 			changeErrorsCounter: changeErrorsCounter,
 			changesCounter:      changesCounter,
