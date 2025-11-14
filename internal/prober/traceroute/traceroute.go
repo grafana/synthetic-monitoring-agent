@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"hash/fnv"
+	"maps"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -96,7 +98,13 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	totalPacketsLost := float64(0)
 	totalPacketsSent := float64(0)
 	hosts := make(map[int]string)
-	for ttl, hop := range m.Statistic {
+
+	ttls := slices.Collect(maps.Keys(m.Statistic))
+	slices.Sort(ttls)
+
+	for ttl := range ttls {
+		hop := m.Statistic[ttl]
+
 		totalPacketsLost += float64(hop.Lost)
 		totalPacketsSent += float64(hop.Sent)
 		avgElapsedTime := time.Duration(hop.Avg()) * time.Millisecond
