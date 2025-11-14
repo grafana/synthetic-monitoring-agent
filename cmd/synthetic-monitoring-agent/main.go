@@ -32,6 +32,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
+	"github.com/grafana/synthetic-monitoring-agent/internal/recall"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
@@ -76,6 +77,9 @@ func run(args []string, stdout io.Writer) error {
 			MemLimitRatio        float64
 			DisableK6            bool
 			DisableUsageReports  bool
+			RedisAddr            string
+			RedisMaster          string
+			RedisPassword        string
 		}{
 			GrpcApiServerAddr: "localhost:4031",
 			HttpListenAddr:    "localhost:4050",
@@ -109,6 +113,9 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.DisableUsageReports, "disable-usage-reports", config.DisableUsageReports, "Disable anonymous usage reports")
 	flags.Float64Var(&config.MemLimitRatio, "memlimit-ratio", config.MemLimitRatio, "fraction of available memory to use")
 	flags.Var(&features, "features", "optional feature flags")
+	flags.StringVar(&config.RedisAddr, "redis-address", config.RedisAddr, "redis address to keep frequency stable across restarts (optional)")
+	flags.StringVar(&config.RedisMaster, "redis-master", config.RedisMaster, "name of the redis master, for sentinel setups (optional)")
+	flags.StringVar(&config.RedisPassword, "redis-password", config.RedisPassword, "password to use for the redis connection (optional)")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -338,6 +345,7 @@ func run(args []string, stdout io.Writer) error {
 		SecretProvider: secretProvider,
 		Telemeter:      telemetry,
 		UsageReporter:  usageReporter,
+		Recaller:       recaller(config.RedisAddr, config.RedisMaster, config.RedisPassword),
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
@@ -468,4 +476,17 @@ func setupGoMemLimit(ratio float64) error {
 	}
 
 	return nil
+}
+
+// recaller builds either a NopRecaller if redisAddr is empty, or a ValkeyRecaller otherwise.
+func recaller(redisAddr, redisMaster, redisPassword string) recall.Recaller {
+	if redisAddr == "" {
+		return recall.NopRecaller{}
+	}
+
+	return recall.Valkey(recall.ValkeyOpts{
+		Address:    redisAddr,
+		MasterName: redisMaster,
+		Password:   redisPassword,
+	})
 }
