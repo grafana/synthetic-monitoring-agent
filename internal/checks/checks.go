@@ -30,6 +30,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/recall"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
@@ -86,6 +87,7 @@ type Updater struct {
 	telemeter      *telemetry.Telemeter
 	usageReporter  usage.Reporter
 	tenantCals     *cals.CostAttributionLabels
+	recaller       recall.Recaller
 }
 
 type apiInfo struct {
@@ -123,6 +125,7 @@ type UpdaterOptions struct {
 	Telemeter             *telemetry.Telemeter
 	UsageReporter         usage.Reporter
 	CostAttributionLabels *cals.CostAttributionLabels
+	Recaller              recall.Recaller
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -246,6 +249,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantLimits:   opts.TenantLimits,
 		tenantSecrets:  opts.SecretProvider,
 		telemeter:      opts.Telemeter,
+		recaller:       opts.Recaller,
 		metrics: metrics{
 			changeErrorsCounter: changeErrorsCounter,
 			changesCounter:      changesCounter,
@@ -941,7 +945,6 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		c.k6Runner,
 		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals,
 	)
-
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}
