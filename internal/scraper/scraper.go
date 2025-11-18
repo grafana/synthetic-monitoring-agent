@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 
 	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
@@ -94,7 +93,7 @@ type Factory func(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
-	costAttributionLabels *cals.CostAttributionLabels,
+	costAttributionLabels TenantCals,
 ) (*Scraper, error)
 
 type (
@@ -129,7 +128,7 @@ func New(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
-	cals *cals.CostAttributionLabels,
+	cals TenantCals,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
