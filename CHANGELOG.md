@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.47.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.46.1...v0.47.0) (2025-11-17)
+
+
+### Features
+
+* make `probe_duration_seconds` match `probe_script_duration_seconds` ([eb7901c](https://github.com/grafana/synthetic-monitoring-agent/commit/eb7901c3e4ccb6785c0958254df32308b5816bed))
+
+
+### Fixes
+
+* Remove old +build directives ([22a3d7d](https://github.com/grafana/synthetic-monitoring-agent/commit/22a3d7d1d2d70b23bd3aeac656e4d537985395b2))
+
+
+### Miscellaneous Chores
+
+* Update actions/checkout action to v5.0.1 ([5c90982](https://github.com/grafana/synthetic-monitoring-agent/commit/5c90982e5db9fbd284c669a1b32c6d21996504a9))
+* Update actions/checkout digest to 93cb6ef ([de3dc32](https://github.com/grafana/synthetic-monitoring-agent/commit/de3dc327cdd16ca9fd5c93d7b04666d50b27861b))
+* Update dependency grafana/xk6-sm to v0.6.11 ([171d090](https://github.com/grafana/synthetic-monitoring-agent/commit/171d09024c7eff61baa0461e79ee00f879523b4d))
+* Update docker:dind Docker digest to ecac43e ([e7b2533](https://github.com/grafana/synthetic-monitoring-agent/commit/e7b25332dffe48c084d9bdbc4865ada83d02a830))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.23.0 ([15e62bf](https://github.com/grafana/synthetic-monitoring-agent/commit/15e62bf58daf655169fc8e738b426d917a8051ea))
+* Update golang.org/x/exp digest to e25ba8c ([13e910c](https://github.com/grafana/synthetic-monitoring-agent/commit/13e910c1559df03787405b194405340ab3a1070d))
+* Update grafana/shared-workflows digest to 92b146a ([28b78c4](https://github.com/grafana/synthetic-monitoring-agent/commit/28b78c4d413d1aa5628e75e917f6b062e970523f))
+* Update module golang.org/x/net to v0.47.0 ([d782320](https://github.com/grafana/synthetic-monitoring-agent/commit/d782320a0984ee22db2bf95e37cfdf95a8eaa672))
+* use the obviously superior way to `Unseconds()` ([dae01e8](https://github.com/grafana/synthetic-monitoring-agent/commit/dae01e8d18595880ac288ba47ff820718ddf1c62))
+
 ## [0.46.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.46.0...v0.46.1) (2025-11-12)
 
 
