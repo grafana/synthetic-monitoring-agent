@@ -2,9 +2,15 @@ package cals
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+)
+
+var (
+	ErrTenantProvider = errors.New("fetching tenant data")
 )
 
 type TenantProvider interface {
@@ -30,7 +36,7 @@ func (tcal CostAttributionLabels) CostAttributionLabels(ctx context.Context, ten
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrTenantProvider, err)
 	}
 
 	return tenant.CostAttributionLabels, nil
