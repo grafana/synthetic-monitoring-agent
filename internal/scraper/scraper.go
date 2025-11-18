@@ -93,7 +93,7 @@ type Factory func(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
-	costAttributionLabels TenantCals,
+	cals TenantCals,
 ) (*Scraper, error)
 
 type (
