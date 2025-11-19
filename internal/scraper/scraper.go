@@ -58,6 +58,10 @@ type LabelsLimiter interface {
 	LogLabels(ctx context.Context, tenantID model.GlobalID) (int, error)
 }
 
+type TenantCals interface {
+	CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error)
+}
+
 type Telemeter interface {
 	AddExecution(e telemetry.Execution)
 }
@@ -77,6 +81,7 @@ type Scraper struct {
 	summaries     map[uint64]prometheus.Summary
 	histograms    map[uint64]prometheus.Histogram
 	telemeter     Telemeter
+	cals          TenantCals
 }
 
 type Factory func(
@@ -88,6 +93,7 @@ type Factory func(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
+	cals TenantCals,
 ) (*Scraper, error)
 
 type (
@@ -122,28 +128,31 @@ func New(
 	labelsLimiter LabelsLimiter,
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
+	cals TenantCals,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
-		Probe:         probe,
-		Publisher:     publisher,
-		Logger:        logger,
-		Metrics:       metrics,
-		ProbeFactory:  prober.NewProberFactory(k6runner, probe.Id, features, secretStore),
-		LabelsLimiter: labelsLimiter,
-		Telemeter:     telemeter,
+		Probe:                 probe,
+		Publisher:             publisher,
+		Logger:                logger,
+		Metrics:               metrics,
+		ProbeFactory:          prober.NewProberFactory(k6runner, probe.Id, features, secretStore),
+		LabelsLimiter:         labelsLimiter,
+		Telemeter:             telemeter,
+		CostAttributionLabels: cals,
 	})
 }
 
 var _ Factory = New
 
 type ScraperOpts struct {
-	Probe         sm.Probe
-	Publisher     pusher.Publisher
-	Logger        zerolog.Logger
-	Metrics       Metrics
-	ProbeFactory  prober.ProberFactory
-	LabelsLimiter LabelsLimiter
-	Telemeter     Telemeter
+	Probe                 sm.Probe
+	Publisher             pusher.Publisher
+	Logger                zerolog.Logger
+	Metrics               Metrics
+	ProbeFactory          prober.ProberFactory
+	LabelsLimiter         LabelsLimiter
+	Telemeter             Telemeter
+	CostAttributionLabels TenantCals
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
@@ -181,6 +190,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		summaries:     make(map[uint64]prometheus.Summary),
 		histograms:    make(map[uint64]prometheus.Histogram),
 		telemeter:     opts.Telemeter,
+		cals:          opts.CostAttributionLabels,
 	}, nil
 }
 
@@ -289,12 +299,26 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 		})
 	}
 
+	costAttributionLabels, err := h.scraper.cals.CostAttributionLabels(ctx, h.payload.tenantId)
+	if err != nil {
+		// If cals can't be found, do not block
+		h.scraper.logger.Error().
+			Int64("tenantId", int64(h.payload.tenantId)).
+			Msg("Could not load cals")
+	}
+
+	h.scraper.logger.Debug().
+		Int64("tenantId", int64(h.payload.tenantId)).
+		Int("costAttributionLabelsCount", len(costAttributionLabels)).
+		Msgf("Cost Attribution Labels: %v", costAttributionLabels)
+
 	// If we are dropping the data in case of errors, we should not count that execution.
 	h.scraper.telemeter.AddExecution(telemetry.Execution{
 		LocalTenantID: h.scraper.check.TenantId,
 		RegionID:      int32(h.scraper.check.RegionId),
 		CheckClass:    h.scraper.check.Class(),
-		Duration:      duration,
+		// TODO(@pokom): Add cost attribution label bits here
+		Duration: duration,
 	})
 
 	if h.payload != nil {
