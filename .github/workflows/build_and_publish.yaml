@@ -55,7 +55,7 @@ jobs:
           - /var/run/docker.sock:/var/run/docker.sock:ro
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v1.23.0@sha256:173916af15668a9a2837e038d5dea445b3888cbab97cd572dc2b3d961c982c83
+      image: ghcr.io/grafana/grafana-build-tools:1.23.1@sha256:66fb15e42d9b1f3ba68b28d8117c3dd6f598d5975ca8d3a01238054930356df9
       volumes:
         # This works as long as we are using self-hosted runners.
         #
