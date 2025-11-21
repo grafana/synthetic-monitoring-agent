@@ -102,7 +102,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	ttls := slices.Collect(maps.Keys(m.Statistic))
 	slices.Sort(ttls)
 
-	for ttl := range ttls {
+	for _, ttl := range ttls {
 		hop := m.Statistic[ttl]
 
 		totalPacketsLost += float64(hop.Lost)
