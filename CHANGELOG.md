@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.48.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.47.0...v0.48.0) (2025-11-21)
+
+
+### Features
+
+* prober/traceroute: log traceroute entries in increasing hop order ([14bc512](https://github.com/grafana/synthetic-monitoring-agent/commit/14bc512a20de6f6fc90b60031e89df065f18a58f))
+* Pull cost attribution labels for tenant ([#1544](https://github.com/grafana/synthetic-monitoring-agent/issues/1544)) ([58c6cf2](https://github.com/grafana/synthetic-monitoring-agent/commit/58c6cf25a58d32db999b8cc6e86c082de5bcc8af))
+
+
+### Fixes
+
+* iterate over slice values, not indexes ([83d539c](https://github.com/grafana/synthetic-monitoring-agent/commit/83d539c9be2fffe5b56f2686dc11d7ffa406e60b))
+
+
+### Miscellaneous Chores
+
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:142.0.7444.59-r0-3.22.2 Docker digest to 4bfff84 ([af8f861](https://github.com/grafana/synthetic-monitoring-agent/commit/af8f8618bab3e9491dcf4f1c45af6a24c56db188))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.23.1 ([42b8fb5](https://github.com/grafana/synthetic-monitoring-agent/commit/42b8fb5d013fe0a4d3a0201c57b89318d5e6ceeb))
+
 ## [0.47.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.46.1...v0.47.0) (2025-11-17)
 
 
