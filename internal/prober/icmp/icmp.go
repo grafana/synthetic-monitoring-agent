@@ -3,6 +3,7 @@ package icmp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -20,6 +21,7 @@ type Module struct {
 	Prober            string
 	Timeout           time.Duration
 	PacketCount       int64
+	PacketWaitCount   int64
 	ReqSuccessCount   int64
 	MaxResolveRetries int64
 	ICMP              config.ICMPProbe
@@ -49,6 +51,7 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger) (bool, float64) {
+	l.Log("config", fmt.Sprintf("%#v", p.config))
 	return probeICMP(ctx, target, p.config, registry, l)
 }
 
@@ -65,16 +68,23 @@ func settingsToModule(settings *sm.PingSettings) Module {
 
 	m.ICMP.DontFragment = settings.DontFragment
 
-	if settings.PacketCount == 0 {
-		m.PacketCount = 3
-		m.ReqSuccessCount = 1
-	} else {
-		m.PacketCount = settings.PacketCount
-		m.ReqSuccessCount = settings.PacketCount // TODO(mem): expose this setting
+	m.PacketCount = settings.PacketCount
+	m.PacketWaitCount = settings.WaitCount
+	m.ReqSuccessCount = settings.SuccessCount
+
+	if m.PacketCount == 0 {
+		m.PacketCount = 3 // Send out 3 by default.
 	}
 
-	// TODO(mem): add a setting for this
-	m.MaxResolveRetries = 3
+	if m.PacketWaitCount == 0 {
+		m.PacketWaitCount = 1 // m.PacketCount // Wait for all of them.
+	}
+
+	if m.ReqSuccessCount == 0 {
+		m.ReqSuccessCount = 1 // Receiving at least 1 is considered success.
+	}
+
+	m.MaxResolveRetries = 3 // TODO(mem): add a setting for this
 
 	return m
 }
@@ -99,10 +109,12 @@ func isPrivilegedRequired() bool {
 		registry = prometheus.NewRegistry()
 		logger   = log.NewNopLogger()
 		config   = Module{
-			Prober:      "test-unprivileged",
-			Timeout:     1 * time.Second,
-			PacketCount: 1,
-			Privileged:  false,
+			Prober:          "test-unprivileged",
+			Timeout:         1 * time.Second,
+			PacketCount:     1,
+			PacketWaitCount: 1,
+			ReqSuccessCount: 1,
+			Privileged:      false,
 			ICMP: config.ICMPProbe{
 				IPProtocol: "ip4",
 			},
