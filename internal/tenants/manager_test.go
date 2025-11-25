@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -69,7 +70,20 @@ func TestTenantManagerGetTenant(t *testing.T) {
 	cacheExpirationTime := 200 * time.Millisecond
 	maxCacheExpirationTime := cacheExpirationTime + time.Duration(defaultCacheJitter*float64(cacheExpirationTime))
 	logger := zerolog.New(zerolog.NewTestWriter(t))
-	tm := NewManager(ctx, &tc, tenantCh, cacheExpirationTime, logger)
+
+	// Create a local cache for testing
+	// Use DefaultTTL = 0 to disable automatic expiration, allowing us to test
+	// the stale data fallback behavior (ValidUntil is checked manually)
+	localCache, err := cache.NewLocal(cache.LocalConfig{
+		MaxCapacity:     100,
+		InitialCapacity: 10,
+		DefaultTTL:      0, // Disable automatic expiration
+		Logger:          logger,
+	})
+	require.NoError(t, err)
+	defer localCache.Close()
+
+	tm := NewManager(ctx, &tc, tenantCh, cacheExpirationTime, localCache, logger)
 
 	t1 := tc.tenants[1]
 
@@ -133,22 +147,16 @@ func TestTenantManagerGetTenant(t *testing.T) {
 	t3 := makeTenant(3)
 
 	tenantCh <- t3
-	// here we don't know if the tenant has been added to the list
-	// of known tenants or not; busy-loop waiting for the tenant to
-	// show up in the internal list kept by the tenant manager
-	for range 100 {
-		tm.tenantsMutex.Lock()
-		_, found := tm.tenants[t3.Id]
-		tm.tenantsMutex.Unlock()
-		if found {
-			break
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
+	// Give the manager goroutine some time to process the channel message
+	// before we start checking. This reduces unnecessary API calls.
+	time.Sleep(10 * time.Millisecond)
+
+	// Now check if the tenant was added to the cache via the channel
+	// by verifying that GetTenant succeeds without making an API request
 	tenant, err = tm.GetTenant(ctx, &sm.TenantInfo{Id: t3.Id})
 	require.NoError(t, err)
 	require.NotNil(t, tenant)
-	require.Equal(t, 0, tc.requestCount[t3.Id])
+	require.Equal(t, 0, tc.requestCount[t3.Id], "should not have made API request for tenant received via channel")
 	require.Equal(t, t3, *tenant)
 
 	// wait for tenants to expire

@@ -7,6 +7,13 @@ func (e BasicError) Error() string { return string(e) }
 
 var _ error = BasicError("")
 
+// ValidationError is an error for which we have no additional information.
+type ValidationError string
+
+func (e ValidationError) Error() string { return string(e) }
+
+var _ error = ValidationError("")
+
 // TransientError is an error that can be recovered.
 type TransientError BasicError
 
