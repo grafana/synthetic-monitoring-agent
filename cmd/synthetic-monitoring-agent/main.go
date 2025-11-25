@@ -501,7 +501,7 @@ func setupCache(cacheType cache.Kind, memcachedServers []string, localCapacity i
 	// auto + servers provided -> memcached -> local -> noop
 	// auto + no servers -> local -> noop
 	effectiveType := cacheType
-	if cacheType == "auto" {
+	if cacheType == cache.KindAuto {
 		if len(memcachedServers) > 0 {
 			effectiveType = cache.KindMemcached
 		} else {
