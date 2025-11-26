@@ -248,6 +248,7 @@ func run(args []string, stdout io.Writer) error {
 
 	// Initialize cache client (always non-nil, with fallback chain: memcached → local → noop)
 	cacheClient := setupCache(
+		ctx,
 		config.CacheType,
 		config.MemcachedServers,
 		config.CacheLocalCapacity,
@@ -496,7 +497,7 @@ func setupGoMemLimit(ratio float64) error {
 	return nil
 }
 
-func setupCache(cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) cache.Cache {
+func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) cache.Cache {
 	// Determine effective cache type with auto mode logic:
 	// auto + servers provided -> memcached -> local -> noop
 	// auto + no servers -> local -> noop
@@ -522,7 +523,7 @@ func setupCache(cacheType cache.Kind, memcachedServers []string, localCapacity i
 			Timeout: 100 * time.Millisecond,
 		}
 
-		cacheClient, err := cache.NewMemcachedClient(cacheConfig)
+		cacheClient, err := cache.NewMemcachedClient(ctx, cacheConfig)
 		if err != nil {
 			logger.Warn().
 				Err(err).
