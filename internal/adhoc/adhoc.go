@@ -316,6 +316,7 @@ func (h *Handler) loop(ctx context.Context) error {
 			Buildstamp:              version.Buildstamp(),
 			SupportsProtocolSecrets: h.supportsProtocolSecrets,
 		},
+		grpc.WaitForReady(true), // Wait for connection on critical startup RPC
 	)
 	if err != nil {
 		return grpcErrorHandler(
@@ -343,7 +344,7 @@ func (h *Handler) loop(ctx context.Context) error {
 		Str("probe name", h.probe.Name).
 		Msg("registered ad-hoc probe with synthetic-monitoring-api")
 
-	requests, err := client.GetAdHocChecks(ctx, &sm.Void{})
+	requests, err := client.GetAdHocChecks(ctx, &sm.Void{}, grpc.WaitForReady(true))
 	if err != nil {
 		return grpcErrorHandler("requesting ad-hoc checks from synthetic-monitoring-api", err)
 	}

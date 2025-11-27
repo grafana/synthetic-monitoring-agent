@@ -389,7 +389,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		Commit:                  version.Commit(),
 		Buildstamp:              version.Buildstamp(),
 		SupportsProtocolSecrets: c.supportsProtocolSecrets,
-	})
+	}, grpc.WaitForReady(true)) // Wait for connection on critical startup RPC
 	if err != nil {
 		return connected, grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
 	}
@@ -473,7 +473,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		})
 	}
 
-	cc, err := client.GetChanges(sigCtx, &knownChecks)
+	cc, err := client.GetChanges(sigCtx, &knownChecks, grpc.WaitForReady(true))
 	if err != nil {
 		return connected, errorHandler(err, "requesting changes from synthetic-monitoring-api", signalFired)
 	}
