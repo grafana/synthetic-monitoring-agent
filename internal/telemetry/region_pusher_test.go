@@ -497,7 +497,9 @@ func (tc *testTelemetryClient) PushTelemetry(
 ) (*sm.PushTelemetryResponse, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	defer tc.wg.Done()
+	if tc.wg != nil {
+		defer tc.wg.Done()
+	}
 
 	tc.mm = append(tc.mm, *in)
 

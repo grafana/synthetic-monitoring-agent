@@ -51,11 +51,27 @@ func TestTelemeterAddExecution(t *testing.T) {
 	}
 
 	var (
-		ctx        = context.Background()
 		timeSpan   = 1 * time.Hour
-		testClient = &testTelemetryClient{}
+		testClient = &testTelemetryClient{
+			wg: nil, // this is handled gracefully.
+			rr: testPushResp{
+				tr: &sm.PushTelemetryResponse{
+					Status: &sm.Status{Code: sm.StatusCode_OK},
+				},
+			},
+		}
 		registerer = prom.NewPedanticRegistry()
 	)
+
+	// Create a cancellable context to control goroutine lifecycle
+	ctx, cancel := context.WithCancel(t.Context())
+
+	// Ensure all goroutines are stopped before test ends
+	t.Cleanup(func() {
+		cancel()
+		// Give goroutines time to exit after context cancellation
+		time.Sleep(200 * time.Millisecond)
+	})
 
 	tele := NewTelemeter(ctx, instance, timeSpan, testClient, testhelper.Logger(t), registerer)
 
