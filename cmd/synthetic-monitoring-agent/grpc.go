@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"log"
 	"strings"
 
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -13,11 +12,13 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-func dialAPIServer(ctx context.Context, addr string, allowInsecure bool, apiToken string) (*grpc.ClientConn, error) {
-	apiCreds := creds{Token: apiToken}
+func dialAPIServer(addr string, allowInsecure bool, apiToken string) (*grpc.ClientConn, error) {
+	apiCreds := creds{
+		Token:         apiToken,
+		AllowInsecure: allowInsecure,
+	}
 
 	opts := []grpc.DialOption{
-		grpc.WithBlock(), //nolint:staticcheck,nolintlint // Will be removed in v2. TODO: Migrate to NewClient.
 		grpc.WithPerRPCCredentials(apiCreds),
 		// Keep-alive is necessary to detect network failures in absence of writes from the client.
 		// Without it, the agent would hang if the server disappears while waiting for a response.
@@ -40,7 +41,7 @@ func dialAPIServer(ctx context.Context, addr string, allowInsecure bool, apiToke
 	}
 	opts = append(opts, grpc.WithTransportCredentials(transportCreds))
 
-	return grpc.DialContext(ctx, addr, opts...) //nolint:staticcheck,nolintlint // Will be removed in v2. TODO: Migrate to NewClient.
+	return grpc.NewClient(addr, opts...)
 }
 
 func grpcApiHost(addr string) string {
@@ -53,7 +54,8 @@ func grpcApiHost(addr string) string {
 }
 
 type creds struct {
-	Token string
+	Token         string
+	AllowInsecure bool
 }
 
 func (c creds) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
@@ -63,7 +65,8 @@ func (c creds) GetRequestMetadata(ctx context.Context, uri ...string) (map[strin
 }
 
 func (c creds) RequireTransportSecurity() bool {
-	log.Printf("RequireTransportSecurity")
-	// XXX(mem): this is true
-	return false
+	// Only require transport security when insecure mode is NOT enabled.
+	// This allows the agent to use unencrypted connections for development/testing
+	// when the -api-insecure flag is set, while enforcing TLS by default.
+	return !c.AllowInsecure
 }
