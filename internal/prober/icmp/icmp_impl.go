@@ -2,8 +2,10 @@ package icmp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-kit/kit/log"       //nolint:staticcheck // TODO(mem): replace in BBE
@@ -49,6 +51,9 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 			Help: "Replied packet hop limit (TTL for ipv4)",
 		})
 	)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	for _, lv := range []string{"resolve", "setup", "rtt"} {
 		durationGaugeVec.WithLabelValues(lv)
@@ -104,6 +109,8 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 		_ = level.Info(logger).Log("msg", "Waiting for reply packets")
 	}
 
+	var received atomic.Int64
+
 	pinger.OnRecv = func(pkt *ping.Packet) {
 		if pkt.Seq == 0 && pkt.TTL >= 0 {
 			registry.MustRegister(hopLimitGauge)
@@ -111,6 +118,11 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 		}
 
 		_ = level.Info(logger).Log("msg", "Found matching reply packet", "seq", strconv.Itoa(pkt.Seq))
+
+		if received.Add(1) >= module.PacketWaitCount {
+			// Cancel the context to the run.
+			cancel()
+		}
 	}
 
 	pinger.OnDuplicateRecv = func(pkt *ping.Packet) {
@@ -145,12 +157,25 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 
 	_ = level.Info(logger).Log("msg", "Creating socket")
 
-	if err := pinger.RunWithContext(ctx); err != nil {
+	err = pinger.RunWithContext(ctx)
+
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+
+	case errors.Is(err, context.Canceled):
+
+	case err == nil:
+
+	default:
 		_ = level.Info(logger).Log("msg", "failed to run ping", "err", err.Error())
+
 		return false, 0
 	}
 
+	_ = level.Info(logger).Log("msg", "stopping ping", "err", err.Error())
+
 	return pinger.PacketsSent >= int(module.ReqSuccessCount) && pinger.PacketsRecv >= int(module.ReqSuccessCount), duration
+
 }
 
 type icmpLogger struct {
