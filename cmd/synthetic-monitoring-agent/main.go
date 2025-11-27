@@ -305,7 +305,7 @@ func run(args []string, stdout io.Writer) error {
 
 	tenantCh := make(chan synthetic_monitoring.Tenant)
 
-	conn, err := dialAPIServer(ctx, config.GrpcApiServerAddr, config.GrpcInsecure, string(config.ApiToken))
+	conn, err := dialAPIServer(config.GrpcApiServerAddr, config.GrpcInsecure, string(config.ApiToken))
 	if err != nil {
 		return fmt.Errorf("dialing GRPC server %s: %w", config.GrpcApiServerAddr, err)
 	}
