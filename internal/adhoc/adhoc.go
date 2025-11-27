@@ -224,6 +224,7 @@ func (h *Handler) Run(ctx context.Context) error {
 
 		case errors.Is(err, errNotAuthorized):
 			// our token is invalid, bail out?
+			// Connection state is logged for debugging/observability only.
 			h.logger.Error().
 				Err(err).
 				Str("connection_state", h.api.conn.GetState().String()).
@@ -232,6 +233,7 @@ func (h *Handler) Run(ctx context.Context) error {
 
 		case errors.Is(err, errIncompatibleApi):
 			// API server doesn't support required features.
+			// Connection state is logged for debugging/observability only.
 			h.logger.Error().
 				Err(err).
 				Str("connection_state", h.api.conn.GetState().String()).
@@ -240,6 +242,7 @@ func (h *Handler) Run(ctx context.Context) error {
 
 		case errors.Is(err, errTransportClosing):
 			// the other end went away? Allow GRPC to reconnect.
+			// Connection state is logged for debugging/observability only.
 			h.logger.Warn().
 				Err(err).
 				Str("connection_state", h.api.conn.GetState().String()).
@@ -253,6 +256,7 @@ func (h *Handler) Run(ctx context.Context) error {
 
 		case errors.Is(err, errIdleTimeout):
 			// connection idle timeout - this is normal behavior when adhoc checks aren't used frequently
+			// Connection state is logged for debugging/observability only.
 			h.logger.Info().
 				Str("connection_state", h.api.conn.GetState().String()).
 				Msg("connection idle timeout, reconnecting")

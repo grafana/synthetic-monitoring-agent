@@ -309,6 +309,9 @@ func (c *Updater) Run(ctx context.Context) error {
 	for {
 		wasConnected, err := c.loop(ctx)
 
+		// Connection state is logged for debugging/observability only.
+		// Do not make decisions based on connection state - it provides no guarantees.
+		// Trust RPC-level error handling instead, as connections are dynamic.
 		logger := c.logger.With().Str("connection_state", c.api.conn.GetState().String()).Logger()
 
 		logger.Info().Err(err).Bool("was_connected", wasConnected).Msg("broke out of loop")
