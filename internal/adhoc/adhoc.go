@@ -308,11 +308,10 @@ func (h *Handler) loop(ctx context.Context) error {
 	result, err := client.RegisterProbe(
 		ctx,
 		&sm.ProbeInfo{
-			Version:    version.Short(),
-			Commit:     version.Commit(),
-			Buildstamp: version.Buildstamp(),
-			// TODO(d0ugal): We will switch this to true when the implementation is complete in the Agent and API.
-			SupportsProtocolSecrets: false,
+			Version:                 version.Short(),
+			Commit:                  version.Commit(),
+			Buildstamp:              version.Buildstamp(),
+			SupportsProtocolSecrets: true,
 		},
 	)
 	if err != nil {
