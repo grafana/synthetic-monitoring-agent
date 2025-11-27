@@ -348,33 +348,39 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	client := sm.NewChecksClient(c.api.conn)
 
 	grpcErrorHandler := func(action string, err error) error {
-		status, ok := status.FromError(err)
-		c.logger.Error().Err(err).Str("action", action).Uint32("code", uint32(status.Code())).Msg(status.Message())
-
-		switch {
-		case !ok:
+		st, ok := status.FromError(err)
+		if !ok {
+			c.logger.Error().Err(err).Str("action", action).Msg("non-grpc error")
 			return fmt.Errorf("%s: %w", action, err)
+		}
 
-		case status.Code() == codes.Canceled:
-			// either we were told to shut down
+		c.logger.Error().
+			Err(err).
+			Str("action", action).
+			Uint32("code", uint32(st.Code())).
+			Msg(st.Message())
+
+		switch st.Code() {
+		case codes.Canceled:
+			// Context was cancelled
 			return context.Canceled
 
-		case status.Message() == "transport is closing":
-			// the other end is shutting down
-			return errTransportClosing
+		case codes.Unavailable:
+			// Network errors, connection resets, transport closing, etc.
+			// All these are transient and should trigger retry logic
+			return TransientError(fmt.Sprintf("%s: %s", action, st.Message()))
 
-		case status.Code() == codes.Unavailable:
-			// Network errors, connection resets, etc. are transient
-			return TransientError(fmt.Sprintf("%s: %s", action, status.Message()))
-
-		case status.Code() == codes.PermissionDenied:
+		case codes.PermissionDenied, codes.Unauthenticated:
+			// Authentication/authorization failures
 			return errNotAuthorized
 
-		case status.Code() == codes.Unimplemented:
+		case codes.Unimplemented:
+			// API doesn't support required features
 			return errIncompatibleApi
 
 		default:
-			return status.Err()
+			// Return the original status error to preserve all details
+			return st.Err()
 		}
 	}
 
