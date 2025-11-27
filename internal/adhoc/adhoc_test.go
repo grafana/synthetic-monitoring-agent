@@ -51,6 +51,47 @@ func TestNewHandler(t *testing.T) {
 	require.NotNil(t, h.grpcAdhocChecksClientFactory)
 	require.Nil(t, h.probe, "probe should not be set at this point")
 	require.NotNil(t, h.metrics.opsCounter)
+	require.False(t, h.supportsProtocolSecrets, "default value should be false")
+}
+
+func TestHandlerSupportsProtocolSecrets(t *testing.T) {
+	features := feature.NewCollection()
+	require.NoError(t, features.Set("adhoc"))
+
+	var capturedProbeInfo *sm.ProbeInfo
+	testClient := &testClient{
+		logger: zerolog.New(io.Discard),
+		registerProbeHook: func(info *sm.ProbeInfo) {
+			capturedProbeInfo = info
+		},
+	}
+
+	opts := HandlerOpts{
+		Conn:                    &grpcTestConn{},
+		Logger:                  zerolog.New(io.Discard),
+		Publisher:               channelPublisher(make(chan pusher.Payload)),
+		TenantCh:                make(chan sm.Tenant),
+		PromRegisterer:          prometheus.NewPedanticRegistry(),
+		Features:                features,
+		SupportsProtocolSecrets: true,
+		grpcAdhocChecksClientFactory: func(conn ClientConn) (sm.AdHocChecksClient, error) {
+			return testClient, nil
+		},
+	}
+
+	h, err := NewHandler(opts)
+	require.NoError(t, err)
+	require.NotNil(t, h)
+	require.True(t, h.supportsProtocolSecrets, "should be set to true")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+
+	// Run will call RegisterProbe, which should capture the ProbeInfo
+	_ = h.Run(ctx)
+
+	require.NotNil(t, capturedProbeInfo, "RegisterProbe should have been called")
+	require.True(t, capturedProbeInfo.SupportsProtocolSecrets, "SupportsProtocolSecrets should be true")
 }
 
 func TestHandlerRun(t *testing.T) {
@@ -258,10 +299,15 @@ type testClient struct {
 	logger              zerolog.Logger
 	registerProbeError  error
 	getAdhocChecksError error
+	registerProbeHook   func(*sm.ProbeInfo)
 }
 
 func (c *testClient) RegisterProbe(ctx context.Context, in *sm.ProbeInfo, opts ...grpc.CallOption) (*sm.RegisterProbeResult, error) {
 	c.logger.Info().Str("func", "RegisterProbe").Interface("in", in).Interface("opts", opts).Send()
+
+	if c.registerProbeHook != nil {
+		c.registerProbeHook(in)
+	}
 
 	if c.registerProbeError != nil {
 		return nil, c.registerProbeError

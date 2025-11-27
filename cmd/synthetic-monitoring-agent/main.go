@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -59,29 +60,30 @@ func run(args []string, stdout io.Writer) error {
 	var (
 		features = feature.NewCollection()
 		config   = struct {
-			DevMode              bool
-			Debug                bool
-			Verbose              bool
-			ReportVersion        bool
-			GrpcApiServerAddr    string
-			GrpcInsecure         bool
-			ApiToken             Secret
-			EnableChangeLogLevel bool
-			EnableDisconnect     bool
-			EnablePProf          bool
-			HttpListenAddr       string
-			K6URI                string
-			K6BlacklistedIP      string
-			SelectedPublisher    string
-			TelemetryTimeSpan    int
-			AutoMemLimit         bool
-			MemLimitRatio        float64
-			DisableK6            bool
-			DisableUsageReports  bool
-			CacheType            cache.Kind
-			CacheLocalCapacity   int
-			CacheLocalTTL        time.Duration
-			MemcachedServers     StringList
+			DevMode               bool
+			Debug                 bool
+			Verbose               bool
+			ReportVersion         bool
+			GrpcApiServerAddr     string
+			GrpcInsecure          bool
+			ApiToken              Secret
+			EnableChangeLogLevel  bool
+			EnableDisconnect      bool
+			EnablePProf           bool
+			HttpListenAddr        string
+			K6URI                 string
+			K6BlacklistedIP       string
+			SelectedPublisher     string
+			TelemetryTimeSpan     int
+			AutoMemLimit          bool
+			MemLimitRatio         float64
+			DisableK6             bool
+			DisableUsageReports   bool
+			CacheType             cache.Kind
+			CacheLocalCapacity    int
+			CacheLocalTTL         time.Duration
+			MemcachedServers      StringList
+			EnableProtocolSecrets bool
 		}{
 			GrpcApiServerAddr:  "localhost:4031",
 			HttpListenAddr:     "localhost:4050",
@@ -171,6 +173,10 @@ func run(args []string, stdout io.Writer) error {
 	//
 	// Using API_TOKEN should be deprecated after March 1st, 2023.
 	config.ApiToken = Secret(stringFromEnv("API_TOKEN", stringFromEnv("SM_AGENT_API_TOKEN", string(config.ApiToken))))
+
+	// Enable protocol secrets support via environment variable.
+	// This is a feature flag to allow testing before enabling by default.
+	config.EnableProtocolSecrets = boolFromEnv("SM_AGENT_ENABLE_PROTOCOL_SECRETS", config.EnableProtocolSecrets)
 
 	if config.ApiToken == "" {
 		return fmt.Errorf("invalid API token")
@@ -348,21 +354,22 @@ func run(args []string, stdout io.Writer) error {
 	)
 
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
-		Conn:                  conn,
-		Logger:                zl.With().Str("subsystem", "updater").Logger(),
-		Backoff:               newConnectionBackoff(),
-		Publisher:             publisher,
-		TenantCh:              tenantCh,
-		IsConnected:           readynessHandler.Set,
-		PromRegisterer:        promRegisterer,
-		Features:              features,
-		K6Runner:              k6Runner,
-		ScraperFactory:        scraper.New,
-		TenantLimits:          limits,
-		SecretProvider:        secretProvider,
-		Telemeter:             telemetry,
-		UsageReporter:         usageReporter,
-		CostAttributionLabels: cals,
+		Conn:                    conn,
+		Logger:                  zl.With().Str("subsystem", "updater").Logger(),
+		Backoff:                 newConnectionBackoff(),
+		Publisher:               publisher,
+		TenantCh:                tenantCh,
+		IsConnected:             readynessHandler.Set,
+		PromRegisterer:          promRegisterer,
+		Features:                features,
+		K6Runner:                k6Runner,
+		ScraperFactory:          scraper.New,
+		TenantLimits:            limits,
+		SecretProvider:          secretProvider,
+		Telemeter:               telemetry,
+		UsageReporter:           usageReporter,
+		CostAttributionLabels:   cals,
+		SupportsProtocolSecrets: config.EnableProtocolSecrets,
 	})
 
 	if err != nil {
@@ -374,15 +381,16 @@ func run(args []string, stdout io.Writer) error {
 	})
 
 	adhocHandler, err := adhoc.NewHandler(adhoc.HandlerOpts{
-		Conn:           conn,
-		Logger:         zl.With().Str("subsystem", "adhoc").Logger(),
-		Backoff:        newConnectionBackoff(),
-		Publisher:      publisher,
-		TenantCh:       tenantCh,
-		PromRegisterer: promRegisterer,
-		Features:       features,
-		K6Runner:       k6Runner,
-		SecretProvider: secretProvider,
+		Conn:                    conn,
+		Logger:                  zl.With().Str("subsystem", "adhoc").Logger(),
+		Backoff:                 newConnectionBackoff(),
+		Publisher:               publisher,
+		TenantCh:                tenantCh,
+		PromRegisterer:          promRegisterer,
+		Features:                features,
+		K6Runner:                k6Runner,
+		SecretProvider:          secretProvider,
+		SupportsProtocolSecrets: config.EnableProtocolSecrets,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create ad-hoc checks handler: %w", err)
@@ -443,6 +451,21 @@ func stringFromEnv(name string, override string) string {
 	}
 
 	return os.Getenv(name)
+}
+
+func boolFromEnv(name string, defaultValue bool) bool {
+	value := os.Getenv(name)
+	if value == "" {
+		return defaultValue
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		// If parsing fails, return the default value
+		return defaultValue
+	}
+
+	return parsed
 }
 
 func validateK6URI(uri string) (string, error) {
