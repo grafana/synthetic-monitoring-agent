@@ -24,13 +24,20 @@ func dialAPIServer(addr string, allowInsecure bool, apiToken string) (*grpc.Clie
 		// Without it, the agent would hang if the server disappears while waiting for a response.
 		// See https://github.com/grpc/grpc/blob/master/doc/keepalive.md
 		grpc.WithKeepaliveParams(keepalive.ClientParameters{
-			// GRPC_ARG_KEEPALIVE_TIME_MS - Time between pings
+			// Time: Send pings every 90s to detect network failures faster than TCP timeout.
+			// This ensures the agent knows when the API server is unreachable and can reconnect.
+			// 90s is chosen to balance network overhead with timely failure detection.
 			Time: synthetic_monitoring.HealthCheckInterval,
-			// GRPC_ARG_KEEPALIVE_TIMEOUT_MS - Ping timeout
+
+			// Timeout: Wait 30s for ping acknowledgment before considering connection dead.
+			// If no ack is received within this window, the connection is closed and reconnected.
+			// This timeout should be less than Time to avoid overlapping pings.
 			Timeout: synthetic_monitoring.HealthCheckTimeout,
-			// GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS - Allow pings even if no grpc calls are in place.
-			// It shouldn't be the case that the agent doesn't have any calls in place during
-			// a significant period of time.
+
+			// PermitWithoutStream: Allow pings even when no active RPCs are in flight.
+			// This is critical for the agent because the GetChanges stream may be idle
+			// between updates, but we still need to detect if the connection is broken.
+			// Without this, pings would only occur during active RPCs, defeating the purpose.
 			PermitWithoutStream: true,
 		}),
 	}
