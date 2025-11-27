@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
@@ -228,170 +229,161 @@ func TestTenantPusher(t *testing.T) {
 	t.Run("should send telemetry data once", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, _ := setupTest(t)
+		synctest.Test(t, func(t *testing.T) {
+			td, tc, pusher, _ := setupTest(t)
 
-		t.Cleanup(td.shutdownAndWait)
+			t.Cleanup(td.shutdownAndWait)
 
-		// Add some executions
-		addExecutions(pusher, getTestDataset(0).executions)
+			// Add some executions.
+			addExecutions(pusher, getTestDataset(0).executions)
 
-		// Set mock response for client
-		tc.rr = testPushRespOK
+			// Set mock response for client.
+			tc.rr = testPushRespOK
 
-		// Tick
-		td.tickAndWait()
+			// Tick.
+			td.tickAndWait()
 
-		// Verify sent data
-		tc.assert(t, getTestDataset(0).message)
+			// Verify sent data.
+			tc.assert(t, getTestDataset(0).message)
+		})
 	})
 
 	t.Run("should retry sending data once", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, _ := setupTest(t)
+		synctest.Test(t, func(t *testing.T) {
+			td, tc, pusher, _ := setupTest(t)
 
-		t.Cleanup(td.shutdownAndWait)
+			t.Cleanup(td.shutdownAndWait)
 
-		// Add some executions
-		addExecutions(pusher, getTestDataset(0).executions)
+			// Add some executions.
+			addExecutions(pusher, getTestDataset(0).executions)
 
-		// Set mock response for client
-		tc.rr = testPushRespKO
+			// Set mock response for client.
+			tc.rr = testPushRespKO
 
-		// Tick twice, one for initial push and one for retry
-		td.tickAndWait()
-		td.tickAndWait()
+			// Tick twice, one for initial push and one for retry.
+			td.tickAndWait()
+			td.tickAndWait()
 
-		// Verify sent data
-		tc.assert(t, getTestDataset(0).message, getTestDataset(0).message)
+			// Verify sent data.
+			tc.assert(t, getTestDataset(0).message, getTestDataset(0).message)
+		})
 	})
 
 	t.Run("should retry and send more data", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, _ := setupTest(t)
+		synctest.Test(t, func(t *testing.T) {
+			td, tc, pusher, _ := setupTest(t)
 
-		t.Cleanup(td.shutdownAndWait)
+			t.Cleanup(td.shutdownAndWait)
 
-		// Add some executions
-		addExecutions(pusher, getTestDataset(0).executions)
+			// Add some executions.
+			addExecutions(pusher, getTestDataset(0).executions)
 
-		// Set KO mock response for client and tick once
-		tc.rr = testPushRespKO
-		td.tickAndWait()
+			// Set KO mock response for client and tick once.
+			tc.rr = testPushRespKO
+			td.tickAndWait()
 
-		// Send more executions
-		addExecutions(pusher, getTestDataset(1).executions)
+			// Send more executions.
+			addExecutions(pusher, getTestDataset(1).executions)
 
-		// Set OK mock response for client and tick again
-		tc.rr = testPushRespOK
-		td.tickAndWait()
+			// Set OK mock response for client and tick again.
+			tc.rr = testPushRespOK
+			td.tickAndWait()
 
-		// Verify sent data
-		tc.assert(t,
-			getTestDataset(0).message, // First tick message
-			getTestDataset(1).message, // First message retry with newly accumulated data
-		)
+			// Verify sent data.
+			tc.assert(t,
+				getTestDataset(0).message, // First tick message
+				getTestDataset(1).message, // First message retry with newly accumulated data
+			)
+		})
 	})
 
 	t.Run("should push on context done", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, _ := setupTest(t)
+		synctest.Test(t, func(t *testing.T) {
+			td, tc, pusher, _ := setupTest(t)
 
-		// Add some executions
-		addExecutions(pusher, getTestDataset(0).executions)
+			// Add some executions.
+			addExecutions(pusher, getTestDataset(0).executions)
 
-		// Set mock response for client
-		tc.rr = testPushRespKO
+			// Set mock response for client.
+			tc.rr = testPushRespKO
 
-		// Tick once, which should make the push fail
-		td.tickAndWait()
+			// Tick once, which should make the push fail.
+			td.tickAndWait()
 
-		// Verify sent data
-		tc.assert(t, getTestDataset(0).message)
+			// Verify sent data.
+			tc.assert(t, getTestDataset(0).message)
 
-		// Send more executions
-		addExecutions(pusher, getTestDataset(1).executions)
+			// Send more executions.
+			addExecutions(pusher, getTestDataset(1).executions)
 
-		// Cancel the context
-		// Which should make the pusher send
-		// the currently accumulated data
-		td.shutdownAndWait()
+			// Cancel the context, which should make the pusher send the currently accumulated data.
+			td.shutdownAndWait()
 
-		// Verify sent data on exit
-		tc.assert(t, getTestDataset(1).message)
+			// Verify sent data on exit.
+			tc.assert(t, getTestDataset(1).message)
+		})
 	})
 
 	t.Run("should report push error", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, metrics := setupTest(t)
+		synctest.Test(t, func(t *testing.T) {
+			td, tc, pusher, metrics := setupTest(t)
 
-		t.Cleanup(td.shutdownAndWait)
+			t.Cleanup(td.shutdownAndWait)
 
-		// Setup test client to return err on push
-		tc.rr.err = errors.New("test error")
+			// Setup test client to return err on push.
+			tc.rr.err = errors.New("test error")
 
-		// Add some executions
-		addExecutions(pusher, getTestDataset(0).executions)
+			// Add some executions.
+			addExecutions(pusher, getTestDataset(0).executions)
 
-		// Tick once, which should make the push fail
-		td.tickAndWait()
+			// Tick once, which should make the push fail
+			td.tickAndWait()
 
-		// Verify sent data
-		tc.assert(t, getTestDataset(0).message)
+			// Verify sent data.
+			tc.assert(t, getTestDataset(0).message)
 
-		// Verify error metric
-		//
-		// The problem we have here is that the metric is incremented in a separate
-		// goroutine that is created when the ticker ticks. Sometimes by the time we arrive
-		// here, the goroutine hasn't had a chance to run yet. That's why we try reading the
-		// value a few times. Fixing that logic is a little too complicated and invasive.
-		for range 5 {
+			// Verify error metric.
+			//
+			// td.tickAndWait() above ensures all goroutines have completed or are durably blocked.
 			errsMetric := getMetricFromCollector(t, metrics.pushRequestsError)
-			if *errsMetric.Counter.Value < 1 {
-				time.Sleep(1 * time.Millisecond)
-				continue
-			}
 			require.Equal(t, 1, int(*errsMetric.Counter.Value))
-		}
+		})
 	})
 
 	t.Run("should report push error on unexpected status", func(t *testing.T) {
 		t.Parallel()
 
-		td, tc, pusher, metrics := setupTest(t)
+		synctest.Test(t, func(t *testing.T) {
+			td, tc, pusher, metrics := setupTest(t)
 
-		t.Cleanup(td.shutdownAndWait)
+			t.Cleanup(td.shutdownAndWait)
 
-		// Add some executions
-		addExecutions(pusher, getTestDataset(0).executions)
+			// Add some executions.
+			addExecutions(pusher, getTestDataset(0).executions)
 
-		// Set mock response for client
-		// with unexpected status code
-		tc.rr = testPushRespKO
+			// Set mock response for client with unexpected status code.
+			tc.rr = testPushRespKO
 
-		// Tick once, which should make the push fail
-		td.tickAndWait()
+			// Tick once, which should make the push fail.
+			td.tickAndWait()
 
-		// Verify sent data
-		tc.assert(t, getTestDataset(0).message)
+			// Verify sent data.
+			tc.assert(t, getTestDataset(0).message)
 
-		// Verify error metric.
-		//
-		// The problem we have here is that the metric is incremented in a separate
-		// goroutine that is created when the ticker ticks. Sometimes by the time we arrive
-		// here, the goroutine hasn't had a chance to run yet. That's why we try reading the
-		// value a few times. Fixing that logic is a little too complicated and invasive.
-		for range 5 {
+			// Verify error metric.
+			//
+			// td.tickAndWait() above ensures all goroutines have completed or are durably blocked.
 			errsMetric := getMetricFromCollector(t, metrics.pushRequestsError)
-			if *errsMetric.Counter.Value < 1 {
-				time.Sleep(1 * time.Millisecond)
-				continue
-			}
 			require.Equal(t, 1, int(*errsMetric.Counter.Value))
-		}
+		})
 	})
 }
 
@@ -413,36 +405,28 @@ type testPushResp struct {
 }
 
 func setupTest(t *testing.T) (*testDriver, *testTelemetryClient, *RegionPusher, RegionMetrics) {
-	var (
-		testSyncGroup   = &sync.WaitGroup{}
-		testCtx, cancel = context.WithCancel(t.Context())
-		ticker          = &testTicker{c: make(chan time.Time)}
-		td              = testDriver{wg: testSyncGroup, cancel: cancel, ticker: ticker}
-		tc              = &testTelemetryClient{wg: testSyncGroup}
-		logger          = testhelper.Logger(t)
-		metrics         = RegionMetrics{
-			pushRequestsActive:   prom.NewGauge(prom.GaugeOpts{}),
-			pushRequestsDuration: prom.NewHistogram(prom.HistogramOpts{}),
-			pushRequestsTotal:    prom.NewCounter(prom.CounterOpts{}),
-			pushRequestsError:    prom.NewCounter(prom.CounterOpts{}),
-			addExecutionDuration: prom.NewHistogram(prom.HistogramOpts{}),
-		}
-	)
-
-	// This weird construction we have here is due to the fact that this code is spawining
-	// several goroutines at different points. Because of that, sometimes we end up in a
-	// situation where the goroutine is still running after the test is done and it tries to use
-	// the logger, which will cause an intentional datarace.
+	// All setup happens within synctest bubble synctest will track all goroutines automatically.
 	//
-	// Create a waitgroup here, so that we can wait until all goroutines are done before ending
-	// the test.
+	// Do not use t.Context() here, as that context is derived from the main context, which is
+	// created outside the bubble.
+	testCtx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
 
+	ticker := &testTicker{c: make(chan time.Time)}
+	td := testDriver{cancel: cancel, ticker: ticker}
+	tc := &testTelemetryClient{}
+	logger := testhelper.Logger(t)
+	metrics := RegionMetrics{
+		pushRequestsActive:   prom.NewGauge(prom.GaugeOpts{}),
+		pushRequestsDuration: prom.NewHistogram(prom.HistogramOpts{}),
+		pushRequestsTotal:    prom.NewCounter(prom.CounterOpts{}),
+		pushRequestsError:    prom.NewCounter(prom.CounterOpts{}),
+		addExecutionDuration: prom.NewHistogram(prom.HistogramOpts{}),
+	}
+
+	// Pass a WaitGroup to maintain compatibility with the production code,
+	// but synctest.Wait() will handle the synchronization.
 	wg := new(sync.WaitGroup)
-
-	t.Cleanup(func() {
-		cancel()  // cancel the context first, so that stuff waiting for that signal exits.
-		wg.Wait() // Wait for stuff to be done.
-	})
 
 	pusher := NewRegionPusher(
 		testCtx,
@@ -460,33 +444,24 @@ func setupTest(t *testing.T) (*testDriver, *testTelemetryClient, *RegionPusher, 
 }
 
 type testDriver struct {
-	wg     *sync.WaitGroup
 	cancel context.CancelFunc
 	ticker *testTicker
 }
 
-// tickAndWait will tick the ticker once, so the push
-// process starts, and wait for the push client to finish
+// tickAndWait will tick the ticker once, so the push process starts, and wait for all goroutines to be durably blocked.
 func (td *testDriver) tickAndWait() {
-	td.wg.Add(1)
-	defer td.wg.Wait()
 	td.ticker.c <- time.Now()
+	synctest.Wait() // Wait for all goroutines to be durably blocked or complete.
 }
 
-// waitForShutdown will cancel the context passed to the
-// tenant pusher and wait for it to finish its work
+// shutdownAndWait will cancel the context and wait for the pusher to finish.
 func (td *testDriver) shutdownAndWait() {
-	defer td.wg.Wait()
-	// The pusher will send the current accumulated
-	// data before exiting
-	td.wg.Add(1)
-
 	td.cancel()
+	synctest.Wait() // Wait for pusher to finish its final push.
 }
 
 type testTelemetryClient struct {
 	mu sync.Mutex
-	wg *sync.WaitGroup
 
 	rr testPushResp
 	mm []sm.RegionTelemetry
@@ -497,9 +472,6 @@ func (tc *testTelemetryClient) PushTelemetry(
 ) (*sm.PushTelemetryResponse, error) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
-	if tc.wg != nil {
-		defer tc.wg.Done()
-	}
 
 	tc.mm = append(tc.mm, *in)
 
@@ -510,13 +482,14 @@ func (tc *testTelemetryClient) assert(t *testing.T, exp ...sm.RegionTelemetry) {
 	t.Helper()
 
 	defer func() {
-		// reslice got messages moving forward for each one verified
-		// so these are not taken into account if assert is called again
-		tc.mm = tc.mm[len(exp):]
+		// Copy the remaining messages in the mm buffer to the front, and clip it to that size.
+		rest := copy(tc.mm, tc.mm[len(exp):])
+		tc.mm = tc.mm[:rest]
 	}()
-	for i, expM := range exp {
-		assertInfoData(t, &expM, &tc.mm[i])
-		assertRegionTelemetryData(t, &expM, &tc.mm[i])
+
+	for i, msg := range exp {
+		assertInfoData(t, &msg, &tc.mm[i])
+		assertRegionTelemetryData(t, &msg, &tc.mm[i])
 	}
 }
 
@@ -529,6 +502,7 @@ func assertInfoData(t *testing.T, exp, got *sm.RegionTelemetry) {
 func assertRegionTelemetryData(t *testing.T, exp, got *sm.RegionTelemetry) {
 	t.Helper()
 	require.Equal(t, len(exp.Telemetry), len(got.Telemetry), "region telemetry length should match")
+
 	// Because the message is built in the pusher by iterating a map, the
 	// order is not deterministic, therefore we have to find each element
 LOOP:
@@ -547,6 +521,7 @@ LOOP:
 func assertTenantTelemetryData(t *testing.T, exp, got *sm.TenantTelemetry) {
 	t.Helper()
 	require.Equal(t, len(exp.Telemetry), len(got.Telemetry), "tenant telemetry length should match")
+
 LOOP:
 	for _, expTele := range exp.Telemetry {
 		for j, gotTele := range got.Telemetry {
