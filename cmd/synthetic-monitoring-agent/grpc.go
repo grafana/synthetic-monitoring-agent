@@ -37,7 +37,12 @@ func dialAPIServer(addr string, allowInsecure bool, apiToken string) (*grpc.Clie
 
 	transportCreds := insecure.NewCredentials()
 	if !allowInsecure {
-		transportCreds = credentials.NewTLS(&tls.Config{ServerName: grpcApiHost(addr)})
+		transportCreds = credentials.NewTLS(&tls.Config{
+			ServerName: grpcApiHost(addr),
+			MinVersion: tls.VersionTLS12, // Enforce TLS 1.2 minimum for security
+			// TLS 1.2 is widely supported and secure. TLS 1.0 and 1.1 are deprecated.
+			// TLS 1.3 is preferred but TLS 1.2 ensures broader compatibility.
+		})
 	}
 	opts = append(opts, grpc.WithTransportCredentials(transportCreds))
 

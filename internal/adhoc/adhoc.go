@@ -3,6 +3,7 @@ package adhoc
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	logproto "github.com/grafana/loki/pkg/push"
@@ -172,6 +175,43 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 	}
 
 	return h, nil
+}
+
+// logConnectionSecurity logs information about the connection's TLS configuration.
+// This provides visibility into the negotiated TLS version for security monitoring.
+func logConnectionSecurity(ctx context.Context, logger zerolog.Logger) {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		logger.Debug().Msg("no peer information available")
+		return
+	}
+
+	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		logger.Info().Str("security", "insecure").Msg("connection established without TLS")
+		return
+	}
+
+	var tlsVersion string
+	switch tlsInfo.State.Version {
+	case tls.VersionTLS10:
+		tlsVersion = "TLS 1.0"
+	case tls.VersionTLS11:
+		tlsVersion = "TLS 1.1"
+	case tls.VersionTLS12:
+		tlsVersion = "TLS 1.2"
+	case tls.VersionTLS13:
+		tlsVersion = "TLS 1.3"
+	default:
+		tlsVersion = fmt.Sprintf("unknown (0x%04x)", tlsInfo.State.Version)
+	}
+
+	logger.Info().
+		Str("tls_version", tlsVersion).
+		Str("cipher_suite", tls.CipherSuiteName(tlsInfo.State.CipherSuite)).
+		Str("server_name", tlsInfo.State.ServerName).
+		Bool("handshake_complete", tlsInfo.State.HandshakeComplete).
+		Msg("secure connection established")
 }
 
 // Run starts the handler.
@@ -343,6 +383,9 @@ func (h *Handler) loop(ctx context.Context) error {
 		Int64("probe id", h.probe.Id).
 		Str("probe name", h.probe.Name).
 		Msg("registered ad-hoc probe with synthetic-monitoring-api")
+
+	// Log TLS connection information for security monitoring
+	logConnectionSecurity(ctx, h.logger)
 
 	requests, err := client.GetAdHocChecks(ctx, &sm.Void{}, grpc.WaitForReady(true))
 	if err != nil {
