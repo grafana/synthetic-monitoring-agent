@@ -2,6 +2,7 @@ package checks
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	logproto "github.com/grafana/loki/pkg/push"
@@ -263,6 +266,43 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	}, nil
 }
 
+// logConnectionSecurity logs information about the connection's TLS configuration.
+// This provides visibility into the negotiated TLS version for security monitoring.
+func logConnectionSecurity(ctx context.Context, logger zerolog.Logger) {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		logger.Debug().Msg("no peer information available")
+		return
+	}
+
+	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		logger.Info().Str("security", "insecure").Msg("connection established without TLS")
+		return
+	}
+
+	var tlsVersion string
+	switch tlsInfo.State.Version {
+	case tls.VersionTLS10:
+		tlsVersion = "TLS 1.0"
+	case tls.VersionTLS11:
+		tlsVersion = "TLS 1.1"
+	case tls.VersionTLS12:
+		tlsVersion = "TLS 1.2"
+	case tls.VersionTLS13:
+		tlsVersion = "TLS 1.3"
+	default:
+		tlsVersion = fmt.Sprintf("unknown (0x%04x)", tlsInfo.State.Version)
+	}
+
+	logger.Info().
+		Str("tls_version", tlsVersion).
+		Str("cipher_suite", tls.CipherSuiteName(tlsInfo.State.CipherSuite)).
+		Str("server_name", tlsInfo.State.ServerName).
+		Bool("handshake_complete", tlsInfo.State.HandshakeComplete).
+		Msg("secure connection established")
+}
+
 func (c *Updater) Run(ctx context.Context) error {
 	c.backoff.Reset()
 
@@ -414,6 +454,9 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
 
 	logger.Info().Str("probe_name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
+
+	// Log TLS connection information for security monitoring
+	logConnectionSecurity(ctx, logger)
 
 	c.metrics.connectionStatus.Set(1)
 	defer c.metrics.connectionStatus.Set(0)
