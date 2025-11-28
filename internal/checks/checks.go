@@ -90,6 +90,7 @@ type Updater struct {
 	usageReporter           usage.Reporter
 	tenantCals              *cals.CostAttributionLabels
 	supportsProtocolSecrets bool
+	connectTimeout          time.Duration
 }
 
 type apiInfo struct {
@@ -128,6 +129,7 @@ type UpdaterOptions struct {
 	UsageReporter           usage.Reporter
 	CostAttributionLabels   *cals.CostAttributionLabels
 	SupportsProtocolSecrets bool
+	GrpcConnectTimeout      time.Duration
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -252,6 +254,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantSecrets:           opts.SecretProvider,
 		telemeter:               opts.Telemeter,
 		supportsProtocolSecrets: opts.SupportsProtocolSecrets,
+		connectTimeout:          opts.GrpcConnectTimeout,
 		metrics: metrics{
 			changeErrorsCounter: changeErrorsCounter,
 			changesCounter:      changesCounter,
@@ -345,9 +348,11 @@ func handleError(ctx context.Context, logger zerolog.Logger, backoff Backoffer, 
 		return true, nil
 
 	case errors.As(err, &transientErr):
-		logger.Warn().Err(err).Msg("transient error, trying to reconnect")
+		dur := backoff.Duration()
 
-		if err := sleepCtx(ctx, backoff.Duration()); err != nil {
+		logger.Warn().Err(err).Dur("backoff", dur).Msg("transient error, trying to reconnect")
+
+		if err := sleepCtx(ctx, dur); err != nil {
 			return true, err
 		}
 
@@ -408,7 +413,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 			// Context was cancelled
 			return context.Canceled
 
-		case codes.Unavailable:
+		case codes.Unavailable, codes.DeadlineExceeded:
 			// Network errors, connection resets, transport closing, etc.
 			// All these are transient and should trigger retry logic
 			return TransientError(fmt.Sprintf("%s: %s", action, st.Message()))
@@ -427,12 +432,25 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		}
 	}
 
-	result, err := client.RegisterProbe(ctx, &sm.ProbeInfo{
+	// Create a timeout context for RegisterProbe if configured.
+	// This ensures we don't wait indefinitely if the server is unreachable.
+	registerCtx := ctx
+	var cancel context.CancelFunc
+
+	if c.connectTimeout > 0 {
+		registerCtx, cancel = context.WithTimeout(ctx, c.connectTimeout)
+		defer cancel()
+		c.logger.Info().
+			Dur("timeout", c.connectTimeout).
+			Msg("using explicit connection timeout for RegisterProbe")
+	}
+
+	result, err := client.RegisterProbe(registerCtx, &sm.ProbeInfo{
 		Version:                 version.Short(),
 		Commit:                  version.Commit(),
 		Buildstamp:              version.Buildstamp(),
 		SupportsProtocolSecrets: c.supportsProtocolSecrets,
-	}, grpc.WaitForReady(true)) // Wait for connection on critical startup RPC
+	}, grpc.WaitForReady(true)) // Wait for connection on critical startup RPC (respects context timeout)
 	if err != nil {
 		return connected, grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
 	}

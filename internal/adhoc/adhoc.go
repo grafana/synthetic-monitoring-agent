@@ -46,6 +46,7 @@ type Handler struct {
 	grpcAdhocChecksClientFactory func(conn ClientConn) (sm.AdHocChecksClient, error)
 	proberFactory                prober.ProberFactory
 	supportsProtocolSecrets      bool
+	connectTimeout               time.Duration
 }
 
 // Error represents errors returned from this package.
@@ -120,6 +121,7 @@ type HandlerOpts struct {
 	K6Runner                k6runner.Runner
 	SecretProvider          secrets.SecretProvider
 	SupportsProtocolSecrets bool
+	GrpcConnectTimeout      time.Duration
 
 	// these two fields exists so that tests can pass alternate
 	// implementations, they are unexported so that clients of this
@@ -154,6 +156,7 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		grpcAdhocChecksClientFactory: opts.grpcAdhocChecksClientFactory,
 		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features, opts.SecretProvider),
 		supportsProtocolSecrets:      opts.SupportsProtocolSecrets,
+		connectTimeout:               opts.GrpcConnectTimeout,
 		api: apiInfo{
 			conn: opts.Conn,
 		},
@@ -341,15 +344,28 @@ func (h *Handler) loop(ctx context.Context) error {
 		}
 	}
 
+	// Create a timeout context for RegisterProbe if configured.
+	// This ensures we don't wait indefinitely if the server is unreachable.
+	registerCtx := ctx
+	var cancel context.CancelFunc
+
+	if h.connectTimeout > 0 {
+		registerCtx, cancel = context.WithTimeout(ctx, h.connectTimeout)
+		defer cancel()
+		h.logger.Info().
+			Dur("timeout", h.connectTimeout).
+			Msg("using explicit connection timeout for RegisterProbe")
+	}
+
 	result, err := client.RegisterProbe(
-		ctx,
+		registerCtx,
 		&sm.ProbeInfo{
 			Version:                 version.Short(),
 			Commit:                  version.Commit(),
 			Buildstamp:              version.Buildstamp(),
 			SupportsProtocolSecrets: h.supportsProtocolSecrets,
 		},
-		grpc.WaitForReady(true), // Wait for connection on critical startup RPC
+		grpc.WaitForReady(true), // Wait for connection on critical startup RPC (respects context timeout)
 	)
 	if err != nil {
 		return grpcErrorHandler(

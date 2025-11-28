@@ -67,6 +67,7 @@ func run(args []string, stdout io.Writer) error {
 			ReportVersion         bool
 			GrpcApiServerAddr     string
 			GrpcInsecure          bool
+			GrpcConnectTimeout    time.Duration
 			ApiToken              Secret
 			EnableChangeLogLevel  bool
 			EnableDisconnect      bool
@@ -106,6 +107,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.ReportVersion, "version", config.ReportVersion, "report version and exit")
 	flags.StringVar(&config.GrpcApiServerAddr, "api-server-address", config.GrpcApiServerAddr, "GRPC API server address")
 	flags.BoolVar(&config.GrpcInsecure, "api-insecure", config.GrpcInsecure, "Don't use TLS with connections to GRPC API")
+	flags.DurationVar(&config.GrpcConnectTimeout, "grpc-connect-timeout", config.GrpcConnectTimeout, "timeout for initial GRPC connection (0 = no timeout)")
 	flags.Var(&config.ApiToken, "api-token", `synthetic monitoring probe authentication token (default "")`)
 	flags.BoolVar(&config.EnableChangeLogLevel, "enable-change-log-level", config.EnableChangeLogLevel, "enable changing the log level at runtime")
 	flags.BoolVar(&config.EnableDisconnect, "enable-disconnect", config.EnableDisconnect, "enable HTTP /disconnect endpoint")
@@ -386,6 +388,7 @@ func run(args []string, stdout io.Writer) error {
 		UsageReporter:           usageReporter,
 		CostAttributionLabels:   cals,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		GrpcConnectTimeout:      config.GrpcConnectTimeout,
 	})
 
 	if err != nil {
@@ -407,6 +410,7 @@ func run(args []string, stdout io.Writer) error {
 		K6Runner:                k6Runner,
 		SecretProvider:          secretProvider,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		GrpcConnectTimeout:      config.GrpcConnectTimeout,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create ad-hoc checks handler: %w", err)
