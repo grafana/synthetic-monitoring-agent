@@ -317,6 +317,7 @@ func run(args []string, stdout io.Writer) error {
 		config.GrpcApiServerAddr,
 		config.GrpcInsecure,
 		string(config.ApiToken),
+		zl.With().Str("subsystem", "grpc").Logger(),
 		grpcClientMetrics,
 	)
 	if err != nil {
