@@ -3,28 +3,84 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/logging"
+	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 )
 
-func dialAPIServer(addr string, allowInsecure bool, apiToken string, grpcClientMetrics *grpcprom.ClientMetrics) (*grpc.ClientConn, error) {
+// interceptorLogger adapts zerolog.Logger to the grpc-middleware logging interface.
+// This allows structured logging of all gRPC client calls with proper log levels.
+func interceptorLogger(l zerolog.Logger) logging.Logger {
+	return logging.LoggerFunc(func(ctx context.Context, lvl logging.Level, msg string, fields ...any) {
+		l := l.With().Fields(fields).Logger()
+
+		switch lvl {
+		case logging.LevelDebug:
+			l.Debug().Msg(msg)
+		case logging.LevelInfo:
+			l.Info().Msg(msg)
+		case logging.LevelWarn:
+			l.Warn().Msg(msg)
+		case logging.LevelError:
+			l.Error().Msg(msg)
+		default:
+			l.Info().Msg(msg)
+		}
+	})
+}
+
+func dialAPIServer(addr string, allowInsecure bool, apiToken string, logger zerolog.Logger, grpcClientMetrics *grpcprom.ClientMetrics) (*grpc.ClientConn, error) {
 	apiCreds := creds{
 		Token:         apiToken,
 		AllowInsecure: allowInsecure,
 	}
 
+	// Configure logging options for gRPC interceptor
+	logOpts := []logging.Option{
+		// Don't include payload to avoid logging sensitive data by default.
+		logging.WithLogOnEvents(
+			logging.StartCall,
+			logging.FinishCall,
+		),
+
+		logging.WithFieldsFromContext(func(ctx context.Context) logging.Fields {
+			return nil
+		}),
+
+		logging.WithDurationField(func(duration time.Duration) logging.Fields {
+			const (
+				precision = 6
+				bits      = 64
+			)
+
+			return logging.Fields{
+				"grpc.duration",
+				strconv.FormatFloat(duration.Seconds(), 'g', precision, bits),
+			}
+		}),
+	}
+
 	opts := []grpc.DialOption{
 		grpc.WithPerRPCCredentials(apiCreds),
-		// Enable Prometheus metrics collection for all gRPC calls.
-		// This provides observability into RPC success rates, latencies, and error codes.
-		grpc.WithUnaryInterceptor(grpcClientMetrics.UnaryClientInterceptor()),
-		grpc.WithStreamInterceptor(grpcClientMetrics.StreamClientInterceptor()),
+		// Enable structured logging for all gRPC calls.
+		// Logs start and finish of calls with method, duration, and status code.
+		grpc.WithChainUnaryInterceptor(
+			logging.UnaryClientInterceptor(interceptorLogger(logger), logOpts...),
+			grpcClientMetrics.UnaryClientInterceptor(),
+		),
+		grpc.WithChainStreamInterceptor(
+			logging.StreamClientInterceptor(interceptorLogger(logger), logOpts...),
+			grpcClientMetrics.StreamClientInterceptor(),
+		),
 		// Keep-alive is necessary to detect network failures in absence of writes from the client.
 		// Without it, the agent would hang if the server disappears while waiting for a response.
 		// See https://github.com/grpc/grpc/blob/master/doc/keepalive.md
