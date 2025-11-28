@@ -6,13 +6,14 @@ import (
 	"strings"
 
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
 )
 
-func dialAPIServer(addr string, allowInsecure bool, apiToken string) (*grpc.ClientConn, error) {
+func dialAPIServer(addr string, allowInsecure bool, apiToken string, grpcClientMetrics *grpcprom.ClientMetrics) (*grpc.ClientConn, error) {
 	apiCreds := creds{
 		Token:         apiToken,
 		AllowInsecure: allowInsecure,
@@ -20,6 +21,10 @@ func dialAPIServer(addr string, allowInsecure bool, apiToken string) (*grpc.Clie
 
 	opts := []grpc.DialOption{
 		grpc.WithPerRPCCredentials(apiCreds),
+		// Enable Prometheus metrics collection for all gRPC calls.
+		// This provides observability into RPC success rates, latencies, and error codes.
+		grpc.WithUnaryInterceptor(grpcClientMetrics.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(grpcClientMetrics.StreamClientInterceptor()),
 		// Keep-alive is necessary to detect network failures in absence of writes from the client.
 		// Without it, the agent would hang if the server disappears while waiting for a response.
 		// See https://github.com/grpc/grpc/blob/master/doc/keepalive.md

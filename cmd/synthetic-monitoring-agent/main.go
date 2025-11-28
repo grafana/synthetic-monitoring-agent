@@ -18,6 +18,7 @@ import (
 
 	"github.com/KimMachineGun/automemlimit/memlimit"
 	"github.com/google/uuid"
+	grpcprom "github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus"
 	"github.com/jpillora/backoff"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
@@ -305,7 +306,20 @@ func run(args []string, stdout io.Writer) error {
 
 	tenantCh := make(chan synthetic_monitoring.Tenant)
 
-	conn, err := dialAPIServer(config.GrpcApiServerAddr, config.GrpcInsecure, string(config.ApiToken))
+	// grpcClientMetrics provides Prometheus metrics for all gRPC client calls.
+	// This instance is used both for interceptors and metric registration.
+	grpcClientMetrics := grpcprom.NewClientMetrics()
+
+	if err := promRegisterer.Register(grpcClientMetrics); err != nil {
+		return fmt.Errorf("registering GRPC client metrics: %w", err)
+	}
+
+	conn, err := dialAPIServer(
+		config.GrpcApiServerAddr,
+		config.GrpcInsecure,
+		string(config.ApiToken),
+		grpcClientMetrics,
+	)
 	if err != nil {
 		return fmt.Errorf("dialing GRPC server %s: %w", config.GrpcApiServerAddr, err)
 	}
