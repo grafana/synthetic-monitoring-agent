@@ -806,12 +806,25 @@ RECORD:
 
 			switch key := dec.Key(); string(key) {
 			case "ts":
+				if !t.IsZero() {
+					continue // already set by the 'time' field
+				}
+
 				var err error
 				t, err = time.Parse(time.RFC3339Nano, string(value))
 				if err != nil {
 					// We should never hit this as the timestamp string in the log should be valid.
 					// Without a timestamp we cannot do anything. And we cannot use something like
 					// time.Now() because that would mess up other entries
+					s.logger.Warn().Err(err).Bytes("value", value).Msg("invalid timestamp scanning logs")
+					continue RECORD
+				}
+
+			// k6 sets a 'time' field on its logs using RFC3339; if present, report it instead of the default timestamp
+			case "time":
+				var err error
+				t, err = time.Parse(time.RFC3339, string(value))
+				if err != nil {
 					s.logger.Warn().Err(err).Bytes("value", value).Msg("invalid timestamp scanning logs")
 					continue RECORD
 				}
