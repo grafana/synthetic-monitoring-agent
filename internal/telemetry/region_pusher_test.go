@@ -3,6 +3,7 @@ package telemetry
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -75,6 +76,8 @@ func getTestDataset(idx int) testData {
 								Executions:        2,
 								Duration:          119,
 								SampledExecutions: 2,
+
+								CostAttributionLabels: []string{},
 							},
 						},
 					},
@@ -86,6 +89,8 @@ func getTestDataset(idx int) testData {
 								Executions:        2,
 								Duration:          91,
 								SampledExecutions: 3,
+
+								CostAttributionLabels: []string{},
 							},
 						},
 					},
@@ -93,10 +98,11 @@ func getTestDataset(idx int) testData {
 						TenantId: 3,
 						Telemetry: []*sm.CheckClassTelemetry{
 							{
-								CheckClass:        sm.CheckClass_BROWSER,
-								Executions:        2,
-								Duration:          91,
-								SampledExecutions: 3,
+								CheckClass:            sm.CheckClass_BROWSER,
+								Executions:            2,
+								Duration:              91,
+								SampledExecutions:     3,
+								CostAttributionLabels: []string{},
 							},
 						},
 					},
@@ -149,16 +155,18 @@ func getTestDataset(idx int) testData {
 						TenantId: 1,
 						Telemetry: []*sm.CheckClassTelemetry{
 							{
-								CheckClass:        sm.CheckClass_PROTOCOL,
-								Executions:        3,
-								Duration:          249,
-								SampledExecutions: 5,
+								CheckClass:            sm.CheckClass_PROTOCOL,
+								Executions:            3,
+								Duration:              249,
+								SampledExecutions:     5,
+								CostAttributionLabels: []string{},
 							},
 							{
-								CheckClass:        sm.CheckClass_SCRIPTED,
-								Executions:        4,
-								Duration:          214,
-								SampledExecutions: 5,
+								CheckClass:            sm.CheckClass_SCRIPTED,
+								Executions:            4,
+								Duration:              214,
+								SampledExecutions:     5,
+								CostAttributionLabels: []string{},
 							},
 						},
 					},
@@ -170,12 +178,15 @@ func getTestDataset(idx int) testData {
 								Executions:        1,
 								Duration:          45,
 								SampledExecutions: 1,
+
+								CostAttributionLabels: []string{},
 							},
 							{
-								CheckClass:        sm.CheckClass_SCRIPTED,
-								Executions:        2,
-								Duration:          91,
-								SampledExecutions: 3,
+								CheckClass:            sm.CheckClass_SCRIPTED,
+								Executions:            2,
+								Duration:              91,
+								SampledExecutions:     3,
+								CostAttributionLabels: []string{},
 							},
 						},
 					},
@@ -187,6 +198,8 @@ func getTestDataset(idx int) testData {
 								Executions:        3,   // 2 + 1
 								Duration:          156, // 61 + 30 + 65
 								SampledExecutions: 5,   // 2 + 1 + 2
+
+								CostAttributionLabels: []string{},
 							},
 						},
 					},
@@ -525,6 +538,7 @@ func assertTenantTelemetryData(t *testing.T, exp, got *sm.TenantTelemetry) {
 LOOP:
 	for _, expTele := range exp.Telemetry {
 		for j, gotTele := range got.Telemetry {
+			fmt.Printf("gotTele: %v", gotTele)
 			if reflect.DeepEqual(expTele, gotTele) {
 				got.Telemetry = append(got.Telemetry[:j], got.Telemetry[j+1:]...)
 				continue LOOP
