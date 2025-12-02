@@ -16,7 +16,7 @@ func testLogger() zerolog.Logger {
 
 func TestNew(t *testing.T) {
 	t.Run("valid configuration", func(t *testing.T) {
-		cache, err := NewMemcachedClient(MemcachedConfig{
+		cache, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 			Servers: []string{"localhost:11211"},
 			Logger:  testLogger(),
 		})
@@ -26,7 +26,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("multiple servers", func(t *testing.T) {
-		client, err := NewMemcachedClient(MemcachedConfig{
+		client, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 			Servers: []string{"localhost:11211", "cache1:11211", "cache2:11211"},
 			Logger:  testLogger(),
 		})
@@ -35,7 +35,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("custom timeout and max idle conns", func(t *testing.T) {
-		cache, err := NewMemcachedClient(MemcachedConfig{
+		cache, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 			Servers:      []string{"localhost:11211"},
 			Logger:       testLogger(),
 			Timeout:      200 * time.Millisecond,
@@ -49,7 +49,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("default timeout and max idle conns", func(t *testing.T) {
-		cache, err := NewMemcachedClient(MemcachedConfig{
+		cache, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 			Servers: []string{"localhost:11211"},
 			Logger:  testLogger(),
 		})
@@ -60,7 +60,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("servers with whitespace", func(t *testing.T) {
-		client, err := NewMemcachedClient(MemcachedConfig{
+		client, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 			Servers: []string{"  localhost:11211  ", " cache1:11211 "},
 			Logger:  testLogger(),
 		})
@@ -71,7 +71,7 @@ func TestNew(t *testing.T) {
 
 func TestNewErrors(t *testing.T) {
 	t.Run("no servers", func(t *testing.T) {
-		client, err := NewMemcachedClient(MemcachedConfig{
+		client, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 			Servers: []string{},
 			Logger:  testLogger(),
 		})
@@ -81,7 +81,7 @@ func TestNewErrors(t *testing.T) {
 	})
 
 	t.Run("empty server address", func(t *testing.T) {
-		client, err := NewMemcachedClient(MemcachedConfig{
+		client, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 			Servers: []string{"localhost:11211", "", "cache1:11211"},
 			Logger:  testLogger(),
 		})
@@ -91,7 +91,7 @@ func TestNewErrors(t *testing.T) {
 	})
 
 	t.Run("invalid server address - no port", func(t *testing.T) {
-		client, err := NewMemcachedClient(MemcachedConfig{
+		client, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 			Servers: []string{"localhost"},
 			Logger:  testLogger(),
 		})
@@ -101,7 +101,7 @@ func TestNewErrors(t *testing.T) {
 	})
 
 	t.Run("invalid server address - bad format", func(t *testing.T) {
-		client, err := NewMemcachedClient(MemcachedConfig{
+		client, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 			Servers: []string{"not a valid address"},
 			Logger:  testLogger(),
 		})
@@ -145,7 +145,7 @@ func TestSetGetDelete(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	client, err := NewMemcachedClient(MemcachedConfig{
+	client, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 		Servers: []string{"localhost:11211"},
 		Logger:  testLogger(),
 	})
@@ -231,7 +231,7 @@ func TestSetGetDelete(t *testing.T) {
 }
 
 func TestSetErrors(t *testing.T) {
-	client, err := NewMemcachedClient(MemcachedConfig{
+	client, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 		Servers: []string{"localhost:11211"},
 		Logger:  testLogger(),
 	})
@@ -260,7 +260,7 @@ func TestSetErrors(t *testing.T) {
 }
 
 func TestGetErrors(t *testing.T) {
-	client, err := NewMemcachedClient(MemcachedConfig{
+	client, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 		Servers: []string{"localhost:11211"},
 		Logger:  testLogger(),
 	})
@@ -287,7 +287,7 @@ func TestGetErrors(t *testing.T) {
 }
 
 func TestDeleteErrors(t *testing.T) {
-	client, err := NewMemcachedClient(MemcachedConfig{
+	client, err := NewMemcachedClient(t.Context(), MemcachedConfig{
 		Servers: []string{"localhost:11211"},
 		Logger:  testLogger(),
 	})
