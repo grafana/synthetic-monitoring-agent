@@ -3,6 +3,7 @@ package adhoc
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/connectivity"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	logproto "github.com/grafana/loki/pkg/push"
@@ -43,6 +46,7 @@ type Handler struct {
 	grpcAdhocChecksClientFactory func(conn ClientConn) (sm.AdHocChecksClient, error)
 	proberFactory                prober.ProberFactory
 	supportsProtocolSecrets      bool
+	connectTimeout               time.Duration
 }
 
 // Error represents errors returned from this package.
@@ -117,6 +121,7 @@ type HandlerOpts struct {
 	K6Runner                k6runner.Runner
 	SecretProvider          secrets.SecretProvider
 	SupportsProtocolSecrets bool
+	GrpcConnectTimeout      time.Duration
 
 	// these two fields exists so that tests can pass alternate
 	// implementations, they are unexported so that clients of this
@@ -151,6 +156,7 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		grpcAdhocChecksClientFactory: opts.grpcAdhocChecksClientFactory,
 		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features, opts.SecretProvider),
 		supportsProtocolSecrets:      opts.SupportsProtocolSecrets,
+		connectTimeout:               opts.GrpcConnectTimeout,
 		api: apiInfo{
 			conn: opts.Conn,
 		},
@@ -174,6 +180,43 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 	return h, nil
 }
 
+// logConnectionSecurity logs information about the connection's TLS configuration.
+// This provides visibility into the negotiated TLS version for security monitoring.
+func logConnectionSecurity(ctx context.Context, logger zerolog.Logger) {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		logger.Debug().Msg("no peer information available")
+		return
+	}
+
+	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		logger.Info().Str("security", "insecure").Msg("connection established without TLS")
+		return
+	}
+
+	var tlsVersion string
+	switch tlsInfo.State.Version {
+	case tls.VersionTLS10:
+		tlsVersion = "TLS 1.0"
+	case tls.VersionTLS11:
+		tlsVersion = "TLS 1.1"
+	case tls.VersionTLS12:
+		tlsVersion = "TLS 1.2"
+	case tls.VersionTLS13:
+		tlsVersion = "TLS 1.3"
+	default:
+		tlsVersion = fmt.Sprintf("unknown (0x%04x)", tlsInfo.State.Version)
+	}
+
+	logger.Info().
+		Str("tls_version", tlsVersion).
+		Str("cipher_suite", tls.CipherSuiteName(tlsInfo.State.CipherSuite)).
+		Str("server_name", tlsInfo.State.ServerName).
+		Bool("handshake_complete", tlsInfo.State.HandshakeComplete).
+		Msg("secure connection established")
+}
+
 // Run starts the handler.
 func (h *Handler) Run(ctx context.Context) error {
 	for {
@@ -184,6 +227,7 @@ func (h *Handler) Run(ctx context.Context) error {
 
 		case errors.Is(err, errNotAuthorized):
 			// our token is invalid, bail out?
+			// Connection state is logged for debugging/observability only.
 			h.logger.Error().
 				Err(err).
 				Str("connection_state", h.api.conn.GetState().String()).
@@ -192,6 +236,7 @@ func (h *Handler) Run(ctx context.Context) error {
 
 		case errors.Is(err, errIncompatibleApi):
 			// API server doesn't support required features.
+			// Connection state is logged for debugging/observability only.
 			h.logger.Error().
 				Err(err).
 				Str("connection_state", h.api.conn.GetState().String()).
@@ -200,6 +245,7 @@ func (h *Handler) Run(ctx context.Context) error {
 
 		case errors.Is(err, errTransportClosing):
 			// the other end went away? Allow GRPC to reconnect.
+			// Connection state is logged for debugging/observability only.
 			h.logger.Warn().
 				Err(err).
 				Str("connection_state", h.api.conn.GetState().String()).
@@ -213,6 +259,7 @@ func (h *Handler) Run(ctx context.Context) error {
 
 		case errors.Is(err, errIdleTimeout):
 			// connection idle timeout - this is normal behavior when adhoc checks aren't used frequently
+			// Connection state is logged for debugging/observability only.
 			h.logger.Info().
 				Str("connection_state", h.api.conn.GetState().String()).
 				Msg("connection idle timeout, reconnecting")
@@ -308,14 +355,28 @@ func (h *Handler) loop(ctx context.Context) error {
 		}
 	}
 
+	// Create a timeout context for RegisterProbe if configured.
+	// This ensures we don't wait indefinitely if the server is unreachable.
+	registerCtx := ctx
+	var cancel context.CancelFunc
+
+	if h.connectTimeout > 0 {
+		registerCtx, cancel = context.WithTimeout(ctx, h.connectTimeout)
+		defer cancel()
+		h.logger.Info().
+			Dur("timeout", h.connectTimeout).
+			Msg("using explicit connection timeout for RegisterProbe")
+	}
+
 	result, err := client.RegisterProbe(
-		ctx,
+		registerCtx,
 		&sm.ProbeInfo{
 			Version:                 version.Short(),
 			Commit:                  version.Commit(),
 			Buildstamp:              version.Buildstamp(),
 			SupportsProtocolSecrets: h.supportsProtocolSecrets,
 		},
+		grpc.WaitForReady(true), // Wait for connection on critical startup RPC (respects context timeout)
 	)
 	if err != nil {
 		return grpcErrorHandler(
@@ -343,7 +404,10 @@ func (h *Handler) loop(ctx context.Context) error {
 		Str("probe name", h.probe.Name).
 		Msg("registered ad-hoc probe with synthetic-monitoring-api")
 
-	requests, err := client.GetAdHocChecks(ctx, &sm.Void{})
+	// Log TLS connection information for security monitoring
+	logConnectionSecurity(ctx, h.logger)
+
+	requests, err := client.GetAdHocChecks(ctx, &sm.Void{}, grpc.WaitForReady(true))
 	if err != nil {
 		return grpcErrorHandler("requesting ad-hoc checks from synthetic-monitoring-api", err)
 	}
