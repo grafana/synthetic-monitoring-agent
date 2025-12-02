@@ -314,11 +314,11 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 
 	// If we are dropping the data in case of errors, we should not count that execution.
 	h.scraper.telemeter.AddExecution(telemetry.Execution{
-		LocalTenantID: h.scraper.check.TenantId,
-		RegionID:      int32(h.scraper.check.RegionId),
-		CheckClass:    h.scraper.check.Class(),
-		// TODO(@pokom): Add cost attribution label bits here
-		Duration: duration,
+		LocalTenantID:         h.scraper.check.TenantId,
+		RegionID:              int32(h.scraper.check.RegionId),
+		CheckClass:            h.scraper.check.Class(),
+		CostAttributionLabels: costAttributionLabels,
+		Duration:              duration,
 	})
 
 	if h.payload != nil {

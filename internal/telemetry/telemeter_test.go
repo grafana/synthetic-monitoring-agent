@@ -45,9 +45,13 @@ func TestTelemeterAddExecution(t *testing.T) {
 				require.True(t, ok, "telemetry not found for tenant")
 				for _, expCCTele := range expTTele {
 					gotCCTele, ok := gotTTele[expCCTele.CheckClass]
-					require.True(t, ok, "telemetry not found for check class")
-					require.Equal(t, expCCTele.Executions, gotCCTele.Executions)
-					require.Equal(t, expCCTele.Duration, gotCCTele.Duration)
+
+					require.True(t, ok, "cal telemetry not found for tenant")
+					for _, gotCalTele := range gotCCTele {
+						require.True(t, ok, "telemetry not found for check class")
+						require.Equal(t, expCCTele.Executions, gotCalTele.Executions)
+						require.Equal(t, expCCTele.Duration, gotCalTele.Duration)
+					}
 				}
 			}
 		}

@@ -3,6 +3,8 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,7 +22,7 @@ type RegionPusher struct {
 	instance string
 	regionID int32
 
-	telemetry   map[int64]map[sm.CheckClass]*sm.CheckClassTelemetry // Indexed by local tenant ID
+	telemetry   map[int64]map[sm.CheckClass]map[string]*sm.CheckClassTelemetry // Indexed by local tenant ID
 	telemetryMu sync.Mutex
 
 	metrics RegionMetrics
@@ -65,7 +67,7 @@ func NewRegionPusher(
 		logger:    logger,
 		instance:  instance,
 		regionID:  regionID,
-		telemetry: make(map[int64]map[sm.CheckClass]*sm.CheckClassTelemetry),
+		telemetry: make(map[int64]map[sm.CheckClass]map[string]*sm.CheckClassTelemetry),
 		metrics:   metrics,
 	}
 
@@ -160,24 +162,47 @@ func (p *RegionPusher) AddExecution(e Execution) {
 
 	tenantTele, ok := p.telemetry[e.LocalTenantID]
 	if !ok {
-		tenantTele = make(map[sm.CheckClass]*sm.CheckClassTelemetry)
+		tenantTele = make(map[sm.CheckClass]map[string]*sm.CheckClassTelemetry)
 		p.telemetry[e.LocalTenantID] = tenantTele
 	}
 
 	clTele, ok := tenantTele[e.CheckClass]
 	if !ok {
-		clTele = &sm.CheckClassTelemetry{CheckClass: e.CheckClass}
+		clTele = make(map[string]*sm.CheckClassTelemetry)
 		tenantTele[e.CheckClass] = clTele
 	}
 
-	clTele.Executions++
-	clTele.Duration += float32(e.Duration.Seconds())
-	clTele.SampledExecutions += int32((e.Duration + time.Minute - 1) / time.Minute)
+	cals := serializeCALs(e.CostAttributionLabels)
+
+	calTele, ok := clTele[serializeCALs(e.CostAttributionLabels)]
+	if !ok {
+		calTele = &sm.CheckClassTelemetry{
+			CheckClass:            e.CheckClass,
+			CostAttributionLabels: e.CostAttributionLabels,
+		}
+		clTele[cals] = calTele
+	}
+
+	calTele.Executions++
+	calTele.Duration += float32(e.Duration.Seconds())
+	calTele.SampledExecutions += int32((e.Duration + time.Minute - 1) / time.Minute)
 
 	// measure contention for AddExecution
 	p.metrics.addExecutionDuration.Observe(
 		time.Since(start).Seconds(),
 	)
+}
+
+func serializeCALs(cals []string) string {
+	if len(cals) == 0 || cals == nil {
+		return "__MISSING__"
+	}
+
+	sorted := make([]string, len(cals))
+	copy(sorted, cals)
+	slices.Sort(sorted)
+
+	return strings.Join(sorted, ",")
 }
 
 func (p *RegionPusher) next() sm.RegionTelemetry {
@@ -197,17 +222,28 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 			Telemetry: make([]*sm.CheckClassTelemetry, 0, len(tTele)),
 		}
 		for _, clTele := range tTele {
-			tenantTele.Telemetry = append(tenantTele.Telemetry, &sm.CheckClassTelemetry{
-				CheckClass:        clTele.CheckClass,
-				Executions:        clTele.Executions,
-				Duration:          clTele.Duration,
-				SampledExecutions: clTele.SampledExecutions,
-			})
+			for calKey, calTele := range clTele {
+				tenantTele.Telemetry = append(tenantTele.Telemetry, &sm.CheckClassTelemetry{
+					CheckClass:            calTele.CheckClass,
+					Executions:            calTele.Executions,
+					Duration:              calTele.Duration,
+					SampledExecutions:     calTele.SampledExecutions,
+					CostAttributionLabels: deserializeCals(calKey),
+				})
+			}
+
+			m.Telemetry = append(m.Telemetry, tenantTele)
 		}
-		m.Telemetry = append(m.Telemetry, tenantTele)
 	}
 
 	return m
+}
+
+func deserializeCals(calKey string) []string {
+	if calKey == "__MISSING__" {
+		return []string{}
+	}
+	return strings.Split(calKey, ",")
 }
 
 func (p *RegionPusher) push(m sm.RegionTelemetry) {
