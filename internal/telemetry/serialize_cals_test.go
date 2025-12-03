@@ -3,6 +3,7 @@ package telemetry
 import (
 	"testing"
 
+	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/stretchr/testify/require"
 )
 
@@ -11,7 +12,7 @@ func TestSerializeCALs(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		input    []string
+		input    []sm.CostAttributionLabel
 		expected string
 	}{
 		{
@@ -21,32 +22,32 @@ func TestSerializeCALs(t *testing.T) {
 		},
 		{
 			name:     "empty slice returns __MISSING__",
-			input:    []string{},
+			input:    []sm.CostAttributionLabel{},
 			expected: "__MISSING__",
 		},
 		{
 			name:     "single label",
-			input:    []string{"team=a"},
+			input:    []sm.CostAttributionLabel{{Name: "team", Value: "a"}},
 			expected: "team=a",
 		},
 		{
 			name:     "multiple labels already sorted",
-			input:    []string{"env=prod", "team=a"},
+			input:    []sm.CostAttributionLabel{{Name: "env", Value: "prod"}, {Name: "team", Value: "a"}},
 			expected: "env=prod,team=a",
 		},
 		{
 			name:     "multiple labels unsorted",
-			input:    []string{"team=a", "env=prod"},
+			input:    []sm.CostAttributionLabel{{Name: "team", Value: "a"}, {Name: "env", Value: "prod"}},
 			expected: "env=prod,team=a",
 		},
 		{
 			name:     "three labels unsorted",
-			input:    []string{"region=us", "env=prod", "team=a"},
+			input:    []sm.CostAttributionLabel{{Name: "region", Value: "us"}, {Name: "env", Value: "prod"}, {Name: "team", Value: "a"}},
 			expected: "env=prod,region=us,team=a",
 		},
 		{
 			name:     "single label with complex value",
-			input:    []string{"key=value-with-dashes_and_underscores"},
+			input:    []sm.CostAttributionLabel{{Name: "key", Value: "value-with-dashes_and_underscores"}},
 			expected: "key=value-with-dashes_and_underscores",
 		},
 	}
@@ -58,7 +59,7 @@ func TestSerializeCALs(t *testing.T) {
 
 			// Test immutability: input slice should not be modified (skip for nil)
 			if tt.input != nil {
-				original := make([]string, len(tt.input))
+				original := make([]sm.CostAttributionLabel, len(tt.input))
 				copy(original, tt.input)
 
 				_ = serializeCALs(tt.input)
