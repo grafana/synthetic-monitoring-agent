@@ -174,7 +174,7 @@ func (p *RegionPusher) AddExecution(e Execution) {
 
 	cals := serializeCALs(e.CostAttributionLabels)
 
-	calTele, ok := clTele[serializeCALs(e.CostAttributionLabels)]
+	calTele, ok := clTele[cals]
 	if !ok {
 		calTele = &sm.CheckClassTelemetry{
 			CheckClass:            e.CheckClass,
@@ -191,18 +191,6 @@ func (p *RegionPusher) AddExecution(e Execution) {
 	p.metrics.addExecutionDuration.Observe(
 		time.Since(start).Seconds(),
 	)
-}
-
-func serializeCALs(cals []string) string {
-	if len(cals) == 0 || cals == nil {
-		return "__MISSING__"
-	}
-
-	sorted := make([]string, len(cals))
-	copy(sorted, cals)
-	slices.Sort(sorted)
-
-	return strings.Join(sorted, ",")
 }
 
 func (p *RegionPusher) next() sm.RegionTelemetry {
@@ -231,19 +219,50 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 					CostAttributionLabels: deserializeCals(calKey),
 				})
 			}
-
-			m.Telemetry = append(m.Telemetry, tenantTele)
 		}
+		m.Telemetry = append(m.Telemetry, tenantTele)
 	}
 
 	return m
 }
 
-func deserializeCals(calKey string) []string {
-	if calKey == "__MISSING__" {
-		return []string{}
+func serializeCALs(cals []sm.CostAttributionLabel) string {
+	if len(cals) == 0 || cals == nil {
+		return "__MISSING__"
 	}
-	return strings.Split(calKey, ",")
+
+	sorted := make([]sm.CostAttributionLabel, len(cals))
+	copy(sorted, cals)
+	slices.SortFunc(sorted, func(a, b sm.CostAttributionLabel) int {
+		if a.Name != b.Name {
+			return strings.Compare(a.Name, b.Name)
+		}
+		return strings.Compare(a.Value, b.Value)
+	})
+
+	parts := make([]string, len(sorted))
+	for i, label := range sorted {
+		parts[i] = fmt.Sprintf("%s=%s", label.Name, label.Value)
+	}
+
+	return strings.Join(parts, ",")
+}
+
+func deserializeCals(calKey string) []sm.CostAttributionLabel {
+	if calKey == "__MISSING__" {
+		return []sm.CostAttributionLabel{}
+	}
+	split := strings.Split(calKey, ",")
+	cals := make([]sm.CostAttributionLabel, len(split))
+	for i, cal := range split {
+		c := strings.Split(cal, "=")
+		cals[i] = sm.CostAttributionLabel{
+			Name:  c[0],
+			Value: c[1],
+		}
+	}
+
+	return cals
 }
 
 func (p *RegionPusher) push(m sm.RegionTelemetry) {

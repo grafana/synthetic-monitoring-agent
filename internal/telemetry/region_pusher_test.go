@@ -63,6 +63,17 @@ func getTestDataset(idx int) testData {
 					CheckClass:    sm.CheckClass_BROWSER,
 					Duration:      30 * time.Second,
 				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "env",
+							Value: "prod",
+						},
+					},
+				},
 			},
 			message: sm.RegionTelemetry{
 				Instance: instance,
@@ -72,12 +83,11 @@ func getTestDataset(idx int) testData {
 						TenantId: 1,
 						Telemetry: []*sm.CheckClassTelemetry{
 							{
-								CheckClass:        sm.CheckClass_PROTOCOL,
-								Executions:        2,
-								Duration:          119,
-								SampledExecutions: 2,
-
-								CostAttributionLabels: []string{},
+								CheckClass:            sm.CheckClass_PROTOCOL,
+								Executions:            2,
+								Duration:              119,
+								SampledExecutions:     2,
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 						},
 					},
@@ -90,7 +100,7 @@ func getTestDataset(idx int) testData {
 								Duration:          91,
 								SampledExecutions: 3,
 
-								CostAttributionLabels: []string{},
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 						},
 					},
@@ -102,7 +112,19 @@ func getTestDataset(idx int) testData {
 								Executions:            2,
 								Duration:              91,
 								SampledExecutions:     3,
-								CostAttributionLabels: []string{},
+								CostAttributionLabels: []sm.CostAttributionLabel{},
+							},
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        1,
+								Duration:          30,
+								SampledExecutions: 1,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: "prod",
+									},
+								},
 							},
 						},
 					},
@@ -146,6 +168,17 @@ func getTestDataset(idx int) testData {
 					CheckClass:    sm.CheckClass_BROWSER,
 					Duration:      65 * time.Second,
 				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "env",
+							Value: "prod",
+						},
+					},
+				},
 			},
 			message: sm.RegionTelemetry{
 				Instance: instance,
@@ -159,14 +192,14 @@ func getTestDataset(idx int) testData {
 								Executions:            3,
 								Duration:              249,
 								SampledExecutions:     5,
-								CostAttributionLabels: []string{},
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 							{
 								CheckClass:            sm.CheckClass_SCRIPTED,
 								Executions:            4,
 								Duration:              214,
 								SampledExecutions:     5,
-								CostAttributionLabels: []string{},
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 						},
 					},
@@ -179,14 +212,14 @@ func getTestDataset(idx int) testData {
 								Duration:          45,
 								SampledExecutions: 1,
 
-								CostAttributionLabels: []string{},
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 							{
 								CheckClass:            sm.CheckClass_SCRIPTED,
 								Executions:            2,
 								Duration:              91,
 								SampledExecutions:     3,
-								CostAttributionLabels: []string{},
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 						},
 					},
@@ -194,12 +227,23 @@ func getTestDataset(idx int) testData {
 						TenantId: 3,
 						Telemetry: []*sm.CheckClassTelemetry{
 							{
+								CheckClass:            sm.CheckClass_BROWSER,
+								Executions:            3,
+								Duration:              156,
+								SampledExecutions:     5,
+								CostAttributionLabels: []sm.CostAttributionLabel{},
+							},
+							{
 								CheckClass:        sm.CheckClass_BROWSER,
-								Executions:        3,   // 2 + 1
-								Duration:          156, // 61 + 30 + 65
-								SampledExecutions: 5,   // 2 + 1 + 2
-
-								CostAttributionLabels: []string{},
+								Executions:        2,
+								Duration:          60,
+								SampledExecutions: 2,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: "prod",
+									},
+								},
 							},
 						},
 					},
