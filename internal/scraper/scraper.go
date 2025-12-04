@@ -299,7 +299,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 		})
 	}
 
-	costAttributionLabels, err := h.scraper.cals.CostAttributionLabels(ctx, h.payload.tenantId)
+	costAttributionLabels, err := h.scraper.getCostAttributionLabels(ctx, h.payload.tenantId)
 	if err != nil {
 		// If cals can't be found, do not block
 		h.scraper.logger.Error().
@@ -602,6 +602,24 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	streams := s.extractLogs(t, logs.Bytes(), logLabels)
 
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.GlobalTenantID()}, duration, err
+}
+
+func (s *Scraper) getCostAttributionLabels(ctx context.Context, tenantId model.GlobalID) ([]sm.CostAttributionLabel, error) {
+	var vals []sm.CostAttributionLabel
+	cals, err := s.cals.CostAttributionLabels(ctx, tenantId)
+	if err != nil {
+		return vals, err
+	}
+	labels := s.check.Labels
+
+	for _, cal := range cals {
+		for _, label := range labels {
+			if label.Name == cal {
+				vals = append(vals, sm.CostAttributionLabel(label))
+			}
+		}
+	}
+	return vals, nil
 }
 
 // patchDuration will modify the probe_duration_seconds metric to match the
