@@ -3,7 +3,6 @@ package telemetry
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 	"sync"
 	"testing"
@@ -72,6 +71,25 @@ func getTestDataset(idx int) testData {
 							Name:  "env",
 							Value: "prod",
 						},
+						{
+							Name:  "team",
+							Value: "__MISSING__",
+						},
+					},
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "team",
+							Value: "a",
+						},
+						{
+							Name:  "env",
+							Value: "__MISSING__",
+						},
 					},
 				},
 			},
@@ -123,6 +141,26 @@ func getTestDataset(idx int) testData {
 									{
 										Name:  "env",
 										Value: "prod",
+									},
+									{
+										Name:  "team",
+										Value: "__MISSING__",
+									},
+								},
+							},
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        1,
+								Duration:          30,
+								SampledExecutions: 1,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: "__MISSING__",
+									},
+									{
+										Name:  "team",
+										Value: "a",
 									},
 								},
 							},
@@ -176,6 +214,25 @@ func getTestDataset(idx int) testData {
 						{
 							Name:  "env",
 							Value: "prod",
+						},
+						{
+							Name:  "team",
+							Value: "__MISSING__",
+						},
+					},
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "team",
+							Value: "a",
+						},
+						{
+							Name:  "env",
+							Value: "__MISSING__",
 						},
 					},
 				},
@@ -242,6 +299,26 @@ func getTestDataset(idx int) testData {
 									{
 										Name:  "env",
 										Value: "prod",
+									},
+									{
+										Name:  "team",
+										Value: "__MISSING__",
+									},
+								},
+							},
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        2,
+								Duration:          60,
+								SampledExecutions: 2,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: "__MISSING__",
+									},
+									{
+										Name:  "team",
+										Value: "a",
 									},
 								},
 							},
@@ -582,7 +659,6 @@ func assertTenantTelemetryData(t *testing.T, exp, got *sm.TenantTelemetry) {
 LOOP:
 	for _, expTele := range exp.Telemetry {
 		for j, gotTele := range got.Telemetry {
-			fmt.Printf("gotTele: %v", gotTele)
 			if reflect.DeepEqual(expTele, gotTele) {
 				got.Telemetry = append(got.Telemetry[:j], got.Telemetry[j+1:]...)
 				continue LOOP

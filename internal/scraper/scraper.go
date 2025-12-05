@@ -604,6 +604,9 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.GlobalTenantID()}, duration, err
 }
 
+// getCostAttributionLabels looks for the cost attribution labels for a specific tenant and
+// generates a []sm.CostAttributionLabel where the Name's are the cal, and the value
+// is derived from the checks label with the corresponding name.
 func (s *Scraper) getCostAttributionLabels(ctx context.Context, tenantId model.GlobalID) ([]sm.CostAttributionLabel, error) {
 	var vals []sm.CostAttributionLabel
 	cals, err := s.cals.CostAttributionLabels(ctx, tenantId)
