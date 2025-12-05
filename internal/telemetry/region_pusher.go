@@ -214,10 +214,12 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 		for _, clTele := range tTele {
 			for calKey, calTele := range clTele {
 				tenantTele.Telemetry = append(tenantTele.Telemetry, &sm.CheckClassTelemetry{
-					CheckClass:            calTele.CheckClass,
-					Executions:            calTele.Executions,
-					Duration:              calTele.Duration,
-					SampledExecutions:     calTele.SampledExecutions,
+					CheckClass:        calTele.CheckClass,
+					Executions:        calTele.Executions,
+					Duration:          calTele.Duration,
+					SampledExecutions: calTele.SampledExecutions,
+					// deserializeCals converts the key(string) into a slice of cost attribution labels
+					// This mitigates the need for the API to perform any operations on the cal's
 					CostAttributionLabels: deserializeCals(calKey),
 				})
 			}
