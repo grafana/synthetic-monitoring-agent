@@ -14,6 +14,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const calNilStringTerminator = "__MISSING__"
+
 // RegionPusher periodically sends telemetry data for a specific region.
 type RegionPusher struct {
 	client sm.TelemetryClient
@@ -228,7 +230,7 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 
 func serializeCALs(cals []sm.CostAttributionLabel) string {
 	if len(cals) == 0 || cals == nil {
-		return "__MISSING__"
+		return calNilStringTerminator
 	}
 
 	sorted := make([]sm.CostAttributionLabel, len(cals))
@@ -249,7 +251,7 @@ func serializeCALs(cals []sm.CostAttributionLabel) string {
 }
 
 func deserializeCals(calKey string) []sm.CostAttributionLabel {
-	if calKey == "__MISSING__" {
+	if calKey == calNilStringTerminator {
 		return []sm.CostAttributionLabel{}
 	}
 	split := strings.Split(calKey, ",")
