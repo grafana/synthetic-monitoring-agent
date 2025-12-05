@@ -69,6 +69,22 @@ func getTestDataset(idx int) testData {
 					CostAttributionLabels: []sm.CostAttributionLabel{
 						{
 							Name:  "env",
+							Value: "__MISSING__",
+						},
+						{
+							Name:  "team",
+							Value: "__MISSING__",
+						},
+					},
+				},
+
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "env",
 							Value: "prod",
 						},
 						{
@@ -89,6 +105,21 @@ func getTestDataset(idx int) testData {
 						{
 							Name:  "env",
 							Value: "__MISSING__",
+						},
+					},
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "team",
+							Value: "a",
+						},
+						{
+							Name:  "env",
+							Value: "b",
 						},
 					},
 				},
@@ -140,6 +171,23 @@ func getTestDataset(idx int) testData {
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
 										Name:  "env",
+										Value: "__MISSING__",
+									},
+									{
+										Name:  "team",
+										Value: "__MISSING__",
+									},
+								},
+							},
+
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        1,
+								Duration:          30,
+								SampledExecutions: 1,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
 										Value: "prod",
 									},
 									{
@@ -157,6 +205,22 @@ func getTestDataset(idx int) testData {
 									{
 										Name:  "env",
 										Value: "__MISSING__",
+									},
+									{
+										Name:  "team",
+										Value: "a",
+									},
+								},
+							},
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        1,
+								Duration:          30,
+								SampledExecutions: 1,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: "b",
 									},
 									{
 										Name:  "team",
@@ -213,6 +277,22 @@ func getTestDataset(idx int) testData {
 					CostAttributionLabels: []sm.CostAttributionLabel{
 						{
 							Name:  "env",
+							Value: "__MISSING__",
+						},
+						{
+							Name:  "team",
+							Value: "__MISSING__",
+						},
+					},
+				},
+
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "env",
 							Value: "prod",
 						},
 						{
@@ -233,6 +313,21 @@ func getTestDataset(idx int) testData {
 						{
 							Name:  "env",
 							Value: "__MISSING__",
+						},
+					},
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "team",
+							Value: "a",
+						},
+						{
+							Name:  "env",
+							Value: "b",
 						},
 					},
 				},
@@ -298,6 +393,23 @@ func getTestDataset(idx int) testData {
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
 										Name:  "env",
+										Value: "__MISSING__",
+									},
+									{
+										Name:  "team",
+										Value: "__MISSING__",
+									},
+								},
+							},
+
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        2,
+								Duration:          60,
+								SampledExecutions: 2,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
 										Value: "prod",
 									},
 									{
@@ -315,6 +427,22 @@ func getTestDataset(idx int) testData {
 									{
 										Name:  "env",
 										Value: "__MISSING__",
+									},
+									{
+										Name:  "team",
+										Value: "a",
+									},
+								},
+							},
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        2,
+								Duration:          60,
+								SampledExecutions: 2,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: "b",
 									},
 									{
 										Name:  "team",
