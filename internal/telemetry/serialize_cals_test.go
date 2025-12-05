@@ -18,12 +18,12 @@ func TestSerializeCALs(t *testing.T) {
 		{
 			name:     "nil slice returns __MISSING__",
 			input:    nil,
-			expected: calNilStringTerminator,
+			expected: CalNilStringTerminator,
 		},
 		{
 			name:     "empty slice returns __MISSING__",
 			input:    []sm.CostAttributionLabel{},
-			expected: calNilStringTerminator,
+			expected: CalNilStringTerminator,
 		},
 		{
 			name:     "single label",

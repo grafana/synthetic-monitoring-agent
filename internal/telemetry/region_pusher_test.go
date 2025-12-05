@@ -69,11 +69,11 @@ func getTestDataset(idx int) testData {
 					CostAttributionLabels: []sm.CostAttributionLabel{
 						{
 							Name:  "env",
-							Value: calNilStringTerminator,
+							Value: CalNilStringTerminator,
 						},
 						{
 							Name:  "team",
-							Value: calNilStringTerminator,
+							Value: CalNilStringTerminator,
 						},
 					},
 				},
@@ -89,7 +89,7 @@ func getTestDataset(idx int) testData {
 						},
 						{
 							Name:  "team",
-							Value: calNilStringTerminator,
+							Value: CalNilStringTerminator,
 						},
 					},
 				},
@@ -104,7 +104,7 @@ func getTestDataset(idx int) testData {
 						},
 						{
 							Name:  "env",
-							Value: calNilStringTerminator,
+							Value: CalNilStringTerminator,
 						},
 					},
 				},
@@ -171,11 +171,11 @@ func getTestDataset(idx int) testData {
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
 										Name:  "env",
-										Value: calNilStringTerminator,
+										Value: CalNilStringTerminator,
 									},
 									{
 										Name:  "team",
-										Value: calNilStringTerminator,
+										Value: CalNilStringTerminator,
 									},
 								},
 							},
@@ -192,7 +192,7 @@ func getTestDataset(idx int) testData {
 									},
 									{
 										Name:  "team",
-										Value: calNilStringTerminator,
+										Value: CalNilStringTerminator,
 									},
 								},
 							},
@@ -204,7 +204,7 @@ func getTestDataset(idx int) testData {
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
 										Name:  "env",
-										Value: calNilStringTerminator,
+										Value: CalNilStringTerminator,
 									},
 									{
 										Name:  "team",
@@ -277,11 +277,11 @@ func getTestDataset(idx int) testData {
 					CostAttributionLabels: []sm.CostAttributionLabel{
 						{
 							Name:  "env",
-							Value: calNilStringTerminator,
+							Value: CalNilStringTerminator,
 						},
 						{
 							Name:  "team",
-							Value: calNilStringTerminator,
+							Value: CalNilStringTerminator,
 						},
 					},
 				},
@@ -297,7 +297,7 @@ func getTestDataset(idx int) testData {
 						},
 						{
 							Name:  "team",
-							Value: calNilStringTerminator,
+							Value: CalNilStringTerminator,
 						},
 					},
 				},
@@ -312,7 +312,7 @@ func getTestDataset(idx int) testData {
 						},
 						{
 							Name:  "env",
-							Value: calNilStringTerminator,
+							Value: CalNilStringTerminator,
 						},
 					},
 				},
@@ -393,11 +393,11 @@ func getTestDataset(idx int) testData {
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
 										Name:  "env",
-										Value: calNilStringTerminator,
+										Value: CalNilStringTerminator,
 									},
 									{
 										Name:  "team",
-										Value: calNilStringTerminator,
+										Value: CalNilStringTerminator,
 									},
 								},
 							},
@@ -414,7 +414,7 @@ func getTestDataset(idx int) testData {
 									},
 									{
 										Name:  "team",
-										Value: calNilStringTerminator,
+										Value: CalNilStringTerminator,
 									},
 								},
 							},
@@ -426,7 +426,7 @@ func getTestDataset(idx int) testData {
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
 										Name:  "env",
-										Value: calNilStringTerminator,
+										Value: CalNilStringTerminator,
 									},
 									{
 										Name:  "team",
