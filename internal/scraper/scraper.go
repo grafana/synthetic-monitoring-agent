@@ -609,25 +609,25 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 // generates a []sm.CostAttributionLabel where the Name's are the cal, and the value
 // is derived from the checks label with the corresponding name.
 func (s *Scraper) getCostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]sm.CostAttributionLabel, error) {
-	var vals []sm.CostAttributionLabel
 	cals, err := s.cals.CostAttributionLabels(ctx, tenantID)
 	if err != nil {
-		return vals, err
+		return nil, err
 	}
 
+	vals := make([]sm.CostAttributionLabel, 0, len(cals))
 	for _, cal := range cals {
-		// Make the assumption the cal does not have a label set
-		val := sm.CostAttributionLabel{
-			Name:  cal,
-			Value: telemetry.CalNilStringTerminator,
-		}
+		// Make the assumption there are no labels that match the CAL and set the default value to __MISSING__
+		value := telemetry.CalNilStringTerminator
 		idx := slices.IndexFunc(s.check.Labels, func(l sm.Label) bool {
 			return l.Name == cal
 		})
 		if idx >= 0 {
-			val.Value = s.check.Labels[idx].Value
+			value = s.check.Labels[idx].Value
 		}
-		vals = append(vals, val)
+		vals = append(vals, sm.CostAttributionLabel{
+			Name:  cal,
+			Value: value,
+		})
 	}
 	return vals, nil
 }
