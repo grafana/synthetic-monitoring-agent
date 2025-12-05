@@ -205,7 +205,7 @@ jobs:
           repositories: ${{ needs.preflight.outputs.repo_name }}
 
       - name: checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -334,7 +334,7 @@ jobs:
       # to obtain GOOS and GOARCH (because it's downloading a remote tarball
       # where those values are part of the filename).
       - name: checkout
-        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           persist-credentials: false
           fetch-depth: 0
