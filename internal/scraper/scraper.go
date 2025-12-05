@@ -66,6 +66,10 @@ type Telemeter interface {
 	AddExecution(e telemetry.Execution)
 }
 
+type LabelPrefixer interface {
+	GetPrefix(ctx context.Context, tenantID model.GlobalID) (string, error)
+}
+
 type Scraper struct {
 	publisher     pusher.Publisher
 	cancel        context.CancelFunc
@@ -82,6 +86,7 @@ type Scraper struct {
 	histograms    map[uint64]prometheus.Histogram
 	telemeter     Telemeter
 	cals          TenantCals
+	labelPrefixer LabelPrefixer
 }
 
 type Factory func(
@@ -94,6 +99,7 @@ type Factory func(
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
+	labelPrefixer LabelPrefixer,
 ) (*Scraper, error)
 
 type (
@@ -129,6 +135,7 @@ func New(
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
+	labelPrefixer LabelPrefixer,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
@@ -139,6 +146,7 @@ func New(
 		LabelsLimiter:         labelsLimiter,
 		Telemeter:             telemeter,
 		CostAttributionLabels: cals,
+		labelPrefixer:         labelPrefixer,
 	})
 }
 
@@ -153,6 +161,7 @@ type ScraperOpts struct {
 	LabelsLimiter         LabelsLimiter
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
+	labelPrefixer         LabelPrefixer
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
@@ -191,6 +200,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		histograms:    make(map[uint64]prometheus.Histogram),
 		telemeter:     opts.Telemeter,
 		cals:          opts.CostAttributionLabels,
+		labelPrefixer: opts.labelPrefixer,
 	}, nil
 }
 
@@ -498,7 +508,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	var (
 		target = s.target
 		// These are the labels defined by the user.
-		userLabels = s.buildUserLabels()
+		userLabels = s.buildUserLabels(ctx)
 		// These labels are applied to the sm_check_info metric.
 		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
 	)
@@ -885,16 +895,24 @@ func (s Scraper) buildCheckInfoLabels(userLabels []labelPair) map[string]string 
 	return labels
 }
 
-func (s Scraper) buildUserLabels() []labelPair {
+func (s Scraper) buildUserLabels(ctx context.Context) []labelPair {
 	labels := []labelPair{}
 	idx := make(map[string]int)
+	tenantID := int64(s.check.GlobalTenantID())
+
+	labelPrefix, err := s.labelPrefixer.GetPrefix(ctx, s.check.GlobalTenantID())
+
+	if err != nil {
+		s.logger.Error().Err(err).
+			Int64("tenant_id", tenantID).
+			Msg("could not fetch tenant, defaulting to using label_ prefix")
+	}
 
 	// add probe labels
 	for _, l := range s.probe.Labels {
 		idx[l.Name] = len(labels)
 
-		labels = append(labels,
-			labelPair{name: "label_" + l.Name, value: l.Value})
+		labels = append(labels, labelPair{name: labelPrefix + l.Name, value: l.Value})
 	}
 
 	// add check labels
@@ -908,7 +926,7 @@ func (s Scraper) buildUserLabels() []labelPair {
 		idx[l.Name] = len(labels)
 
 		labels = append(labels,
-			labelPair{name: "label_" + l.Name, value: l.Value})
+			labelPair{name: labelPrefix + l.Name, value: l.Value})
 	}
 
 	return labels
