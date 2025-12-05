@@ -65,15 +65,15 @@ func getTestDataset(idx int) testData {
 				{
 					LocalTenantID: 3,
 					CheckClass:    sm.CheckClass_BROWSER,
-					Duration:      30 * time.Second,
+					Duration:      45 * time.Second,
 					CostAttributionLabels: []sm.CostAttributionLabel{
 						{
 							Name:  "env",
-							Value: "__MISSING__",
+							Value: calNilStringTerminator,
 						},
 						{
 							Name:  "team",
-							Value: "__MISSING__",
+							Value: calNilStringTerminator,
 						},
 					},
 				},
@@ -81,7 +81,7 @@ func getTestDataset(idx int) testData {
 				{
 					LocalTenantID: 3,
 					CheckClass:    sm.CheckClass_BROWSER,
-					Duration:      30 * time.Second,
+					Duration:      15 * time.Second,
 					CostAttributionLabels: []sm.CostAttributionLabel{
 						{
 							Name:  "env",
@@ -89,7 +89,7 @@ func getTestDataset(idx int) testData {
 						},
 						{
 							Name:  "team",
-							Value: "__MISSING__",
+							Value: calNilStringTerminator,
 						},
 					},
 				},
@@ -104,7 +104,7 @@ func getTestDataset(idx int) testData {
 						},
 						{
 							Name:  "env",
-							Value: "__MISSING__",
+							Value: calNilStringTerminator,
 						},
 					},
 				},
@@ -166,16 +166,16 @@ func getTestDataset(idx int) testData {
 							{
 								CheckClass:        sm.CheckClass_BROWSER,
 								Executions:        1,
-								Duration:          30,
+								Duration:          45,
 								SampledExecutions: 1,
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
 										Name:  "env",
-										Value: "__MISSING__",
+										Value: calNilStringTerminator,
 									},
 									{
 										Name:  "team",
-										Value: "__MISSING__",
+										Value: calNilStringTerminator,
 									},
 								},
 							},
@@ -183,7 +183,7 @@ func getTestDataset(idx int) testData {
 							{
 								CheckClass:        sm.CheckClass_BROWSER,
 								Executions:        1,
-								Duration:          30,
+								Duration:          15,
 								SampledExecutions: 1,
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
@@ -192,7 +192,7 @@ func getTestDataset(idx int) testData {
 									},
 									{
 										Name:  "team",
-										Value: "__MISSING__",
+										Value: calNilStringTerminator,
 									},
 								},
 							},
@@ -204,7 +204,7 @@ func getTestDataset(idx int) testData {
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
 										Name:  "env",
-										Value: "__MISSING__",
+										Value: calNilStringTerminator,
 									},
 									{
 										Name:  "team",
@@ -277,11 +277,11 @@ func getTestDataset(idx int) testData {
 					CostAttributionLabels: []sm.CostAttributionLabel{
 						{
 							Name:  "env",
-							Value: "__MISSING__",
+							Value: calNilStringTerminator,
 						},
 						{
 							Name:  "team",
-							Value: "__MISSING__",
+							Value: calNilStringTerminator,
 						},
 					},
 				},
@@ -297,7 +297,7 @@ func getTestDataset(idx int) testData {
 						},
 						{
 							Name:  "team",
-							Value: "__MISSING__",
+							Value: calNilStringTerminator,
 						},
 					},
 				},
@@ -312,7 +312,7 @@ func getTestDataset(idx int) testData {
 						},
 						{
 							Name:  "env",
-							Value: "__MISSING__",
+							Value: calNilStringTerminator,
 						},
 					},
 				},
@@ -388,16 +388,16 @@ func getTestDataset(idx int) testData {
 							{
 								CheckClass:        sm.CheckClass_BROWSER,
 								Executions:        2,
-								Duration:          60,
+								Duration:          75,
 								SampledExecutions: 2,
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
 										Name:  "env",
-										Value: "__MISSING__",
+										Value: calNilStringTerminator,
 									},
 									{
 										Name:  "team",
-										Value: "__MISSING__",
+										Value: calNilStringTerminator,
 									},
 								},
 							},
@@ -405,7 +405,7 @@ func getTestDataset(idx int) testData {
 							{
 								CheckClass:        sm.CheckClass_BROWSER,
 								Executions:        2,
-								Duration:          60,
+								Duration:          45,
 								SampledExecutions: 2,
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
@@ -414,7 +414,7 @@ func getTestDataset(idx int) testData {
 									},
 									{
 										Name:  "team",
-										Value: "__MISSING__",
+										Value: calNilStringTerminator,
 									},
 								},
 							},
@@ -426,7 +426,7 @@ func getTestDataset(idx int) testData {
 								CostAttributionLabels: []sm.CostAttributionLabel{
 									{
 										Name:  "env",
-										Value: "__MISSING__",
+										Value: calNilStringTerminator,
 									},
 									{
 										Name:  "team",
