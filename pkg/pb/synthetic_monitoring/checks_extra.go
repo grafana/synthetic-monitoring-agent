@@ -418,6 +418,69 @@ func (c Check) ConfigVersion() string {
 	return strconv.FormatInt(int64(c.Modified*1000000000), 10)
 }
 
+var (
+	// This pattern matches "k6/secrets" or 'k6/secrets'. This is the basic canary to tell us if
+	// a script might be using secrets.
+	secretsCanary = `(?:'k6/secrets'|"k6/secrets")`
+
+	usesSecretsModuleRe = regexp.MustCompile(
+		`(?m:` +
+			// Default import: import secrets from 'k6/secrets'
+			`^\s*import\s+secrets\s+from\s+` + secretsCanary +
+			`|` +
+			// Named import: import { } from 'k6/secrets'
+			// Named import: import { secrets } from 'k6/secrets'
+			// Named import: import { secrets, foo } from 'k6/secrets'
+			// Named import: import { foo, secrets } from 'k6/secrets'
+			// Named import: import { foo, secrets, bar } from 'k6/secrets'
+			// Named import: import { secrets as s } from 'k6/secrets'
+			`^\s*import\s*{[^}]*}\s+from\s+` + secretsCanary +
+			`|` +
+			// Namespace import: import * as secrets from 'k6/secrets
+			`^\s*import\s+\*\s+as\s+\S+\s+from\s+` + secretsCanary +
+			`|` +
+			// Require syntax: const secrets = require('k6/secrets')
+			`^\s*const\s+secrets\s*=\s*require\s*\(\s*` + secretsCanary + `\s*\)` +
+			`)`)
+)
+
+// IsUsingSecrets returns true if the check uses secrets, false otherwise.
+//
+// Depending on the specific check type, the result is completely accurate or just a guess.
+func (c Check) IsUsingSecrets() bool {
+	switch {
+	case c.Settings.Dns != nil:
+		return false
+
+	case c.Settings.Grpc != nil:
+		return false
+
+	case c.Settings.Ping != nil:
+		return false
+
+	case c.Settings.Tcp != nil:
+		return false
+
+	case c.Settings.Traceroute != nil:
+		return false
+
+	case c.Settings.Http != nil:
+		return false
+
+	case c.Settings.Scripted != nil:
+		return usesSecretsModuleRe.Match(c.Settings.Scripted.Script)
+
+	case c.Settings.Multihttp != nil:
+		return false
+
+	case c.Settings.Browser != nil:
+		return usesSecretsModuleRe.Match(c.Settings.Browser.Script)
+
+	default:
+		panic("unhandled check type")
+	}
+}
+
 func (c AdHocCheck) Type() CheckType {
 	switch {
 	case c.Settings.Dns != nil:
