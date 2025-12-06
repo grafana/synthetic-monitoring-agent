@@ -200,6 +200,8 @@ message Tenant {
   double created = 100 [(gogoproto.jsontag) = "created"]; // time the check was created
   double modified = 101 [(gogoproto.jsontag) = "modified"]; // last time modified
   SecretStore secretStore = 102 [(gogoproto.jsontag) = "secretStore"]; // secret store details
+
+  bool omitLabelPrefix = 103 [(gogoproto.jsontag) = "omitLabelPrefix"]; // whether to omit the label prefix from check info metrics
 }
 
 // RemoteInfo represents an instance of the Prometheus remote write
@@ -266,6 +268,7 @@ message AdHocRequest {
 message Label {
   string name = 1 [(gogoproto.jsontag) = "name"];
   string value = 2 [(gogoproto.jsontag) = "value"];
+  bool attachToMetrics = 3 [(gogoproto.jsontag) = "attachToMetrics"]; // whether to attach the label to execution metrics
 }
 
 // CostAttributionLabel is similar to a label, but specifically for transmitting costAttributionLabels.

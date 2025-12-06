@@ -27,6 +27,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/labels"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -86,6 +87,7 @@ type Updater struct {
 	telemeter               *telemetry.Telemeter
 	usageReporter           usage.Reporter
 	tenantCals              *cals.CostAttributionLabels
+	labelPrefixer           *labels.Prefixer
 	supportsProtocolSecrets bool
 }
 
@@ -125,6 +127,7 @@ type UpdaterOptions struct {
 	UsageReporter           usage.Reporter
 	CostAttributionLabels   *cals.CostAttributionLabels
 	SupportsProtocolSecrets bool
+	LabelPrefixer           *labels.Prefixer
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -260,6 +263,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		},
 		usageReporter: opts.UsageReporter,
 		tenantCals:    opts.CostAttributionLabels,
+		labelPrefixer: opts.LabelPrefixer,
 	}, nil
 }
 
@@ -941,7 +945,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		c.logger,
 		metrics,
 		c.k6Runner,
-		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals,
+		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals, c.labelPrefixer,
 	)
 
 	if err != nil {
