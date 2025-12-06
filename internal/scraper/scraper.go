@@ -507,10 +507,12 @@ func tickWithOffset(
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
 	var (
 		target = s.target
-		// These are the labels defined by the user.
-		userLabels = s.buildUserLabels(ctx)
+		// These labels defined by the user are applied to the sm_check_info metric and check execution logs.
+		metadataLabels = s.buildMetadataLabels(ctx)
 		// These labels are applied to the sm_check_info metric.
-		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
+		checkInfoLabels = s.buildCheckInfoLabels(metadataLabels)
+		// These labels are a subset of metadataLabels which are also applied to all check execution metrics.
+		userExecutionMetricLabels = s.getUserExecutionMetricLabels()
 	)
 
 	maxMetricLabels, err := s.labelsLimiter.MetricLabels(ctx, s.check.GlobalTenantID())
@@ -535,7 +537,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		{name: "check_name", value: s.checkName},
 		{name: "source", value: CheckInfoSource}, // identify log lines that belong to synthetic-monitoring-agent
 	}
-	logLabels = append(logLabels, userLabels...)
+	logLabels = append(logLabels, metadataLabels...)
 
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
@@ -586,7 +588,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// TODO(mem): this is constant for the scraper, move this
 	// outside this function?
-	metricLabels := []labelPair{
+	commonMetricLabels := []labelPair{
 		{name: "probe", value: s.probe.Name},
 		{name: "config_version", value: s.check.ConfigVersion()},
 		{name: "instance", value: s.check.Target},
@@ -594,7 +596,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		// {name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
 	}
 
-	ts := s.extractTimeseries(t, mfs, metricLabels)
+	ts := s.extractTimeseries(t, mfs, commonMetricLabels, userExecutionMetricLabels)
 
 	successValue := "1"
 	if !success {
@@ -856,14 +858,20 @@ RECORD:
 	}
 }
 
-func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair) TimeSeries {
-	return extractTimeseries(t, metrics, sharedLabels, s.summaries, s.histograms, s.logger)
+func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels, userMetricLabels []labelPair) TimeSeries {
+	return extractTimeseries(t, metrics, sharedLabels, userMetricLabels, s.summaries, s.histograms, s.logger)
 }
 
-func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
-	metricLabels := make([]prompb.Label, 0, len(sharedLabels))
+func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels, userMetricLabels []labelPair, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
+	commonMetricLabels := make([]prompb.Label, 0, len(sharedLabels))
 	for _, label := range sharedLabels {
-		metricLabels = append(metricLabels, prompb.Label{Name: label.name, Value: truncateLabelValue(label.value)})
+		commonMetricLabels = append(commonMetricLabels, prompb.Label{Name: label.name, Value: truncateLabelValue(label.value)})
+	}
+
+	executionMetricLabels := make([]prompb.Label, 0, len(commonMetricLabels)+len(userMetricLabels))
+	executionMetricLabels = append(executionMetricLabels, commonMetricLabels...)
+	for _, label := range userMetricLabels {
+		executionMetricLabels = append(executionMetricLabels, prompb.Label{Name: label.name, Value: truncateLabelValue(label.value)})
 	}
 
 	var ts []prompb.TimeSeries
@@ -872,7 +880,15 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []
 		mType := mf.GetType()
 
 		for _, m := range mf.GetMetric() {
-			ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
+			var commonLabels []prompb.Label
+			if mName == CheckInfoMetricName {
+				// sm_check_info already has the execution metric labels on it; do not duplicate.
+				commonLabels = commonMetricLabels
+			} else {
+				commonLabels = executionMetricLabels
+			}
+
+			ts = appendDtoToTimeseries(ts, t, mName, commonLabels, mType, m)
 		}
 	}
 
@@ -895,7 +911,7 @@ func (s Scraper) buildCheckInfoLabels(userLabels []labelPair) map[string]string 
 	return labels
 }
 
-func (s Scraper) buildUserLabels(ctx context.Context) []labelPair {
+func (s Scraper) buildMetadataLabels(ctx context.Context) []labelPair {
 	labels := []labelPair{}
 	idx := make(map[string]int)
 	tenantID := int64(s.check.GlobalTenantID())
@@ -927,6 +943,22 @@ func (s Scraper) buildUserLabels(ctx context.Context) []labelPair {
 
 		labels = append(labels,
 			labelPair{name: labelPrefix + l.Name, value: l.Value})
+	}
+
+	return labels
+}
+
+// getUserExecutionMetricLabels returns the user-defined labels
+// which should also be on the check execution metrics.
+//
+// These would already be on the sm_check_info metric.
+func (s *Scraper) getUserExecutionMetricLabels() []labelPair {
+	labels := []labelPair{}
+
+	for _, l := range s.check.Labels {
+		if l.AttachToMetrics {
+			labels = append(labels, labelPair{name: l.Name, value: l.Value})
+		}
 	}
 
 	return labels
