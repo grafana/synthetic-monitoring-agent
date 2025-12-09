@@ -2035,3 +2035,113 @@ func TestTickWithOffset(t *testing.T) {
 		})
 	}
 }
+
+func TestTimeFromNs(t *testing.T) {
+	testcases := map[string]struct {
+		ns       float64
+		expected time.Time
+	}{
+		"zero": {
+			ns:       0,
+			expected: time.Unix(0, 0),
+		},
+		"one": {
+			ns:       1,
+			expected: time.Unix(0, 1),
+		},
+		"2020-01-01 00:00:00.000000000": {
+			ns:       1577836800 * 1e9,
+			expected: time.Unix(1577836800, 0),
+		},
+		"2024-07-02 21:21:50.123456768": {
+			ns:       1719955310*1e9 + 123456789,
+			expected: time.Unix(1719955310, 123456789),
+		},
+		"2262-04-11 23:47:15.999999999": {
+			ns:       9223372035*1e9 + 999999999, // This is close to the maximum value that can be represented by a time.Time
+			expected: time.Unix(9223372035, 999999999),
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual := timeFromNs(tc.ns)
+			// Why UnixMicro instead of UnixNano? Because some
+			// precision is lost during the conversion from int64
+			// to float64, and getting this right at the microsecond
+			// level is good enough.
+			require.InDelta(t, tc.expected.UnixMicro(), actual.UnixMicro(), 1)
+		})
+	}
+}
+
+func TestComputeOffset(t *testing.T) {
+	t0 := time.Unix(1_000_000, 0)
+
+	testcases := map[string]struct {
+		frequency time.Duration
+		offset    time.Duration
+		now       time.Time
+		expected  time.Duration
+	}{
+		"zero": {
+			offset:    0,
+			frequency: 60 * time.Second,
+			now:       t0.Add(0),
+			expected:  0,
+		},
+		"1s": {
+			offset:    1 * time.Second,
+			frequency: 60 * time.Second,
+			now:       t0.Add(0),
+			expected:  1 * time.Second,
+		},
+		"30s": {
+			offset:    30 * time.Second,
+			frequency: 60 * time.Second,
+			now:       t0.Add(0),
+			expected:  30 * time.Second,
+		},
+		"created 100 seconds ago": {
+			offset:    0 * time.Second,
+			frequency: 60 * time.Second,
+			now:       t0.Add(100 * time.Second),
+			expected:  20 * time.Second, // 100 - 60 = 40 -> 60 - 40 = 20
+		},
+		"created 1000 seconds ago": {
+			offset:    0 * time.Second,
+			frequency: 60 * time.Second,
+			now:       t0.Add(1000 * time.Second),
+			expected:  20 * time.Second, // 1000 / 60 = 16 -> 1000 - 60 * 16 = 40 -> 60 - 40 = 20
+		},
+		"slow check": {
+			offset:    0 * time.Second,
+			frequency: 5 * time.Minute,
+			now:       t0.Add(1000 * time.Minute),
+			expected:  0,
+		},
+		"slow check close to next run": {
+			offset:    0 * time.Second,
+			frequency: 5 * time.Minute,
+			now:       t0.Add(999 * time.Minute),
+			expected:  1 * time.Minute,
+		},
+		"slow check just ran": {
+			offset:    0 * time.Second,
+			frequency: 5 * time.Minute,
+			now:       t0.Add(1001 * time.Minute),
+			expected:  0,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			actual := computeOffset(tc.offset, tc.frequency, t0, tc.now)
+			if tc.expected != 0 {
+				require.Equal(t, tc.expected, actual)
+			} else {
+				require.LessOrEqual(t, actual, maxPublishInterval)
+			}
+		})
+	}
+}
