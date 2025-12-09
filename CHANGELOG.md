@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.48.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.47.0...v0.48.0) (2025-12-05)
+
+
+### Features
+
+* add feature flag for protocol secrets support ([#1626](https://github.com/grafana/synthetic-monitoring-agent/issues/1626)) ([a9ee905](https://github.com/grafana/synthetic-monitoring-agent/commit/a9ee905db8fdb9a700724d8a65b857f1c0fb9bb2))
+* prober/traceroute: log traceroute entries in increasing hop order ([14bc512](https://github.com/grafana/synthetic-monitoring-agent/commit/14bc512a20de6f6fc90b60031e89df065f18a58f))
+* Pull cost attribution labels for tenant ([#1544](https://github.com/grafana/synthetic-monitoring-agent/issues/1544)) ([58c6cf2](https://github.com/grafana/synthetic-monitoring-agent/commit/58c6cf25a58d32db999b8cc6e86c082de5bcc8af))
+* Rework tenant cache ([#1601](https://github.com/grafana/synthetic-monitoring-agent/issues/1601)) ([b51599d](https://github.com/grafana/synthetic-monitoring-agent/commit/b51599d22edfe9ecc12379b67255c1f6dde2e235))
+
+
+### Fixes
+
+* iterate over slice values, not indexes ([83d539c](https://github.com/grafana/synthetic-monitoring-agent/commit/83d539c9be2fffe5b56f2686dc11d7ffa406e60b))
+* Prevent datarace in telemetry tests ([#1628](https://github.com/grafana/synthetic-monitoring-agent/issues/1628)) ([09b57ab](https://github.com/grafana/synthetic-monitoring-agent/commit/09b57abf2d90804ba9a0dbc62b3e35a26417be72))
+* Rework telemetry tests to use synctest ([#1631](https://github.com/grafana/synthetic-monitoring-agent/issues/1631)) ([1e94e6e](https://github.com/grafana/synthetic-monitoring-agent/commit/1e94e6ede5bfc496f4241842708c5c1335d69353))
+
+
+### Miscellaneous Chores
+
+* Update actions/checkout action to v6 ([#1624](https://github.com/grafana/synthetic-monitoring-agent/issues/1624)) ([068ad9d](https://github.com/grafana/synthetic-monitoring-agent/commit/068ad9dfc1b0693fb69ada5728c7222e9d454acb))
+* Update actions/create-github-app-token action to v2.2.0 ([#1629](https://github.com/grafana/synthetic-monitoring-agent/issues/1629)) ([d3d6019](https://github.com/grafana/synthetic-monitoring-agent/commit/d3d6019f830b53d4575dd71f0459d14b5fe5e8b6))
+* Update actions/setup-go action to v6.1.0 ([#1623](https://github.com/grafana/synthetic-monitoring-agent/issues/1623)) ([226a8a6](https://github.com/grafana/synthetic-monitoring-agent/commit/226a8a6cf8f81ed79e2553555442fd9d672e81f4))
+* Update dependency grafana/xk6-sm to v0.6.12 ([#1622](https://github.com/grafana/synthetic-monitoring-agent/issues/1622)) ([560c7b2](https://github.com/grafana/synthetic-monitoring-agent/commit/560c7b25f2dcb9d0e9f8a1711afb7680caff25e1))
+* Update docker:dind Docker digest to c9699f4 ([#1616](https://github.com/grafana/synthetic-monitoring-agent/issues/1616)) ([8fb6109](https://github.com/grafana/synthetic-monitoring-agent/commit/8fb61096e29ea36f1fede781d3090888c6f64c59))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:142.0.7444.59-r0-3.22.2 Docker digest to 2e68718 ([#1630](https://github.com/grafana/synthetic-monitoring-agent/issues/1630)) ([fa48ab6](https://github.com/grafana/synthetic-monitoring-agent/commit/fa48ab639083d76d766ece5f035583f97e4334d6))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:142.0.7444.59-r0-3.22.2 Docker digest to 4bfff84 ([af8f861](https://github.com/grafana/synthetic-monitoring-agent/commit/af8f8618bab3e9491dcf4f1c45af6a24c56db188))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.23.1 ([42b8fb5](https://github.com/grafana/synthetic-monitoring-agent/commit/42b8fb5d013fe0a4d3a0201c57b89318d5e6ceeb))
+* Update grafana/shared-workflows digest to b055806 ([#1625](https://github.com/grafana/synthetic-monitoring-agent/issues/1625)) ([6f0797f](https://github.com/grafana/synthetic-monitoring-agent/commit/6f0797faf17928ccda4097b72a3aae7b24f5d7b6))
+* Update module google.golang.org/grpc to v1.77.0 ([#1620](https://github.com/grafana/synthetic-monitoring-agent/issues/1620)) ([e51905f](https://github.com/grafana/synthetic-monitoring-agent/commit/e51905ff1d81ee6ff10805e5a2f78db790a57f2f))
+
 ## [0.47.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.46.1...v0.47.0) (2025-11-17)
 
 
