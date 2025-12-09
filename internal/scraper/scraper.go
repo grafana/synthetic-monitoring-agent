@@ -311,7 +311,8 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	h.scraper.logger.Debug().
 		Int64("tenantId", int64(h.payload.tenantId)).
 		Int("costAttributionLabelsCount", len(costAttributionLabels)).
-		Msgf("Cost Attribution Labels: %v", costAttributionLabels)
+		Any("CostAttributionLabels", costAttributionLabels).
+		Msg("tenant telemetry")
 
 	// If we are dropping the data in case of errors, we should not count that execution.
 	h.scraper.telemeter.AddExecution(telemetry.Execution{
