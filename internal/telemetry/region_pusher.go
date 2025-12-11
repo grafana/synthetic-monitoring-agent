@@ -174,15 +174,16 @@ func (p *RegionPusher) AddExecution(e Execution) {
 		tenantTele[e.CheckClass] = clTele
 	}
 
-	cals := serializeCALs(e.CostAttributionLabels)
+	calsKey := serializeCALs(e.CostAttributionLabels)
 
-	calTele, ok := clTele[cals]
+	calTele, ok := clTele[calsKey]
 	if !ok {
+		// deserializeCals returns sorted labels and handles nil -> empty slice
 		calTele = &sm.CheckClassTelemetry{
 			CheckClass:            e.CheckClass,
-			CostAttributionLabels: e.CostAttributionLabels,
+			CostAttributionLabels: deserializeCals(calsKey),
 		}
-		clTele[cals] = calTele
+		clTele[calsKey] = calTele
 	}
 
 	calTele.Executions++
@@ -212,15 +213,13 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 			Telemetry: make([]*sm.CheckClassTelemetry, 0, len(tTele)),
 		}
 		for _, clTele := range tTele {
-			for calKey, calTele := range clTele {
+			for _, calTele := range clTele {
 				tenantTele.Telemetry = append(tenantTele.Telemetry, &sm.CheckClassTelemetry{
-					CheckClass:        calTele.CheckClass,
-					Executions:        calTele.Executions,
-					Duration:          calTele.Duration,
-					SampledExecutions: calTele.SampledExecutions,
-					// deserializeCals converts the key(string) into a slice of cost attribution labels
-					// This mitigates the need for the API to perform any operations on the cal's
-					CostAttributionLabels: deserializeCals(calKey),
+					CheckClass:            calTele.CheckClass,
+					Executions:            calTele.Executions,
+					Duration:              calTele.Duration,
+					SampledExecutions:     calTele.SampledExecutions,
+					CostAttributionLabels: calTele.CostAttributionLabels,
 				})
 			}
 		}
@@ -238,10 +237,7 @@ func serializeCALs(cals []sm.CostAttributionLabel) string {
 	sorted := make([]sm.CostAttributionLabel, len(cals))
 	copy(sorted, cals)
 	slices.SortFunc(sorted, func(a, b sm.CostAttributionLabel) int {
-		if a.Name != b.Name {
-			return strings.Compare(a.Name, b.Name)
-		}
-		return strings.Compare(a.Value, b.Value)
+		return strings.Compare(a.Name, b.Name)
 	})
 
 	parts := make([]string, len(sorted))
