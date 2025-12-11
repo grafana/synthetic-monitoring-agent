@@ -33,34 +33,45 @@ func getTestDataset(idx int) testData {
 		{
 			executions: []Execution{
 				{
-					LocalTenantID: 1,
-					CheckClass:    sm.CheckClass_PROTOCOL,
-					Duration:      59 * time.Second,
+					LocalTenantID:         1,
+					CheckClass:            sm.CheckClass_PROTOCOL,
+					Duration:              59 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 1,
 					CheckClass:    sm.CheckClass_PROTOCOL,
 					Duration:      60 * time.Second,
+
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 2,
 					CheckClass:    sm.CheckClass_SCRIPTED,
 					Duration:      61 * time.Second,
+
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 2,
 					CheckClass:    sm.CheckClass_SCRIPTED,
 					Duration:      30 * time.Second,
+
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 3,
 					CheckClass:    sm.CheckClass_BROWSER,
 					Duration:      61 * time.Second,
+
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 3,
 					CheckClass:    sm.CheckClass_BROWSER,
 					Duration:      30 * time.Second,
+
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 3,

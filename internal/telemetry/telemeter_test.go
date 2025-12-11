@@ -24,33 +24,45 @@ func TestTelemeterAddExecution(t *testing.T) {
 			p, ok := tele.pushers[regionID]
 			require.True(t, ok)
 
-			// sum expected executions data
-			regionTele := make(map[int64]map[sm.CheckClass]*sm.CheckClassTelemetry)
+			// sum expected executions data, indexed by tenant -> checkClass -> calKey
+			regionTele := make(map[int64]map[sm.CheckClass]map[string]*sm.CheckClassTelemetry)
 			for _, e := range ee {
 				tenantTele, ok := regionTele[e.LocalTenantID]
 				if !ok {
-					tenantTele = make(map[sm.CheckClass]*sm.CheckClassTelemetry)
+					tenantTele = make(map[sm.CheckClass]map[string]*sm.CheckClassTelemetry)
 					regionTele[e.LocalTenantID] = tenantTele
 				}
-				if _, ok := tenantTele[e.CheckClass]; !ok {
-					tenantTele[e.CheckClass] = &sm.CheckClassTelemetry{CheckClass: e.CheckClass}
+				clTele, ok := tenantTele[e.CheckClass]
+				if !ok {
+					clTele = make(map[string]*sm.CheckClassTelemetry)
+					tenantTele[e.CheckClass] = clTele
 				}
-				tenantTele[e.CheckClass].Executions++
-				tenantTele[e.CheckClass].Duration += float32(e.Duration.Seconds())
+				calKey := serializeCALs(e.CostAttributionLabels)
+				calTele, ok := clTele[calKey]
+				if !ok {
+					calTele = &sm.CheckClassTelemetry{
+						CheckClass:            e.CheckClass,
+						CostAttributionLabels: deserializeCals(calKey),
+					}
+					clTele[calKey] = calTele
+				}
+				calTele.Executions++
+				calTele.Duration += float32(e.Duration.Seconds())
 			}
 
 			// verify
 			for tenantID, expTTele := range regionTele {
 				gotTTele, ok := p.telemetry[tenantID]
-				require.True(t, ok, "telemetry not found for tenant")
-				for _, expCCTele := range expTTele {
-					gotCCTele, ok := gotTTele[expCCTele.CheckClass]
-
-					require.True(t, ok, "cal telemetry not found for tenant")
-					for _, gotCalTele := range gotCCTele {
-						require.True(t, ok, "telemetry not found for check class")
-						require.Equal(t, expCCTele.Executions, gotCalTele.Executions)
-						require.Equal(t, expCCTele.Duration, gotCalTele.Duration)
+				require.True(t, ok, "telemetry not found for tenant %d", tenantID)
+				for checkClass, expCLTele := range expTTele {
+					gotCLTele, ok := gotTTele[checkClass]
+					require.True(t, ok, "telemetry not found for check class %v", checkClass)
+					for calKey, expCalTele := range expCLTele {
+						gotCalTele, ok := gotCLTele[calKey]
+						require.True(t, ok, "telemetry not found for cal key %s", calKey)
+						require.Equal(t, expCalTele.Executions, gotCalTele.Executions, "executions mismatch for cal key %s", calKey)
+						require.Equal(t, expCalTele.Duration, gotCalTele.Duration, "duration mismatch for cal key %s", calKey)
+						require.Equal(t, expCalTele.CostAttributionLabels, gotCalTele.CostAttributionLabels, "cals mispath for cal key %s", calKey)
 					}
 				}
 			}
