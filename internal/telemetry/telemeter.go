@@ -39,10 +39,11 @@ type metrics struct {
 
 // Execution represents the telemetry for a check execution.
 type Execution struct {
-	LocalTenantID int64
-	RegionID      int32
-	CheckClass    sm.CheckClass
-	Duration      time.Duration
+	LocalTenantID         int64
+	RegionID              int32
+	CheckClass            sm.CheckClass
+	Duration              time.Duration
+	CostAttributionLabels []sm.CostAttributionLabel
 }
 
 // NewTelemeter creates a new Telemeter component.

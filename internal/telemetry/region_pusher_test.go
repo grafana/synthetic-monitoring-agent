@@ -33,34 +33,106 @@ func getTestDataset(idx int) testData {
 		{
 			executions: []Execution{
 				{
-					LocalTenantID: 1,
-					CheckClass:    sm.CheckClass_PROTOCOL,
-					Duration:      59 * time.Second,
+					LocalTenantID:         1,
+					CheckClass:            sm.CheckClass_PROTOCOL,
+					Duration:              59 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 1,
 					CheckClass:    sm.CheckClass_PROTOCOL,
 					Duration:      60 * time.Second,
+
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 2,
 					CheckClass:    sm.CheckClass_SCRIPTED,
 					Duration:      61 * time.Second,
+
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 2,
 					CheckClass:    sm.CheckClass_SCRIPTED,
 					Duration:      30 * time.Second,
+
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 3,
 					CheckClass:    sm.CheckClass_BROWSER,
 					Duration:      61 * time.Second,
+
+					CostAttributionLabels: []sm.CostAttributionLabel{},
 				},
 				{
 					LocalTenantID: 3,
 					CheckClass:    sm.CheckClass_BROWSER,
 					Duration:      30 * time.Second,
+
+					CostAttributionLabels: []sm.CostAttributionLabel{},
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      45 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "env",
+							Value: CalNilStringTerminator,
+						},
+						{
+							Name:  "team",
+							Value: CalNilStringTerminator,
+						},
+					},
+				},
+
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      15 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "env",
+							Value: "prod",
+						},
+						{
+							Name:  "team",
+							Value: CalNilStringTerminator,
+						},
+					},
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "team",
+							Value: "a",
+						},
+						{
+							Name:  "env",
+							Value: CalNilStringTerminator,
+						},
+					},
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "team",
+							Value: "a",
+						},
+						{
+							Name:  "env",
+							Value: "b",
+						},
+					},
 				},
 			},
 			message: sm.RegionTelemetry{
@@ -71,10 +143,11 @@ func getTestDataset(idx int) testData {
 						TenantId: 1,
 						Telemetry: []*sm.CheckClassTelemetry{
 							{
-								CheckClass:        sm.CheckClass_PROTOCOL,
-								Executions:        2,
-								Duration:          119,
-								SampledExecutions: 2,
+								CheckClass:            sm.CheckClass_PROTOCOL,
+								Executions:            2,
+								Duration:              119,
+								SampledExecutions:     2,
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 						},
 					},
@@ -86,6 +159,8 @@ func getTestDataset(idx int) testData {
 								Executions:        2,
 								Duration:          91,
 								SampledExecutions: 3,
+
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 						},
 					},
@@ -93,10 +168,76 @@ func getTestDataset(idx int) testData {
 						TenantId: 3,
 						Telemetry: []*sm.CheckClassTelemetry{
 							{
+								CheckClass:            sm.CheckClass_BROWSER,
+								Executions:            2,
+								Duration:              91,
+								SampledExecutions:     3,
+								CostAttributionLabels: []sm.CostAttributionLabel{},
+							},
+							{
 								CheckClass:        sm.CheckClass_BROWSER,
-								Executions:        2,
-								Duration:          91,
-								SampledExecutions: 3,
+								Executions:        1,
+								Duration:          45,
+								SampledExecutions: 1,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: CalNilStringTerminator,
+									},
+									{
+										Name:  "team",
+										Value: CalNilStringTerminator,
+									},
+								},
+							},
+
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        1,
+								Duration:          15,
+								SampledExecutions: 1,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: "prod",
+									},
+									{
+										Name:  "team",
+										Value: CalNilStringTerminator,
+									},
+								},
+							},
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        1,
+								Duration:          30,
+								SampledExecutions: 1,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: CalNilStringTerminator,
+									},
+									{
+										Name:  "team",
+										Value: "a",
+									},
+								},
+							},
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        1,
+								Duration:          30,
+								SampledExecutions: 1,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: "b",
+									},
+									{
+										Name:  "team",
+										Value: "a",
+									},
+								},
 							},
 						},
 					},
@@ -140,6 +281,67 @@ func getTestDataset(idx int) testData {
 					CheckClass:    sm.CheckClass_BROWSER,
 					Duration:      65 * time.Second,
 				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "env",
+							Value: CalNilStringTerminator,
+						},
+						{
+							Name:  "team",
+							Value: CalNilStringTerminator,
+						},
+					},
+				},
+
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "env",
+							Value: "prod",
+						},
+						{
+							Name:  "team",
+							Value: CalNilStringTerminator,
+						},
+					},
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "team",
+							Value: "a",
+						},
+						{
+							Name:  "env",
+							Value: CalNilStringTerminator,
+						},
+					},
+				},
+				{
+					LocalTenantID: 3,
+					CheckClass:    sm.CheckClass_BROWSER,
+					Duration:      30 * time.Second,
+					CostAttributionLabels: []sm.CostAttributionLabel{
+						{
+							Name:  "team",
+							Value: "a",
+						},
+						{
+							Name:  "env",
+							Value: "b",
+						},
+					},
+				},
 			},
 			message: sm.RegionTelemetry{
 				Instance: instance,
@@ -149,16 +351,18 @@ func getTestDataset(idx int) testData {
 						TenantId: 1,
 						Telemetry: []*sm.CheckClassTelemetry{
 							{
-								CheckClass:        sm.CheckClass_PROTOCOL,
-								Executions:        3,
-								Duration:          249,
-								SampledExecutions: 5,
+								CheckClass:            sm.CheckClass_PROTOCOL,
+								Executions:            3,
+								Duration:              249,
+								SampledExecutions:     5,
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 							{
-								CheckClass:        sm.CheckClass_SCRIPTED,
-								Executions:        4,
-								Duration:          214,
-								SampledExecutions: 5,
+								CheckClass:            sm.CheckClass_SCRIPTED,
+								Executions:            4,
+								Duration:              214,
+								SampledExecutions:     5,
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 						},
 					},
@@ -170,12 +374,15 @@ func getTestDataset(idx int) testData {
 								Executions:        1,
 								Duration:          45,
 								SampledExecutions: 1,
+
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 							{
-								CheckClass:        sm.CheckClass_SCRIPTED,
-								Executions:        2,
-								Duration:          91,
-								SampledExecutions: 3,
+								CheckClass:            sm.CheckClass_SCRIPTED,
+								Executions:            2,
+								Duration:              91,
+								SampledExecutions:     3,
+								CostAttributionLabels: []sm.CostAttributionLabel{},
 							},
 						},
 					},
@@ -183,10 +390,76 @@ func getTestDataset(idx int) testData {
 						TenantId: 3,
 						Telemetry: []*sm.CheckClassTelemetry{
 							{
+								CheckClass:            sm.CheckClass_BROWSER,
+								Executions:            3,
+								Duration:              156,
+								SampledExecutions:     5,
+								CostAttributionLabels: []sm.CostAttributionLabel{},
+							},
+							{
 								CheckClass:        sm.CheckClass_BROWSER,
-								Executions:        3,   // 2 + 1
-								Duration:          156, // 61 + 30 + 65
-								SampledExecutions: 5,   // 2 + 1 + 2
+								Executions:        2,
+								Duration:          75,
+								SampledExecutions: 2,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: CalNilStringTerminator,
+									},
+									{
+										Name:  "team",
+										Value: CalNilStringTerminator,
+									},
+								},
+							},
+
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        2,
+								Duration:          45,
+								SampledExecutions: 2,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: "prod",
+									},
+									{
+										Name:  "team",
+										Value: CalNilStringTerminator,
+									},
+								},
+							},
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        2,
+								Duration:          60,
+								SampledExecutions: 2,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: CalNilStringTerminator,
+									},
+									{
+										Name:  "team",
+										Value: "a",
+									},
+								},
+							},
+							{
+								CheckClass:        sm.CheckClass_BROWSER,
+								Executions:        2,
+								Duration:          60,
+								SampledExecutions: 2,
+								CostAttributionLabels: []sm.CostAttributionLabel{
+									{
+										Name:  "env",
+										Value: "b",
+									},
+									{
+										Name:  "team",
+										Value: "a",
+									},
+								},
 							},
 						},
 					},

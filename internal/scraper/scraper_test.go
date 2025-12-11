@@ -2035,3 +2035,76 @@ func TestTickWithOffset(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCostAttributionLabels(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		tenantCALs     []string
+		checkLabels    []sm.Label
+		expectedResult []sm.CostAttributionLabel
+	}{
+		{
+			name:           "no CALs for tenant returns empty slice",
+			tenantCALs:     []string{},
+			checkLabels:    []sm.Label{{Name: "env", Value: "prod"}},
+			expectedResult: []sm.CostAttributionLabel{},
+		},
+		{
+			name:        "no matching labels returns all CALs with nil terminator",
+			tenantCALs:  []string{"env", "team"},
+			checkLabels: []sm.Label{{Name: "unrelated", Value: "value"}},
+			expectedResult: []sm.CostAttributionLabel{
+				{Name: "env", Value: telemetry.CalNilStringTerminator},
+				{Name: "team", Value: telemetry.CalNilStringTerminator},
+			},
+		},
+		{
+			name:        "some matching labels returns mix of values and nil terminators",
+			tenantCALs:  []string{"env", "team"},
+			checkLabels: []sm.Label{{Name: "env", Value: "prod"}},
+			expectedResult: []sm.CostAttributionLabel{
+				{Name: "env", Value: "prod"},
+				{Name: "team", Value: telemetry.CalNilStringTerminator},
+			},
+		},
+		{
+			name:       "all matching labels returns all values",
+			tenantCALs: []string{"env", "team"},
+			checkLabels: []sm.Label{
+				{Name: "env", Value: "prod"},
+				{Name: "team", Value: "platform"},
+			},
+			expectedResult: []sm.CostAttributionLabel{
+				{Name: "env", Value: "prod"},
+				{Name: "team", Value: "platform"},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			calsProvider := &mockTenantCals{cals: tc.tenantCALs}
+
+			s := &Scraper{
+				cals:  calsProvider,
+				check: model.Check{Check: sm.Check{Labels: tc.checkLabels}},
+			}
+
+			result, err := s.getCostAttributionLabels(context.Background(), 1)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tc.expectedResult, result)
+		})
+	}
+}
+
+type mockTenantCals struct {
+	cals []string
+}
+
+func (m *mockTenantCals) CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error) {
+	return m.cals, nil
+}

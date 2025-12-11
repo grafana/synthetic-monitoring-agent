@@ -3,6 +3,8 @@ package telemetry
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -12,6 +14,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const CalNilStringTerminator = "__MISSING__"
+
 // RegionPusher periodically sends telemetry data for a specific region.
 type RegionPusher struct {
 	client sm.TelemetryClient
@@ -20,7 +24,7 @@ type RegionPusher struct {
 	instance string
 	regionID int32
 
-	telemetry   map[int64]map[sm.CheckClass]*sm.CheckClassTelemetry // Indexed by local tenant ID
+	telemetry   map[int64]map[sm.CheckClass]map[string]*sm.CheckClassTelemetry // Indexed by local tenant ID
 	telemetryMu sync.Mutex
 
 	metrics RegionMetrics
@@ -65,7 +69,7 @@ func NewRegionPusher(
 		logger:    logger,
 		instance:  instance,
 		regionID:  regionID,
-		telemetry: make(map[int64]map[sm.CheckClass]*sm.CheckClassTelemetry),
+		telemetry: make(map[int64]map[sm.CheckClass]map[string]*sm.CheckClassTelemetry),
 		metrics:   metrics,
 	}
 
@@ -160,19 +164,31 @@ func (p *RegionPusher) AddExecution(e Execution) {
 
 	tenantTele, ok := p.telemetry[e.LocalTenantID]
 	if !ok {
-		tenantTele = make(map[sm.CheckClass]*sm.CheckClassTelemetry)
+		tenantTele = make(map[sm.CheckClass]map[string]*sm.CheckClassTelemetry)
 		p.telemetry[e.LocalTenantID] = tenantTele
 	}
 
 	clTele, ok := tenantTele[e.CheckClass]
 	if !ok {
-		clTele = &sm.CheckClassTelemetry{CheckClass: e.CheckClass}
+		clTele = make(map[string]*sm.CheckClassTelemetry)
 		tenantTele[e.CheckClass] = clTele
 	}
 
-	clTele.Executions++
-	clTele.Duration += float32(e.Duration.Seconds())
-	clTele.SampledExecutions += int32((e.Duration + time.Minute - 1) / time.Minute)
+	calsKey := serializeCALs(e.CostAttributionLabels)
+
+	calTele, ok := clTele[calsKey]
+	if !ok {
+		// deserializeCals returns sorted labels and handles nil -> empty slice
+		calTele = &sm.CheckClassTelemetry{
+			CheckClass:            e.CheckClass,
+			CostAttributionLabels: deserializeCals(calsKey),
+		}
+		clTele[calsKey] = calTele
+	}
+
+	calTele.Executions++
+	calTele.Duration += float32(e.Duration.Seconds())
+	calTele.SampledExecutions += int32((e.Duration + time.Minute - 1) / time.Minute)
 
 	// measure contention for AddExecution
 	p.metrics.addExecutionDuration.Observe(
@@ -197,17 +213,56 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 			Telemetry: make([]*sm.CheckClassTelemetry, 0, len(tTele)),
 		}
 		for _, clTele := range tTele {
-			tenantTele.Telemetry = append(tenantTele.Telemetry, &sm.CheckClassTelemetry{
-				CheckClass:        clTele.CheckClass,
-				Executions:        clTele.Executions,
-				Duration:          clTele.Duration,
-				SampledExecutions: clTele.SampledExecutions,
-			})
+			for _, calTele := range clTele {
+				tenantTele.Telemetry = append(tenantTele.Telemetry, &sm.CheckClassTelemetry{
+					CheckClass:            calTele.CheckClass,
+					Executions:            calTele.Executions,
+					Duration:              calTele.Duration,
+					SampledExecutions:     calTele.SampledExecutions,
+					CostAttributionLabels: calTele.CostAttributionLabels,
+				})
+			}
 		}
 		m.Telemetry = append(m.Telemetry, tenantTele)
 	}
 
 	return m
+}
+
+func serializeCALs(cals []sm.CostAttributionLabel) string {
+	if len(cals) == 0 || cals == nil {
+		return CalNilStringTerminator
+	}
+
+	sorted := make([]sm.CostAttributionLabel, len(cals))
+	copy(sorted, cals)
+	slices.SortFunc(sorted, func(a, b sm.CostAttributionLabel) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+
+	parts := make([]string, len(sorted))
+	for i, label := range sorted {
+		parts[i] = fmt.Sprintf("%s=%s", label.Name, label.Value)
+	}
+
+	return strings.Join(parts, ",")
+}
+
+func deserializeCals(calKey string) []sm.CostAttributionLabel {
+	if calKey == CalNilStringTerminator {
+		return []sm.CostAttributionLabel{}
+	}
+	split := strings.Split(calKey, ",")
+	cals := make([]sm.CostAttributionLabel, len(split))
+	for i, cal := range split {
+		c := strings.Split(cal, "=")
+		cals[i] = sm.CostAttributionLabel{
+			Name:  c[0],
+			Value: c[1],
+		}
+	}
+
+	return cals
 }
 
 func (p *RegionPusher) push(m sm.RegionTelemetry) {

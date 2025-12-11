@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -299,7 +300,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 		})
 	}
 
-	costAttributionLabels, err := h.scraper.cals.CostAttributionLabels(ctx, h.payload.tenantId)
+	costAttributionLabels, err := h.scraper.getCostAttributionLabels(ctx, h.payload.tenantId)
 	if err != nil {
 		// If cals can't be found, do not block
 		h.scraper.logger.Error().
@@ -310,15 +311,16 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	h.scraper.logger.Debug().
 		Int64("tenantId", int64(h.payload.tenantId)).
 		Int("costAttributionLabelsCount", len(costAttributionLabels)).
-		Msgf("Cost Attribution Labels: %v", costAttributionLabels)
+		Any("CostAttributionLabels", costAttributionLabels).
+		Msg("tenant telemetry")
 
 	// If we are dropping the data in case of errors, we should not count that execution.
 	h.scraper.telemeter.AddExecution(telemetry.Execution{
-		LocalTenantID: h.scraper.check.TenantId,
-		RegionID:      int32(h.scraper.check.RegionId),
-		CheckClass:    h.scraper.check.Class(),
-		// TODO(@pokom): Add cost attribution label bits here
-		Duration: duration,
+		LocalTenantID:         h.scraper.check.TenantId,
+		RegionID:              int32(h.scraper.check.RegionId),
+		CheckClass:            h.scraper.check.Class(),
+		CostAttributionLabels: costAttributionLabels,
+		Duration:              duration,
 	})
 
 	if h.payload != nil {
@@ -602,6 +604,33 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	streams := s.extractLogs(t, logs.Bytes(), logLabels)
 
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.GlobalTenantID()}, duration, err
+}
+
+// getCostAttributionLabels looks for the cost attribution labels for a specific tenant and
+// generates a []sm.CostAttributionLabel where the Name's are the cal, and the value
+// is derived from the checks label with the corresponding name.
+func (s *Scraper) getCostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]sm.CostAttributionLabel, error) {
+	cals, err := s.cals.CostAttributionLabels(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	vals := make([]sm.CostAttributionLabel, 0, len(cals))
+	for _, cal := range cals {
+		// Make the assumption there are no labels that match the CAL and set the default value to __MISSING__
+		value := telemetry.CalNilStringTerminator
+		idx := slices.IndexFunc(s.check.Labels, func(l sm.Label) bool {
+			return l.Name == cal
+		})
+		if idx >= 0 {
+			value = s.check.Labels[idx].Value
+		}
+		vals = append(vals, sm.CostAttributionLabel{
+			Name:  cal,
+			Value: value,
+		})
+	}
+	return vals, nil
 }
 
 // patchDuration will modify the probe_duration_seconds metric to match the
