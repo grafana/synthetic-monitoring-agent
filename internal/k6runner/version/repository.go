@@ -37,6 +37,7 @@ type Repository struct {
 
 const binaryMustContain = "k6"
 
+// Entry stores the path to a k6 binary, and the parsed semantic version that binary returns.
 type Entry struct {
 	Path    string
 	Version *semver.Version
@@ -80,6 +81,7 @@ func (r *Repository) BinaryFor(constraintStr string) (string, error) {
 	return "", ErrUnsatisfiable
 }
 
+// Entries returns the list of binaries and their versions, scanning them if needed.
 func (r *Repository) Entries() ([]Entry, error) {
 	err := r.scan(false)
 	if err != nil {
@@ -144,6 +146,10 @@ func (r *Repository) scan(force bool) error {
 	return nil
 }
 
+// binaries returns the paths to all binaries assumed to be k6 inside the repository root. All files in the repository
+// root should be k6 binaries, but as a sanity check, files are filtered based on them being executable and matching a
+// naming pattern.
+// If the repository's Override is set, then binaries returns only that path blindly.
 func (r *Repository) binaries() ([]string, error) {
 	if r.Override != "" {
 		r.Logger.Warn().Str("k6", r.Override).Msg("Overriding k6 binary autoselection")
@@ -193,6 +199,8 @@ func (r *Repository) binaries() ([]string, error) {
 	return binaries, nil
 }
 
+// runK6Version executes the given binary with `version --json` as arguments, and attempts to parse the output as if it
+// were a k6 version.
 func runK6Version(k6Path string) (*k6Version, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
