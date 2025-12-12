@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -48,6 +50,36 @@ type k6Version struct {
 	Version   string `json:"version"`
 }
 
+// ErrUnsatisfiable is returned when no binary matching a constraint is found.
+var ErrUnsatisfiable = errors.New("no compatible k6 version found")
+
+// BinaryFor walks the repository and returns the path to the binary with the highest version that matches
+// constraintStr. If no binary matching the constraint is found, ErrUnsatisfiable is returned.
+// BinaryFor scans the root folder if needed.
+func (r *Repository) BinaryFor(constraintStr string) (string, error) {
+	err := r.scan(false)
+	if err != nil {
+		return "", fmt.Errorf("scanning for binaries: %w", err)
+	}
+
+	r.mtx.Lock()
+	defer r.mtx.Unlock()
+
+	constraint, err := semver.NewConstraint(constraintStr)
+	if err != nil {
+		return "", fmt.Errorf("invalid version constraint %q: %w", constraintStr, err)
+	}
+
+	// r.entries is sorted newest version first, so we can return the first that matches.
+	for _, entry := range r.entries {
+		if constraint.Check(entry.Version) {
+			return entry.Path, nil
+		}
+	}
+
+	return "", ErrUnsatisfiable
+}
+
 func (r *Repository) Entries() ([]Entry, error) {
 	err := r.scan(false)
 	if err != nil {
@@ -67,6 +99,9 @@ func (r *Repository) Entries() ([]Entry, error) {
 	return entries, nil
 }
 
+// scan is an internal method that walks the repository root looking for k6 binaries, and runs them to obtain their
+// version. If force is set to false and the Repository is not empty, scan will return immediately with no error, acting
+// as a cache.
 func (r *Repository) scan(force bool) error {
 	r.mtx.Lock()
 	defer r.mtx.Unlock()
@@ -99,6 +134,12 @@ func (r *Repository) scan(force bool) error {
 			Version: version,
 		})
 	}
+
+	// Sort versions, highest first. That way we can scan this slice and return the first matching version, which will
+	// be the newest.
+	slices.SortFunc(r.entries, func(a, b Entry) int {
+		return b.Version.Compare(a.Version)
+	})
 
 	return nil
 }
