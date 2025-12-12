@@ -24,7 +24,7 @@ func TestOverride(t *testing.T) {
 		t.Fatalf("Expected just the overridden version, got %d", len(versions))
 	}
 
-	if v := versions[0].Version; v != "v9.9.9" {
+	if v := versions[0].Version; v.String() != "9.9.9" {
 		t.Fatalf("Unexpected version %q", v)
 	}
 }
@@ -42,8 +42,8 @@ func TestVersions(t *testing.T) {
 	}
 
 	expected := []string{
-		"v1.2.3",
-		"v2.0.0",
+		"1.2.3",
+		"2.0.0",
 	}
 
 	if len(versions) != len(expected) {
@@ -51,7 +51,7 @@ func TestVersions(t *testing.T) {
 	}
 
 	for _, ev := range expected {
-		if !slices.ContainsFunc(versions, func(v version.Entry) bool { return ev == v.Version }) {
+		if !slices.ContainsFunc(versions, func(v version.Entry) bool { return ev == v.Version.String() }) {
 			t.Fatalf("Expected version %q not found in %v", ev, versions)
 		}
 	}

@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/rs/zerolog"
 )
 
@@ -36,7 +37,7 @@ const binaryMustContain = "k6"
 
 type Entry struct {
 	Path    string
-	Version string
+	Version *semver.Version
 }
 
 type k6Version struct {
@@ -74,20 +75,28 @@ func (r *Repository) scan(force bool) error {
 		return nil
 	}
 
+	// All binaries found in the repository folder, which must also match a naming pattern, are assumed to be indeed k6
+	// binaries. The code will try to execute them with `$0 version --json` and error out entirely if any of them
+	// misbehave.
 	binaries, err := r.binaries()
 	if err != nil {
 		return err
 	}
 
 	for _, bin := range binaries {
-		version, err := runK6Version(bin)
+		k6Version, err := runK6Version(bin)
 		if err != nil {
 			return fmt.Errorf("finding version for %q: %w", bin, err)
 		}
 
+		version, err := semver.NewVersion(k6Version.Version)
+		if err != nil {
+			return fmt.Errorf("version %q returned by %q is invalid: %w", k6Version.Version, bin, err)
+		}
+
 		r.entries = append(r.entries, Entry{
 			Path:    bin,
-			Version: version.Version,
+			Version: version,
 		})
 	}
 
