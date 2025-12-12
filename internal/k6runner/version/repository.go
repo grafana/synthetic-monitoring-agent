@@ -76,6 +76,12 @@ func (r *Repository) BinaryFor(constraintStr string) (string, error) {
 		if constraint.Check(entry.Version) {
 			return entry.Path, nil
 		}
+
+		r.Logger.Debug().
+			Str("binary", entry.Path).
+			Str("version", entry.Version.String()).
+			Str("constraint", constraint.String()).
+			Msg("k6 binary does not match constraint")
 	}
 
 	return "", ErrUnsatisfiable
@@ -142,6 +148,8 @@ func (r *Repository) scan(force bool) error {
 	slices.SortFunc(r.entries, func(a, b Entry) int {
 		return b.Version.Compare(a.Version)
 	})
+
+	r.Logger.Debug().Str("root", r.Root).Any("versions", r.entries).Msg("k6 version scan complete")
 
 	return nil
 }
