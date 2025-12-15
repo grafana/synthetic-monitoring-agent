@@ -87,7 +87,8 @@ func (r *Repository) BinaryFor(constraintStr string) (string, error) {
 	return "", ErrUnsatisfiable
 }
 
-// Entries returns the list of binaries and their versions, scanning them if needed.
+// Entries returns the list of binaries and their versions, scanning them if needed. Callers are allowed to modify the
+// returned slice, but not the individual Entry objects.
 func (r *Repository) Entries() ([]Entry, error) {
 	err := r.scan(false)
 	if err != nil {
