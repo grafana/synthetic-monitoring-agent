@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.49.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.48.0...v0.49.0) (2025-12-11)
+
+
+### Features
+
+* Resolve memcached servers ([#1627](https://github.com/grafana/synthetic-monitoring-agent/issues/1627)) ([4b82ffc](https://github.com/grafana/synthetic-monitoring-agent/commit/4b82ffce686c17eaccec07edb068a0c75d88bd3f))
+* track executions by cals ([#1642](https://github.com/grafana/synthetic-monitoring-agent/issues/1642)) ([191471c](https://github.com/grafana/synthetic-monitoring-agent/commit/191471cc59055fc665567118ee66dc3481831f0c))
+
+
+### Miscellaneous Chores
+
+* Update actions/checkout action to v6.0.1 ([#1639](https://github.com/grafana/synthetic-monitoring-agent/issues/1639)) ([a0b266a](https://github.com/grafana/synthetic-monitoring-agent/commit/a0b266a58044a2ef6c245149f1be95d9159d1302))
+* Update actions/checkout digest to 8e8c483 ([#1638](https://github.com/grafana/synthetic-monitoring-agent/issues/1638)) ([834aae1](https://github.com/grafana/synthetic-monitoring-agent/commit/834aae173694224a7697358d9e2a0b0a2c592eed))
+* Update actions/create-github-app-token action to v2.2.1 ([#1645](https://github.com/grafana/synthetic-monitoring-agent/issues/1645)) ([04ee9cc](https://github.com/grafana/synthetic-monitoring-agent/commit/04ee9ccd7ed88bf85a81c8cde8a75e39609ae138))
+* Update alpine Docker tag to v3.23.0 ([#1641](https://github.com/grafana/synthetic-monitoring-agent/issues/1641)) ([4a3bd5a](https://github.com/grafana/synthetic-monitoring-agent/commit/4a3bd5a198b9d68065ce36bb46b5ca3882e7008b))
+* Update docker:dind Docker digest to 40916fb ([#1637](https://github.com/grafana/synthetic-monitoring-agent/issues/1637)) ([1bb9874](https://github.com/grafana/synthetic-monitoring-agent/commit/1bb98741a2b3de3234dc3054f4b0b3aefb48496d))
+* Update golang.org/x/exp digest to 87e1e73 ([#1633](https://github.com/grafana/synthetic-monitoring-agent/issues/1633)) ([b336a1d](https://github.com/grafana/synthetic-monitoring-agent/commit/b336a1d022efdb7767ffda9a44208ca8e5a4d8ba))
+* Update grafana/shared-workflows digest to 02bf120 ([#1634](https://github.com/grafana/synthetic-monitoring-agent/issues/1634)) ([c35cfed](https://github.com/grafana/synthetic-monitoring-agent/commit/c35cfede683a290e84baade70859ed26f20df2aa))
+* Update module golang.org/x/sync to v0.19.0 ([#1646](https://github.com/grafana/synthetic-monitoring-agent/issues/1646)) ([2d861e5](https://github.com/grafana/synthetic-monitoring-agent/commit/2d861e5c344819fe41a154f831bd8f6f781a6724))
+
 ## [0.48.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.47.0...v0.48.0) (2025-12-05)
 
 
