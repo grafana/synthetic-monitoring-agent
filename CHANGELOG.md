@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.49.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.49.0...v0.49.1) (2025-12-18)
+
+
+### Documentation
+
+* remove SECURITY.md ([#1647](https://github.com/grafana/synthetic-monitoring-agent/issues/1647)) ([4afbdca](https://github.com/grafana/synthetic-monitoring-agent/commit/4afbdcacfc1a914a3bf51fde6b5d9888f067b57d))
+
 ## [0.49.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.48.0...v0.49.0) (2025-12-11)
 
 
