@@ -106,12 +106,12 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 // Overrides any user-provided headers with our own augmented values
 // for 'reserved' headers.
 func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
-	updatedHeaders := []*sm.HttpHeader{}
-	for key, values := range reservedHeaders {
-		updatedHeaders = append(updatedHeaders, &sm.HttpHeader{Name: key, Value: strings.Join(values, ",")})
-	}
-
 	for _, entry := range check.Settings.Multihttp.Entries {
+		updatedHeaders := []*sm.HttpHeader{}
+		for key, values := range reservedHeaders {
+			updatedHeaders = append(updatedHeaders, &sm.HttpHeader{Name: key, Value: strings.Join(values, ",")})
+		}
+
 		heads := entry.Request.Headers
 		for _, headerPtr := range heads {
 			_, present := reservedHeaders[http.CanonicalHeaderKey(headerPtr.Name)]
