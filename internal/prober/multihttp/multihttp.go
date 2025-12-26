@@ -107,7 +107,8 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 // for 'reserved' headers.
 func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 	for _, entry := range check.Settings.Multihttp.Entries {
-		updatedHeaders := []*sm.HttpHeader{}
+		updatedHeaders := make([]*sm.HttpHeader, 0, len(reservedHeaders)+len(entry.Request.Headers))
+
 		for key, values := range reservedHeaders {
 			updatedHeaders = append(updatedHeaders, &sm.HttpHeader{Name: key, Value: strings.Join(values, ",")})
 		}
