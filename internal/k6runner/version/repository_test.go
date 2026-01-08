@@ -11,9 +11,9 @@ import (
 func TestOverride(t *testing.T) {
 	t.Parallel()
 
-	repo := version.Repository{
-		Root:     "./testdata/",
-		Override: "./testdata/override/sm-k6-custom",
+	repo, err := version.NewRepository("./testdata/", "./testdata/override/sm-k6-custom")
+	if err != nil {
+		t.Fatalf("could not create repository: %v", err)
 	}
 
 	versions, err := repo.Entries()
@@ -33,8 +33,9 @@ func TestOverride(t *testing.T) {
 func TestVersions(t *testing.T) {
 	t.Parallel()
 
-	repo := version.Repository{
-		Root: "./testdata/",
+	repo, err := version.NewRepository("./testdata/", "")
+	if err != nil {
+		t.Fatalf("could not create repository: %v", err)
 	}
 
 	versions, err := repo.Entries()
@@ -61,8 +62,9 @@ func TestVersions(t *testing.T) {
 func TestBinaryFor(t *testing.T) {
 	t.Parallel()
 
-	repo := version.Repository{
-		Root: "./testdata/",
+	repo, err := version.NewRepository("./testdata/", "")
+	if err != nil {
+		t.Fatalf("could not create repository: %v", err)
 	}
 
 	// Testdata folder contains k6 mocks matching v1.2.3 and v2.0.0
