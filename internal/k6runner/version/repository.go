@@ -35,6 +35,40 @@ type Repository struct {
 	entries []Entry
 }
 
+// NewRepository creates a new Repository object.
+func NewRepository(root, override string) (*Repository, error) {
+	if root == "" && override == "" {
+		return nil, fmt.Errorf("either root or override should be provided")
+	}
+
+	if root != "" {
+		rootStat, err := os.Stat(root)
+		if err != nil {
+			return nil, fmt.Errorf("could not stat repository root: %w", err)
+		}
+
+		if !rootStat.IsDir() {
+			return nil, fmt.Errorf("repository root is not a directory")
+		}
+	}
+
+	if override != "" {
+		overrideStat, err := os.Stat(override)
+		if err != nil {
+			return nil, fmt.Errorf("could not stat repository override: %w", err)
+		}
+
+		if overrideStat.IsDir() || overrideStat.Mode()&0o100 == 0 {
+			return nil, fmt.Errorf("repository override should be a single executable file")
+		}
+	}
+
+	return &Repository{
+		Root:     root,
+		Override: override,
+	}, nil
+}
+
 const binaryMustContain = "k6"
 
 // Entry stores the path to a k6 binary, and the parsed semantic version that binary returns.
