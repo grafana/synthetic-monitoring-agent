@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.50.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.49.0...v0.50.0) (2026-01-08)
+
+
+### Features
+
+* k6runner: add constructor with some sanity checkign for Repository ([6e3e805](https://github.com/grafana/synthetic-monitoring-agent/commit/6e3e8050f46a66755d79099643ab1545d55d3e0d))
+* k6runner: add k6 version repository ([4aa2d3b](https://github.com/grafana/synthetic-monitoring-agent/commit/4aa2d3b5beed5450702666529db5679fac833d9b))
+* k6runner: allow k6 version repository to match constraints ([96210ac](https://github.com/grafana/synthetic-monitoring-agent/commit/96210ac4b9a9cf5f3d9bff68df1a25822d7183e5))
+* k6runner: make k6 version repository semver-aware ([756e016](https://github.com/grafana/synthetic-monitoring-agent/commit/756e016a230d2856314ac50008c0da4518751bea))
+
+
+### Documentation
+
+* remove SECURITY.md ([#1647](https://github.com/grafana/synthetic-monitoring-agent/issues/1647)) ([4afbdca](https://github.com/grafana/synthetic-monitoring-agent/commit/4afbdcacfc1a914a3bf51fde6b5d9888f067b57d))
+
+
+### Miscellaneous Chores
+
+* k6runner: add more debug-level logs to repository ([d64069f](https://github.com/grafana/synthetic-monitoring-agent/commit/d64069f4a3135f3cb13dd66ba61c69248051c24e))
+* k6runner: document callers cannot modify items returned by Entries ([e17d947](https://github.com/grafana/synthetic-monitoring-agent/commit/e17d947f3e81d21cdb54ad21e54f8e3b3cc37f12))
+* k6runner: document functions ([46e76e4](https://github.com/grafana/synthetic-monitoring-agent/commit/46e76e41f97f85c65be64ee9a0c404944f092cec))
+
 ## [0.49.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.48.0...v0.49.0) (2025-12-11)
 
 
