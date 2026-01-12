@@ -3,6 +3,8 @@ name: buf.build/grafana/synthetic-monitoring-agent
 breaking:
   use:
     - FILE
+  ignore:
+    - google/protobuf
 lint:
   use:
     - DEFAULT
