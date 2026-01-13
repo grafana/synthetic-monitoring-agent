@@ -289,6 +289,15 @@ func TestHandleCheckOp(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
 	require.False(t, scraperExists())
+
+	// Two blocks above we added a new checks, which started a scraper goroutine. One block above, we just deleted that
+	// checks, which stops it. However, we're about to finish the test and that scraper goroutine may not have returned
+	// yet. Here we sleep for a tight second to increase the chance of that goroutine to be scheduled and pick up the
+	// check has been deleted and exit.
+	// If we didn't do this, that goroutine may get scheduled after the test ends, and before exiting promptly as the
+	// check has been deleted, it will attempt to log something (implicitly, to the test logger) and trip the race
+	// detector.
+	time.Sleep(time.Second)
 }
 
 func TestCheckHandlerProbeValidation(t *testing.T) {
