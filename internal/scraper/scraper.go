@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
@@ -78,6 +79,8 @@ type Scraper struct {
 	prober        prober.Prober
 	labelsLimiter LabelsLimiter
 	stop          chan struct{}
+	stopOnce      sync.Once
+	wg            sync.WaitGroup
 	metrics       Metrics
 	summaries     map[uint64]prometheus.Summary
 	histograms    map[uint64]prometheus.Histogram
@@ -237,6 +240,9 @@ func (sm checkStateMachine) isFailing() bool {
 }
 
 func (s *Scraper) Run(ctx context.Context) {
+	s.wg.Add(1)
+	defer s.wg.Done()
+
 	s.logger.Info().Msg("starting scraper")
 
 	// TODO(mem): keep count of the number of successive errors and
@@ -380,8 +386,15 @@ func randDuration(d time.Duration) time.Duration {
 }
 
 func (s *Scraper) Stop() {
-	s.logger.Info().Msg("stopping scraper")
-	close(s.stop)
+	s.stopOnce.Do(func() {
+		s.logger.Info().Msg("stopping scraper")
+		close(s.stop)
+	})
+}
+
+// Wait waits for the scraper's Run goroutine to finish.
+func (s *Scraper) Wait() {
+	s.wg.Wait()
 }
 
 func (s Scraper) CheckType() sm.CheckType {
