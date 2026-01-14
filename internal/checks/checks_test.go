@@ -6,6 +6,7 @@ import (
 	"sync/atomic"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
@@ -181,6 +182,12 @@ func TestSleepCtx(t *testing.T) {
 // this is to decouple the testing of these functions from the testing
 // of the prober themselves.
 func TestHandleCheckOp(t *testing.T) {
+	synctest.Test(t, testHandleCheckOpImpl)
+}
+
+// testHandleCheckOpImpl is the actual implementation of the
+// TestHandleCheckOp test above to avoid excessive indentation.
+func testHandleCheckOpImpl(t *testing.T) {
 	publishCh := make(chan pusher.Payload, 100)
 
 	u, err := NewUpdater(
@@ -202,12 +209,9 @@ func TestHandleCheckOp(t *testing.T) {
 		Name: "test-probe",
 	}
 
-	deadline, ok := t.Deadline()
-	if !ok {
-		deadline = time.Now().Add(2 * time.Second)
-	}
-
-	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	// Since this is meant to run inside a test bubble, t.Deadline cannot be used.
+	// The timeout here doesn't really matter because this is running with faketime.
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 
 	var check model.Check
@@ -289,6 +293,9 @@ func TestHandleCheckOp(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
 	require.False(t, scraperExists())
+
+	// Wait for all scraper goroutines to fully exit before test completes.
+	synctest.Wait()
 }
 
 func TestCheckHandlerProbeValidation(t *testing.T) {
