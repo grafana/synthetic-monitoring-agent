@@ -31,6 +31,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/labels"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
@@ -346,6 +347,7 @@ func run(args []string, stdout io.Writer) error {
 	limits := limits.NewTenantLimits(tm)
 	secretProvider := secrets.NewSecretProvider(tm, 60*time.Second, zl.With().Str("subsystem", "secretstore").Logger())
 	cals := cals.NewCostAttributionLabels(tm)
+	labelPrefixer := labels.NewPrefixer(tm)
 
 	telemetry := telemetry.NewTelemeter(
 		ctx, uuid.New().String(), time.Duration(config.TelemetryTimeSpan)*time.Minute,
@@ -371,6 +373,7 @@ func run(args []string, stdout io.Writer) error {
 		UsageReporter:           usageReporter,
 		CostAttributionLabels:   cals,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		LabelPrefixer:           labelPrefixer,
 	})
 
 	if err != nil {

@@ -980,6 +980,7 @@ func TestValidateLabels(t *testing.T) {
 					Longitude: -2,
 					Region:    "region",
 				},
+				labelPrefixer: testLabelPrefixer{prefix: "label_"},
 			}
 
 			data, duration, err := s.collectData(context.Background(), time.Unix(int64(3141000)/1000, 0))
@@ -1320,7 +1321,19 @@ func (t testCalTenants) CostAttributionLabels(_ context.Context, tenantID model.
 	return t.costAttributionLabels, nil
 }
 
-func TestScraperCollectData(t *testing.T) {
+type testLabelPrefixer struct {
+	prefix string
+	err    error
+}
+
+func (t testLabelPrefixer) GetPrefix(_ context.Context, _ model.GlobalID) (string, error) {
+	if t.err != nil {
+		return t.prefix, t.err
+	}
+	return t.prefix, nil
+}
+
+func TestScraperCollectDataWithAttachedMetricLabels(t *testing.T) {
 	const (
 		checkName     = "check name"
 		checkTarget   = "target name"
@@ -1359,23 +1372,28 @@ func TestScraperCollectData(t *testing.T) {
 		}
 	)
 
-	generateLabels := func(offset, count int, valuePrefix string) []sm.Label {
+	// generateLabels generates a set of labels with a given prefix + value.
+	// attachToMetrics determines if the labels should be attached to the metrics.
+	generateLabels := func(offset, count int, valuePrefix string, attachToMetrics bool) []sm.Label {
 		var labels []sm.Label
 		for i := range count {
 			n := strconv.Itoa(offset + i)
 			labels = append(labels, sm.Label{
-				Name:  "l" + n,
-				Value: valuePrefix + n,
+				Name:            "l" + n,
+				Value:           valuePrefix + n,
+				AttachToMetrics: attachToMetrics,
 			})
 		}
+
 		return labels
 	}
 
+	// generateLabelSet generates a map of label without the legacy label_ prefix
 	generateLabelSet := func(offset, count int, valuePrefix string) map[string]string {
 		labels := make(map[string]string)
 		for i := range count {
 			n := strconv.Itoa(offset + i)
-			labels["label_l"+n] = valuePrefix + n
+			labels["l"+n] = valuePrefix + n
 		}
 		return labels
 	}
@@ -1405,63 +1423,14 @@ func TestScraperCollectData(t *testing.T) {
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels),
 		},
-		"probe labels": {
+		"check labels are attached to metrics": {
 			maxMetricLabels:      defMaxMetricLabels,
 			maxLogLabels:         defMaxLogLabels,
-			probeLabels:          generateLabels(1, 3, "p"),
-			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(1, 3, "p")),
-			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "p")),
-			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "p")),
-		},
-		"check labels": {
-			maxMetricLabels:      defMaxMetricLabels,
-			maxLogLabels:         defMaxLogLabels,
-			checkLabels:          generateLabels(1, 3, "c"),
-			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+			checkLabels:          generateLabels(1, 3, "c", true),
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels, generateLabelSet(1, 3, "c")), // checkLabels are attached to the metrics
 			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(1, 3, "c")),
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c")),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c")),
-		},
-		"check and probe labels": {
-			maxMetricLabels:      defMaxMetricLabels,
-			maxLogLabels:         defMaxLogLabels,
-			checkLabels:          generateLabels(1, 2, "c"),
-			probeLabels:          generateLabels(3, 1, "p"),
-			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
-			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
-			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
-		},
-		"check and probe labels overlapping": {
-			maxMetricLabels:      defMaxMetricLabels,
-			maxLogLabels:         defMaxLogLabels,
-			checkLabels:          generateLabels(1, 2, "c"),
-			probeLabels:          generateLabels(2, 2, "p"),
-			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
-			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
-			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p"), generateLabelSet(1, 2, "c")),
-		},
-		"max labels truncate": {
-			maxMetricLabels:      defMaxMetricLabels,
-			maxLogLabels:         defMaxLogLabels,
-			checkLabels:          generateLabels(0, 10, "c"),
-			probeLabels:          generateLabels(10, 3, "p"),
-			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 3, "p")),
-			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 5, "c"), generateLabelSet(10, 3, "p")),
-			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 3, "p")),
-		},
-		"max labels override": {
-			maxMetricLabels:      21,
-			maxLogLabels:         21,
-			checkLabels:          generateLabels(0, 10, "c"),
-			probeLabels:          generateLabels(10, 4, "p"),
-			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
-			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
-			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
 		},
 	}
 
@@ -1575,6 +1544,8 @@ func TestScraperCollectData(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
 			s := Scraper{
 				checkName: checkName,
 				target:    "test target",
@@ -1615,6 +1586,7 @@ func TestScraperCollectData(t *testing.T) {
 					Region:    region,
 					Labels:    tc.probeLabels,
 				},
+				labelPrefixer: testLabelPrefixer{prefix: ""},
 			}
 
 			data, duration, err := s.collectData(context.Background(), time.Unix(sampleTsMs/1000, 0))
@@ -1631,6 +1603,341 @@ func TestScraperCollectData(t *testing.T) {
 			}
 		})
 	}
+}
+
+//nolint:gocyclo
+func TestScraperCollectData(t *testing.T) {
+	const (
+		checkName     = "check name"
+		checkTarget   = "target name"
+		frequency     = 2000
+		job           = "job name"
+		modifiedTs    = 42
+		probeLatitude = -1
+		probeLongitde = -2
+		probeName     = "probe name"
+		region        = "REGION"
+		sampleTsMs    = int64(3141000)
+	)
+
+	var (
+		baseExpectedMetricLabels = map[string]string{
+			"config_version": strconv.Itoa(modifiedTs * 1_000_000_000),
+			"instance":       checkTarget,
+			"job":            job,
+			"probe":          probeName,
+			// "source":         CheckInfoSource,
+		}
+		baseExpectedInfoLabels = map[string]string{
+			"check_name": checkName,
+			"frequency":  strconv.Itoa(frequency),
+			"geohash":    geohash.Encode(probeLatitude, probeLongitde),
+			"region":     region,
+		}
+		baseExpectedLogLabels = map[string]string{
+			"check_name":           checkName,
+			"instance":             checkTarget,
+			"job":                  job,
+			"probe":                probeName,
+			ProbeSuccessMetricName: "1",
+			"region":               region,
+			"source":               CheckInfoSource,
+		}
+	)
+
+	generateLabels := func(offset, count int, valuePrefix string) []sm.Label {
+		var labels []sm.Label
+		for i := range count {
+			n := strconv.Itoa(offset + i)
+			labels = append(labels, sm.Label{
+				Name:  "l" + n,
+				Value: valuePrefix + n,
+			})
+		}
+		return labels
+	}
+
+	// generateLabelSet generates a map of labels with and without the legacy label_ prefix to test
+	// behavioural compatibility in both situations.
+	generateLabelSet := func(offset, count int, valuePrefix string, labelPrefix bool) map[string]string {
+		prefix := "label_"
+		if !labelPrefix {
+			prefix = ""
+		}
+
+		labels := make(map[string]string)
+		for i := range count {
+			n := strconv.Itoa(offset + i)
+			labels[prefix+"l"+n] = valuePrefix + n
+		}
+		return labels
+	}
+
+	type testcase struct {
+		maxMetricLabels      int
+		maxLogLabels         int
+		checkLabels          []sm.Label
+		probeLabels          []sm.Label
+		expectedMetricLabels map[string]string
+		expectedInfoLabels   map[string]string
+		expectedLogLabels    map[string]string
+		expectedLogEntries   map[string]string
+	}
+
+	const (
+		defMaxMetricLabels = 20
+		defMaxLogLabels    = 15
+	)
+
+	makeTestCases := func(labelPrefix bool) map[string]testcase {
+		return map[string]testcase{
+			fmt.Sprintf("trivial (label_ prefix: %t)", labelPrefix): {
+				maxMetricLabels:      defMaxMetricLabels,
+				maxLogLabels:         defMaxLogLabels,
+				expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+				expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels),
+				expectedLogLabels:    mergeMaps(baseExpectedLogLabels),
+				expectedLogEntries:   mergeMaps(baseExpectedLogLabels),
+			},
+			fmt.Sprintf("probe labels (label_ prefix: %t)", labelPrefix): {
+				maxMetricLabels:      defMaxMetricLabels,
+				maxLogLabels:         defMaxLogLabels,
+				probeLabels:          generateLabels(1, 3, "p"),
+				expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+				expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(1, 3, "p", labelPrefix)),
+				expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "p", labelPrefix)),
+				expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "p", labelPrefix)),
+			},
+			fmt.Sprintf("check labels (label_ prefix: %t)", labelPrefix): {
+				maxMetricLabels:      defMaxMetricLabels,
+				maxLogLabels:         defMaxLogLabels,
+				checkLabels:          generateLabels(1, 3, "c"),
+				expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+				expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(1, 3, "c", labelPrefix)),
+				expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c", labelPrefix)),
+				expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c", labelPrefix)),
+			},
+			fmt.Sprintf("check and probe labels (label_ prefix: %t)", labelPrefix): {
+				maxMetricLabels:      defMaxMetricLabels,
+				maxLogLabels:         defMaxLogLabels,
+				checkLabels:          generateLabels(1, 2, "c"),
+				probeLabels:          generateLabels(3, 1, "p"),
+				expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+				expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(3, 1, "p", labelPrefix), generateLabelSet(1, 2, "c", labelPrefix)),
+				expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p", labelPrefix), generateLabelSet(1, 2, "c", labelPrefix)),
+				expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p", labelPrefix), generateLabelSet(1, 2, "c", labelPrefix)),
+			},
+			fmt.Sprintf("check and probe labels overlapping (label_ prefix: %t)", labelPrefix): {
+				maxMetricLabels:      defMaxMetricLabels,
+				maxLogLabels:         defMaxLogLabels,
+				checkLabels:          generateLabels(1, 2, "c"),
+				probeLabels:          generateLabels(2, 2, "p"),
+				expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+				expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(3, 1, "p", labelPrefix), generateLabelSet(1, 2, "c", labelPrefix)),
+				expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p", labelPrefix), generateLabelSet(1, 2, "c", labelPrefix)),
+				expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(3, 1, "p", labelPrefix), generateLabelSet(1, 2, "c", labelPrefix)),
+			},
+			fmt.Sprintf("max labels truncate (label_ prefix: %t)", labelPrefix): {
+				maxMetricLabels:      defMaxMetricLabels,
+				maxLogLabels:         defMaxLogLabels,
+				checkLabels:          generateLabels(0, 10, "c"),
+				probeLabels:          generateLabels(10, 3, "p"),
+				expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+				expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(0, 10, "c", labelPrefix), generateLabelSet(10, 3, "p", labelPrefix)),
+				expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 5, "c", labelPrefix), generateLabelSet(10, 3, "p", labelPrefix)),
+				expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c", labelPrefix), generateLabelSet(10, 3, "p", labelPrefix)),
+			},
+			fmt.Sprintf("max labels override (label_ prefix: %t)", labelPrefix): {
+				maxMetricLabels:      21,
+				maxLogLabels:         21,
+				checkLabels:          generateLabels(0, 10, "c"),
+				probeLabels:          generateLabels(10, 4, "p"),
+				expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+				expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(0, 10, "c", labelPrefix), generateLabelSet(10, 4, "p", labelPrefix)),
+				expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c", labelPrefix), generateLabelSet(10, 4, "p", labelPrefix)),
+				expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c", labelPrefix), generateLabelSet(10, 4, "p", labelPrefix)),
+			},
+		}
+	}
+
+	testcasesWithPrefix := makeTestCases(true)
+	testcasesWithoutPrefix := makeTestCases(false)
+
+	getMetricName := func(t *testing.T, ts prompb.TimeSeries) string {
+		for _, l := range ts.GetLabels() {
+			if l.GetName() != labels.MetricName {
+				continue
+			}
+
+			return l.GetValue()
+		}
+
+		require.Fail(t, "metric name not found")
+
+		return ""
+	}
+
+	validateMetrics := func(t *testing.T, ts prompb.TimeSeries, tc testcase) {
+		require.NotNil(t, ts)
+
+		metricName := getMetricName(t, ts)
+
+		actualLabels := make(map[string]string)
+		actualLabelsCount := 0
+		actualInfoLabels := make(map[string]string)
+		actualInfoLabelsCount := 0
+
+		// Verify that all the expected metric labels are present
+
+		for _, l := range ts.GetLabels() {
+			switch {
+			case l.GetName() == labels.MetricName:
+				// ignore
+
+			case l.GetName() == labels.BucketLabel:
+				// ignore
+
+			case metricName == CheckInfoMetricName:
+				expectedValue, isExpected := tc.expectedInfoLabels[l.GetName()]
+				require.Truef(t, isExpected, "metric=%s label=%s value=%s", metricName, l.GetName(), l.GetValue())
+				require.Equal(t, expectedValue, l.GetValue())
+				actualInfoLabels[l.GetName()] = l.GetValue()
+				actualInfoLabelsCount++
+
+			default:
+				expectedValue, isExpected := tc.expectedMetricLabels[l.GetName()]
+				require.Truef(t, isExpected, "unexpected label: metric=%s label=%s value=%s", metricName, l.GetName(), l.GetValue())
+				require.Equal(t, expectedValue, l.GetValue())
+				actualLabels[l.GetName()] = l.GetValue()
+				actualLabelsCount++
+			}
+		}
+
+		if metricName == CheckInfoMetricName {
+			require.Equal(t, tc.expectedInfoLabels, actualInfoLabels)
+			require.Equal(t, len(tc.expectedInfoLabels), actualInfoLabelsCount)
+		} else {
+			require.Equal(t, tc.expectedMetricLabels, actualLabels)
+			require.Equal(t, len(tc.expectedMetricLabels), actualLabelsCount)
+		}
+
+		for _, sample := range ts.GetSamples() {
+			// This encodes the assumption that there's a single timestamp included in the
+			// resulting metrics.
+			require.Equal(t, sampleTsMs, sample.Timestamp)
+		}
+	}
+
+	validateStreams := func(t *testing.T, s Scraper, stream logproto.Stream, tc testcase) {
+		sLabels, err := parser.ParseMetric(stream.Labels)
+		require.NoError(t, err)
+
+		// Verify that all the expected log labels are present as labels in the stream labels.
+		found := 0
+
+		sLabels.Range(func(label labels.Label) {
+			expected, ok := tc.expectedLogLabels[label.Name]
+			require.Truef(t, ok, "key=%s value=%s labels=%s", label.Name, label.Value, stream.Labels)
+			require.Equalf(t, expected, label.Value, "key=%s", label.Name)
+			found++
+		})
+
+		require.Equal(t, len(tc.expectedLogLabels), found, stream.Labels)
+
+		// Verify that all the expected log labels are present as part of the actual log entry.
+		for _, entry := range stream.Entries {
+			dec := logfmt.NewDecoder(strings.NewReader(entry.Line))
+			for dec.ScanRecord() {
+				labelsFound := 1 // probe_success is NOT included in the log entry
+				for dec.ScanKeyval() {
+					key := string(dec.Key())
+					val := string(dec.Value())
+					switch key {
+					case "level", "msg", "timeout_seconds", "duration_seconds", "walltime_seconds":
+					case "target":
+						require.Equal(t, s.target, val)
+					case "type":
+						require.Equal(t, s.prober.Name(), val)
+					default:
+						expected, found := tc.expectedLogEntries[key]
+						require.Truef(t, found, "key=%s value=%s", key, val)
+						require.Equalf(t, expected, val, "key=%s", key)
+						labelsFound++
+					}
+				}
+				require.Equal(t, len(tc.expectedLogEntries), labelsFound)
+			}
+			require.NoError(t, dec.Err())
+		}
+	}
+
+	// Shared runner to handle test cases from both sets, differing only by labelPrefixer value.
+	runScraperTestCases := func(t *testing.T, testcases map[string]testcase, labelPrefix string) {
+		for name, tc := range testcases {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+
+				s := Scraper{
+					checkName: checkName,
+					target:    "test target",
+					logger:    testhelper.Logger(t),
+					prober:    testProber{},
+					labelsLimiter: testLabelsLimiter{
+						maxMetricLabels: tc.maxMetricLabels,
+						maxLogLabels:    tc.maxLogLabels,
+					},
+					summaries:  make(map[uint64]prometheus.Summary),
+					histograms: make(map[uint64]prometheus.Histogram),
+					check: model.Check{
+						Check: sm.Check{
+							Id:               1,
+							TenantId:         2,
+							Frequency:        frequency,
+							Timeout:          frequency,
+							Enabled:          true,
+							Target:           checkTarget,
+							Job:              job,
+							BasicMetricsOnly: true,
+							Created:          modifiedTs,
+							Modified:         modifiedTs,
+							Labels:           tc.checkLabels,
+							// [Check.Type] panics if all settings are nil. To work around that, we add an empty, non nil
+							// HTTP settings section.
+							Settings: sm.CheckSettings{
+								Http: &sm.HttpSettings{},
+							},
+						},
+					},
+					probe: sm.Probe{
+						Id:        100,
+						TenantId:  200,
+						Name:      probeName,
+						Latitude:  probeLatitude,
+						Longitude: probeLongitde,
+						Region:    region,
+						Labels:    tc.probeLabels,
+					},
+					labelPrefixer: testLabelPrefixer{prefix: labelPrefix},
+				}
+
+				data, duration, err := s.collectData(context.Background(), time.Unix(sampleTsMs/1000, 0))
+				require.NoError(t, err)
+				require.NotNil(t, data)
+				require.NotZero(t, duration)
+
+				for _, ts := range data.Metrics() {
+					validateMetrics(t, ts, tc)
+				}
+
+				for _, stream := range data.Streams() {
+					validateStreams(t, s, stream, tc)
+				}
+			})
+		}
+	}
+
+	runScraperTestCases(t, testcasesWithPrefix, "label_")
+	runScraperTestCases(t, testcasesWithoutPrefix, "")
 }
 
 // these are generated using
@@ -1890,6 +2197,7 @@ func TestScraperRun(t *testing.T) {
 		CostAttributionLabels: testCalTenants{
 			costAttributionLabels: []string{"testing", "you"},
 		},
+		labelPrefixer: testLabelPrefixer{prefix: "label_"},
 	})
 
 	require.NoError(t, err)
