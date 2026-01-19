@@ -49,7 +49,7 @@ jobs:
       id-token: none
     services:
       docker:
-        image: docker:dind@sha256:40916fb078cdd27640d069bba401324a15a06d3ecbd8895048122c8d321f43f8
+        image: docker:dind@sha256:3a33fc81fa4d38360f490f5b900e9846f725db45bb1d9b1fe02d849bd42a5cf2
         options: --privileged --shm-size=2g
         volumes:
           - /var/run/docker.sock:/var/run/docker.sock:ro
