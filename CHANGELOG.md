@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.51.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.50.0...v0.51.0) (2026-01-19)
+
+
+### Features
+
+* Add channels to proto ([#1656](https://github.com/grafana/synthetic-monitoring-agent/issues/1656)) ([acb098f](https://github.com/grafana/synthetic-monitoring-agent/commit/acb098f915253084ff85b950466d204a64acef5b))
+
+
+### Fixes
+
+* Use synctest in TestHandleCheckOp ([#1663](https://github.com/grafana/synthetic-monitoring-agent/issues/1663)) ([9328a21](https://github.com/grafana/synthetic-monitoring-agent/commit/9328a21aa8d5f16c978de0bd4d25bb1da2617f0f))
+
+
+### Miscellaneous Chores
+
+* Update actions/cache action to v5 ([#1653](https://github.com/grafana/synthetic-monitoring-agent/issues/1653)) ([8957cb1](https://github.com/grafana/synthetic-monitoring-agent/commit/8957cb16a4c2943100d29a4f4f2bd115d27b994b))
+* Update dependency grafana/xk6-sm to v0.6.14 ([#1650](https://github.com/grafana/synthetic-monitoring-agent/issues/1650)) ([5343763](https://github.com/grafana/synthetic-monitoring-agent/commit/53437638cc24405a3f6868748a11bb67ccc5f4e8))
+* Update GitHub Artifact Actions ([#1654](https://github.com/grafana/synthetic-monitoring-agent/issues/1654)) ([94533ba](https://github.com/grafana/synthetic-monitoring-agent/commit/94533ba72188b6659d75678278686ad85e27e5f5))
+* Update module golang.org/x/net to v0.48.0 ([#1652](https://github.com/grafana/synthetic-monitoring-agent/issues/1652)) ([b07de3b](https://github.com/grafana/synthetic-monitoring-agent/commit/b07de3b139a6f5b38b48012e91cbf1043d0e6290))
+
 ## [0.50.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.49.0...v0.50.0) (2026-01-08)
 
 
