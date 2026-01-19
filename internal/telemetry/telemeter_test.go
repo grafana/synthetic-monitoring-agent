@@ -16,12 +16,16 @@ func TestTelemeterAddExecution(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		verifyTelemeter := func(t *testing.T, tele *Telemeter, nRegionPushers int) {
 			t.Helper()
+			tele.pushersMu.RLock()
+			defer tele.pushersMu.RUnlock()
 			require.Equal(t, len(tele.pushers), nRegionPushers)
 		}
 
 		verifyRegionPusher := func(t *testing.T, tele *Telemeter, regionID int32, ee ...Execution) {
 			t.Helper()
+			tele.pushersMu.RLock()
 			p, ok := tele.pushers[regionID]
+			tele.pushersMu.RUnlock()
 			require.True(t, ok)
 
 			// sum expected executions data, indexed by tenant -> checkClass -> calKey
@@ -50,7 +54,11 @@ func TestTelemeterAddExecution(t *testing.T) {
 				calTele.Duration += float32(e.Duration.Seconds())
 			}
 
-			// verify
+			// verify - must lock before reading p.telemetry to avoid data race
+			// with the background goroutine that calls next()
+			p.telemetryMu.Lock()
+			defer p.telemetryMu.Unlock()
+
 			for tenantID, expTTele := range regionTele {
 				gotTTele, ok := p.telemetry[tenantID]
 				require.True(t, ok, "telemetry not found for tenant %d", tenantID)
@@ -84,7 +92,12 @@ func TestTelemeterAddExecution(t *testing.T) {
 		//
 		// Do not use t.Context() here because that's derived from the main context created outside the bubble.
 		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
+		defer func() {
+			// Cancel context and wait for all goroutines to exit before test returns.
+			// This prevents race conditions between goroutine logging and test cleanup.
+			cancel()
+			synctest.Wait()
+		}()
 
 		tele := NewTelemeter(ctx, instance, timeSpan, testClient, testhelper.Logger(t), registerer)
 
