@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.51.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.51.0...v0.51.1) (2026-01-27)
+
+
+### Fixes
+
+* Prevent random telemetry test failures ([5d7b614](https://github.com/grafana/synthetic-monitoring-agent/commit/5d7b614d6ea2c300425e60aaba9bf207361d87a0))
+
+
+### Miscellaneous Chores
+
+* Update actions/cache action to v5.0.2 ([aab10fe](https://github.com/grafana/synthetic-monitoring-agent/commit/aab10fe296f2c07cd147393d57c9dbe49df7846b))
+* Update actions/checkout action to v6.0.2 ([b1b24a3](https://github.com/grafana/synthetic-monitoring-agent/commit/b1b24a37881b01f883dc0497f3a454be86d687e4))
+* Update actions/setup-go action to v6.2.0 ([c515d9b](https://github.com/grafana/synthetic-monitoring-agent/commit/c515d9b18036d3abb9572c7b6f6f863ffca8a78b))
+* Update alpine Docker tag to v3.23.2 ([6eb174f](https://github.com/grafana/synthetic-monitoring-agent/commit/6eb174fe8722d75ae55123dae16a6d48f1b86c36))
+* Update dependency grafana/xk6-sm to v0.6.15 ([eea3f71](https://github.com/grafana/synthetic-monitoring-agent/commit/eea3f714bf12c121d32844b0b42b439690351544))
+* Update docker:dind Docker digest to 3a33fc8 ([d4ce666](https://github.com/grafana/synthetic-monitoring-agent/commit/d4ce666928299b96e5eb326ba06b573676429dd3))
+* Update docker/setup-buildx-action action to v3.12.0 ([f7986c9](https://github.com/grafana/synthetic-monitoring-agent/commit/f7986c92835fe079ad3575b06dae8108d862f12e))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v143 ([ba57729](https://github.com/grafana/synthetic-monitoring-agent/commit/ba577298a7b1a326925c26c790c222af0048f697))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:142.0.7444.59-r0-3.22.2 Docker digest to fa55b08 ([#1660](https://github.com/grafana/synthetic-monitoring-agent/issues/1660)) ([de960b0](https://github.com/grafana/synthetic-monitoring-agent/commit/de960b035de2ba2f0972d724158f8f95c48ce188))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:143.0.7499.169-r0-3.23.2 Docker digest to 304cadc ([8a943c3](https://github.com/grafana/synthetic-monitoring-agent/commit/8a943c38c04f633bb9814ade514578869a04e130))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:143.0.7499.169-r0-3.23.2 Docker digest to 4c106aa ([#1676](https://github.com/grafana/synthetic-monitoring-agent/issues/1676)) ([79a79a6](https://github.com/grafana/synthetic-monitoring-agent/commit/79a79a6f26231be9b234af33f6c8fc8db8fc1d76))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.28.1 ([d76ba1e](https://github.com/grafana/synthetic-monitoring-agent/commit/d76ba1e8fe552ae43b09a6516c89e4368cb106e2))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.28.3 ([fecda84](https://github.com/grafana/synthetic-monitoring-agent/commit/fecda84e9b1d4ed3d47e74b3321aeda9bab37a3c))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.28.4 ([dc95399](https://github.com/grafana/synthetic-monitoring-agent/commit/dc95399c19d44e0950c12d477a384550646522b4))
+* Update golang.org/x/exp digest to 944ab1f ([#1655](https://github.com/grafana/synthetic-monitoring-agent/issues/1655)) ([9073cc3](https://github.com/grafana/synthetic-monitoring-agent/commit/9073cc3b9fa23f5e482524727fd0a54b40c119d2))
+* Update grafana/shared-workflows digest to 3105e25 ([8fdfc10](https://github.com/grafana/synthetic-monitoring-agent/commit/8fdfc1033651b9bc5ff183505813a163e3ee4597))
+* Update module github.com/maypok86/otter/v2 to v2.3.0 ([cfde4c3](https://github.com/grafana/synthetic-monitoring-agent/commit/cfde4c3e8ae07f288d1b8710c052d58b69ecf75c))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.20.0 ([5d79bae](https://github.com/grafana/synthetic-monitoring-agent/commit/5d79baefd46a77b7012402ba17098955ba7df618))
+* Update module github.com/miekg/dns to v1.1.70 ([#1651](https://github.com/grafana/synthetic-monitoring-agent/issues/1651)) ([af9adb1](https://github.com/grafana/synthetic-monitoring-agent/commit/af9adb1feb39ac81ef41cdf46c1796f9897678ff))
+* Update module github.com/miekg/dns to v1.1.72 ([5139077](https://github.com/grafana/synthetic-monitoring-agent/commit/513907766937abcbc9c6f8414d4a4bdeb7b65782))
+* Update module github.com/puzpuzpuz/xsync/v4 to v4.3.0 ([cdeb611](https://github.com/grafana/synthetic-monitoring-agent/commit/cdeb6114d7dfa6a9963eda270d5cd5c9b5fe4747))
+* Update module google.golang.org/grpc to v1.78.0 ([785e848](https://github.com/grafana/synthetic-monitoring-agent/commit/785e8485c2b51f834bd12802137ec5c2de2afe70))
+
 ## [0.51.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.50.0...v0.51.0) (2026-01-19)
 
 
