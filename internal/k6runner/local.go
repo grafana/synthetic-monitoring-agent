@@ -35,7 +35,7 @@ func (r Local) WithLogger(logger *zerolog.Logger) Runner {
 	return r
 }
 
-func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
+func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, versionManifest string) (*RunResponse, error) {
 	logger := r.logger.With().Object("checkInfo", &script.CheckInfo).Logger()
 
 	afs := afero.Afero{Fs: r.fs}

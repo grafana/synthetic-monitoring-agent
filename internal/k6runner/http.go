@@ -64,7 +64,7 @@ func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
 
 var ErrUnexpectedStatus = errors.New("unexpected status code")
 
-func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
+func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretStore, versionManifest string) (*RunResponse, error) {
 	if r.backoff == 0 {
 		panic("zero backoff, runner is misconfigured, refusing to DoS")
 	}

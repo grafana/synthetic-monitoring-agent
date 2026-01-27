@@ -132,7 +132,7 @@ type testRunner struct {
 
 var _ Runner = &testRunner{}
 
-func (r *testRunner) Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
+func (r *testRunner) Run(ctx context.Context, script Script, secretStore SecretStore, versionManifest string) (*RunResponse, error) {
 	return &RunResponse{
 		Metrics: r.metrics,
 		Logs:    r.logs,

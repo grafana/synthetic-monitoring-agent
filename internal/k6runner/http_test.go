@@ -80,7 +80,7 @@ func TestHttpRunnerRun(t *testing.T) {
 	ctx, cancel := testhelper.Context(ctx, t)
 	t.Cleanup(cancel)
 
-	_, err := runner.Run(ctx, script, SecretStore{})
+	_, err := runner.Run(ctx, script, SecretStore{}, "*")
 	require.NoError(t, err)
 }
 
@@ -129,7 +129,7 @@ func TestHttpRunnerRunError(t *testing.T) {
 	ctx, cancel = testhelper.Context(ctx, t)
 	t.Cleanup(cancel)
 
-	_, err := runner.Run(ctx, script, SecretStore{})
+	_, err := runner.Run(ctx, script, SecretStore{}, "*")
 	require.ErrorIs(t, err, ErrUnexpectedStatus)
 }
 

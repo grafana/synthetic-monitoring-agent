@@ -91,7 +91,7 @@ var ErrNoTimeout = errors.New("check has no timeout")
 
 type Runner interface {
 	WithLogger(logger *zerolog.Logger) Runner
-	Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error)
+	Run(ctx context.Context, script Script, secretStore SecretStore, versionManifest string) (*RunResponse, error)
 }
 
 type RunnerOpts struct {
@@ -152,7 +152,7 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 	k6runner := r.runner.WithLogger(&internalLogger)
 
 	// TODO: This error message is okay to be Debug for local k6 execution, but should be Error for remote runners.
-	result, err := k6runner.Run(ctx, r.script, secretStore)
+	result, err := k6runner.Run(ctx, r.script, secretStore, "*")
 	if err != nil {
 		internalLogger.Debug().
 			Err(err).
