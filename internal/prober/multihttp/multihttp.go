@@ -52,6 +52,8 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 		return p, err
 	}
 
+	const multiHTTPManifest = "^1.0.0" // From v1 and up to, but _not_ including, v2.
+
 	p.module = Module{
 		Prober: sm.CheckTypeMultiHttp.String(),
 		Script: k6runner.Script{
@@ -59,7 +61,8 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 			Settings: k6runner.Settings{
 				Timeout: check.Timeout,
 			},
-			CheckInfo: k6runner.CheckInfoFromSM(check),
+			CheckInfo:         k6runner.CheckInfoFromSM(check),
+			K6ChannelManifest: multiHTTPManifest,
 		},
 	}
 
