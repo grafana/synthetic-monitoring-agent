@@ -29,9 +29,12 @@ type Script struct {
 	Settings Settings `json:"settings"`
 	// CheckInfo holds information about the SM check that triggered this script.
 	CheckInfo CheckInfo `json:"check"`
-	// SecretStore holds the location and token for accessing secrets
+	// K6ChannelManifest is the manifest for the k6 channel associated with this script. This must be a semver
+	// constraint, that is used in runtime to figure which k6 binary, of those available, is used to run the script.
+	K6ChannelManifest string `json:"k6ChannelManifest"`
 }
 
+// SecretStore holds the location and token for accessing secrets
 type SecretStore struct {
 	Url   string `json:"url"`
 	Token string `json:"token"`

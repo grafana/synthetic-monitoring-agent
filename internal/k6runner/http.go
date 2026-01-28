@@ -69,6 +69,11 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 		panic("zero backoff, runner is misconfigured, refusing to DoS")
 	}
 
+	// FIXME: Make this an error after we fully roll out k6 versioning.
+	if script.K6ChannelManifest == "" || script.K6ChannelManifest == "*" {
+		r.logger.Debug().Msg("Check does not define a channel, latest k6 version will be used and it may change without warning")
+	}
+
 	if deadline, hasDeadline := ctx.Deadline(); !hasDeadline {
 		defaultAllRetriesTimeout := time.Duration(script.Settings.Timeout) * time.Millisecond * 2
 		r.logger.Error().
