@@ -45,6 +45,18 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 				Timeout: check.Timeout,
 			},
 			CheckInfo: k6runner.CheckInfoFromSM(check),
+			K6ChannelManifest: func(ch *sm.Channels) string {
+				if ch == nil || ch.K6 == nil {
+					checkInfo := k6runner.CheckInfoFromSM(check)
+					logger.Warn().
+						Object("checkInfo", &checkInfo).
+						Msg("Channel manifest unexpectedly empty for check. Please select a version for it.")
+
+					return ""
+				}
+
+				return ch.K6.Manifest
+			}(check.Channels),
 		},
 	}
 
