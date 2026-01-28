@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.51.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.51.1...v0.51.2) (2026-01-28)
+
+
+### Fixes
+
+* Fail if memcached is requested but not available ([c38910c](https://github.com/grafana/synthetic-monitoring-agent/commit/c38910cd9f90e795ba60d417c84bb1d41b8dd53d))
+
+
+### Miscellaneous Chores
+
+* Update alpine Docker tag to v3.23.3 ([3d531e5](https://github.com/grafana/synthetic-monitoring-agent/commit/3d531e537bd82211c4fc3b8f38dd26f2575ebe14))
+* Update docker:dind Docker digest to 6a58fe0 ([e3fc8a1](https://github.com/grafana/synthetic-monitoring-agent/commit/e3fc8a102f30733c3b71769fd937aaa2687a9fd3))
+* Update docker:dind Docker digest to a284d31 ([9aa6b63](https://github.com/grafana/synthetic-monitoring-agent/commit/9aa6b634dd769ba4405cc3f190b8aee923c10f65))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.29.0 ([1fb789c](https://github.com/grafana/synthetic-monitoring-agent/commit/1fb789cfa9aa4a69b7cb5502389aa2ce42fe0454))
+* Update module github.com/puzpuzpuz/xsync/v4 to v4.4.0 ([cd0b76d](https://github.com/grafana/synthetic-monitoring-agent/commit/cd0b76ddc8fbe2f6b2d33ab63b306607643be722))
+
 ## [0.51.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.51.0...v0.51.1) (2026-01-27)
 
 
