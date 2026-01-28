@@ -14,7 +14,7 @@ import (
 var VariableRegex = regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_-]*)\}`)
 
 // SecretRegex matches ${secrets.secret_name} patterns
-var SecretRegex = regexp.MustCompile(`\$\{secrets\.([^}]*)\}`)
+var SecretRegex = regexp.MustCompile(`\$\{secrets\.([a-zA-Z0-9_][a-zA-Z0-9_\.\-]*)\}`)
 
 // VariableProvider defines the interface for resolving variables
 type VariableProvider interface {
@@ -219,6 +219,121 @@ func ToJavaScript(value string) string {
 	return s.String()
 }
 
+// ToJavaScriptWithSecrets converts a string with both variable and secret interpolation to JavaScript code
+// This is used by multihttp to generate JavaScript that references both variables and secrets
+func ToJavaScriptWithSecrets(value string) string {
+	if len(value) == 0 {
+		return `''`
+	}
+
+	var s strings.Builder
+	buf := []byte(value)
+
+	// First handle secret variables
+	p := handleSecretVariables(&s, buf, 0)
+
+	// Then handle regular variables in the remaining text
+	handleRegularVariables(&s, buf[p:])
+
+	return s.String()
+}
+
+// handleSecretVariables processes secret variables in the buffer and returns the position after the last secret
+func handleSecretVariables(s *strings.Builder, buf []byte, startPos int) int {
+	locs := SecretRegex.FindAllSubmatchIndex(buf, -1)
+	p := startPos
+
+	for _, loc := range locs {
+		if len(loc) < 4 {
+			panic("unexpected result while building JavaScript")
+		}
+
+		writePlusIfNeeded(s)
+		writeTextBeforeMatch(s, buf, p, loc[0])
+
+		// Generate async secret lookup
+		s.WriteString(`await secrets.get('`)
+		s.Write(buf[loc[2]:loc[3]])
+		s.WriteString(`')`)
+
+		p = loc[1]
+	}
+
+	// Write any remaining text after secrets
+	if len(buf[p:]) > 0 {
+		writePlusIfNeeded(s)
+		writeQuotedText(s, buf[p:])
+	}
+
+	return p
+}
+
+// handleRegularVariables processes regular variables in the remaining text
+func handleRegularVariables(s *strings.Builder, remainingText []byte) {
+	if len(remainingText) == 0 {
+		return
+	}
+
+	regularLocs := VariableRegex.FindAllSubmatchIndex(remainingText, -1)
+
+	if len(regularLocs) > 0 {
+		processRegularVariableMatches(s, remainingText, regularLocs)
+	} else {
+		// No regular variables, just append the remaining text
+		writePlusIfNeeded(s)
+		writeQuotedText(s, remainingText)
+	}
+}
+
+// processRegularVariableMatches processes the matches found by VariableRegex
+func processRegularVariableMatches(s *strings.Builder, remainingText []byte, regularLocs [][]int) {
+	writePlusIfNeeded(s)
+
+	p2 := 0
+	for _, loc := range regularLocs {
+		if len(loc) < 4 {
+			panic("unexpected result while building JavaScript")
+		}
+
+		writePlusIfNeeded(s)
+		writeTextBeforeMatch(s, remainingText, p2, loc[0])
+
+		s.WriteString(`vars['`)
+		s.Write(remainingText[loc[2]:loc[3]])
+		s.WriteString(`']`)
+
+		p2 = loc[1]
+	}
+
+	// Write any remaining text after the last variable
+	if len(remainingText[p2:]) > 0 {
+		writePlusIfNeeded(s)
+		writeQuotedText(s, remainingText[p2:])
+	}
+}
+
+// writePlusIfNeeded writes a plus sign if the builder already has content
+func writePlusIfNeeded(s *strings.Builder) {
+	if s.Len() > 0 {
+		s.WriteRune('+')
+	}
+}
+
+// writeTextBeforeMatch writes the text before a regex match, quoted and escaped
+func writeTextBeforeMatch(s *strings.Builder, buf []byte, start, matchStart int) {
+	if pre := buf[start:matchStart]; len(pre) > 0 {
+		writeQuotedText(s, pre)
+		s.WriteRune('+')
+	}
+}
+
+// writeQuotedText writes text as a quoted JavaScript string with proper escaping
+func writeQuotedText(s *strings.Builder, text []byte) {
+	s.WriteRune('\'')
+	escapeJavaScript(s, text)
+	s.WriteRune('\'')
+}
+
 // escapeJavaScript escapes a byte slice for use in JavaScript strings
 func escapeJavaScript(s *strings.Builder, buf []byte) {
 	for _, b := range buf {
@@ -235,10 +350,18 @@ func escapeJavaScript(s *strings.Builder, buf []byte) {
 			s.WriteString(`\r`)
 		case '\t':
 			s.WriteString(`\t`)
+		case '=':
+			s.WriteString(`\u003D`)
+		case '>':
+			s.WriteString(`\u003E`)
+		case '<':
+			s.WriteString(`\u003C`)
+		case '&':
+			s.WriteString(`\u0026`)
 		default:
-			if b < 32 || b > 126 {
-				// Escape non-printable characters
-				fmt.Fprintf(s, `\x%02x`, b)
+			if b < 32 {
+				// Escape control characters using Unicode escape
+				fmt.Fprintf(s, `\u%04X`, b)
 			} else {
 				s.WriteByte(b)
 			}
