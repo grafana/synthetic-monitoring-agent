@@ -252,8 +252,7 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	// Initialize cache client (always non-nil, with fallback chain: memcached → local → noop)
-	cacheClient := setupCache(
+	cacheClient, err := setupCache(
 		ctx,
 		config.CacheType,
 		config.MemcachedServers,
@@ -261,6 +260,9 @@ func run(args []string, stdout io.Writer) error {
 		config.CacheLocalTTL,
 		&zl,
 	)
+	if err != nil {
+		return err
+	}
 
 	// to know if probe is connected to API
 	readynessHandler := NewReadynessHandler()
@@ -520,7 +522,7 @@ func setupGoMemLimit(ratio float64) error {
 	return nil
 }
 
-func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) cache.Cache {
+func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) (cache.Cache, error) {
 	// Determine effective cache type with auto mode logic:
 	// auto + servers provided -> memcached -> local -> noop
 	// auto + no servers -> local -> noop
@@ -537,7 +539,7 @@ func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []st
 	case cache.KindMemcached:
 		if len(memcachedServers) == 0 {
 			logger.Warn().Msg("memcached type selected but no servers configured, falling back to local cache")
-			return setupLocalCache(localCapacity, localTTL, logger)
+			return setupLocalCache(localCapacity, localTTL, logger), nil
 		}
 
 		cacheConfig := cache.MemcachedConfig{
@@ -551,28 +553,30 @@ func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []st
 			logger.Warn().
 				Err(err).
 				Strs("servers", memcachedServers).
-				Msg("failed to initialize memcached cache, falling back to local cache")
-			return setupLocalCache(localCapacity, localTTL, logger)
+				Msg("failed to initialize memcached cache")
+
+			return nil, fmt.Errorf("failed to initialize memcached client: %w", err)
 		}
 
 		logger.Info().
 			Strs("servers", memcachedServers).
 			Msg("memcached cache initialized")
-		return cacheClient
+
+		return cacheClient, nil
 
 	case cache.KindLocal:
-		return setupLocalCache(localCapacity, localTTL, logger)
+		return setupLocalCache(localCapacity, localTTL, logger), nil
 
 	case cache.KindNoop:
 		logger.Debug().Msg("noop cache selected")
-		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger())
+		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger()), nil
 
 	default:
 		logger.Warn().
 			Stringer("type", effectiveType).
 			Msg("unknown cache type, falling back to local cache")
 
-		return setupLocalCache(localCapacity, localTTL, logger)
+		return setupLocalCache(localCapacity, localTTL, logger), nil
 	}
 }
 
