@@ -29,6 +29,7 @@ func TestHttpRunnerRun(t *testing.T) {
 		Settings: Settings{
 			Timeout: 1000,
 		},
+		K6ChannelManifest: "test",
 	}
 
 	mux := http.NewServeMux()
@@ -37,9 +38,10 @@ func TestHttpRunnerRun(t *testing.T) {
 		require.Equal(t, "application/json", r.Header.Get("Content-Type"))
 
 		var req struct {
-			Script   []byte    `json:"script"`
-			Settings Settings  `json:"settings"`
-			NotAfter time.Time `json:"notAfter"`
+			Script            []byte    `json:"script"`
+			Settings          Settings  `json:"settings"`
+			NotAfter          time.Time `json:"notAfter"`
+			K6ChannelManifest string    `json:"k6ChannelManifest"`
 		}
 
 		err := json.NewDecoder(r.Body).Decode(&req)
@@ -52,6 +54,13 @@ func TestHttpRunnerRun(t *testing.T) {
 
 		if time.Since(req.NotAfter) > time.Hour || time.Until(req.NotAfter) > time.Hour {
 			t.Log("unexpected value for NotAfter too far from the present")
+			t.Fail()
+			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
+			return
+		}
+
+		if req.K6ChannelManifest == "" {
+			t.Log("Unexpected empty channel manifest")
 			t.Fail()
 			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
 			return
