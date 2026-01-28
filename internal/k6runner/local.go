@@ -38,6 +38,11 @@ func (r Local) WithLogger(logger *zerolog.Logger) Runner {
 func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
 	logger := r.logger.With().Object("checkInfo", &script.CheckInfo).Logger()
 
+	// FIXME: Remove after implementing version management for local runners.
+	if script.K6ChannelManifest != "" {
+		logger.Warn().Msg("This probe does not support k6 versioning, the included version will be used.")
+	}
+
 	afs := afero.Afero{Fs: r.fs}
 
 	checkTimeout := time.Duration(script.Settings.Timeout) * time.Millisecond
