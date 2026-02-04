@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.51.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.51.2...v0.51.3) (2026-02-04)
+
+
+### Miscellaneous Chores
+
+* Update actions/cache action to v5.0.3 ([13887d6](https://github.com/grafana/synthetic-monitoring-agent/commit/13887d6a52417f1b7aa739f6c5d857761c27c79b))
+* Update actions/checkout digest to de0fac2 ([60bd058](https://github.com/grafana/synthetic-monitoring-agent/commit/60bd0585f2ed62c313a15aaec86717c1823b99ef))
+* Update dependency grafana/xk6-sm to v0.6.16 ([77966a5](https://github.com/grafana/synthetic-monitoring-agent/commit/77966a50d00d55657b1f5c36d091a6698963640b))
+* Update docker:dind Docker digest to 8bcbad4 ([b7fb0d4](https://github.com/grafana/synthetic-monitoring-agent/commit/b7fb0d4d5ab8f0b12c4d24a722738a519c87f10e))
+* Update grafana/shared-workflows digest to ac51935 ([8f59108](https://github.com/grafana/synthetic-monitoring-agent/commit/8f59108966b4e4cb4e26396daa5e940b8bc36e8c))
+
 ## [0.51.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.51.1...v0.51.2) (2026-01-28)
 
 
