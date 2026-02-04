@@ -2,6 +2,7 @@ package checks
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 
 	logproto "github.com/grafana/loki/pkg/push"
@@ -87,6 +90,7 @@ type Updater struct {
 	usageReporter           usage.Reporter
 	tenantCals              *cals.CostAttributionLabels
 	supportsProtocolSecrets bool
+	connectTimeout          time.Duration
 }
 
 type apiInfo struct {
@@ -125,6 +129,7 @@ type UpdaterOptions struct {
 	UsageReporter           usage.Reporter
 	CostAttributionLabels   *cals.CostAttributionLabels
 	SupportsProtocolSecrets bool
+	GrpcConnectTimeout      time.Duration
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -249,6 +254,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantSecrets:           opts.SecretProvider,
 		telemeter:               opts.Telemeter,
 		supportsProtocolSecrets: opts.SupportsProtocolSecrets,
+		connectTimeout:          opts.GrpcConnectTimeout,
 		metrics: metrics{
 			changeErrorsCounter: changeErrorsCounter,
 			changesCounter:      changesCounter,
@@ -263,12 +269,52 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	}, nil
 }
 
+// logConnectionSecurity logs information about the connection's TLS configuration.
+// This provides visibility into the negotiated TLS version for security monitoring.
+func logConnectionSecurity(ctx context.Context, logger zerolog.Logger) {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		logger.Debug().Msg("no peer information available")
+		return
+	}
+
+	tlsInfo, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		logger.Info().Str("security", "insecure").Msg("connection established without TLS")
+		return
+	}
+
+	var tlsVersion string
+	switch tlsInfo.State.Version {
+	case tls.VersionTLS10:
+		tlsVersion = "TLS 1.0"
+	case tls.VersionTLS11:
+		tlsVersion = "TLS 1.1"
+	case tls.VersionTLS12:
+		tlsVersion = "TLS 1.2"
+	case tls.VersionTLS13:
+		tlsVersion = "TLS 1.3"
+	default:
+		tlsVersion = fmt.Sprintf("unknown (0x%04x)", tlsInfo.State.Version)
+	}
+
+	logger.Info().
+		Str("tls_version", tlsVersion).
+		Str("cipher_suite", tls.CipherSuiteName(tlsInfo.State.CipherSuite)).
+		Str("server_name", tlsInfo.State.ServerName).
+		Bool("handshake_complete", tlsInfo.State.HandshakeComplete).
+		Msg("secure connection established")
+}
+
 func (c *Updater) Run(ctx context.Context) error {
 	c.backoff.Reset()
 
 	for {
 		wasConnected, err := c.loop(ctx)
 
+		// Connection state is logged for debugging/observability only.
+		// Do not make decisions based on connection state - it provides no guarantees.
+		// Trust RPC-level error handling instead, as connections are dynamic.
 		logger := c.logger.With().Str("connection_state", c.api.conn.GetState().String()).Logger()
 
 		logger.Info().Err(err).Bool("was_connected", wasConnected).Msg("broke out of loop")
@@ -302,9 +348,11 @@ func handleError(ctx context.Context, logger zerolog.Logger, backoff Backoffer, 
 		return true, nil
 
 	case errors.As(err, &transientErr):
-		logger.Warn().Err(err).Msg("transient error, trying to reconnect")
+		dur := backoff.Duration()
 
-		if err := sleepCtx(ctx, backoff.Duration()); err != nil {
+		logger.Warn().Err(err).Dur("backoff", dur).Msg("transient error, trying to reconnect")
+
+		if err := sleepCtx(ctx, dur); err != nil {
 			return true, err
 		}
 
@@ -348,42 +396,61 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	client := sm.NewChecksClient(c.api.conn)
 
 	grpcErrorHandler := func(action string, err error) error {
-		status, ok := status.FromError(err)
-		c.logger.Error().Err(err).Str("action", action).Uint32("code", uint32(status.Code())).Msg(status.Message())
-
-		switch {
-		case !ok:
+		st, ok := status.FromError(err)
+		if !ok {
+			c.logger.Error().Err(err).Str("action", action).Msg("non-grpc error")
 			return fmt.Errorf("%s: %w", action, err)
+		}
 
-		case status.Code() == codes.Canceled:
-			// either we were told to shut down
+		c.logger.Error().
+			Err(err).
+			Str("action", action).
+			Uint32("code", uint32(st.Code())).
+			Msg(st.Message())
+
+		switch st.Code() {
+		case codes.Canceled:
+			// Context was cancelled
 			return context.Canceled
 
-		case status.Message() == "transport is closing":
-			// the other end is shutting down
-			return errTransportClosing
+		case codes.Unavailable, codes.DeadlineExceeded:
+			// Network errors, connection resets, transport closing, etc.
+			// All these are transient and should trigger retry logic
+			return TransientError(fmt.Sprintf("%s: %s", action, st.Message()))
 
-		case status.Code() == codes.Unavailable:
-			// Network errors, connection resets, etc. are transient
-			return TransientError(fmt.Sprintf("%s: %s", action, status.Message()))
-
-		case status.Code() == codes.PermissionDenied:
+		case codes.PermissionDenied, codes.Unauthenticated:
+			// Authentication/authorization failures
 			return errNotAuthorized
 
-		case status.Code() == codes.Unimplemented:
+		case codes.Unimplemented:
+			// API doesn't support required features
 			return errIncompatibleApi
 
 		default:
-			return status.Err()
+			// Return the original status error to preserve all details
+			return st.Err()
 		}
 	}
 
-	result, err := client.RegisterProbe(ctx, &sm.ProbeInfo{
+	// Create a timeout context for RegisterProbe if configured.
+	// This ensures we don't wait indefinitely if the server is unreachable.
+	registerCtx := ctx
+	var cancel context.CancelFunc
+
+	if c.connectTimeout > 0 {
+		registerCtx, cancel = context.WithTimeout(ctx, c.connectTimeout)
+		defer cancel()
+		c.logger.Info().
+			Dur("timeout", c.connectTimeout).
+			Msg("using explicit connection timeout for RegisterProbe")
+	}
+
+	result, err := client.RegisterProbe(registerCtx, &sm.ProbeInfo{
 		Version:                 version.Short(),
 		Commit:                  version.Commit(),
 		Buildstamp:              version.Buildstamp(),
 		SupportsProtocolSecrets: c.supportsProtocolSecrets,
-	})
+	}, grpc.WaitForReady(true)) // Wait for connection on critical startup RPC (respects context timeout)
 	if err != nil {
 		return connected, grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
 	}
@@ -408,6 +475,9 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
 
 	logger.Info().Str("probe_name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
+
+	// Log TLS connection information for security monitoring
+	logConnectionSecurity(ctx, logger)
 
 	c.metrics.connectionStatus.Set(1)
 	defer c.metrics.connectionStatus.Set(0)
@@ -467,7 +537,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		})
 	}
 
-	cc, err := client.GetChanges(sigCtx, &knownChecks)
+	cc, err := client.GetChanges(sigCtx, &knownChecks, grpc.WaitForReady(true))
 	if err != nil {
 		return connected, errorHandler(err, "requesting changes from synthetic-monitoring-api", signalFired)
 	}
