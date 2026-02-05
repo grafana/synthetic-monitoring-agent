@@ -48,6 +48,19 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 		},
 	}
 
+	// Set channel manifest to empty string handling potential nils in the check model.
+	p.module.Script.K6ChannelManifest = func() string {
+		if check.Channels == nil || check.Channels.K6 == nil {
+			logger.Warn().
+				Object("checkInfo", &p.module.Script.CheckInfo).
+				Msg("Channel manifest unexpectedly empty for check. Please select a version for it.")
+
+			return ""
+		}
+
+		return check.Channels.K6.Manifest
+	}()
+
 	processor, err := k6runner.NewProcessor(p.module.Script, runner)
 	if err != nil {
 		return p, err
