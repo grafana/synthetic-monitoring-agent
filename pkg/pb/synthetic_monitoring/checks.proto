@@ -716,3 +716,29 @@ message CheckClassTelemetry {
 message PushTelemetryResponse {
   Status status = 1 [(gogoproto.jsontag) = "status"];
 }
+
+// K6 service represents a service that allows the probes to report information
+// on supported k6 versions.
+service K6 {
+  // RegisterK6Version registers the k6 versions supported by the probe.
+  rpc RegisterK6Version(RegisterK6VersionRequest) returns (RegisterK6VersionResponse) {}
+}
+
+// K6Version represents a specific k6 version supported by a probe.
+message K6Version {
+  string version = 1 [(gogoproto.jsontag) = "version"]; // semantic version 2.0.0 string (e.g. 0.50.0)
+}
+
+message RegisterK6VersionRequest {
+  repeated K6Version versions = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "versions"
+  ];
+}
+
+message RegisterK6VersionResponse {
+  Status status = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "status"
+  ];
+}
