@@ -21,7 +21,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/grafana/grafana-build-tools:v1.30.0@sha256:0e0604083d837e3225d598a08b4868c3155d580a11e9402b3cb710d42b393d42
+      image: ghcr.io/grafana/grafana-build-tools:v1.31.0@sha256:c371bfc0022acae8734f4a9735b8df3f8e89aac688fb4bd4ce087871667ed61a
       volumes:
         # This works as long as we are using self-hosted runners.
         #
