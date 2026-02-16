@@ -172,6 +172,12 @@ const (
 	maxAgentCheckInfoLabels = 9 // Max labels set by the agent for sm_check_info metric
 )
 
+// internalMarker is a reserved value that cannot be used for Check.Job or Check.Target fields.
+// This value is reserved for potential use by the Synthetic Monitoring agent or API
+// to create special internal checks or metrics that are distinct from user-defined ones.
+// User-provided checks with this marker will be rejected during validation.
+const internalMarker = "__internal__"
+
 // MaxAgentMetricLabels returns the maximum number of labels set by the agent
 // to any metric.
 func MaxAgentMetricLabels() int {
@@ -289,10 +295,10 @@ func (c Check) Validate() error {
 	if len(c.Probes) == 0 {
 		return ErrInvalidCheckProbes
 	}
-	if len(c.Target) == 0 {
+	if len(c.Target) == 0 || c.Target == internalMarker {
 		return ErrInvalidCheckTarget
 	}
-	if len(c.Job) == 0 {
+	if len(c.Job) == 0 || c.Job == internalMarker {
 		return ErrInvalidCheckJob
 	}
 
@@ -459,7 +465,7 @@ func (c AdHocCheck) Validate() error {
 	if len(c.Probes) == 0 {
 		return ErrInvalidCheckProbes
 	}
-	if len(c.Target) == 0 {
+	if len(c.Target) == 0 || c.Target == internalMarker {
 		return ErrInvalidCheckTarget
 	}
 
