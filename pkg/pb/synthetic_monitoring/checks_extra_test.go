@@ -426,6 +426,36 @@ func TestCheckValidate(t *testing.T) {
 			},
 			expectError: false,
 		},
+		"invalid internal job": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    "http://example.org/",
+				Job:       internalMarker,
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Http: &HttpSettings{},
+				},
+			},
+			expectError: true,
+		},
+		"invalid internal target": {
+			input: Check{
+				Id:        1,
+				TenantId:  1,
+				Target:    internalMarker,
+				Job:       "valid-job",
+				Frequency: 1000,
+				Timeout:   1000,
+				Probes:    []int64{1},
+				Settings: CheckSettings{
+					Scripted: &ScriptedSettings{},
+				},
+			},
+			expectError: true,
+		},
 	}
 
 	// add trivial cases for all check types
