@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.52.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.51.3...v0.52.0) (2026-02-16)
+
+
+### Features
+
+* browser, scripted: propagate k6 channel manifest to runner ([fd205ee](https://github.com/grafana/synthetic-monitoring-agent/commit/fd205eeaa1f0feae14b50b062bc749bdbb6422f6))
+* k6runner: propagate k6 channel manifest to remote runners ([3300c79](https://github.com/grafana/synthetic-monitoring-agent/commit/3300c79901c8c4d7649ca36394e91e627567b44d))
+* Reject internal marker as job or target ([#1708](https://github.com/grafana/synthetic-monitoring-agent/issues/1708)) ([9855268](https://github.com/grafana/synthetic-monitoring-agent/commit/98552685144d9489d15913150ebda6acef3bd155))
+
+
+### Miscellaneous Chores
+
+* k6runner: add naive test for k6 channel manifest ([cd52bc0](https://github.com/grafana/synthetic-monitoring-agent/commit/cd52bc0403f1d12dad560acaf840d604e3a1769f))
+* multihttp: hardcode k6 channel manifest ([62c7796](https://github.com/grafana/synthetic-monitoring-agent/commit/62c77961703407a56499a33cf66ebe3d8ac8cf07))
+* prober: minor refactor of channel nilness handling ([1d75eae](https://github.com/grafana/synthetic-monitoring-agent/commit/1d75eae826de8afb6cc4de7870e707196a2ba9bf))
+* Update dependency grafana/xk6-sm to v0.6.17 ([41456ae](https://github.com/grafana/synthetic-monitoring-agent/commit/41456ae8fff4e00d345a00ce9a01423e900a6c62))
+* Update docker/build-push-action action to v6.19.2 ([bc47a22](https://github.com/grafana/synthetic-monitoring-agent/commit/bc47a227549f8819467ad7babeed82f5bae4cdb0))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.30.0 ([5d26f3b](https://github.com/grafana/synthetic-monitoring-agent/commit/5d26f3b9858c76ad2f86b11bc1d091f15fccd586))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.31.0 ([a071d53](https://github.com/grafana/synthetic-monitoring-agent/commit/a071d537332aa8f9a283991fab7210dea6c09667))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.31.1 ([27406e6](https://github.com/grafana/synthetic-monitoring-agent/commit/27406e6bc6e11aabd2d40db5ad68238632591e24))
+* Update golang.org/x/exp digest to 81e46e3 ([8adff1c](https://github.com/grafana/synthetic-monitoring-agent/commit/8adff1c7f16efd4429153d9fe419c689a6e7e014))
+* Update grafana/shared-workflows digest to 7758749 ([7c01c57](https://github.com/grafana/synthetic-monitoring-agent/commit/7c01c57259f3f3e283d56a473fd8534732a61f04))
+* Update grafana/shared-workflows digest to 8ef55db ([38dc518](https://github.com/grafana/synthetic-monitoring-agent/commit/38dc518b5aa464e6aa1daedcb72c3d0eb86bcad2))
+* Update module github.com/prometheus-community/pro-bing to v0.8.0 ([d792082](https://github.com/grafana/synthetic-monitoring-agent/commit/d792082040a9d69d49557a4012d12814b6e6e263))
+* Update module golang.org/x/net to v0.50.0 ([ca89e5f](https://github.com/grafana/synthetic-monitoring-agent/commit/ca89e5f287ff24fcd6eb37052db5206e86e3d7b0))
+* Update module google.golang.org/grpc to v1.79.1 ([6c9d454](https://github.com/grafana/synthetic-monitoring-agent/commit/6c9d45431335a88cb4798ec7c44368bf580fb16c))
+
 ## [0.51.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.51.2...v0.51.3) (2026-02-04)
 
 
