@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.52.0...v0.52.1) (2026-02-17)
+
+
+### Miscellaneous Chores
+
+* Revert "chore: Update module golang.org/x/net to v0.50.0" ([c79991c](https://github.com/grafana/synthetic-monitoring-agent/commit/c79991c01d7f8c471b6c9197d04a0dbac7384d75))
+
 ## [0.52.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.51.3...v0.52.0) (2026-02-16)
 
 
