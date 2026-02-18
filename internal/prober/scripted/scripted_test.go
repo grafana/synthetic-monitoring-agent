@@ -84,6 +84,10 @@ func (noopRunner) Run(ctx context.Context, script k6runner.Script, secretStore k
 	return &k6runner.RunResponse{}, nil
 }
 
+func (noopRunner) Versions(_ context.Context) <-chan []string {
+	return nil // Blocks forever if read.
+}
+
 func testContext(t *testing.T) (context.Context, func()) {
 	if deadline, ok := t.Deadline(); ok {
 		return context.WithDeadline(context.Background(), deadline)

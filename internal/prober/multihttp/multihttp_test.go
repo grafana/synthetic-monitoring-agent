@@ -158,3 +158,7 @@ func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 func (noopRunner) Run(ctx context.Context, script k6runner.Script, secretStore k6runner.SecretStore) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
 }
+
+func (noopRunner) Versions(_ context.Context) <-chan []string {
+	return nil // Blocks forever if read.
+}

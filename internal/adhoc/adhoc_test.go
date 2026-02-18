@@ -185,8 +185,7 @@ func (timeoutBackoff) Duration() time.Duration {
 
 func (timeoutBackoff) Reset() {}
 
-type grpcTestConn struct {
-}
+type grpcTestConn struct{}
 
 func (grpcTestConn) GetState() connectivity.State {
 	return connectivity.Ready
@@ -707,4 +706,8 @@ func (r *testK6Runner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 
 func (r *testK6Runner) Run(ctx context.Context, script k6runner.Script, secretStore k6runner.SecretStore) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
+}
+
+func (*testK6Runner) Versions(_ context.Context) <-chan []string {
+	return nil // Blocks forever if read.
 }

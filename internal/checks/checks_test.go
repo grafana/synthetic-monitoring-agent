@@ -537,6 +537,10 @@ func (noopRunner) Run(ctx context.Context, script k6runner.Script, secretStore k
 	return &k6runner.RunResponse{}, nil
 }
 
+func (noopRunner) Versions(_ context.Context) <-chan []string {
+	return nil // Blocks forever if read.
+}
+
 type testBackoff time.Duration
 
 func (b *testBackoff) Reset() {

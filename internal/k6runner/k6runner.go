@@ -94,8 +94,15 @@ func (ci *CheckInfo) MarshalZerologObject(e *zerolog.Event) {
 var ErrNoTimeout = errors.New("check has no timeout")
 
 type Runner interface {
+	// WithLogger returns a copy of the runner configured to use the specified logger.
 	WithLogger(logger *zerolog.Logger) Runner
+	// Run makes the runner run the script.
 	Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error)
+	// Versions returns a channel to which the list of versions supported by this runner are pushed. Runner
+	// implementations that have a predictable list of versions over time may push a single list to the channel and then
+	// close it, while others may push lists of versions regularly as a result of polling a decoupled system.
+	// Cancelling the context stops this background polling, if any.
+	Versions(context.Context) <-chan []string
 }
 
 type RunnerOpts struct {

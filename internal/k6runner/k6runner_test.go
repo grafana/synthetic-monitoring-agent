@@ -149,6 +149,10 @@ func (r *testRunner) WithLogger(logger *zerolog.Logger) Runner {
 	return r
 }
 
+func (*testRunner) Versions(_ context.Context) <-chan []string {
+	return nil // Blocks forever if read.
+}
+
 func TestTextToRegistry(t *testing.T) {
 	data := testhelper.MustReadFile(t, "testdata/test.out")
 
