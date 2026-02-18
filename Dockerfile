@@ -33,7 +33,7 @@ ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
 
 # Browser release copies the setup from the base agent and
 # additionally installs Chromium to support browser checks.
-FROM ghcr.io/grafana/chromium-swiftshader-alpine:144.0.7559.132-r1-3.23.3@sha256:356f13b68821e409d5a52b79f427e3639d8ab51e758f5c7406b8ef016108bd12 AS with-browser
+FROM ghcr.io/grafana/chromium-swiftshader-alpine:144.0.7559.132-r1-3.23.3@sha256:de95a8176f85d98223df7a4f5f6bb59a2baf33d063b4e2801e927d817d7855c9 AS with-browser
 RUN apk --no-cache add --repository community tini
 RUN adduser -D -u 12345 -g 12345 sm
 
