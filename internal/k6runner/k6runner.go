@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-logfmt/logfmt"
-	smmmodel "github.com/grafana/synthetic-monitoring-agent/internal/model"
+	smmodel "github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -66,7 +66,7 @@ type CheckInfo struct {
 }
 
 // CheckInfoFromSM returns a CheckInfo from the information of the given SM check.
-func CheckInfoFromSM(smc smmmodel.Check) CheckInfo {
+func CheckInfoFromSM(smc smmodel.Check) CheckInfo {
 	ci := CheckInfo{
 		Metadata: map[string]any{},
 	}
