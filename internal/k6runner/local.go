@@ -219,6 +219,13 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	return rr, nil
 }
 
+func (r Local) Versions(_ context.Context) <-chan []string {
+	ch := make(chan []string)
+	close(ch)
+
+	return ch
+}
+
 func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
 	args := []string{
 		"run",
