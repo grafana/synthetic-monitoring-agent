@@ -110,16 +110,21 @@ func TestBinaryFor(t *testing.T) {
 			constraint:  "^v9.0.0",
 			expectError: version.ErrUnsatisfiable,
 		},
+		{
+			name:        "Errors for invalid manifest",
+			constraint:  "nya!",
+			expectError: version.ErrInvalidConstraint,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			actual, err := repo.BinaryFor(tc.constraint)
+			actual, err := repo.Resolve(tc.constraint)
 			if !errors.Is(err, tc.expectError) {
 				t.Fatalf("expected error to be %q, got: %q", tc.expectError, err)
 			}
 
-			if actual != tc.expected {
+			if tc.expected != "" && actual.Path != tc.expected {
 				t.Fatalf("expected binary to be %q, got %q", tc.expected, actual)
 			}
 		})

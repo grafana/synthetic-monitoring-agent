@@ -73,8 +73,8 @@ const binaryMustContain = "k6"
 
 // Entry stores the path to a k6 binary, and the parsed semantic version that binary returns.
 type Entry struct {
-	Path    string
-	Version *semver.Version
+	Path    string          `json:"path"`
+	Version *semver.Version `json:"version"`
 }
 
 type k6Version struct {
@@ -85,16 +85,21 @@ type k6Version struct {
 	Version   string `json:"version"`
 }
 
-// ErrUnsatisfiable is returned when no binary matching a constraint is found.
-var ErrUnsatisfiable = errors.New("no compatible k6 version found")
+var (
+	// ErrUnsatisfiable is returned when no binary matching a constraint is found.
+	ErrUnsatisfiable = errors.New("no compatible k6 version found")
+	// ErrInvalidConstraint is joined with errors returned by the semver package when attempting to parse a constraint.
+	// This allows callers to tell a parsing error apart from other errors.
+	ErrInvalidConstraint = errors.New("invalid constraint")
+)
 
-// BinaryFor walks the repository and returns the path to the binary with the highest version that matches
+// Resolve walks the repository and returns the entry with the highest version that matches
 // constraintStr. If no binary matching the constraint is found, ErrUnsatisfiable is returned.
-// BinaryFor scans the root folder if needed.
-func (r *Repository) BinaryFor(constraintStr string) (string, error) {
+// Resolve scans the root folder if needed.
+func (r *Repository) Resolve(constraintStr string) (*Entry, error) {
 	err := r.scan(false)
 	if err != nil {
-		return "", fmt.Errorf("scanning for binaries: %w", err)
+		return nil, fmt.Errorf("scanning for binaries: %w", err)
 	}
 
 	r.mtx.Lock()
@@ -102,13 +107,14 @@ func (r *Repository) BinaryFor(constraintStr string) (string, error) {
 
 	constraint, err := semver.NewConstraint(constraintStr)
 	if err != nil {
-		return "", fmt.Errorf("invalid version constraint %q: %w", constraintStr, err)
+		return nil, errors.Join(fmt.Errorf("invalid version constraint %q: %w", constraintStr, err), ErrInvalidConstraint)
 	}
 
 	// r.entries is sorted newest version first, so we can return the first that matches.
 	for _, entry := range r.entries {
 		if constraint.Check(entry.Version) {
-			return entry.Path, nil
+			e := entry // Copy variable to avoid returning pointer to a slice element.
+			return &e, nil
 		}
 
 		r.Logger.Debug().
@@ -118,7 +124,7 @@ func (r *Repository) BinaryFor(constraintStr string) (string, error) {
 			Msg("k6 binary does not match constraint")
 	}
 
-	return "", ErrUnsatisfiable
+	return nil, ErrUnsatisfiable
 }
 
 // Entries returns the list of binaries and their versions, scanning them if needed. Callers are allowed to modify the
@@ -248,7 +254,7 @@ func runK6Version(k6Path string) (*k6Version, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, k6Path, "--version", "--json")
+	cmd := exec.CommandContext(ctx, k6Path, "version", "--json")
 	cmd.Env = []string{
 		"K6_AUTO_EXTENSION_RESOLUTION=false",
 		// By not explicitly appending os.Env, all other env vars are cleared here.
