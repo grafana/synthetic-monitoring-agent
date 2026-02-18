@@ -206,6 +206,11 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	return rr, nil
 }
 
+func (r Local) ReportVersions(_ context.Context, _ ReportFunc) error {
+	// TODO: Implement.
+	return nil
+}
+
 func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
 	args := []string{
 		"run",

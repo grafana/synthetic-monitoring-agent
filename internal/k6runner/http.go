@@ -227,6 +227,11 @@ func (r HttpRunner) request(ctx context.Context, script Script, secretStore Secr
 	return &response, nil
 }
 
+func (r HttpRunner) ReportVersions(_ context.Context, _ ReportFunc) error {
+	// TODO: Implement.
+	return nil
+}
+
 type HTTPMetrics struct {
 	Requests       *prometheus.CounterVec
 	RequestsPerRun *prometheus.HistogramVec
