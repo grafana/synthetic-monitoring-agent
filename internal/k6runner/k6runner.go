@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-logfmt/logfmt"
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner/version"
 	smmodel "github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/prometheus/client_golang/prometheus"
@@ -99,11 +100,12 @@ type Runner interface {
 
 type RunnerOpts struct {
 	Uri           string
+	Repository    string
 	BlacklistedIP string
 	Registerer    prometheus.Registerer
 }
 
-func New(opts RunnerOpts) Runner {
+func New(opts RunnerOpts) (Runner, error) {
 	var r Runner
 	logger := zerolog.Nop()
 	var registerer prometheus.Registerer = prometheus.NewRegistry() // NOOP registry.
@@ -120,15 +122,20 @@ func New(opts RunnerOpts) Runner {
 			metrics:   NewHTTPMetrics(registerer),
 		}
 	} else {
+		repo, err := version.NewRepository(opts.Repository, opts.Uri)
+		if err != nil {
+			return nil, fmt.Errorf("building repository: %w", err)
+		}
+
 		r = Local{
-			k6path:        opts.Uri,
+			repository:    repo,
 			logger:        &logger,
 			blacklistedIP: opts.BlacklistedIP,
 			fs:            afero.NewOsFs(),
 		}
 	}
 
-	return r
+	return r, nil
 }
 
 // Processor runs a script with a runner and parses the k6 output.

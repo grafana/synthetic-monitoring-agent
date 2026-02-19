@@ -82,14 +82,15 @@ func TestHttpRunnerRun(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	runner := New(RunnerOpts{Uri: srv.URL + "/run"})
+	runner, err := New(RunnerOpts{Uri: srv.URL + "/run"})
+	require.NoError(t, err)
 	require.IsType(t, &HttpRunner{}, runner)
 
 	ctx := context.Background()
 	ctx, cancel := testhelper.Context(ctx, t)
 	t.Cleanup(cancel)
 
-	_, err := runner.Run(ctx, script, SecretStore{})
+	_, err = runner.Run(ctx, script, SecretStore{})
 	require.NoError(t, err)
 }
 
@@ -128,7 +129,8 @@ func TestHttpRunnerRunError(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	runner := New(RunnerOpts{Uri: srv.URL + "/run"})
+	runner, err := New(RunnerOpts{Uri: srv.URL + "/run"})
+	require.NoError(t, err)
 	require.IsType(t, &HttpRunner{}, runner)
 
 	// HTTPRunner will retry until the context deadline is met, so we set a short one.
@@ -138,7 +140,7 @@ func TestHttpRunnerRunError(t *testing.T) {
 	ctx, cancel = testhelper.Context(ctx, t)
 	t.Cleanup(cancel)
 
-	_, err := runner.Run(ctx, script, SecretStore{})
+	_, err = runner.Run(ctx, script, SecretStore{})
 	require.ErrorIs(t, err, ErrUnexpectedStatus)
 }
 
