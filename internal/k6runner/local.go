@@ -37,12 +37,22 @@ func (r Local) WithLogger(logger *zerolog.Logger) Runner {
 }
 
 func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
-	logger := r.logger.With().Object("checkInfo", &script.CheckInfo).Logger()
+	logger := r.logger.With().
+		Object("checkInfo", &script.CheckInfo).
+		Str("k6ChannelManifest", script.K6ChannelManifest).
+		Logger()
 
-	// FIXME: Remove after implementing version management for local runners.
-	if script.K6ChannelManifest != "" {
-		logger.Warn().Msg("This probe does not support k6 versioning, the included version will be used.")
+	if script.K6ChannelManifest == "" {
+		script.K6ChannelManifest = "*"
+		logger.Warn().Msg("Script does not have a k6 channel assigned. Latest available version will be used.")
 	}
+
+	k6Version, err := r.repository.Resolve(script.K6ChannelManifest)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve k6 version: %w", err)
+	}
+
+	logger = logger.With().Str("k6Version", k6Version.Version.String()).Str("k6Path", k6Version.Path).Logger()
 
 	afs := afero.Afero{Fs: r.fs}
 
@@ -81,11 +91,6 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		return nil, fmt.Errorf("cannot write temporary script file: %w", err)
 	}
 
-	k6Path, err := exec.LookPath(r.k6path)
-	if err != nil {
-		return nil, fmt.Errorf("cannot find k6 executable: %w", err)
-	}
-
 	var cancel context.CancelFunc
 	ctx, cancel = context.WithTimeout(ctx, checkTimeout)
 	defer cancel()
@@ -120,7 +125,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 
 	cmd := exec.CommandContext(
 		ctx,
-		k6Path,
+		k6Version.Path,
 		args...,
 	)
 
