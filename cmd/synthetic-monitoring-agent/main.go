@@ -72,6 +72,7 @@ func run(args []string, stdout io.Writer) error {
 			EnablePProf           bool
 			HttpListenAddr        string
 			K6URI                 string
+			K6Repository          string
 			K6BlacklistedIP       string
 			SelectedPublisher     string
 			TelemetryTimeSpan     int
@@ -87,7 +88,8 @@ func run(args []string, stdout io.Writer) error {
 		}{
 			GrpcApiServerAddr:  "localhost:4031",
 			HttpListenAddr:     "localhost:4050",
-			K6URI:              "sm-k6",
+			K6URI:              "sm-k6", // TODO: Default to empty.
+			K6Repository:       "",      // TODO: Default to /usr/libexec/sm-k6/
 			K6BlacklistedIP:    "10.0.0.0/8",
 			SelectedPublisher:  pusherV2.Name,
 			TelemetryTimeSpan:  defTelemetryTimeSpan,
@@ -110,7 +112,8 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.EnableDisconnect, "enable-disconnect", config.EnableDisconnect, "enable HTTP /disconnect endpoint")
 	flags.BoolVar(&config.EnablePProf, "enable-pprof", config.EnablePProf, "exposes profiling data via HTTP /debug/pprof/ endpoint")
 	flags.StringVar(&config.HttpListenAddr, "listen-address", config.HttpListenAddr, "listen address")
-	flags.StringVar(&config.K6URI, "k6-uri", config.K6URI, "how to run k6 (path or URL)")
+	flags.StringVar(&config.K6URI, "k6-uri", config.K6URI, "Path or URI to a specific k6 binary, overrides k6 version autodetection")
+	flags.StringVar(&config.K6Repository, "k6-repository", config.K6Repository, "path to folder containing k6 binaries")
 	flags.StringVar(&config.K6BlacklistedIP, "blocked-nets", config.K6BlacklistedIP,
 		"IP networks to block in CIDR notation. Setting this to an empty string, or '0.0.0.0/32', will disable the blocklist.")
 	flags.StringVar(&config.SelectedPublisher, "publisher", config.SelectedPublisher, "publisher type")
@@ -227,14 +230,6 @@ func run(args []string, stdout io.Writer) error {
 		} else if newUri != config.K6URI {
 			config.K6URI = newUri
 		}
-	} else {
-		config.K6URI = ""
-	}
-
-	if len(config.K6URI) > 0 {
-		zl.Info().Str("k6URI", config.K6URI).Msg("enabling k6 checks")
-	} else {
-		zl.Info().Msg("disabling k6 checks")
 	}
 
 	var usageReporter usage.Reporter
@@ -314,16 +309,20 @@ func run(args []string, stdout io.Writer) error {
 	defer conn.Close()
 
 	var k6Runner k6runner.Runner
-	if features.IsSet(feature.K6) && len(config.K6URI) > 0 {
+	if features.IsSet(feature.K6) {
 		if err := validateCIDR(config.K6BlacklistedIP); err != nil {
 			return err
 		}
 
-		k6Runner = k6runner.New(k6runner.RunnerOpts{
+		k6Runner, err = k6runner.New(k6runner.RunnerOpts{
 			Uri:           config.K6URI,
+			Repository:    config.K6Repository,
 			BlacklistedIP: config.K6BlacklistedIP,
 			Registerer:    promRegisterer,
 		})
+		if err != nil {
+			return fmt.Errorf("building k6 runner: %w", err)
+		}
 	}
 
 	tm := tenants.NewManager(
@@ -374,7 +373,6 @@ func run(args []string, stdout io.Writer) error {
 		CostAttributionLabels:   cals,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
 	})
-
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
 	}

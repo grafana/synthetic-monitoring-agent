@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
@@ -24,7 +25,7 @@ type secretSourceConfig struct {
 }
 
 type Local struct {
-	k6path        string
+	repository    *version.Repository
 	logger        *zerolog.Logger
 	fs            afero.Fs
 	blacklistedIP string

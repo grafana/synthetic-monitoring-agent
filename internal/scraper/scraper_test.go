@@ -452,14 +452,18 @@ func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, model
 	}
 
 	var runner k6runner.Runner
-
+	var err error
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
-		runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
+		runner, err = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
 	} else {
 		runner = &testRunner{
 			metrics: testhelper.MustReadFile(t, "testdata/k6.dat"),
 			logs:    nil,
 		}
+	}
+
+	if err != nil {
+		t.Fatalf("creating runner: %v", err)
 	}
 
 	var store testhelper.NoopSecretStore
@@ -504,15 +508,19 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 	}
 
 	var runner k6runner.Runner
-	var store testhelper.NoopSecretStore
+	var err error
 
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
-		runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
+		runner, err = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
 	} else {
 		runner = &testRunner{
 			metrics: testhelper.MustReadFile(t, "testdata/multihttp.dat"),
 			logs:    nil,
 		}
+	}
+
+	if err != nil {
+		t.Fatalf("building k6 runner: %v", err)
 	}
 
 	prober, err := multihttp.NewProber(
@@ -521,7 +529,7 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 		zerolog.New(zerolog.NewTestWriter(t)),
 		runner,
 		http.Header{},
-		store,
+		testhelper.NoopSecretStore{},
 	)
 	if err != nil {
 		t.Fatalf("cannot create MultiHTTP prober: %s", err)
@@ -549,10 +557,10 @@ func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 	}
 
 	var runner k6runner.Runner
-	var store testhelper.NoopSecretStore
+	var err error
 
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
-		runner = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
+		runner, err = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
 	} else {
 		runner = &testRunner{
 			metrics: testhelper.MustReadFile(t, "testdata/browser.dat"),
@@ -560,12 +568,16 @@ func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 		}
 	}
 
+	if err != nil {
+		t.Fatalf("building k6 runner: %v", err)
+	}
+
 	prober, err := browser.NewProber(
 		ctx,
 		check,
 		zerolog.New(zerolog.NewTestWriter(t)),
 		runner,
-		store,
+		testhelper.NoopSecretStore{},
 	)
 	if err != nil {
 		t.Fatalf("cannot create scripted prober: %s", err)

@@ -25,11 +25,13 @@ import (
 func TestNew(t *testing.T) {
 	t.Parallel()
 
-	r1 := New(RunnerOpts{Uri: "k6"})
+	r1, err := New(RunnerOpts{Uri: "./testdata/k6-fake"})
+	require.NoError(t, err)
 	require.IsType(t, Local{}, r1)
 	require.Equal(t, "", r1.(Local).blacklistedIP)
 
-	r2 := New(RunnerOpts{Uri: "/usr/bin/k6", BlacklistedIP: "192.168.4.0/24"})
+	r2, err := New(RunnerOpts{Uri: "./testdata/k6-fake", BlacklistedIP: "192.168.4.0/24"})
+	require.NoError(t, err)
 	require.IsType(t, Local{}, r2)
 	require.Equal(t, "192.168.4.0/24", r2.(Local).blacklistedIP)
 	// Ensure WithLogger preserves config.
@@ -37,16 +39,20 @@ func TestNew(t *testing.T) {
 	r2 = r2.WithLogger(&zl)
 	require.Equal(t, "192.168.4.0/24", r2.(Local).blacklistedIP)
 
-	r3 := New(RunnerOpts{Uri: "http://localhost:6565"})
+	r3, err := New(RunnerOpts{Uri: "http://localhost:6565"})
+	require.NoError(t, err)
 	require.IsType(t, &HttpRunner{}, r3)
-	r4 := New(RunnerOpts{Uri: "https://localhost:6565"})
+	r4, err := New(RunnerOpts{Uri: "https://localhost:6565"})
+	require.NoError(t, err)
 	require.IsType(t, &HttpRunner{}, r4)
 }
 
 func TestNewScript(t *testing.T) {
 	t.Parallel()
 
-	runner := New(RunnerOpts{Uri: "k6"})
+	runner, err := New(RunnerOpts{Uri: "k6"})
+	require.NoError(t, err)
+
 	script := Script{
 		Script: []byte("test"),
 		Settings: Settings{
