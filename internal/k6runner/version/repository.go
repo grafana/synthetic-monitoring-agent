@@ -52,7 +52,18 @@ func NewRepository(root, override string) (*Repository, error) {
 		}
 	}
 
-	if override != "" {
+	if override != "" { //nolint:nestif // Complexity is driven by if-err-nil rather than actual logic.
+		// If override is not an absolute path, attempt to resolve it using $PATH. If that fails, then the override is
+		// useless.
+		if !filepath.IsAbs(override) {
+			absolute, err := exec.LookPath(override)
+			if err != nil {
+				return nil, fmt.Errorf("resolving %q using PATH: %w", override, err)
+			}
+
+			override = absolute
+		}
+
 		overrideStat, err := os.Stat(override)
 		if err != nil {
 			return nil, fmt.Errorf("could not stat repository override: %w", err)
