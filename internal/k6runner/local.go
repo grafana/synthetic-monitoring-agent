@@ -173,7 +173,14 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	// than 2.5x.
 	const maxMetricsSizeBytes = 100 * 1024
 
-	logs, truncated, logsErr := readFileLimit(afs.Fs, logsFn, maxLogsSizeBytes)
+	// Pre-fill logs buffer with k6 versioning info.
+	logsBuf := &bytes.Buffer{}
+	_, _ = fmt.Fprintf(logsBuf,
+		`level=info k6ChannelManifest=%q k6version=%q k6Path=%q msg="Check will be run with resolved k6 version"`+"\n",
+		script.K6ChannelManifest, k6Version.Version.String(), k6Version.Path,
+	)
+
+	logs, truncated, logsErr := readFileLimit(afs.Fs, logsFn, maxLogsSizeBytes, logsBuf)
 	if logsErr != nil {
 		return nil, fmt.Errorf("reading k6 logs: %w", err)
 	}
@@ -187,7 +194,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		fmt.Fprintf(logs, `level=error msg="Log output truncated at %d bytes"`+"\n", maxLogsSizeBytes)
 	}
 
-	metrics, truncated, metricsErr := readFileLimit(afs.Fs, metricsFn, maxMetricsSizeBytes)
+	metrics, truncated, metricsErr := readFileLimit(afs.Fs, metricsFn, maxMetricsSizeBytes, &bytes.Buffer{})
 	if metricsErr != nil {
 		return nil, fmt.Errorf("reading k6 metrics: %w", err)
 	}
@@ -286,38 +293,39 @@ func dumpK6OutputStream(logger *zerolog.Logger, lvl zerolog.Level, stream io.Rea
 // readFileLimit reads up to limit bytes from the specified file using the specified FS. The limit respects newline
 // boundaries: If the limit is reached, the portion between the last '\n' character and the limit will not be returned.
 // A boolean is returned indicating whether the limit was reached.
-func readFileLimit(f afero.Fs, name string, limit int64) (*bytes.Buffer, bool, error) {
+// existing must point to a bytes.Buffer instance, potentially with some data already in. This data is not accounted for
+// in terms of limit.
+func readFileLimit(f afero.Fs, name string, limit int64, existing *bytes.Buffer) (*bytes.Buffer, bool, error) {
 	file, err := f.Open(name)
 	if err != nil {
 		return nil, false, fmt.Errorf("opening file: %w", err)
 	}
 	defer file.Close()
 
-	buf := &bytes.Buffer{}
-	copied, err := io.Copy(buf, io.LimitReader(file, limit))
+	copied, err := io.Copy(existing, io.LimitReader(file, limit))
 	if err != nil && !errors.Is(err, io.EOF) {
 		return nil, false, fmt.Errorf("reading file: %w", err)
 	}
 
 	if copied < limit {
 		// Copied less than budget, we haven't truncated anything.
-		return buf, false, nil
+		return existing, false, nil
 	}
 
 	peek := make([]byte, 1)
 	_, err = file.Read(peek)
 	if errors.Is(err, io.EOF) {
 		// Jackpot, file fit exactly within the limit.
-		return buf, false, nil
+		return existing, false, nil
 	}
 
 	// Rewind until last newline
-	lastNewline := bytes.LastIndexByte(buf.Bytes(), '\n')
+	lastNewline := bytes.LastIndexByte(existing.Bytes(), '\n')
 	if lastNewline != -1 {
-		buf.Truncate(lastNewline + 1)
+		existing.Truncate(lastNewline + 1)
 	}
 
-	return buf, true, nil
+	return existing, true, nil
 }
 
 // createSecretConfigFile creates a JSON config file with the given secret store URL and token
