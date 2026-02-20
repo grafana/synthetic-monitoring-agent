@@ -1697,7 +1697,7 @@ func (l *testLogger) Log(kv ...any) error {
 			buf.WriteString(v.String())
 
 		default:
-			buf.WriteString(fmt.Sprintf("%#v", v))
+			fmt.Fprintf(&buf, "%#v", v)
 		}
 	}
 
