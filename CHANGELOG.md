@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.53.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.52.1...v0.53.0) (2026-02-24)
+
+
+### Features
+
+* Add k6 service proto definition ([#1710](https://github.com/grafana/synthetic-monitoring-agent/issues/1710)) ([989f542](https://github.com/grafana/synthetic-monitoring-agent/commit/989f54234436b55f312f0ed15feb08029d672b13))
+
+
+### Miscellaneous Chores
+
+* fix typo in `smmodel` import ([a52dd79](https://github.com/grafana/synthetic-monitoring-agent/commit/a52dd791643b6a705a4b5a818fd84e4b85d8c129))
+* k6runner/version: port code from runner ([f36760d](https://github.com/grafana/synthetic-monitoring-agent/commit/f36760de0fef9a9df34f0c24aac56c41ae96093a))
+* Update dependency grafana/xk6-sm to v0.6.18 ([2f86a97](https://github.com/grafana/synthetic-monitoring-agent/commit/2f86a9715b35df84c56797aa7dc4fc556c3a7087))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v144 ([f6a6bc0](https://github.com/grafana/synthetic-monitoring-agent/commit/f6a6bc094ea3e88250e4f69d16c0c7b7f7fdf16c))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:144.0.7559.132-r1-3.23.3 Docker digest to de95a81 ([f9f2764](https://github.com/grafana/synthetic-monitoring-agent/commit/f9f27640d3b6bab464bfa0e5d12e755080e4a5bc))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.32.0 ([53766a9](https://github.com/grafana/synthetic-monitoring-agent/commit/53766a9851bb79c71b484bb90f9bb949faaa1d49))
+
 ## [0.52.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.52.0...v0.52.1) (2026-02-17)
 
 
