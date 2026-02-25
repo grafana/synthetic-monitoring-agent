@@ -93,9 +93,19 @@ func (ci *CheckInfo) MarshalZerologObject(e *zerolog.Event) {
 var ErrNoTimeout = errors.New("check has no timeout")
 
 type Runner interface {
+	// WithLogger returns a copy of the runner configured to use the specified logger.
 	WithLogger(logger *zerolog.Logger) Runner
+	// Run makes the runner run the script.
 	Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error)
+	// ReportVersions instructs the runner to report the available k6 versions using the supplied ReportFunc.
+	// ReportFunc must be idempotent. Once ReportVersions is invoked, ReportFunc may be called just once, or
+	// periodically in the background if the Runner implementation deems it necessary (e.g. for remote runners, whose
+	// version may change). Cancelling the context will interrupt this background polling, if any.
+	ReportVersions(context.Context, ReportFunc) error
 }
+
+// ReportFunc is a function that a runner can use to report the k6 versions it has available.
+type ReportFunc func(versions []string) error
 
 type RunnerOpts struct {
 	Uri           string
