@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.54.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.53.0...v0.54.0) (2026-02-25)
+
+
+### Features
+
+* k6runner/local: log k6 version used to run the script ([41c03ad](https://github.com/grafana/synthetic-monitoring-agent/commit/41c03adb7616f7ce1daa53f971fdb54836867754))
+* k6runner/local: use repository to resolve k6 version ([8182e4a](https://github.com/grafana/synthetic-monitoring-agent/commit/8182e4a8188527bd34e05d1b9f556caaaa16a31c))
+* k6runner/version: handle relative paths as overrides ([e3c8856](https://github.com/grafana/synthetic-monitoring-agent/commit/e3c8856dd763ef502974fa3c55972a7372ee6986))
+* pass repository path to k6 runner factory ([3ba0f26](https://github.com/grafana/synthetic-monitoring-agent/commit/3ba0f26f591dc8cf78af4cd4047a0e4d9ac36440))
+
 ## [0.53.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.52.1...v0.53.0) (2026-02-24)
 
 
