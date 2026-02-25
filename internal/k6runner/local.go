@@ -219,6 +219,40 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 	return rr, nil
 }
 
+func (r Local) Versions(ctx context.Context) <-chan []string {
+	ch := make(chan []string)
+
+	go func() {
+		// The list of k6 versions in the local repository is static: We will push to the channel at most once.
+		defer close(ch)
+
+		entries, err := r.repository.Entries()
+		if err != nil {
+			r.logger.Error().
+				Err(err).
+				Str("k6Repository", r.repository.Root).
+				Str("k6RepositoryOverride", r.repository.Override).
+				Msg("Could not retrieve k6 versions from repository")
+
+			return
+		}
+
+		versions := make([]string, 0, len(entries))
+		for _, e := range entries {
+			versions = append(versions, e.Version.String())
+		}
+
+		select {
+		case <-ctx.Done():
+			r.logger.Error().Err(err).Msg("Aborting k6 version reporting")
+
+		case ch <- versions:
+		}
+	}()
+
+	return ch
+}
+
 func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
 	args := []string{
 		"run",

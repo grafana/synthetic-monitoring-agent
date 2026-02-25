@@ -1793,6 +1793,10 @@ func (r *testRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 	return r
 }
 
+func (*testRunner) Versions(_ context.Context) <-chan []string {
+	return nil // Blocks forever if read.
+}
+
 type testCounter struct {
 	count atomic.Int32
 }

@@ -227,6 +227,13 @@ func (r HttpRunner) request(ctx context.Context, script Script, secretStore Secr
 	return &response, nil
 }
 
+func (r HttpRunner) Versions(_ context.Context) <-chan []string {
+	ch := make(chan []string)
+	close(ch)
+
+	return ch
+}
+
 type HTTPMetrics struct {
 	Requests       *prometheus.CounterVec
 	RequestsPerRun *prometheus.HistogramVec
