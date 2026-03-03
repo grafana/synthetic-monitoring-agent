@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -157,4 +159,143 @@ func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 
 func (noopRunner) Run(ctx context.Context, script k6runner.Script, secretStore k6runner.SecretStore) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
+}
+
+func TestAugmentHTTPHeaders(t *testing.T) {
+	t.Parallel()
+
+	testReservedHeaders := http.Header{}
+	testReservedHeaders.Add("reserved", "value")
+	testReservedHeaders.Add("also-reserved", "another-value")
+
+	for _, tc := range []struct {
+		name          string
+		entries       []*sm.MultiHttpEntry
+		expectHeaders [][]*sm.HttpHeader
+	}{
+		{
+			name: "reserved headers are added to all requests",
+			entries: []*sm.MultiHttpEntry{
+				{
+					Request: &sm.MultiHttpEntryRequest{
+						Headers: []*sm.HttpHeader{},
+					},
+				},
+				{
+					Request: &sm.MultiHttpEntryRequest{
+						Headers: []*sm.HttpHeader{},
+					},
+				},
+			},
+			expectHeaders: [][]*sm.HttpHeader{
+				{
+					{Name: "Reserved", Value: "value"},
+					{Name: "Also-Reserved", Value: "another-value"},
+				},
+				{
+					{Name: "Reserved", Value: "value"},
+					{Name: "Also-Reserved", Value: "another-value"},
+				},
+			},
+		},
+		{
+			name: "reserved headers are not overridable",
+			entries: []*sm.MultiHttpEntry{
+				{
+					Request: &sm.MultiHttpEntryRequest{
+						Headers: []*sm.HttpHeader{
+							{Name: "reserved", Value: "I should not be here"},
+						},
+					},
+				},
+			},
+			expectHeaders: [][]*sm.HttpHeader{
+				{
+					{Name: "Reserved", Value: "value"},
+					{Name: "Also-Reserved", Value: "another-value"},
+				},
+			},
+		},
+		{
+			name: "headers for different requests are preserved",
+			entries: []*sm.MultiHttpEntry{
+				{
+					Request: &sm.MultiHttpEntryRequest{
+						Headers: []*sm.HttpHeader{
+							{Name: "request", Value: "1"},
+							{Name: "request-1", Value: "1"},
+						},
+					},
+				},
+				{
+					Request: &sm.MultiHttpEntryRequest{
+						Headers: []*sm.HttpHeader{
+							{Name: "request", Value: "2"},
+							{Name: "request-2", Value: "2"},
+						},
+					},
+				},
+				{
+					Request: &sm.MultiHttpEntryRequest{
+						Headers: []*sm.HttpHeader{
+							{Name: "request", Value: "3"},
+							{Name: "request-3", Value: "3"},
+						},
+					},
+				},
+			},
+			expectHeaders: [][]*sm.HttpHeader{
+				{
+					{Name: "Reserved", Value: "value"},
+					{Name: "Also-Reserved", Value: "another-value"},
+					{Name: "request", Value: "1"},
+					{Name: "request-1", Value: "1"},
+				},
+				{
+					{Name: "Reserved", Value: "value"},
+					{Name: "Also-Reserved", Value: "another-value"},
+					{Name: "request", Value: "2"},
+					{Name: "request-2", Value: "2"},
+				},
+				{
+					{Name: "Reserved", Value: "value"},
+					{Name: "Also-Reserved", Value: "another-value"},
+					{Name: "request", Value: "3"},
+					{Name: "request-3", Value: "3"},
+				},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			check := sm.Check{
+				Id: 0,
+				Settings: sm.CheckSettings{
+					Multihttp: &sm.MultiHttpSettings{
+						Entries: tc.entries,
+					},
+				},
+			}
+
+			augmentHttpHeaders(&check, testReservedHeaders)
+
+			require.Equalf(t, len(check.Settings.Multihttp.Entries), len(tc.entries), "Unexpected number of entries")
+
+			for i := range check.Settings.Multihttp.Entries {
+				// Sort header slices for easier comparison.
+				actual := check.Settings.Multihttp.Entries[i].Request.Headers
+				slices.SortFunc(actual, func(a, b *sm.HttpHeader) int {
+					return strings.Compare(a.Name, b.Name)
+				})
+
+				expected := tc.expectHeaders[i]
+				slices.SortFunc(expected, func(a, b *sm.HttpHeader) int {
+					return strings.Compare(a.Name, b.Name)
+				})
+
+				require.Equalf(t, expected, actual, "Actual headers do not match expected")
+			}
+		})
+	}
 }
