@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -514,6 +516,76 @@ func TestHTTPProcessorRetries(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, success)
 	})
+}
+
+func TestHTTPVersions(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/run", func(rw http.ResponseWriter, _ *http.Request) {
+		// Should never be called.
+		rw.WriteHeader(http.StatusInternalServerError)
+		t.Fail()
+	})
+	mux.HandleFunc("/versions", func(rw http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("accept"), "application/json") {
+			rw.WriteHeader(http.StatusNotAcceptable)
+			return
+		}
+
+		response := struct {
+			Versions []string `json:"versions"`
+		}{
+			Versions: []string{"1.2.3", "2.3.4"},
+		}
+
+		rw.Header().Add("content-type", "application/json")
+		rw.WriteHeader(http.StatusOK)
+
+		err := json.NewEncoder(rw).Encode(&response)
+		if err != nil {
+			t.Fail()
+		}
+	})
+
+	srv := httptest.NewServer(mux)
+
+	logger := zerolog.New(os.Stderr)
+
+	runner := HttpRunner{
+		logger:              &logger,
+		url:                 srv.URL,
+		versionPollInterval: time.Second,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	versionsCh := runner.Versions(ctx)
+
+	t.Run("Retrieves version at least once", func(t *testing.T) {
+		select {
+		case <-time.After(3 * time.Second):
+			t.Fatalf("No version was sent to the channel")
+		case vs := <-versionsCh:
+			require.ElementsMatch(t, vs, []string{"1.2.3", "2.3.4"})
+		}
+	})
+
+	t.Run("Closes channel and stops on context cancellation", func(t *testing.T) {
+		cancel()
+
+		select {
+		case <-time.After(3 * time.Second):
+			t.Fatalf("Channel was not closed within timeout after context cancellation")
+		case vs, ok := <-versionsCh:
+			if ok {
+				t.Fatalf("Expected nothing from a closed channel, got %v", vs)
+			}
+		}
+	})
+
+	t.Cleanup(srv.Close)
 }
 
 func TestTrimSuffix(t *testing.T) {

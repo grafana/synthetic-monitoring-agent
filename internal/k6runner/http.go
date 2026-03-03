@@ -26,6 +26,9 @@ type HttpRunner struct {
 	graceTime time.Duration
 	// metrics stores metrics for the remote k6 runner.
 	metrics *HTTPMetrics
+	// versionPollInterval specifies how often Versions() should poll the remote k6 runner for versions and feed that to
+	// the channel.
+	versionPollInterval time.Duration
 }
 
 const (
@@ -234,9 +237,76 @@ func (r HttpRunner) request(ctx context.Context, script Script, secretStore Secr
 	return &response, nil
 }
 
-func (r HttpRunner) Versions(_ context.Context) <-chan []string {
+func (r HttpRunner) Versions(ctx context.Context) <-chan []string {
+	if r.versionPollInterval == 0 {
+		panic("zero versionPollInterval, runner is misconfigured")
+	}
+
 	ch := make(chan []string)
-	close(ch)
+
+	go func() {
+		ticker := time.NewTicker(r.versionPollInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				r.logger.Err(ctx.Err()).Msg("polling for versions stopped")
+				close(ch)
+				return
+			case <-ticker.C:
+				err := func() error { // Wrap in function so we can use conventional defer and if-err-nil-return
+					rCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+					defer cancel()
+
+					versionsURL, err := url.JoinPath(r.url, "/versions")
+					if err != nil {
+						return fmt.Errorf("building URL: %w", err)
+					}
+
+					req, err := http.NewRequestWithContext(rCtx, http.MethodGet, versionsURL, nil)
+					if err != nil {
+						return fmt.Errorf("building request: %w", err)
+					}
+
+					req.Header.Add("accept", "application/json")
+
+					resp, err := http.DefaultClient.Do(req)
+					if err != nil {
+						return fmt.Errorf("making request: %w", err)
+					}
+
+					defer resp.Body.Close()
+
+					if resp.StatusCode != 200 {
+						return fmt.Errorf("unexpected status %d", resp.StatusCode)
+					}
+
+					var response struct {
+						Versions []string `json:"versions"`
+					}
+
+					err = json.NewDecoder(resp.Body).Decode(&response)
+					if err != nil {
+						return fmt.Errorf("decoding response: %w", err)
+					}
+
+					r.logger.Debug().Strs("versions", response.Versions).Msg("Polled remote runner for versions")
+
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case ch <- response.Versions:
+						return nil
+					}
+				}()
+				if err != nil {
+					r.logger.Err(err).Msg("requesting versions")
+					continue
+				}
+			}
+		}
+	}()
 
 	return ch
 }
