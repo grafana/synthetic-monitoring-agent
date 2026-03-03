@@ -126,11 +126,12 @@ func New(opts RunnerOpts) (Runner, error) {
 			// adds this endpoint automatically to this URL, which is understood as a base URL. To preserve backwards
 			// compatibility, we look for this suffix and strip it if present.
 			// TODO: Remove at some point, as a breaking change.
-			url:       trimRunSuffix(opts.Uri),
-			logger:    &logger,
-			graceTime: defaultGraceTime,
-			backoff:   defaultBackoff,
-			metrics:   NewHTTPMetrics(registerer),
+			url:                 trimRunSuffix(opts.Uri),
+			logger:              &logger,
+			graceTime:           defaultGraceTime,
+			backoff:             defaultBackoff,
+			metrics:             NewHTTPMetrics(registerer),
+			versionPollInterval: 30 * time.Second,
 		}
 	} else {
 		repo, err := version.NewRepository(opts.Repository, opts.Uri)
