@@ -122,7 +122,11 @@ func New(opts RunnerOpts) (Runner, error) {
 
 	if strings.HasPrefix(opts.Uri, "http") {
 		r = &HttpRunner{
-			url:       opts.Uri,
+			// Remote URLs used to point directly to the `/run` endpoint. This is no longer the case, and HttpRunner now
+			// adds this endpoint automatically to this URL, which is understood as a base URL. To preserve backwards
+			// compatibility, we look for this suffix and strip it if present.
+			// TODO: Remove at some point, as a breaking change.
+			url:       trimRunSuffix(opts.Uri),
 			logger:    &logger,
 			graceTime: defaultGraceTime,
 			backoff:   defaultBackoff,

@@ -180,7 +180,12 @@ func (r HttpRunner) request(ctx context.Context, script Script, secretStore Secr
 		return nil, fmt.Errorf("encoding script: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.url, bytes.NewReader(reqBody))
+	runURL, err := url.JoinPath(r.url, "/run")
+	if err != nil {
+		return nil, fmt.Errorf("building URL: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, runURL, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, fmt.Errorf("building request: %w", err)
 	}
