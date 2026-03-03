@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -276,4 +278,20 @@ func NewHTTPMetrics(registerer prometheus.Registerer) *HTTPMetrics {
 	registerer.MustRegister(m.RequestsPerRun)
 
 	return m
+}
+
+func trimRunSuffix(rawUrl string) string {
+	u, err := url.Parse(rawUrl)
+	if err != nil {
+		// This URL is not parseable, do not attempt to replace anything. It will error somewhere else down the line.
+		return rawUrl
+	}
+
+	u.Path = strings.TrimSuffix(u.Path, "/run/")
+	u.Path = strings.TrimSuffix(u.Path, "/run")
+
+	// This may leave the URL with an empty path (no sole "/"). This is okay as per
+	// https://www.rfc-editor.org/rfc/rfc3986#section-3.3
+
+	return u.String()
 }
