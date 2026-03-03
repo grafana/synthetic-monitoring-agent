@@ -516,6 +516,57 @@ func TestHTTPProcessorRetries(t *testing.T) {
 	})
 }
 
+func TestTrimSuffix(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "URL without run",
+			input:    "http://test.local/",
+			expected: "http://test.local/",
+		},
+		{
+			name:     "URL without trailing slash",
+			input:    "http://test.local",
+			expected: "http://test.local",
+		},
+		{
+			name:     "URL with /run not at the end",
+			input:    "http://test.local/run/boo",
+			expected: "http://test.local/run/boo",
+		},
+		{
+			name:     "URL with /run",
+			input:    "http://test.local/run/",
+			expected: "http://test.local",
+		},
+		{
+			name:     "URL with /run, no slash",
+			input:    "http://test.local/run",
+			expected: "http://test.local",
+		},
+		{
+			name:     "URL with two runs",
+			input:    "http://test.local/run/run",
+			expected: "http://test.local/run",
+		},
+		{
+			name:     "Invalid URL",
+			input:    "!!!#nyanya~",
+			expected: "!!!#nyanya~",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.expected, trimRunSuffix(tc.input))
+		})
+	}
+}
+
 func emptyJSON(status int) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
