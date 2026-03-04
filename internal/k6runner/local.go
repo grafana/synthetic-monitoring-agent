@@ -369,7 +369,7 @@ func createSecretConfigFile(url, token string) (filename string, cleanup func(),
 		return "", nil, fmt.Errorf("creating temp file: %w", err)
 	}
 
-	if err := os.Chmod(tmpFile.Name(), 0600); err != nil {
+	if err := os.Chmod(tmpFile.Name(), 0o600); err != nil {
 		os.Remove(tmpFile.Name())
 		return "", nil, fmt.Errorf("setting file permissions: %w", err)
 	}
