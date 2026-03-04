@@ -295,7 +295,10 @@ func (r HttpRunner) Versions(ctx context.Context) <-chan []string {
 
 					select {
 					case <-ctx.Done():
-						return ctx.Err()
+						return nil // This error will be caught and reported in the outer loop.
+					case <-time.After(3 * time.Second):
+						r.logger.Warn().Msg("Version report went unconsumed, discarding report and continuing")
+						return nil
 					case ch <- response.Versions:
 						return nil
 					}
