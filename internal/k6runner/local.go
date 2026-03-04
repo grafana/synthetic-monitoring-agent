@@ -244,7 +244,7 @@ func (r Local) Versions(ctx context.Context) <-chan []string {
 
 		select {
 		case <-ctx.Done():
-			r.logger.Error().Err(err).Msg("Aborting k6 version reporting")
+			r.logger.Error().Err(ctx.Err()).Msg("Aborting k6 version reporting")
 
 		case ch <- versions:
 		}
