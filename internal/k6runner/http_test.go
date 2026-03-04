@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-logfmt/logfmt"
@@ -558,21 +559,19 @@ func TestHTTPVersions(t *testing.T) {
 		versionPollInterval: time.Second,
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
 
-	versionsCh := runner.Versions(ctx)
+		versionsCh := runner.Versions(ctx)
 
-	t.Run("Retrieves version at least once", func(t *testing.T) {
 		select {
 		case <-time.After(3 * time.Second):
 			t.Fatalf("No version was sent to the channel")
 		case vs := <-versionsCh:
 			require.ElementsMatch(t, vs, []string{"1.2.3", "2.3.4"})
 		}
-	})
 
-	t.Run("Closes channel and stops on context cancellation", func(t *testing.T) {
 		cancel()
 
 		select {
