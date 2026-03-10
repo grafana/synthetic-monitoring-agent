@@ -102,12 +102,12 @@ func TestHandle(t *testing.T) {
 			t.Fatalf("creating handler: %v", err)
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		t.Cleanup(cancel)
 
 		err = handler.Handle(ctx)
-		if err != nil {
-			t.Fatalf("expected nil, got %v", err)
+		if err != ctx.Err() {
+			t.Fatalf("expected context error, got %v", err)
 		}
 	})
 

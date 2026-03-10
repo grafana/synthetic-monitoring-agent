@@ -50,15 +50,17 @@ func (h *Handler) Handle(ctx context.Context) error {
 			return ctx.Err()
 
 		case versions, ok := <-versionsCh:
-			h.Logger.Debug().Strs("versions", versions).Msg("Received k6 versions from runner")
+			if !ok {
+				// Versions channel closed, there won't be further updates. Nil the channel so we can continue the loop
+				// waiting only for context cancellation.
+				versionsCh = nil
+				continue
+			}
 
 			// Cancel retries for previous attempt, if any.
 			cancel()
 
-			// If the runner closed the channel, we ball.
-			if !ok {
-				return ctx.Err()
-			}
+			h.Logger.Debug().Strs("versions", versions).Msg("Received k6 versions from runner")
 
 			// Send the report asynchronously, with retries and backoff.
 			sendCtx, cancel = context.WithCancel(ctx)
@@ -97,6 +99,7 @@ func (h *Handler) report(ctx context.Context, versions []string) {
 
 			select {
 			case <-ctx.Done():
+				h.Logger.Error().Err(ctx.Err()).Msg("Context canceled, giving up on unfinished k6 version report")
 				return
 			case <-time.After(backoff):
 				backoff = min(backoff*2, time.Minute)
