@@ -93,7 +93,7 @@ func (h *Handler) report(ctx context.Context, versions []string) {
 			return nil
 		}()
 		if err != nil {
-			h.Logger.Error().Err(err).Dur("after", backoff).Msg("Could not send k6 versions report, will retry")
+			h.Logger.Error().Err(err).Float64("afterSeconds", backoff.Seconds()).Msg("Could not send k6 versions report, will retry")
 
 			select {
 			case <-ctx.Done():
