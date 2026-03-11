@@ -1,5 +1,41 @@
 # Changelog
 
+## [0.54.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.53.0...v0.54.0) (2026-03-06)
+
+
+### Features
+
+* k6runner: add `Versions` function ([9116831](https://github.com/grafana/synthetic-monitoring-agent/commit/91168310e97f1fbe89fbcfc6ed591887274d7fd8))
+* k6runner/local: log k6 version used to run the script ([41c03ad](https://github.com/grafana/synthetic-monitoring-agent/commit/41c03adb7616f7ce1daa53f971fdb54836867754))
+* k6runner/local: report versions present in k6 repository ([b835957](https://github.com/grafana/synthetic-monitoring-agent/commit/b83595779bb198457788533c978642a18aa0e986))
+* k6runner/local: use repository to resolve k6 version ([8182e4a](https://github.com/grafana/synthetic-monitoring-agent/commit/8182e4a8188527bd34e05d1b9f556caaaa16a31c))
+* k6runner/version: handle relative paths as overrides ([e3c8856](https://github.com/grafana/synthetic-monitoring-agent/commit/e3c8856dd763ef502974fa3c55972a7372ee6986))
+* pass repository path to k6 runner factory ([3ba0f26](https://github.com/grafana/synthetic-monitoring-agent/commit/3ba0f26f591dc8cf78af4cd4047a0e4d9ac36440))
+
+
+### Fixes
+
+* k6runner/local: use context error ([9bad774](https://github.com/grafana/synthetic-monitoring-agent/commit/9bad7746145040f946ab240310314944e834ee4a))
+
+
+### Miscellaneous Chores
+
+* ci: replace push-to-gar-docker with docker-build-push-image ([bc1a580](https://github.com/grafana/synthetic-monitoring-agent/commit/bc1a580296d890b118ec7daa93b08b2b6c88c295))
+* k6runner/http: add helper to trim /run from URLs ([5269405](https://github.com/grafana/synthetic-monitoring-agent/commit/5269405c6fe8bd4a618d1daabc84ebf7bf1ffe6c))
+* k6runner/http: implement Versions ([b9001a2](https://github.com/grafana/synthetic-monitoring-agent/commit/b9001a2a91b4cae4da6ceb4270b41fccd14f5f98))
+* k6runner/http: subject sending versions report to a timeout ([e451c24](https://github.com/grafana/synthetic-monitoring-agent/commit/e451c24f7808864abc2771d6b85b7c8efbe9e5ec))
+* k6runner/http: treat URL as a base URL ([a1c9806](https://github.com/grafana/synthetic-monitoring-agent/commit/a1c980652c0883ff0a5461ffaf0166cdd719aacd))
+* k6runner/local: octal formatting ([f33d472](https://github.com/grafana/synthetic-monitoring-agent/commit/f33d47254e6d01854093521af93318d9912539ab))
+* Update docker:dind Docker digest to 68f6d9a ([40c017b](https://github.com/grafana/synthetic-monitoring-agent/commit/40c017bfa9cd487f6e6d5e2aa73ecda592084ee3))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v144.0.7559.132-r3-3.23.3 ([0941363](https://github.com/grafana/synthetic-monitoring-agent/commit/0941363cf2afdd76e0435be7f4ad49c88929c584))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.33.0 ([442534e](https://github.com/grafana/synthetic-monitoring-agent/commit/442534e0a5f3cb0053cd2f89aefaae27767c24e8))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.33.1 ([b3f26d3](https://github.com/grafana/synthetic-monitoring-agent/commit/b3f26d3c89fbf11c705b21db32b209d61c2943b3))
+* Update GitHub Artifact Actions ([f0839ff](https://github.com/grafana/synthetic-monitoring-agent/commit/f0839ff1184d7d8f909fb75e60191cb9a4ed4006))
+* Update golang.org/x/exp digest to 3dfff04 ([774dca3](https://github.com/grafana/synthetic-monitoring-agent/commit/774dca36611f971014de9b2ea5561a504ea2e5ad))
+* Update grafana/shared-workflows digest to 37781cf ([bee2383](https://github.com/grafana/synthetic-monitoring-agent/commit/bee23833e3dae3bb37f568d4eb05f44d01149ea0))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.21.0 ([433ae2d](https://github.com/grafana/synthetic-monitoring-agent/commit/433ae2ddc53668e593e0516f11d69b03b7fbde7b))
+* Update module golang.org/x/net to v0.51.0 ([ca45975](https://github.com/grafana/synthetic-monitoring-agent/commit/ca45975081f90f680d79695118e14f3f739ee011))
+
 ## [0.53.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.52.1...v0.53.0) (2026-02-24)
 
 
