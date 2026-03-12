@@ -89,8 +89,8 @@ func run(args []string, stdout io.Writer) error {
 		}{
 			GrpcApiServerAddr:  "localhost:4031",
 			HttpListenAddr:     "localhost:4050",
-			K6URI:              "sm-k6", // TODO: Default to empty.
-			K6Repository:       "",      // TODO: Default to /usr/libexec/sm-k6/
+			K6URI:              "",
+			K6Repository:       "/usr/libexec/sm-k6",
 			K6BlacklistedIP:    "10.0.0.0/8",
 			SelectedPublisher:  pusherV2.Name,
 			TelemetryTimeSpan:  defTelemetryTimeSpan,
