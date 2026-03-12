@@ -25,8 +25,8 @@ archives:
       - "CHANGELOG.md"
       - "LICENSE"
       - "README.md"
-      - src: "{{dir .ArtifactPath}}/k6"
-        dst: sm-k6
+      - src: "{{dir .ArtifactPath}}/k6-v1"
+        dst: k6-v1
         strip_parent: true
 checksum:
   name_template: 'checksums.txt'
@@ -53,9 +53,8 @@ nfpms:
       - src: ./scripts/package/config/systemd/synthetic-monitoring-agent.service
         dst: /etc/systemd/system/synthetic-monitoring-agent.service
 
-      # Copy k6 as sm-k6 to prevent clashing with k6 if it's installed.
-      - src: ./dist/synthetic-monitoring-agent_{{.Os}}_{{.Arch}}{{ with .Amd64 }}_{{ . }}{{ end}}/k6
-        dst: /usr/bin/sm-k6
+      - src: ./dist/synthetic-monitoring-agent_{{.Os}}_{{.Arch}}{{ with .Amd64 }}_{{ . }}{{ end}}/k6-v1
+        dst: /usr/libexec/sm-k6/k6-v1
     rpm:
       signature:
         # Also set ${NFPM_DEFAULT_PASSPHRASE}
