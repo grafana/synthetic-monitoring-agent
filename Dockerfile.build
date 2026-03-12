@@ -23,7 +23,7 @@ ARG HOST_DIST=$TARGETOS-$TARGETARCH
 
 RUN adduser -D -u 12345 -g 12345 sm
 
-ADD --chown=sm:sm --chmod=0500 https://github.com/grafana/xk6-sm/releases/download/v0.6.18/sm-k6-${TARGETOS}-${TARGETARCH} /usr/local/bin/sm-k6
+ADD --chown=sm:sm --chmod=0500 https://github.com/grafana/xk6-sm/releases/download/v0.6.18/sm-k6-${TARGETOS}-${TARGETARCH} /usr/libexec/sm-k6/k6-v1
 COPY --chown=sm:sm --chmod=0500 --from=setcapper /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
 COPY --chown=sm:sm scripts/pre-stop.sh /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
@@ -38,7 +38,7 @@ RUN apk --no-cache add --repository community tini
 RUN adduser -D -u 12345 -g 12345 sm
 
 COPY --from=release --chown=sm:sm /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
-COPY --from=release --chown=sm:sm /usr/local/bin/sm-k6 /usr/local/bin/sm-k6
+COPY --from=release --chown=sm:sm /usr/libexec/sm-k6/k6-v1 /usr/libexec/sm-k6/k6-v1
 COPY --from=release /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh
 COPY --from=release /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
