@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -846,31 +847,34 @@ func TestSettingsToScript(t *testing.T) {
 		},
 	}
 
-	ctx, cancel := testhelper.Context(context.Background(), t)
-	t.Cleanup(cancel)
+	for _, k6path := range testhelper.K6Paths(t) {
+		t.Run(filepath.Base(k6path), func(t *testing.T) {
+			ctx, cancel := testhelper.Context(context.Background(), t)
+			t.Cleanup(cancel)
 
-	k6path := testhelper.K6Path(t)
-	store := testhelper.NoopSecretStore{}
-	runner, err := k6runner.New(k6runner.RunnerOpts{Uri: k6path})
-	require.NoError(t, err)
+			store := testhelper.NoopSecretStore{}
+			runner, err := k6runner.New(k6runner.RunnerOpts{Uri: k6path})
+			require.NoError(t, err)
 
-	logger := testhelper.Logger(t)
-	prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store)
-	require.NoError(t, err)
+			logger := testhelper.Logger(t)
+			prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store)
+			require.NoError(t, err)
 
-	reg := prometheus.NewPedanticRegistry()
-	require.NotNil(t, reg)
+			reg := prometheus.NewPedanticRegistry()
+			require.NotNil(t, reg)
 
-	var buf bytes.Buffer
-	userLogger := level.NewFilter(kitlog.NewLogfmtLogger(&buf), level.AllowInfo(), level.SquelchNoLevel(false))
-	require.NotNil(t, userLogger)
+			var buf bytes.Buffer
+			userLogger := level.NewFilter(kitlog.NewLogfmtLogger(&buf), level.AllowInfo(), level.SquelchNoLevel(false))
+			require.NotNil(t, userLogger)
 
-	success, duration := prober.Probe(ctx, check.Target, reg, userLogger)
+			success, duration := prober.Probe(ctx, check.Target, reg, userLogger)
 
-	t.Log("Log entries:\n" + buf.String())
+			t.Log("Log entries:\n" + buf.String())
 
-	require.True(t, success)
-	require.NotEqual(t, 0, duration)
+			require.True(t, success)
+			require.NotEqual(t, 0, duration)
+		})
+	}
 }
 
 func TestReplaceVariablesInString(t *testing.T) {

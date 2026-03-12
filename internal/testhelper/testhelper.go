@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,13 +77,28 @@ func ModuleDir(t *testing.T) string {
 	return dir
 }
 
-func K6Path(t *testing.T) string {
+func K6Paths(t *testing.T) []string {
 	t.Helper()
 
-	k6path := filepath.Join(ModuleDir(t), "dist", runtime.GOOS+"-"+runtime.GOARCH, "sm-k6")
-	require.FileExistsf(t, k6path, "k6 program must exist at %s", k6path)
+	dir := filepath.Join(ModuleDir(t), "dist", runtime.GOOS+"-"+runtime.GOARCH)
+	entries, err := os.ReadDir(dir)
+	require.NoErrorf(t, err, "reading k6 binaries directory %s", dir)
 
-	return k6path
+	var paths []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.Contains(entry.Name(), "k6") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil || info.Mode().Perm()&0o111 == 0 {
+			continue
+		}
+		paths = append(paths, filepath.Join(dir, entry.Name()))
+	}
+
+	require.NotEmptyf(t, paths, "no k6 binaries found in %s", dir)
+
+	return paths
 }
 
 // NoopSecretStore is a test implementation of the SecretProvider interface
