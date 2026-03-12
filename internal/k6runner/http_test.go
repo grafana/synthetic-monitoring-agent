@@ -533,18 +533,17 @@ func TestHTTPVersions(t *testing.T) {
 			return
 		}
 
-		response := struct {
-			Versions []string `json:"versions"`
-		}{
-			Versions: []string{"1.2.3", "2.3.4"},
-		}
-
 		rw.Header().Add("content-type", "application/json")
 		rw.WriteHeader(http.StatusOK)
 
-		err := json.NewEncoder(rw).Encode(&response)
+		_, err := rw.Write([]byte(`{
+			"versions": [
+				{"path":"/usr/local/libexec/sm-k6/k6-v1", "version":"1.2.3"},
+				{"path":"/usr/local/libexec/sm-k6/k6-v2", "version":"2.3.4"}
+			]
+		}`))
 		if err != nil {
-			t.Fail()
+			t.Fatalf("writing response body: %v", err)
 		}
 	})
 

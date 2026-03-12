@@ -61,6 +61,21 @@ type RunResponse struct {
 	Logs      []byte `json:"logs"`
 }
 
+type VersionsResponse struct {
+	List []struct {
+		Version string `json:"version"`
+		Path    string `json:"path"` // Unused.
+	} `json:"versions"`
+}
+
+func (v VersionsResponse) Versions() []string {
+	versions := make([]string, 0, len(v.List))
+	for _, v := range v.List {
+		versions = append(versions, v.Version)
+	}
+	return versions
+}
+
 func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
 	r.logger = logger
 
@@ -284,16 +299,15 @@ func (r HttpRunner) Versions(ctx context.Context) <-chan []string {
 						return fmt.Errorf("unexpected status %d", resp.StatusCode)
 					}
 
-					var response struct {
-						Versions []string `json:"versions"`
-					}
-
+					response := VersionsResponse{}
 					err = json.NewDecoder(resp.Body).Decode(&response)
 					if err != nil {
 						return fmt.Errorf("decoding response: %w", err)
 					}
 
-					r.logger.Debug().Strs("versions", response.Versions).Msg("Polled remote runner for versions")
+					versions := response.Versions()
+
+					r.logger.Debug().Strs("versions", versions).Msg("Polled remote runner for versions")
 
 					select {
 					case <-ctx.Done():
@@ -301,7 +315,7 @@ func (r HttpRunner) Versions(ctx context.Context) <-chan []string {
 					case <-time.After(3 * time.Second):
 						r.logger.Warn().Msg("Version report went unconsumed, discarding report and continuing")
 						return nil
-					case ch <- response.Versions:
+					case ch <- versions:
 						return nil
 					}
 				}()
