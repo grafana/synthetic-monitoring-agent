@@ -7,9 +7,7 @@ import (
 	"io"
 	"math"
 	"net"
-	"net/url"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strconv"
@@ -223,15 +221,6 @@ func run(args []string, stdout io.Writer) error {
 		Msg("starting")
 
 	notifyAboutDeprecatedFeatureFlags(features, zl)
-
-	if features.IsSet(feature.K6) {
-		newUri, err := validateK6URI(config.K6URI)
-		if err != nil {
-			return err
-		} else if newUri != config.K6URI {
-			config.K6URI = newUri
-		}
-	}
 
 	var usageReporter usage.Reporter
 	switch {
@@ -485,32 +474,6 @@ func boolFromEnv(name string, defaultValue bool) bool {
 	}
 
 	return parsed
-}
-
-func validateK6URI(uri string) (string, error) {
-	u, err := url.Parse(uri)
-	if err != nil {
-		return "", err
-	}
-
-	switch u.Scheme {
-	case "http", "https":
-
-	case "":
-		if u.Path == "" {
-			return "", fmt.Errorf("missing path in %q", uri)
-		}
-
-		uri, err = exec.LookPath(u.Path)
-		if err != nil {
-			return "", err
-		}
-
-	default:
-		return "", fmt.Errorf("invalid scheme %q", u.Scheme)
-	}
-
-	return uri, nil
 }
 
 func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {
