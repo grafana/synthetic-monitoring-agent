@@ -248,6 +248,8 @@ func (r HttpRunner) Versions(ctx context.Context) <-chan []string {
 		ticker := time.NewTicker(r.versionPollInterval)
 		defer ticker.Stop()
 
+		r.logger.Debug().Str("url", r.url).Msg("Starting to poll for versions") // TODO: This is not the actual URL.
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -304,7 +306,7 @@ func (r HttpRunner) Versions(ctx context.Context) <-chan []string {
 					}
 				}()
 				if err != nil {
-					r.logger.Err(err).Msg("requesting versions")
+					r.logger.Error().Err(err).Msg("requesting versions")
 					continue
 				}
 			}
