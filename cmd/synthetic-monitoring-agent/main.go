@@ -31,6 +31,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/k6version"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
@@ -400,6 +401,23 @@ func run(args []string, stdout io.Writer) error {
 	g.Go(func() error {
 		return adhocHandler.Run(ctx)
 	})
+
+	if k6Runner != nil {
+		k6VersionsLogger := zl.With().Str("subsystem", "k6versions").Logger()
+		k6VersionsHandler, err := k6version.NewHandler(
+			k6version.HandlerOpts{
+				Logger:   &k6VersionsLogger,
+				K6Runner: k6Runner,
+				K6Client: synthetic_monitoring.NewK6Client(conn),
+			})
+		if err != nil {
+			return fmt.Errorf("cannot create k6versions handler: %w", err)
+		}
+
+		g.Go(func() error {
+			return k6VersionsHandler.Handle(ctx)
+		})
+	}
 
 	return g.Wait()
 }
