@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.55.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.54.0...v0.55.0) (2026-03-13)
+
+
+### Features
+
+* k6version: register versions reported by k6 runner to the API ([#1736](https://github.com/grafana/synthetic-monitoring-agent/issues/1736)) ([56f2703](https://github.com/grafana/synthetic-monitoring-agent/commit/56f27034e58208b79d138c977a1a2b87da4ad878))
+
+
+### Fixes
+
+* k6runner: use actual response schema from runners ([200ce90](https://github.com/grafana/synthetic-monitoring-agent/commit/200ce902cdd6de9d2bc3044c43201caf7fd86a4d))
+
+
+### Miscellaneous Chores
+
+* build: download k6 as k6-v1, place it in repository folder ([effb00e](https://github.com/grafana/synthetic-monitoring-agent/commit/effb00e1b26eb90b0006acfdf00515362c37f2eb))
+* cmd: default to using k6 repository folder ([a5c2334](https://github.com/grafana/synthetic-monitoring-agent/commit/a5c2334b3dd79466a51e959c2302dc8b9f20bf6f))
+* cmd: remove validation of -k6-uri ([6d25add](https://github.com/grafana/synthetic-monitoring-agent/commit/6d25addbccae89d41da4037ae3b28f2a4e80ca51))
+* Dockerfile: copy k6 to repository folder ([128d175](https://github.com/grafana/synthetic-monitoring-agent/commit/128d175e2b11f212233e2dc3109253c2d7123332))
+* k6versions,k6runner: add more debug logs fro troubleshooting ([49bddce](https://github.com/grafana/synthetic-monitoring-agent/commit/49bddce7d8ac65efa859222a565b96cefcb0be19))
+* prober/multihttp: test with all k6 binaries found in dist ([d099bc5](https://github.com/grafana/synthetic-monitoring-agent/commit/d099bc5d27ce4287290397db5e6d7eb8bb3fd4ae))
+
 ## [0.54.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.53.0...v0.54.0) (2026-03-06)
 
 
