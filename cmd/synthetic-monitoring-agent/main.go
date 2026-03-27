@@ -32,6 +32,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6version"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
