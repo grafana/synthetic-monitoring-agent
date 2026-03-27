@@ -1,6 +1,7 @@
 package metamonitoring
 
 import (
+	"context"
 	"time"
 
 	logproto "github.com/grafana/loki/pkg/push"
@@ -12,11 +13,14 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const defaultInterval = time.Minute
+
 type HandlerOpts struct {
 	Logger    zerolog.Logger
 	Registry  *prometheus.Registry
 	Publisher pusher.Publisher
 	TenantID  model.GlobalID
+	Interval  time.Duration
 }
 
 type metricsHandler struct {
@@ -24,26 +28,39 @@ type metricsHandler struct {
 	registry  *prometheus.Registry
 	publisher pusher.Publisher
 	tenantID  model.GlobalID
+	interval  time.Duration
 }
 
 func NewHandler(opts HandlerOpts) (*metricsHandler, error) {
+	interval := opts.Interval
+	if interval == 0 {
+		interval = defaultInterval
+	}
+
 	return &metricsHandler{
 		logger:    opts.Logger,
 		registry:  opts.Registry,
 		publisher: opts.Publisher,
 		tenantID:  opts.TenantID,
+		interval:  interval,
 	}, nil
 }
 
-func (m metricsHandler) Run() error {
-	ticker := time.NewTicker(15 * time.Second)
-	for t := range ticker.C {
-		if err := m.reportUsage(); err != nil {
-			m.logger.Error().Err(err).Time("t", t).Msg("failed to report metrics")
+func (m metricsHandler) Run(ctx context.Context) error {
+	ticker := time.NewTicker(m.interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case t := <-ticker.C:
+			if err := m.reportUsage(); err != nil {
+				m.logger.Error().Err(err).Time("t", t).Msg("failed to report metrics")
+			}
+			m.logger.Info().Time("t", t).Msg("reported metrics")
 		}
-		m.logger.Info().Time("t", t).Msg("reported metrics")
 	}
-	return nil
 }
 
 func (m metricsHandler) reportUsage() error {
