@@ -32,6 +32,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6version"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
@@ -394,18 +395,26 @@ func run(args []string, stdout io.Writer) error {
 	})
 
 	if config.PushMetrics {
-		metricsHandler, err := metamonitoring.NewHandler(metamonitoring.HandlerOpts{
-			Logger:    zl.With().Str("subsystem", "metamonitoring").Logger(),
-			Registry:  promRegisterer,
-			Publisher: publisher,
-			TenantID:  1, // TODO: set to actual tenant ID
-		})
 		g.Go(func() error {
+			tenantID, err := tm.WaitForTenant(ctx)
+			if err != nil {
+				return err
+			}
+
+			zl.Info().Int64("tenantID", tenantID).Msg("metamonitoring: tenant discovered, starting metrics handler")
+
+			metricsHandler, err := metamonitoring.NewHandler(metamonitoring.HandlerOpts{
+				Logger:    zl.With().Str("subsystem", "metamonitoring").Logger(),
+				Registry:  promRegisterer,
+				Publisher: publisher,
+				TenantID:  model.GlobalID(tenantID),
+			})
+			if err != nil {
+				return fmt.Errorf("cannot create metamonitoring handler: %w", err)
+			}
+
 			return metricsHandler.Run()
 		})
-		if err != nil {
-			return fmt.Errorf("connot create metamonitoring handler: %s", err)
-		}
 	}
 	if k6Runner != nil {
 		k6VersionsLogger := zl.With().Str("subsystem", "k6versions").Logger()
