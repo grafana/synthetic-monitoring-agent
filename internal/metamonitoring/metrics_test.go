@@ -563,6 +563,74 @@ func TestRun(t *testing.T) {
 	})
 }
 
+func TestRun(t *testing.T) {
+	t.Run("publishes on each tick", func(t *testing.T) {
+		registry := prometheus.NewRegistry()
+		counter := prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_tick_counter",
+			Help: "Test counter",
+		})
+		registry.MustRegister(counter)
+		counter.Add(1)
+
+		pub := &mockPublisher{}
+		handler, err := NewHandler(HandlerOpts{
+			Logger:    zerolog.New(zerolog.NewTestWriter(t)),
+			Registry:  registry,
+			Publisher: pub,
+			TenantID:  1,
+			Interval:  50 * time.Millisecond,
+		})
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 175*time.Millisecond)
+		defer cancel()
+
+		err = handler.Run(ctx)
+		require.NoError(t, err)
+
+		payloads := pub.getPayloads()
+		require.GreaterOrEqual(t, len(payloads), 2)
+		require.LessOrEqual(t, len(payloads), 4)
+	})
+
+	t.Run("stops on context cancellation", func(t *testing.T) {
+		registry := prometheus.NewRegistry()
+		pub := &mockPublisher{}
+		handler, err := NewHandler(HandlerOpts{
+			Logger:    zerolog.New(zerolog.NewTestWriter(t)),
+			Registry:  registry,
+			Publisher: pub,
+			TenantID:  1,
+			Interval:  time.Hour, // very long — should not tick
+		})
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // cancel immediately
+
+		done := make(chan error, 1)
+		go func() {
+			done <- handler.Run(ctx)
+		}()
+
+		select {
+		case err := <-done:
+			require.NoError(t, err)
+		case <-time.After(time.Second):
+			t.Fatal("Run did not return after context cancellation")
+		}
+
+		payloads := pub.getPayloads()
+		require.Empty(t, payloads)
+	})
+
+	t.Run("defaults interval to 1 minute", func(t *testing.T) {
+		handler, _ := newTestHandler(t, prometheus.NewRegistry(), 1)
+		require.Equal(t, time.Minute, handler.interval)
+	})
+}
+
 // payloadCapture wraps a publisher and captures the raw Payload for interface assertions.
 type payloadCapture struct {
 	inner    pusher.Publisher
