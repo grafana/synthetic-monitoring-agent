@@ -31,7 +31,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6version"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
-	"github.com/grafana/synthetic-monitoring-agent/internal/metametrics"
+	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
@@ -85,7 +85,7 @@ func run(args []string, stdout io.Writer) error {
 			CacheLocalTTL         time.Duration
 			MemcachedServers      StringList
 			EnableProtocolSecrets bool
-			PushMetaMetrics       bool
+			PushMetrics           bool
 		}{
 			GrpcApiServerAddr:  "localhost:4031",
 			HttpListenAddr:     "localhost:4050",
@@ -99,7 +99,7 @@ func run(args []string, stdout io.Writer) error {
 			CacheType:          cache.KindAuto,
 			CacheLocalCapacity: 10000,
 			CacheLocalTTL:      5 * time.Minute,
-			PushMetaMetrics:    true,
+			PushMetrics:        true,
 		}
 	)
 
@@ -393,15 +393,15 @@ func run(args []string, stdout io.Writer) error {
 		return adhocHandler.Run(ctx)
 	})
 
-	if config.PushMetaMetrics {
-		metaMetricsHandler, err := metametrics.NewHandler(metametrics.HandlerOpts{
+	if config.PushMetrics {
+		metricsHandler, err := metamonitoring.NewHandler(metamonitoring.HandlerOpts{
 			Logger:    zl.With().Str("subsystem", "metamonitoring").Logger(),
 			Registry:  promRegisterer,
 			Publisher: publisher,
 			TenantID:  1, // TODO: set to actual tenant ID
 		})
 		g.Go(func() error {
-			return metaMetricsHandler.Run()
+			return metricsHandler.Run()
 		})
 		if err != nil {
 			return fmt.Errorf("connot create metamonitoring handler: %s", err)

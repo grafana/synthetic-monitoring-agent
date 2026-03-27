@@ -1,4 +1,4 @@
-package metametrics
+package metamonitoring
 
 import (
 	"time"
@@ -19,15 +19,15 @@ type HandlerOpts struct {
 	TenantID  model.GlobalID
 }
 
-type metaMetricsHandler struct {
+type metricsHandler struct {
 	logger    zerolog.Logger
 	registry  *prometheus.Registry
 	publisher pusher.Publisher
 	tenantID  model.GlobalID
 }
 
-func NewHandler(opts HandlerOpts) (*metaMetricsHandler, error) {
-	return &metaMetricsHandler{
+func NewHandler(opts HandlerOpts) (*metricsHandler, error) {
+	return &metricsHandler{
 		logger:    opts.Logger,
 		registry:  opts.Registry,
 		publisher: opts.Publisher,
@@ -35,18 +35,18 @@ func NewHandler(opts HandlerOpts) (*metaMetricsHandler, error) {
 	}, nil
 }
 
-func (m metaMetricsHandler) Run() error {
+func (m metricsHandler) Run() error {
 	ticker := time.NewTicker(15 * time.Second)
 	for t := range ticker.C {
 		if err := m.reportUsage(); err != nil {
-			m.logger.Error().Err(err).Time("t", t).Msg("failed to report meta metrics")
+			m.logger.Error().Err(err).Time("t", t).Msg("failed to report metrics")
 		}
-		m.logger.Info().Time("t", t).Msg("reported meta metrics")
+		m.logger.Info().Time("t", t).Msg("reported metrics")
 	}
 	return nil
 }
 
-func (m metaMetricsHandler) reportUsage() error {
+func (m metricsHandler) reportUsage() error {
 	mfs, err := m.registry.Gather()
 	if err != nil {
 		return err
