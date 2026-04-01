@@ -314,6 +314,7 @@ message AdHocCheck {
   ]; // check-specific settings
   repeated int64 probes = 5 [(gogoproto.jsontag) = "probes"]; // list of probes where this check should run
   string target = 6 [(gogoproto.jsontag) = "target"]; // endpoint that this check is targeting
+  Channels channels = 7 [(gogoproto.jsontag) = "channels"]; // channels this check is assigned to
 }
 
 // CheckSettings provides the settings for exactly one type of check.
