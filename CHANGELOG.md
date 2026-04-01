@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.56.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.55.0...v0.56.0) (2026-04-01)
+
+
+### Features
+
+* Add support for channels on adhoc checks ([#1750](https://github.com/grafana/synthetic-monitoring-agent/issues/1750)) ([13b4ff8](https://github.com/grafana/synthetic-monitoring-agent/commit/13b4ff863d48cb3914a1508775f9b7524e775614))
+
 ## [0.55.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.54.0...v0.55.0) (2026-03-27)
 
 
