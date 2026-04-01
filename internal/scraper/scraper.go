@@ -57,6 +57,7 @@ type Metrics interface {
 type LabelsLimiter interface {
 	MetricLabels(ctx context.Context, tenantID model.GlobalID) (int, error)
 	LogLabels(ctx context.Context, tenantID model.GlobalID) (int, error)
+	LabelMode(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error)
 }
 
 type TenantCals interface {
@@ -499,8 +500,16 @@ func tickWithOffset(
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
 	var (
 		target = s.target
+	)
+
+	labelMode, err := s.labelsLimiter.LabelMode(ctx, s.check.GlobalTenantID())
+	if err != nil {
+		return nil, 0, fmt.Errorf("retrieving tenant label mode: %w", err)
+	}
+
+	var (
 		// These are the labels defined by the user.
-		userLabels = s.buildUserLabels()
+		userLabels = buildUserLabels(s.probe.Labels, s.check.Labels, labelMode)
 		// These labels are applied to the sm_check_info metric.
 		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
 	)
@@ -594,14 +603,24 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		successValue = "0"
 	}
 
-	if len(logLabels) >= maxLogLabels {
-		logLabels = logLabels[:maxLogLabels-1]
+	// Split logLabels into stream labels and structured metadata overflow.
+	// maxLogLabels - 1 reserves one slot for probe_success which is always appended.
+	var streamLogLabels []labelPair
+	var overflowMetadata []logproto.LabelAdapter
+	maxUserLogLabels := maxLogLabels - 1
+	if len(logLabels) > maxUserLogLabels {
+		streamLogLabels = logLabels[:maxUserLogLabels]
+		for _, lp := range logLabels[maxUserLogLabels:] {
+			overflowMetadata = append(overflowMetadata, logproto.LabelAdapter{Name: lp.name, Value: lp.value})
+		}
+	} else {
+		streamLogLabels = logLabels
 	}
-	logLabels = append(logLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
+	streamLogLabels = append(streamLogLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
 
 	// streams need to have all the labels applied to them because
 	// loki does not support joins
-	streams := s.extractLogs(t, logs.Bytes(), logLabels)
+	streams := s.extractLogs(t, logs.Bytes(), streamLogLabels, overflowMetadata)
 
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.GlobalTenantID()}, duration, err
 }
@@ -812,7 +831,10 @@ func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.
 	return nil
 }
 
-func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair) Streams {
+// extractLogs parses logfmt-encoded log bytes and returns Loki streams using sharedLabels
+// as stream labels. Any labels in structuredMetadata are attached to each log entry as
+// Loki structured metadata (queryable but not indexed as stream labels).
+func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair, structuredMetadata []logproto.LabelAdapter) Streams {
 	var line strings.Builder
 
 	dec := logfmt.NewDecoder(bytes.NewReader(logs))
@@ -871,8 +893,9 @@ RECORD:
 			s.logger.Warn().Err(err).Msg("encoding logs")
 		}
 		entries = append(entries, logproto.Entry{
-			Timestamp: t,
-			Line:      line.String(),
+			Timestamp:          t,
+			Line:               line.String(),
+			StructuredMetadata: structuredMetadata,
 		})
 	}
 
@@ -927,32 +950,59 @@ func (s Scraper) buildCheckInfoLabels(userLabels []labelPair) map[string]string 
 	return labels
 }
 
-func (s Scraper) buildUserLabels() []labelPair {
-	labels := []labelPair{}
-	idx := make(map[string]int)
+// labelEntry tracks the slice indices for a single user label.
+// slot0 is the index of the primary entry (the only entry in PREFIXED/UNPREFIXED mode,
+// or the un-prefixed entry in DUAL_WRITE mode).
+// slot1 is the index of the secondary entry in DUAL_WRITE mode (the label_foo entry),
+// or -1 when there is no secondary entry.
+type labelEntry struct {
+	slot0 int
+	slot1 int
+}
 
-	// add probe labels
-	for _, l := range s.probe.Labels {
-		idx[l.Name] = len(labels)
+// buildUserLabels builds the user-defined label pairs from probe and check labels
+// according to the tenant's LabelMode. Check labels override probe labels for the
+// same label name. In DUAL_WRITE and UNPREFIXED modes, labels whose names match
+// reserved system labels are silently dropped.
+func buildUserLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []labelPair {
+	var labels []labelPair
+	idx := make(map[string]labelEntry)
 
-		labels = append(labels,
-			labelPair{name: "label_" + l.Name, value: l.Value})
-	}
+	for _, src := range [][]sm.Label{probeLabels, checkLabels} {
+		for _, l := range src {
+			// In dual-write and unprefixed modes: silently drop reserved names.
+			if mode != sm.LabelMode_LABEL_MODE_PREFIXED && sm.IsSystemLabel(l.Name) {
+				continue
+			}
 
-	// add check labels
-	for _, l := range s.check.Labels {
-		if where, found := idx[l.Name]; found {
-			// already there, update value
-			labels[where].value = l.Value
-			continue
+			if entry, found := idx[l.Name]; found {
+				// Check overrides probe: update value in-place for all slots.
+				labels[entry.slot0].value = l.Value
+				if entry.slot1 >= 0 {
+					labels[entry.slot1].value = l.Value
+				}
+				continue
+			}
+
+			switch mode {
+			case sm.LabelMode_LABEL_MODE_DUAL_WRITE:
+				// Emit un-prefixed entry first (slot0), prefixed entry second (slot1).
+				s0 := len(labels)
+				labels = append(labels, labelPair{name: l.Name, value: l.Value})
+				s1 := len(labels)
+				labels = append(labels, labelPair{name: "label_" + l.Name, value: l.Value})
+				idx[l.Name] = labelEntry{slot0: s0, slot1: s1}
+			case sm.LabelMode_LABEL_MODE_UNPREFIXED:
+				s0 := len(labels)
+				labels = append(labels, labelPair{name: l.Name, value: l.Value})
+				idx[l.Name] = labelEntry{slot0: s0, slot1: -1}
+			default: // LABEL_MODE_PREFIXED
+				s0 := len(labels)
+				labels = append(labels, labelPair{name: "label_" + l.Name, value: l.Value})
+				idx[l.Name] = labelEntry{slot0: s0, slot1: -1}
+			}
 		}
-
-		idx[l.Name] = len(labels)
-
-		labels = append(labels,
-			labelPair{name: "label_" + l.Name, value: l.Value})
 	}
-
 	return labels
 }
 

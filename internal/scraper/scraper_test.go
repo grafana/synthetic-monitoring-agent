@@ -1314,6 +1314,7 @@ func (p testProber) Probe(ctx context.Context, target string, registry *promethe
 type testLabelsLimiter struct {
 	maxMetricLabels int
 	maxLogLabels    int
+	labelMode       sm.LabelMode
 }
 
 func (l testLabelsLimiter) MetricLabels(ctx context.Context, tenantID model.GlobalID) (int, error) {
@@ -1322,6 +1323,10 @@ func (l testLabelsLimiter) MetricLabels(ctx context.Context, tenantID model.Glob
 
 func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalID) (int, error) {
 	return l.maxLogLabels, nil
+}
+
+func (l testLabelsLimiter) LabelMode(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error) {
+	return l.labelMode, nil
 }
 
 type testCalTenants struct {

@@ -97,3 +97,15 @@ func (tl *TenantLimits) ValidateLogLabels(ctx context.Context, tenantID model.Gl
 
 	return nil
 }
+
+// LabelMode returns the label output mode for the specified tenant.
+func (tl *TenantLimits) LabelMode(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error) {
+	tenant, err := tl.tp.GetTenant(ctx, &sm.TenantInfo{
+		Id: int64(tenantID),
+	})
+	if err != nil {
+		return sm.LabelMode_LABEL_MODE_PREFIXED, err
+	}
+
+	return tenant.LabelMode, nil
+}
