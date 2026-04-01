@@ -131,6 +131,42 @@ const (
 	HealthCheckTimeout  = 30 * time.Second
 )
 
+// systemLabels is the read-only set of label names reserved by the synthetic-monitoring-agent.
+// User-defined labels with these names are silently ignored by the agent when the
+// tenant's LabelMode is LABEL_MODE_DUAL_WRITE or LABEL_MODE_UNPREFIXED, and are
+// rejected by the API for tenants in dual-write mode or created after the feature epoch.
+//
+// This map must not be modified at runtime. Use IsSystemLabel to query it.
+var systemLabels = map[string]struct{}{
+	"check": {}, "check_name": {}, "cipher": {}, "config_version": {},
+	"fingerprint_sha256": {}, "frequency": {}, "from_cache": {},
+	"from_prefetch_cache": {}, "from_service_worker": {}, "geohash": {},
+	"instance": {}, "issuer": {}, "job": {}, "le": {}, "method": {},
+	"name": {}, "phase": {}, "probe": {}, "proto": {}, "rating": {},
+	"region": {}, "resource_type": {}, "result": {}, "scenario": {},
+	"serialnumber": {}, "status": {}, "subject": {}, "subjectalternative": {},
+	"tls_version": {}, "url": {}, "version": {},
+}
+
+// SystemLabelCount is the number of reserved system label names.
+const SystemLabelCount = 32
+
+// IsSystemLabel reports whether name is reserved by the synthetic-monitoring-agent.
+func IsSystemLabel(name string) bool {
+	_, ok := systemLabels[name]
+	return ok
+}
+
+// SystemLabelNames returns a sorted slice of all reserved system label names.
+// The result is a new slice on each call; callers must not modify it.
+func SystemLabelNames() []string {
+	names := make([]string, 0, len(systemLabels))
+	for n := range systemLabels {
+		names = append(names, n)
+	}
+	return names
+}
+
 const (
 	MaxMetricLabels          = 22   // Prometheus allows for 32 labels, but limit to 22.
 	MaxLogLabels             = 15   // Loki allows a maximum of 15 labels.
