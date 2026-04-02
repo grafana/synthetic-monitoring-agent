@@ -31,6 +31,8 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6version"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
+	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
@@ -84,6 +86,8 @@ func run(args []string, stdout io.Writer) error {
 			CacheLocalTTL         time.Duration
 			MemcachedServers      StringList
 			EnableProtocolSecrets bool
+			PushMetrics           bool
+			MetricsInterval       time.Duration
 		}{
 			GrpcApiServerAddr:  "localhost:4031",
 			HttpListenAddr:     "localhost:4050",
@@ -97,6 +101,8 @@ func run(args []string, stdout io.Writer) error {
 			CacheType:          cache.KindAuto,
 			CacheLocalCapacity: 10000,
 			CacheLocalTTL:      5 * time.Minute,
+			PushMetrics:        true,
+			MetricsInterval:    time.Minute,
 		}
 	)
 
@@ -126,6 +132,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.IntVar(&config.CacheLocalCapacity, "cache-local-capacity", config.CacheLocalCapacity, "maximum number of items in local cache")
 	flags.DurationVar(&config.CacheLocalTTL, "cache-local-ttl", config.CacheLocalTTL, "default TTL for local cache items")
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
+	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -366,7 +373,6 @@ func run(args []string, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
 	}
-
 	g.Go(func() error {
 		return checksUpdater.Run(ctx)
 	})
@@ -391,6 +397,29 @@ func run(args []string, stdout io.Writer) error {
 		return adhocHandler.Run(ctx)
 	})
 
+	if config.PushMetrics {
+		g.Go(func() error {
+			tenantID, err := tm.WaitForTenant(ctx)
+			if err != nil {
+				return err
+			}
+
+			zl.Info().Int64("tenantID", tenantID).Msg("metamonitoring: tenant discovered, starting metrics handler")
+
+			metricsHandler, err := metamonitoring.NewHandler(metamonitoring.HandlerOpts{
+				Logger:    zl.With().Str("subsystem", "metamonitoring").Logger(),
+				Registry:  promRegisterer,
+				Publisher: publisher,
+				TenantID:  model.GlobalID(tenantID),
+				Interval:  config.MetricsInterval,
+			})
+			if err != nil {
+				return fmt.Errorf("cannot create metamonitoring handler: %w", err)
+			}
+
+			return metricsHandler.Run(ctx)
+		})
+	}
 	if k6Runner != nil {
 		k6VersionsLogger := zl.With().Str("subsystem", "k6versions").Logger()
 		k6VersionsHandler, err := k6version.NewHandler(
