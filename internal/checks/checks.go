@@ -67,6 +67,11 @@ type Backoffer interface {
 // Updater represents a probe along with the collection of scrapers
 // running on that probe and it manages the configuration for
 // blackbox-exporter that corresponds to the collection of scrapers.
+type ProbeInfo struct {
+	Name   string
+	Region string
+}
+
 type Updater struct {
 	api                     apiInfo
 	logger                  zerolog.Logger
@@ -87,6 +92,10 @@ type Updater struct {
 	usageReporter           usage.Reporter
 	tenantCals              *cals.CostAttributionLabels
 	supportsProtocolSecrets bool
+
+	probeInfoCh chan struct{}
+	probeInfo   ProbeInfo
+	probeOnce   sync.Once
 }
 
 type apiInfo struct {
@@ -243,6 +252,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantCh:                opts.TenantCh,
 		IsConnected:             opts.IsConnected,
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
+		probeInfoCh:             make(chan struct{}),
 		k6Runner:                opts.K6Runner,
 		scraperFactory:          scraperFactory,
 		tenantLimits:            opts.TenantLimits,
@@ -261,6 +271,17 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		usageReporter: opts.UsageReporter,
 		tenantCals:    opts.CostAttributionLabels,
 	}, nil
+}
+
+// WaitForProbeInfo blocks until the probe has registered with the API
+// and returns the probe's name and region.
+func (c *Updater) WaitForProbeInfo(ctx context.Context) (ProbeInfo, error) {
+	select {
+	case <-c.probeInfoCh:
+		return c.probeInfo, nil
+	case <-ctx.Done():
+		return ProbeInfo{}, ctx.Err()
+	}
 }
 
 func (c *Updater) Run(ctx context.Context) error {
@@ -404,6 +425,11 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	}
 
 	c.probe = &result.Probe
+
+	c.probeOnce.Do(func() {
+		c.probeInfo = ProbeInfo{Name: c.probe.Name, Region: c.probe.Region}
+		close(c.probeInfoCh)
+	})
 
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
 
