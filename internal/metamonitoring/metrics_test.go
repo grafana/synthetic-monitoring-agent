@@ -7,6 +7,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	logproto "github.com/grafana/loki/pkg/push"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -315,44 +316,65 @@ func TestReportUsage(t *testing.T) {
 		})
 	})
 
-	t.Run("payload streams are nil", func(t *testing.T) {
-		synctest.Test(t, func(t *testing.T) {
-			registry := prometheus.NewRegistry()
-			counter := prometheus.NewCounter(prometheus.CounterOpts{
-				Name: "test_counter",
-				Help: "Test counter",
-			})
-			registry.MustRegister(counter)
-			counter.Add(1)
-
-			pub := &mockPublisher{}
-			var rawPayload pusher.Payload
-			wrapper := &payloadCapture{inner: pub, captured: &rawPayload}
-
-			handler := NewHandler(HandlerOpts{
-				Logger:    zerolog.New(zerolog.NewTestWriter(t)),
-				Registry:  registry,
-				Publisher: wrapper,
-				TenantID:  1,
-			})
-
-			ctx, cancel := context.WithCancel(context.Background())
-			defer func() {
-				cancel()
-				synctest.Wait()
-			}()
-
-			go func() {
-				if err := handler.Run(ctx); err != nil {
-					t.Errorf("hander.Run: %v", err)
-				}
-			}()
-			time.Sleep(defaultInterval)
-			synctest.Wait()
-
-			require.NotNil(t, rawPayload)
-			require.Nil(t, rawPayload.Streams())
+	t.Run("payload includes drained log streams", func(t *testing.T) {
+		registry := prometheus.NewRegistry()
+		counter := prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_counter",
+			Help: "Test counter",
 		})
+		registry.MustRegister(counter)
+		counter.Add(1)
+
+		logBuf := NewRingBuffer(100)
+		logBuf.Append(logproto.Stream{
+			Labels:  `{source="test"}`,
+			Entries: []logproto.Entry{{Line: "test log line"}},
+		})
+
+		pub := &mockPublisher{}
+		handler := NewHandler(HandlerOpts{
+			Logger:    zerolog.New(zerolog.NewTestWriter(t)),
+			Registry:  registry,
+			Publisher: pub,
+			TenantID:  1,
+			LogBuffer: logBuf,
+		}).(*metricsHandler)
+
+		var rawPayload pusher.Payload
+		wrapper := &payloadCapture{inner: pub, captured: &rawPayload}
+		handler.publisher = wrapper
+
+		err := handler.reportUsage()
+		require.NoError(t, err)
+		require.NotNil(t, rawPayload)
+		require.Len(t, rawPayload.Streams(), 1)
+		require.Equal(t, `{source="test"}`, rawPayload.Streams()[0].Labels)
+		require.Equal(t, "test log line", rawPayload.Streams()[0].Entries[0].Line)
+	})
+
+	t.Run("publishes streams even without metrics", func(t *testing.T) {
+		registry := prometheus.NewRegistry() // empty
+
+		logBuf := NewRingBuffer(100)
+		logBuf.Append(logproto.Stream{
+			Labels:  `{source="test"}`,
+			Entries: []logproto.Entry{{Line: "log only"}},
+		})
+
+		pub := &mockPublisher{}
+		handler := NewHandler(HandlerOpts{
+			Logger:    zerolog.New(zerolog.NewTestWriter(t)),
+			Registry:  registry,
+			Publisher: pub,
+			TenantID:  1,
+			LogBuffer: logBuf,
+		}).(*metricsHandler)
+
+		err := handler.reportUsage()
+		require.NoError(t, err)
+
+		payloads := pub.getPayloads()
+		require.Len(t, payloads, 1)
 	})
 
 	t.Run("timestamp is set on samples", func(t *testing.T) {
@@ -560,74 +582,6 @@ func TestRun(t *testing.T) {
 	t.Run("defaults interval to 1 minute", func(t *testing.T) {
 		handler, _ := newTestHandler(t, prometheus.NewRegistry(), 1)
 		require.Equal(t, time.Minute, handler.(*metricsHandler).interval)
-	})
-}
-
-func TestRun(t *testing.T) {
-	t.Run("publishes on each tick", func(t *testing.T) {
-		registry := prometheus.NewRegistry()
-		counter := prometheus.NewCounter(prometheus.CounterOpts{
-			Name: "test_tick_counter",
-			Help: "Test counter",
-		})
-		registry.MustRegister(counter)
-		counter.Add(1)
-
-		pub := &mockPublisher{}
-		handler, err := NewHandler(HandlerOpts{
-			Logger:    zerolog.New(zerolog.NewTestWriter(t)),
-			Registry:  registry,
-			Publisher: pub,
-			TenantID:  1,
-			Interval:  50 * time.Millisecond,
-		})
-		require.NoError(t, err)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 175*time.Millisecond)
-		defer cancel()
-
-		err = handler.Run(ctx)
-		require.NoError(t, err)
-
-		payloads := pub.getPayloads()
-		require.GreaterOrEqual(t, len(payloads), 2)
-		require.LessOrEqual(t, len(payloads), 4)
-	})
-
-	t.Run("stops on context cancellation", func(t *testing.T) {
-		registry := prometheus.NewRegistry()
-		pub := &mockPublisher{}
-		handler, err := NewHandler(HandlerOpts{
-			Logger:    zerolog.New(zerolog.NewTestWriter(t)),
-			Registry:  registry,
-			Publisher: pub,
-			TenantID:  1,
-			Interval:  time.Hour, // very long — should not tick
-		})
-		require.NoError(t, err)
-
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel() // cancel immediately
-
-		done := make(chan error, 1)
-		go func() {
-			done <- handler.Run(ctx)
-		}()
-
-		select {
-		case err := <-done:
-			require.NoError(t, err)
-		case <-time.After(time.Second):
-			t.Fatal("Run did not return after context cancellation")
-		}
-
-		payloads := pub.getPayloads()
-		require.Empty(t, payloads)
-	})
-
-	t.Run("defaults interval to 1 minute", func(t *testing.T) {
-		handler, _ := newTestHandler(t, prometheus.NewRegistry(), 1)
-		require.Equal(t, time.Minute, handler.interval)
 	})
 }
 

@@ -32,7 +32,6 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6version"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
-	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
@@ -198,7 +197,16 @@ func run(args []string, stdout io.Writer) error {
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
 
-	zl := zerolog.New(stdout).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
+	hostname, _ := os.Hostname()
+
+	logBuffer := metamonitoring.NewRingBuffer(1000)
+	logShipper := metamonitoring.NewLogShipper(
+		logBuffer,
+		fmt.Sprintf(`{source="sm-agent",log_type="operational",hostname="%s",version="%s"}`, hostname, version.Short()),
+		zerolog.WarnLevel,
+	)
+
+	zl := zerolog.New(zerolog.MultiLevelWriter(stdout, logShipper)).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
 
 	switch {
 	case config.Debug:
@@ -408,6 +416,7 @@ func run(args []string, stdout io.Writer) error {
 				Publisher: publisher,
 				Interval:  config.MetricsInterval,
 				ProbeCh:   probeCh,
+				LogBuffer: logBuffer,
 			})
 
 			return metricsHandler.Run(ctx)
