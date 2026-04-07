@@ -57,8 +57,9 @@ func (m metricsHandler) Run(ctx context.Context) error {
 		case t := <-ticker.C:
 			if err := m.reportUsage(); err != nil {
 				m.logger.Error().Err(err).Time("t", t).Msg("failed to report metrics")
+			} else {
+				m.logger.Info().Time("t", t).Msg("reported metrics")
 			}
-			m.logger.Info().Time("t", t).Msg("reported metrics")
 		}
 	}
 }
