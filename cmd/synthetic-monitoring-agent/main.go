@@ -101,7 +101,6 @@ func run(args []string, stdout io.Writer) error {
 			CacheType:          cache.KindAuto,
 			CacheLocalCapacity: 10000,
 			CacheLocalTTL:      5 * time.Minute,
-			PushMetrics:        true,
 			MetricsInterval:    time.Minute,
 		}
 	)
@@ -133,6 +132,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.DurationVar(&config.CacheLocalTTL, "cache-local-ttl", config.CacheLocalTTL, "default TTL for local cache items")
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
+	flags.BoolVar(&config.PushMetrics, "push-metrics", config.PushMetrics, "enable pushing metrics to the probe's tenant")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
