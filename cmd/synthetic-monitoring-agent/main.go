@@ -361,6 +361,11 @@ func run(args []string, stdout io.Writer) error {
 		promRegisterer,
 	)
 
+	eventLogger := metamonitoring.NewEventLogger(
+		logBuffer,
+		fmt.Sprintf(`{source="sm-agent",log_type="event",hostname="%s",version="%s"}`, hostname, version.Short()),
+	)
+
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:                    conn,
 		Logger:                  zl.With().Str("subsystem", "updater").Logger(),
@@ -378,6 +383,7 @@ func run(args []string, stdout io.Writer) error {
 		UsageReporter:           usageReporter,
 		CostAttributionLabels:   cals,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		EventLogger:             eventLogger,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
@@ -420,6 +426,10 @@ func run(args []string, stdout io.Writer) error {
 
 			logShipper.SetLabels(fmt.Sprintf(
 				`{source="sm-agent",log_type="operational",hostname="%s",version="%s",probe="%s",region="%s"}`,
+				hostname, version.Short(), probeInfo.Name, probeInfo.Region,
+			))
+			eventLogger.SetLabels(fmt.Sprintf(
+				`{source="sm-agent",log_type="event",hostname="%s",version="%s",probe="%s",region="%s"}`,
 				hostname, version.Short(), probeInfo.Name, probeInfo.Region,
 			))
 
