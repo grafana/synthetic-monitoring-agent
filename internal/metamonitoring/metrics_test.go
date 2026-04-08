@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	logproto "github.com/grafana/loki/pkg/push"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/prometheus/client_golang/prometheus"
@@ -217,7 +218,7 @@ func TestReportUsage(t *testing.T) {
 		require.Len(t, payloads[0].metrics, 2)
 	})
 
-	t.Run("payload streams are nil", func(t *testing.T) {
+	t.Run("payload streams are nil without log buffer", func(t *testing.T) {
 		registry := prometheus.NewRegistry()
 		counter := prometheus.NewCounter(prometheus.CounterOpts{
 			Name: "test_counter",
@@ -237,6 +238,69 @@ func TestReportUsage(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, rawPayload)
 		require.Nil(t, rawPayload.Streams())
+	})
+
+	t.Run("payload includes drained log streams", func(t *testing.T) {
+		registry := prometheus.NewRegistry()
+		counter := prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "test_counter",
+			Help: "Test counter",
+		})
+		registry.MustRegister(counter)
+		counter.Add(1)
+
+		logBuf := NewRingBuffer(100)
+		logBuf.Append(logproto.Stream{
+			Labels:  `{source="test"}`,
+			Entries: []logproto.Entry{{Line: "test log line"}},
+		})
+
+		pub := &mockPublisher{}
+		handler, err := NewHandler(HandlerOpts{
+			Logger:    zerolog.New(zerolog.NewTestWriter(t)),
+			Registry:  registry,
+			Publisher: pub,
+			TenantID:  1,
+			LogBuffer: logBuf,
+		})
+		require.NoError(t, err)
+
+		var rawPayload pusher.Payload
+		wrapper := &payloadCapture{inner: pub, captured: &rawPayload}
+		handler.publisher = wrapper
+
+		err = handler.reportUsage()
+		require.NoError(t, err)
+		require.NotNil(t, rawPayload)
+		require.Len(t, rawPayload.Streams(), 1)
+		require.Equal(t, `{source="test"}`, rawPayload.Streams()[0].Labels)
+		require.Equal(t, "test log line", rawPayload.Streams()[0].Entries[0].Line)
+	})
+
+	t.Run("publishes streams even without metrics", func(t *testing.T) {
+		registry := prometheus.NewRegistry() // empty
+
+		logBuf := NewRingBuffer(100)
+		logBuf.Append(logproto.Stream{
+			Labels:  `{source="test"}`,
+			Entries: []logproto.Entry{{Line: "log only"}},
+		})
+
+		pub := &mockPublisher{}
+		handler, err := NewHandler(HandlerOpts{
+			Logger:    zerolog.New(zerolog.NewTestWriter(t)),
+			Registry:  registry,
+			Publisher: pub,
+			TenantID:  1,
+			LogBuffer: logBuf,
+		})
+		require.NoError(t, err)
+
+		err = handler.reportUsage()
+		require.NoError(t, err)
+
+		payloads := pub.getPayloads()
+		require.Len(t, payloads, 1)
 	})
 
 	t.Run("timestamp is set on samples", func(t *testing.T) {

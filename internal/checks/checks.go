@@ -26,6 +26,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
@@ -67,6 +68,11 @@ type Backoffer interface {
 // Updater represents a probe along with the collection of scrapers
 // running on that probe and it manages the configuration for
 // blackbox-exporter that corresponds to the collection of scrapers.
+type ProbeInfo struct {
+	Name   string
+	Region string
+}
+
 type Updater struct {
 	api                     apiInfo
 	logger                  zerolog.Logger
@@ -87,6 +93,11 @@ type Updater struct {
 	usageReporter           usage.Reporter
 	tenantCals              *cals.CostAttributionLabels
 	supportsProtocolSecrets bool
+	events                  *metamonitoring.EventLogger
+
+	probeInfoCh chan struct{}
+	probeInfo   ProbeInfo
+	probeOnce   sync.Once
 }
 
 type apiInfo struct {
@@ -125,6 +136,7 @@ type UpdaterOptions struct {
 	UsageReporter           usage.Reporter
 	CostAttributionLabels   *cals.CostAttributionLabels
 	SupportsProtocolSecrets bool
+	EventLogger             *metamonitoring.EventLogger
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -243,6 +255,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantCh:                opts.TenantCh,
 		IsConnected:             opts.IsConnected,
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
+		probeInfoCh:             make(chan struct{}),
 		k6Runner:                opts.K6Runner,
 		scraperFactory:          scraperFactory,
 		tenantLimits:            opts.TenantLimits,
@@ -260,7 +273,19 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		},
 		usageReporter: opts.UsageReporter,
 		tenantCals:    opts.CostAttributionLabels,
+		events:        opts.EventLogger,
 	}, nil
+}
+
+// WaitForProbeInfo blocks until the probe has registered with the API
+// and returns the probe's name and region.
+func (c *Updater) WaitForProbeInfo(ctx context.Context) (ProbeInfo, error) {
+	select {
+	case <-c.probeInfoCh:
+		return c.probeInfo, nil
+	case <-ctx.Done():
+		return ProbeInfo{}, ctx.Err()
+	}
 }
 
 func (c *Updater) Run(ctx context.Context) error {
@@ -405,6 +430,11 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	c.probe = &result.Probe
 
+	c.probeOnce.Do(func() {
+		c.probeInfo = ProbeInfo{Name: c.probe.Name, Region: c.probe.Region}
+		close(c.probeInfoCh)
+	})
+
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
 
 	logger.Info().Str("probe_name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
@@ -415,7 +445,11 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	// true indicates that probe is connected to API
 	connected = true
 	c.IsConnected(true)
-	defer c.IsConnected(false)
+	c.logEvent("probe_connected")
+	defer func() {
+		c.IsConnected(false)
+		c.logEvent("probe_disconnected")
+	}()
 
 	// this is constant throughout the life of the probe, but since
 	// we don't know the probe's id or name until this point, set it
@@ -643,6 +677,12 @@ func (c *Updater) processChanges(ctx context.Context, cc sm.Checks_GetChangesCli
 	}
 }
 
+func (c *Updater) logEvent(msg string, fields ...string) {
+	if c.events != nil {
+		c.events.Log(msg, fields...)
+	}
+}
+
 func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 	c.metrics.changesCounter.WithLabelValues("add").Inc()
 
@@ -654,13 +694,14 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 	defer c.scrapersMutex.Unlock()
 
 	if running, found := c.scrapers[check.GlobalID()]; found {
-		// we can get here if the API sent us a check add twice:
-		// once during the initial connection and another right
-		// after that. The window for that is small, but it
-		// exists.
-
 		return fmt.Errorf("check with id %d already exists (version %s)", check.GlobalID(), running.ConfigVersion())
 	}
+
+	c.logEvent("check_added",
+		"check_id", strconv.FormatInt(check.Id, 10),
+		"target", check.Target,
+		"job", check.Job,
+	)
 
 	return c.addAndStartScraperWithLock(ctx, check)
 }
@@ -671,6 +712,12 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) erro
 	if err := check.Validate(); err != nil {
 		return fmt.Errorf("invalid check: %w", err)
 	}
+
+	c.logEvent("check_updated",
+		"check_id", strconv.FormatInt(check.Id, 10),
+		"target", check.Target,
+		"job", check.Job,
+	)
 
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
@@ -714,6 +761,12 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) erro
 		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("delete request for an unknown check")
 		return errors.New("check not found")
 	}
+
+	c.logEvent("check_deleted",
+		"check_id", strconv.FormatInt(check.Id, 10),
+		"target", check.Target,
+		"job", check.Job,
+	)
 
 	scraper.Stop()
 	checkType := scraper.CheckType().String()

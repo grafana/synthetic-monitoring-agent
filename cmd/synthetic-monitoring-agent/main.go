@@ -198,7 +198,16 @@ func run(args []string, stdout io.Writer) error {
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
 
-	zl := zerolog.New(stdout).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
+	hostname, _ := os.Hostname()
+
+	logBuffer := metamonitoring.NewRingBuffer(1000)
+	logShipper := metamonitoring.NewLogShipper(
+		logBuffer,
+		fmt.Sprintf(`{source="sm-agent",log_type="operational",hostname="%s",version="%s"}`, hostname, version.Short()),
+		zerolog.WarnLevel,
+	)
+
+	zl := zerolog.New(zerolog.MultiLevelWriter(stdout, logShipper)).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
 
 	switch {
 	case config.Debug:
@@ -352,6 +361,11 @@ func run(args []string, stdout io.Writer) error {
 		promRegisterer,
 	)
 
+	eventLogger := metamonitoring.NewEventLogger(
+		logBuffer,
+		fmt.Sprintf(`{source="sm-agent",log_type="event",hostname="%s",version="%s"}`, hostname, version.Short()),
+	)
+
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:                    conn,
 		Logger:                  zl.With().Str("subsystem", "updater").Logger(),
@@ -369,6 +383,7 @@ func run(args []string, stdout io.Writer) error {
 		UsageReporter:           usageReporter,
 		CostAttributionLabels:   cals,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		EventLogger:             eventLogger,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
@@ -404,14 +419,32 @@ func run(args []string, stdout io.Writer) error {
 				return err
 			}
 
-			zl.Info().Int64("tenantID", tenantID).Msg("metamonitoring: tenant discovered, starting metrics handler")
+			probeInfo, err := checksUpdater.WaitForProbeInfo(ctx)
+			if err != nil {
+				return err
+			}
+
+			logShipper.SetLabels(fmt.Sprintf(
+				`{source="sm-agent",log_type="operational",hostname="%s",version="%s",probe="%s",region="%s"}`,
+				hostname, version.Short(), probeInfo.Name, probeInfo.Region,
+			))
+			eventLogger.SetLabels(fmt.Sprintf(
+				`{source="sm-agent",log_type="event",hostname="%s",version="%s",probe="%s",region="%s"}`,
+				hostname, version.Short(), probeInfo.Name, probeInfo.Region,
+			))
+
+			zl.Info().Int64("tenantID", tenantID).Str("probe", probeInfo.Name).Msg("metamonitoring: tenant discovered, starting metrics handler")
+
+			// Use stdout-only logger for metamonitoring to avoid log loops.
+			mmLogger := zerolog.New(stdout).With().Timestamp().Str("program", filepath.Base(args[0])).Str("subsystem", "metamonitoring").Logger()
 
 			metricsHandler, err := metamonitoring.NewHandler(metamonitoring.HandlerOpts{
-				Logger:    zl.With().Str("subsystem", "metamonitoring").Logger(),
+				Logger:    mmLogger,
 				Registry:  promRegisterer,
 				Publisher: publisher,
 				TenantID:  model.GlobalID(tenantID),
 				Interval:  config.MetricsInterval,
+				LogBuffer: logBuffer,
 			})
 			if err != nil {
 				return fmt.Errorf("cannot create metamonitoring handler: %w", err)

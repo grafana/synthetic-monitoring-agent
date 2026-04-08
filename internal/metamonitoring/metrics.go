@@ -21,6 +21,7 @@ type HandlerOpts struct {
 	Publisher pusher.Publisher
 	TenantID  model.GlobalID
 	Interval  time.Duration
+	LogBuffer LogBuffer
 }
 
 type metricsHandler struct {
@@ -29,6 +30,7 @@ type metricsHandler struct {
 	publisher pusher.Publisher
 	tenantID  model.GlobalID
 	interval  time.Duration
+	logBuffer LogBuffer
 }
 
 func NewHandler(opts HandlerOpts) (*metricsHandler, error) {
@@ -43,6 +45,7 @@ func NewHandler(opts HandlerOpts) (*metricsHandler, error) {
 		publisher: opts.Publisher,
 		tenantID:  opts.TenantID,
 		interval:  interval,
+		logBuffer: opts.LogBuffer,
 	}, nil
 }
 
@@ -72,13 +75,20 @@ func (m metricsHandler) reportUsage() error {
 
 	now := time.Now()
 	ts := mfsToTimeseries(now, mfs)
-	if len(ts) == 0 {
+
+	var streams []logproto.Stream
+	if m.logBuffer != nil {
+		streams = m.logBuffer.Drain()
+	}
+
+	if len(ts) == 0 && len(streams) == 0 {
 		return nil
 	}
 
 	m.publisher.Publish(&payload{
 		tenantID: m.tenantID,
 		metrics:  ts,
+		streams:  streams,
 	})
 
 	return nil
@@ -131,8 +141,9 @@ func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily) []prompb.TimeSeries {
 type payload struct {
 	tenantID model.GlobalID
 	metrics  []prompb.TimeSeries
+	streams  []logproto.Stream
 }
 
 func (p *payload) Tenant() model.GlobalID       { return p.tenantID }
 func (p *payload) Metrics() []prompb.TimeSeries { return p.metrics }
-func (p *payload) Streams() []logproto.Stream   { return nil }
+func (p *payload) Streams() []logproto.Stream   { return p.streams }
