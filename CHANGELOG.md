@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.56.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.55.0...v0.56.0) (2026-04-09)
+
+
+### Features
+
+* Add support for channels on adhoc checks ([#1750](https://github.com/grafana/synthetic-monitoring-agent/issues/1750)) ([13b4ff8](https://github.com/grafana/synthetic-monitoring-agent/commit/13b4ff863d48cb3914a1508775f9b7524e775614))
+
+
+### Miscellaneous Chores
+
+* Update actions/cache action to v5.0.4 ([80edee3](https://github.com/grafana/synthetic-monitoring-agent/commit/80edee37a2154f583c2e6f5f995ba3d03f748b7c))
+* Update actions/create-github-app-token action to v2.2.2 ([1c5a828](https://github.com/grafana/synthetic-monitoring-agent/commit/1c5a828eca71aec8c27974139de5e316aa85341d))
+* Update actions/create-github-app-token action to v3 ([92d34b1](https://github.com/grafana/synthetic-monitoring-agent/commit/92d34b183853400ccd02f52510afd2aa61c9995e))
+* Update actions/download-artifact digest to 3e5f45b ([a5f0e85](https://github.com/grafana/synthetic-monitoring-agent/commit/a5f0e85273c64301e1d90cc66f42c6fcb97850f5))
+* Update actions/setup-go action to v6.4.0 ([2d559ae](https://github.com/grafana/synthetic-monitoring-agent/commit/2d559ae44aa1413e5bb6abc00b81526c55e3971c))
+* Update dependency grafana/xk6-sm to v0.6.20 ([73788c7](https://github.com/grafana/synthetic-monitoring-agent/commit/73788c76a9b89474f16dde0ee9ac2549053dd659))
+* Update docker:dind Docker digest to f80c262 ([f5c1543](https://github.com/grafana/synthetic-monitoring-agent/commit/f5c15434ccdae4dbbba0ede3dda3ddd46c7be70d))
+* Update docker/build-push-action action to v7 ([6838e38](https://github.com/grafana/synthetic-monitoring-agent/commit/6838e3871555a38a5bc64e6789c445e2bbfa3580))
+* Update docker/setup-buildx-action action to v4 ([a87427d](https://github.com/grafana/synthetic-monitoring-agent/commit/a87427ddbcb7f5ac7add3abec8f9ac689901e16e))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v146 ([218d990](https://github.com/grafana/synthetic-monitoring-agent/commit/218d99005f983b7c592e45f2044455c803d9d4d9))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.35.0 ([f0d39ed](https://github.com/grafana/synthetic-monitoring-agent/commit/f0d39ed7533cd2e8360475e97e392610cc74fd82))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.35.1 ([26438a9](https://github.com/grafana/synthetic-monitoring-agent/commit/26438a93be8af6523fb38a9d0affd1cfc07f438a))
+* Update grafana/shared-workflows digest to d84db42 ([3cd9774](https://github.com/grafana/synthetic-monitoring-agent/commit/3cd9774a63c06629e3e8108a70b5e84020923d0b))
+* Update module github.com/rs/zerolog to v1.35.0 ([edd0f12](https://github.com/grafana/synthetic-monitoring-agent/commit/edd0f1264f05184816f3df7b94739e396621d5e1))
+* Update module golang.org/x/net to v0.52.0 ([8616105](https://github.com/grafana/synthetic-monitoring-agent/commit/8616105f83e13760a41c9716a2656f645567c4ac))
+* Update module golang.org/x/sync to v0.20.0 ([93b5cab](https://github.com/grafana/synthetic-monitoring-agent/commit/93b5cab7ab0ace0925b9392f50a1812be22cebdc))
+* Update module google.golang.org/grpc to v1.80.0 ([2d4d3cc](https://github.com/grafana/synthetic-monitoring-agent/commit/2d4d3cc56035268705b17e3169daab1717cb5eb3))
+* Update module kernel.org/pub/linux/libs/security/libcap/cap to v1.2.78 ([aaeda7d](https://github.com/grafana/synthetic-monitoring-agent/commit/aaeda7de7388515c63580be3f49a2c8a8d15b478))
+
 ## [0.55.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.54.0...v0.55.0) (2026-03-27)
 
 
