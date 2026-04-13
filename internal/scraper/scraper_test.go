@@ -2168,6 +2168,26 @@ func TestExtractLogsK6TimeOverridesDefaultTimestamp(t *testing.T) {
 			},
 		},
 		{
+			name: "BBE adapter time field with nanosecond precision is used as timestamp",
+			logs: `ts=2023-06-01T20:00:00.500000000Z level=INFO msg="Making HTTP request" time=2023-06-01T20:00:00.600000000Z url=https://example.com host=example.com`,
+			sharedLabels: []labelPair{
+				{name: "probe", value: "test-probe"},
+			},
+			expected: func(t *testing.T, streams Streams) {
+				require.Len(t, streams, 1)
+				require.Len(t, streams[0].Entries, 1)
+				entry := streams[0].Entries[0]
+
+				// time= (600ms) should win over ts= (500ms), and must preserve nanosecond precision.
+				expectedTime, _ := time.Parse(time.RFC3339Nano, "2023-06-01T20:00:00.600000000Z")
+				require.Equal(t, expectedTime, entry.Timestamp, "should use nanosecond-precision time= field")
+				// url= and host= should be in the body; time= should not.
+				require.Contains(t, entry.Line, "url=https://example.com")
+				require.Contains(t, entry.Line, "host=example.com")
+				require.NotContains(t, entry.Line, "time=")
+			},
+		},
+		{
 			name: "ts field only (no k6 time)",
 			logs: `ts=2023-06-01T20:00:00Z level=info msg="normal message"`,
 			sharedLabels: []labelPair{
@@ -2196,5 +2216,80 @@ func TestExtractLogsK6TimeOverridesDefaultTimestamp(t *testing.T) {
 			streams := s.extractLogs(time.Now(), []byte(tc.logs), tc.sharedLabels)
 			tc.expected(t, streams)
 		})
+	}
+}
+
+func TestHTTPCheckLogTimestampsAreNonDecreasing(t *testing.T) {
+	ctx := context.Background()
+
+	p, check, cleanup := setupHTTPProbe(ctx, t)
+	defer cleanup()
+
+	s := Scraper{
+		checkName: check.Check.Settings.Http.String(),
+		target:    check.Check.Target,
+		logger:    testhelper.Logger(t),
+		prober:    p,
+		labelsLimiter: testLabelsLimiter{
+			maxMetricLabels: 20,
+			maxLogLabels:    15,
+		},
+		summaries:  make(map[uint64]prometheus.Summary),
+		histograms: make(map[uint64]prometheus.Histogram),
+		check:      check,
+		probe: sm.Probe{
+			Name:   "test-probe",
+			Region: "test-region",
+		},
+	}
+
+	data, _, err := s.collectData(ctx, time.Now())
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	streams := data.Streams()
+	require.NotEmpty(t, streams, "expected at least one log stream")
+
+	for _, stream := range streams {
+		entries := stream.Entries
+		require.NotEmpty(t, entries, "expected log entries in stream")
+
+		// All 7 expected messages must be present.
+		msgs := make([]string, 0, len(entries))
+		for _, e := range entries {
+			dec := logfmt.NewDecoder(strings.NewReader(e.Line))
+			for dec.ScanRecord() {
+				for dec.ScanKeyval() {
+					if string(dec.Key()) == "msg" {
+						msgs = append(msgs, string(dec.Value()))
+					}
+				}
+			}
+		}
+
+		expectedMsgs := []string{
+			"Beginning check",
+			"Resolving target address",
+			"Resolved target address",
+			"Making HTTP request",
+			"Received HTTP response",
+			"Response timings for roundtrip",
+			"Check succeeded",
+		}
+		for _, expected := range expectedMsgs {
+			require.Contains(t, msgs, expected, "missing log entry: %q", expected)
+		}
+
+		// Entry timestamps must be non-decreasing (Loki stream ordering requirement).
+		for i := 1; i < len(entries); i++ {
+			require.False(t,
+				entries[i].Timestamp.Before(entries[i-1].Timestamp),
+				"entry[%d] timestamp %v is before entry[%d] timestamp %v (out-of-order)\nentry[%d] msg: %s\nentry[%d] msg: %s",
+				i, entries[i].Timestamp,
+				i-1, entries[i-1].Timestamp,
+				i-1, entries[i-1].Line,
+				i, entries[i].Line,
+			)
+		}
 	}
 }

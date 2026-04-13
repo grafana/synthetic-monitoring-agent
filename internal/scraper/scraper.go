@@ -849,10 +849,12 @@ RECORD:
 					continue RECORD
 				}
 
-			// k6 sets a 'time' field on its logs using RFC3339; if present, report it instead of the default timestamp
+			// k6 sets a 'time' field on its logs using RFC3339; if present, report it instead of the default timestamp.
+			// The slogHandler adapter (used for BBE probers) also emits a 'time' field using RFC3339Nano.
+			// RFC3339Nano is a strict superset of RFC3339; use it to parse either 'time' value.`
 			case "time":
 				var err error
-				t, err = time.Parse(time.RFC3339, string(value))
+				t, err = time.Parse(time.RFC3339Nano, string(value))
 				if err != nil {
 					s.logger.Warn().Err(err).Bytes("value", value).Msg("invalid timestamp scanning logs")
 					continue RECORD
