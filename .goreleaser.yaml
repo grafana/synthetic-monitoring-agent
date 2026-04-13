@@ -28,6 +28,9 @@ archives:
       - src: "{{dir .ArtifactPath}}/k6-v1"
         dst: k6-v1
         strip_parent: true
+      - src: "{{dir .ArtifactPath}}/k6-v2"
+        dst: k6-v2
+        strip_parent: true
 checksum:
   name_template: 'checksums.txt'
 snapshot:
@@ -55,6 +58,8 @@ nfpms:
 
       - src: ./dist/synthetic-monitoring-agent_{{.Os}}_{{.Arch}}{{ with .Amd64 }}_{{ . }}{{ end}}/k6-v1
         dst: /usr/libexec/sm-k6/k6-v1
+      - src: ./dist/synthetic-monitoring-agent_{{.Os}}_{{.Arch}}{{ with .Amd64 }}_{{ . }}{{ end}}/k6-v2
+        dst: /usr/libexec/sm-k6/k6-v2
     rpm:
       signature:
         # Also set ${NFPM_DEFAULT_PASSPHRASE}

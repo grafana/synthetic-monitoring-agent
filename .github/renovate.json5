@@ -19,13 +19,22 @@
       // versioning which is pretty much an alphabetical sort.
       "matchPackageNames": ["ghcr.io/grafana/chromium-swiftshader-alpine"],
       "versioning": "loose"
+    },
+    {
+      "matchDepNames": ["grafana/xk6-sm-v1"],
+      "allowedVersions": "<2.0.0"
+    },
+    {
+      "matchDepNames": ["grafana/xk6-sm-v2"],
+      "allowedVersions": ">=2.0.0 <3.0.0"
     }
   ],
   "customManagers": [
     {
-      // Update xk6-sm
+      // Update xk6-sm v1
       "customType": "regex",
-      "depNameTemplate": "grafana/xk6-sm",
+      "depNameTemplate": "grafana/xk6-sm-v1",
+      "packageNameTemplate": "grafana/xk6-sm",
       "datasourceTemplate": "github-releases",
       "versioningTemplate": "semver",
       "managerFilePatterns": [
@@ -34,7 +43,23 @@
         "**/*.mk"
       ],
       "matchStrings": [
-        "https://github.com/grafana/xk6-sm/releases/download/(?<currentValue>[^/]+)/"
+        "https://github.com/grafana/xk6-sm/releases/download/(?<currentValue>[^/]+)/[^\\s]+\\s.*k6-v1"
+      ]
+    },
+    {
+      // Update xk6-sm v2
+      "customType": "regex",
+      "depNameTemplate": "grafana/xk6-sm-v2",
+      "packageNameTemplate": "grafana/xk6-sm",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver",
+      "managerFilePatterns": [
+        "**/Dockerfile",
+        "**/Dockerfile.*",
+        "**/*.mk"
+      ],
+      "matchStrings": [
+        "https://github.com/grafana/xk6-sm/releases/download/(?<currentValue>[^/]+)/[^\\s]+\\s.*k6-v2"
       ]
     }
   ]
