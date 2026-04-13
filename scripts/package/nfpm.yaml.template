@@ -22,5 +22,7 @@ contents:
 
 - src: {{.DISTDIR}}/{{.Os}}-{{.Arch}}/k6-v1
   dst: /usr/libexec/sm-k6/k6-v1
+- src: {{.DISTDIR}}/{{.Os}}-{{.Arch}}/k6-v2
+  dst: /usr/libexec/sm-k6/k6-v2
 rpm:
 deb:
