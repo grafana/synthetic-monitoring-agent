@@ -25,7 +25,7 @@ func (h slogHandler) Handle(ctx context.Context, r slog.Record) error {
 	attrs := make([]any, 0)
 	attrs = append(attrs, "level", r.Level.String())
 	attrs = append(attrs, "msg", r.Message)
-	attrs = append(attrs, "time", r.Time.Format(time.RFC3339))
+	attrs = append(attrs, "time", r.Time.Format(time.RFC3339Nano))
 
 	r.Attrs(func(attr slog.Attr) bool {
 		attrs = append(attrs, attr.Key, attr.Value.String())
