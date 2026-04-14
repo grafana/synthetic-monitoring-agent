@@ -17,7 +17,7 @@ const defaultInterval = time.Minute
 
 type HandlerOpts struct {
 	Logger    zerolog.Logger
-	Registry  *prometheus.Registry
+	Registry  prometheus.Gatherer
 	Publisher pusher.Publisher
 	TenantID  model.GlobalID
 	Interval  time.Duration
@@ -25,13 +25,16 @@ type HandlerOpts struct {
 
 type metricsHandler struct {
 	logger    zerolog.Logger
-	registry  *prometheus.Registry
+	registry  prometheus.Gatherer
 	publisher pusher.Publisher
 	tenantID  model.GlobalID
 	interval  time.Duration
 }
+type Handler interface {
+	Run(ctx context.Context) error
+}
 
-func NewHandler(opts HandlerOpts) (*metricsHandler, error) {
+func NewHandler(opts HandlerOpts) Handler {
 	interval := opts.Interval
 	if interval == 0 {
 		interval = defaultInterval
@@ -44,7 +47,7 @@ func NewHandler(opts HandlerOpts) (*metricsHandler, error) {
 		publisher: opts.Publisher,
 		tenantID:  opts.TenantID,
 		interval:  interval,
-	}, nil
+	}
 }
 
 func (m metricsHandler) Run(ctx context.Context) error {
@@ -100,6 +103,10 @@ func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily) []prompb.TimeSeries {
 				labels = append(labels, prompb.Label{Name: l.GetName(), Value: l.GetValue()})
 			}
 
+			// Histograms and summaries are intentionally skipped: they decompose
+			// into multiple series (_bucket, _sum, _count) that require special
+			// handling. Only scalar metric types (counter, gauge, untyped) are
+			// forwarded as-is.
 			var value *float64
 			switch mType {
 			case dto.MetricType_COUNTER:

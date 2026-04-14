@@ -406,16 +406,13 @@ func run(args []string, stdout io.Writer) error {
 
 			zl.Info().Int64("tenantID", tenantID).Msg("metamonitoring: tenant discovered, starting metrics handler")
 
-			metricsHandler, err := metamonitoring.NewHandler(metamonitoring.HandlerOpts{
+			metricsHandler := metamonitoring.NewHandler(metamonitoring.HandlerOpts{
 				Logger:    zl.With().Str("subsystem", "metamonitoring").Logger(),
 				Registry:  promRegisterer,
 				Publisher: publisher,
 				TenantID:  model.GlobalID(tenantID),
 				Interval:  config.MetricsInterval,
 			})
-			if err != nil {
-				return fmt.Errorf("cannot create metamonitoring handler: %w", err)
-			}
 
 			return metricsHandler.Run(ctx)
 		})
