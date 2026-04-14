@@ -86,7 +86,7 @@ func run(args []string, stdout io.Writer) error {
 			CacheLocalTTL         time.Duration
 			MemcachedServers      StringList
 			EnableProtocolSecrets bool
-			PushMetrics           bool
+			PushTelemetry         bool
 			MetricsInterval       time.Duration
 		}{
 			GrpcApiServerAddr:  "localhost:4031",
@@ -132,7 +132,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.DurationVar(&config.CacheLocalTTL, "cache-local-ttl", config.CacheLocalTTL, "default TTL for local cache items")
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
-	flags.BoolVar(&config.PushMetrics, "push-metrics", config.PushMetrics, "enable pushing metrics to the probe's tenant")
+	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -397,7 +397,7 @@ func run(args []string, stdout io.Writer) error {
 		return adhocHandler.Run(ctx)
 	})
 
-	if config.PushMetrics {
+	if config.PushTelemetry {
 		g.Go(func() error {
 			tenantID, err := tm.WaitForTenant(ctx)
 			if err != nil {
