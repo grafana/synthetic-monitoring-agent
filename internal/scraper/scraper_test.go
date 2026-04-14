@@ -2226,8 +2226,8 @@ func TestHTTPCheckLogTimestampsAreNonDecreasing(t *testing.T) {
 	defer cleanup()
 
 	s := Scraper{
-		checkName: check.Check.Settings.Http.String(),
-		target:    check.Check.Target,
+		checkName: check.Settings.Http.String(),
+		target:    check.Target,
 		logger:    testhelper.Logger(t),
 		prober:    p,
 		labelsLimiter: testLabelsLimiter{
