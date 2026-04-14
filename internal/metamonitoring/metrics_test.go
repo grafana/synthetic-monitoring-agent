@@ -73,7 +73,11 @@ func TestReportUsage(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -100,7 +104,11 @@ func TestReportUsage(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -132,7 +140,11 @@ func TestReportUsage(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -163,7 +175,11 @@ func TestReportUsage(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -188,7 +204,11 @@ func TestReportUsage(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -215,7 +235,11 @@ func TestReportUsage(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -241,7 +265,11 @@ func TestReportUsage(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -272,7 +300,11 @@ func TestReportUsage(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -309,7 +341,11 @@ func TestReportUsage(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -338,7 +374,11 @@ func TestReportUsage(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -380,7 +420,11 @@ func TestRun(t *testing.T) {
 				synctest.Wait()
 			}()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 
 			// Advance 3 ticks exactly.
 			time.Sleep(50 * time.Millisecond)
@@ -410,7 +454,11 @@ func TestRun(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
 
-			go handler.Run(ctx)
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("hander.Run: %v", err)
+				}
+			}()
 			synctest.Wait()
 
 			payloads := pub.getPayloads()
