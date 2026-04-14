@@ -36,9 +36,10 @@ func NewHandler(opts HandlerOpts) (*metricsHandler, error) {
 	if interval == 0 {
 		interval = defaultInterval
 	}
+	l := opts.Logger.With().Int64("tenantID", int64(opts.TenantID)).Logger()
 
 	return &metricsHandler{
-		logger:    opts.Logger,
+		logger:    l,
 		registry:  opts.Registry,
 		publisher: opts.Publisher,
 		tenantID:  opts.TenantID,
@@ -50,15 +51,14 @@ func (m metricsHandler) Run(ctx context.Context) error {
 	ticker := time.NewTicker(m.interval)
 	defer ticker.Stop()
 
+	m.logger.Info().Msg("starting to report metrics")
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case t := <-ticker.C:
+		case <-ticker.C:
 			if err := m.reportUsage(); err != nil {
-				m.logger.Error().Err(err).Time("t", t).Msg("failed to report metrics")
-			} else {
-				m.logger.Info().Time("t", t).Msg("reported metrics")
+				m.logger.Error().Err(err).Msg("failed to report metrics")
 			}
 		}
 	}
