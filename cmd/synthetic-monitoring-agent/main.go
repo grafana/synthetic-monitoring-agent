@@ -375,7 +375,6 @@ func run(args []string, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
 	}
-
 	g.Go(func() error {
 		return checksUpdater.Run(ctx)
 	})
