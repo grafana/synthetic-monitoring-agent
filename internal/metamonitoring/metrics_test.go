@@ -42,7 +42,7 @@ func (m *mockPublisher) getPayloads() []capturedPayload {
 	return cp
 }
 
-func newTestHandler(t *testing.T, registry *prometheus.Registry, tenantID model.GlobalID) (Handler, *mockPublisher) {
+func newTestHandler(t *testing.T, registry *prometheus.Registry, tenantID int64) (Handler, *mockPublisher) {
 	t.Helper()
 	pub := &mockPublisher{}
 	handler := NewHandler(HandlerOpts{
@@ -395,6 +395,45 @@ func TestReportUsage(t *testing.T) {
 }
 
 func TestRun(t *testing.T) {
+	t.Run("handler returns an error if no tenant is passed to the probeTenantCh", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			probeTenantCh := make(chan int64, 1)
+			handler := NewHandler(HandlerOpts{
+				Logger:        zerolog.New(zerolog.NewTestWriter(t)),
+				Registry:      prometheus.NewPedanticRegistry(),
+				Publisher:     &mockPublisher{},
+				ProbeTenantCh: probeTenantCh,
+			})
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+
+			err := handler.Run(ctx)
+			require.ErrorIs(t, err, errTenantTimeout)
+		})
+	})
+
+	t.Run("gets the tenantID from the channel if the TenantID is not set", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			probeTenantCh := make(chan int64, 1)
+			handler := NewHandler(HandlerOpts{
+				Logger:        zerolog.New(zerolog.NewTestWriter(t)),
+				Registry:      prometheus.NewPedanticRegistry(),
+				Publisher:     &mockPublisher{},
+				ProbeTenantCh: probeTenantCh,
+			})
+			ctx, cancel := context.WithCancel(context.Background())
+			defer func() {
+				cancel()
+				synctest.Wait()
+			}()
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("handler.Run: %v", err)
+				}
+			}()
+			probeTenantCh <- 1
+		})
+	})
 	t.Run("publishes on each tick", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			registry := prometheus.NewRegistry()

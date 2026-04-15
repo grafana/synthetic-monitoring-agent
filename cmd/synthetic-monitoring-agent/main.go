@@ -32,7 +32,6 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6version"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
-	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	pusherV1 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v1"
 	pusherV2 "github.com/grafana/synthetic-monitoring-agent/internal/pusher/v2"
@@ -352,12 +351,15 @@ func run(args []string, stdout io.Writer) error {
 		promRegisterer,
 	)
 
+	probeTenantCh := make(chan int64, 1)
+
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:                    conn,
 		Logger:                  zl.With().Str("subsystem", "updater").Logger(),
 		Backoff:                 newConnectionBackoff(),
 		Publisher:               publisher,
 		TenantCh:                tenantCh,
+		ProbeTenantCh:           probeTenantCh,
 		IsConnected:             readynessHandler.Set,
 		PromRegisterer:          promRegisterer,
 		Features:                features,
@@ -400,19 +402,12 @@ func run(args []string, stdout io.Writer) error {
 
 	if config.PushTelemetry {
 		g.Go(func() error {
-			tenantID, err := tm.WaitForTenant(ctx)
-			if err != nil {
-				return err
-			}
-
-			zl.Info().Int64("tenantID", tenantID).Msg("metamonitoring: tenant discovered, starting metrics handler")
-
 			metricsHandler := metamonitoring.NewHandler(metamonitoring.HandlerOpts{
-				Logger:    zl.With().Str("subsystem", "metamonitoring").Logger(),
-				Registry:  promRegisterer,
-				Publisher: publisher,
-				TenantID:  model.GlobalID(tenantID),
-				Interval:  config.MetricsInterval,
+				Logger:        zl.With().Str("subsystem", "metamonitoring").Logger(),
+				Registry:      promRegisterer,
+				Publisher:     publisher,
+				Interval:      config.MetricsInterval,
+				ProbeTenantCh: probeTenantCh,
 			})
 
 			return metricsHandler.Run(ctx)

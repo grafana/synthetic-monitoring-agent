@@ -2,6 +2,7 @@ package metamonitoring
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	logproto "github.com/grafana/loki/pkg/push"
@@ -15,20 +16,24 @@ import (
 
 const defaultInterval = time.Minute
 
+var errTenantTimeout = errors.New("timed out waiting for probes tenant id")
+
 type HandlerOpts struct {
-	Logger    zerolog.Logger
-	Registry  prometheus.Gatherer
-	Publisher pusher.Publisher
-	TenantID  model.GlobalID
-	Interval  time.Duration
+	Logger        zerolog.Logger
+	Registry      prometheus.Gatherer
+	Publisher     pusher.Publisher
+	TenantID      int64
+	Interval      time.Duration
+	ProbeTenantCh chan int64
 }
 
 type metricsHandler struct {
-	logger    zerolog.Logger
-	registry  prometheus.Gatherer
-	publisher pusher.Publisher
-	tenantID  model.GlobalID
-	interval  time.Duration
+	logger        zerolog.Logger
+	registry      prometheus.Gatherer
+	publisher     pusher.Publisher
+	tenantID      int64
+	interval      time.Duration
+	probeTenantCh chan int64
 }
 type Handler interface {
 	Run(ctx context.Context) error
@@ -39,21 +44,28 @@ func NewHandler(opts HandlerOpts) Handler {
 	if interval == 0 {
 		interval = defaultInterval
 	}
-	l := opts.Logger.With().Int64("tenantID", int64(opts.TenantID)).Logger()
 
 	return &metricsHandler{
-		logger:    l,
-		registry:  opts.Registry,
-		publisher: opts.Publisher,
-		tenantID:  opts.TenantID,
-		interval:  interval,
+		logger:        opts.Logger,
+		registry:      opts.Registry,
+		publisher:     opts.Publisher,
+		interval:      interval,
+		probeTenantCh: opts.ProbeTenantCh,
+		tenantID:      opts.TenantID,
 	}
 }
 
-func (m metricsHandler) Run(ctx context.Context) error {
+func (m *metricsHandler) Run(ctx context.Context) error {
+	if m.tenantID == 0 {
+		err := m.waitForTenantID(ctx)
+		if err != nil {
+			return err
+		}
+	}
 	ticker := time.NewTicker(m.interval)
 	defer ticker.Stop()
 
+	m.logger = m.logger.With().Int64("tenantID", m.tenantID).Logger()
 	m.logger.Info().Msg("starting to report metrics")
 	for {
 		select {
@@ -67,7 +79,17 @@ func (m metricsHandler) Run(ctx context.Context) error {
 	}
 }
 
-func (m metricsHandler) reportUsage() error {
+func (m *metricsHandler) waitForTenantID(ctx context.Context) error {
+	select {
+	case tenantID := <-m.probeTenantCh:
+		m.tenantID = tenantID
+		return nil
+	case <-ctx.Done():
+		return errTenantTimeout
+	}
+}
+
+func (m *metricsHandler) reportUsage() error {
 	mfs, err := m.registry.Gather()
 	if err != nil {
 		return err
@@ -80,7 +102,7 @@ func (m metricsHandler) reportUsage() error {
 	}
 
 	m.publisher.Publish(&payload{
-		tenantID: m.tenantID,
+		tenantID: model.GlobalID(m.tenantID),
 		metrics:  ts,
 	})
 
