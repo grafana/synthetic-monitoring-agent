@@ -426,11 +426,13 @@ func TestRun(t *testing.T) {
 				cancel()
 				synctest.Wait()
 			}()
+
 			go func() {
 				if err := handler.Run(ctx); err != nil {
 					t.Errorf("handler.Run: %v", err)
 				}
 			}()
+			synctest.Wait()
 			probeTenantCh <- 1
 		})
 	})
