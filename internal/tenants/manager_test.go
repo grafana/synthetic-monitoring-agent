@@ -173,29 +173,36 @@ func TestTenantManagerGetTenant(t *testing.T) {
 	require.Equal(t, t3, *tenant)
 }
 
+func newTestManager(t *testing.T, ctx context.Context) (*Manager, chan sm.Tenant) {
+	t.Helper()
+	tenantCh := make(chan sm.Tenant)
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	localCache, err := cache.NewLocal(cache.LocalConfig{
+		MaxCapacity:     100,
+		InitialCapacity: 10,
+		DefaultTTL:      0,
+		Logger:          logger,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		localCache.Close()
+	})
+
+	tc := &testTenantsClient{
+		tenants:      map[int64]sm.Tenant{},
+		requestCount: make(map[int64]int),
+	}
+
+	tm := NewManager(ctx, tc, tenantCh, DefaultCacheTimeout, localCache, logger)
+	return tm, tenantCh
+}
+
 func TestWaitForTenant(t *testing.T) {
 	t.Run("returns first tenant ID", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenantCh := make(chan sm.Tenant)
-		logger := zerolog.New(zerolog.NewTestWriter(t))
-		localCache, err := cache.NewLocal(cache.LocalConfig{
-			MaxCapacity:     100,
-			InitialCapacity: 10,
-			DefaultTTL:      0,
-			Logger:          logger,
-		})
-		require.NoError(t, err)
-		defer localCache.Close()
-
-		tc := &testTenantsClient{
-			tenants:      map[int64]sm.Tenant{},
-			requestCount: make(map[int64]int),
-		}
-
-		tm := NewManager(ctx, tc, tenantCh, DefaultCacheTimeout, localCache, logger)
-
+		tm, tenantCh := newTestManager(t, ctx)
 		// Send a tenant on the channel.
 		go func() {
 			tenantCh <- makeTenant(42)
@@ -215,24 +222,7 @@ func TestWaitForTenant(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		tenantCh := make(chan sm.Tenant)
-		logger := zerolog.New(zerolog.NewTestWriter(t))
-		localCache, err := cache.NewLocal(cache.LocalConfig{
-			MaxCapacity:     100,
-			InitialCapacity: 10,
-			DefaultTTL:      0,
-			Logger:          logger,
-		})
-		require.NoError(t, err)
-		defer localCache.Close()
-
-		tc := &testTenantsClient{
-			tenants:      map[int64]sm.Tenant{},
-			requestCount: make(map[int64]int),
-		}
-
-		tm := NewManager(ctx, tc, tenantCh, DefaultCacheTimeout, localCache, logger)
-
+		tm, tenantCh := newTestManager(t, ctx)
 		go func() {
 			tenantCh <- makeTenant(10)
 			tenantCh <- makeTenant(20)
@@ -249,28 +239,11 @@ func TestWaitForTenant(t *testing.T) {
 	t.Run("respects context cancellation", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		tenantCh := make(chan sm.Tenant)
-		logger := zerolog.New(zerolog.NewTestWriter(t))
-		localCache, err := cache.NewLocal(cache.LocalConfig{
-			MaxCapacity:     100,
-			InitialCapacity: 10,
-			DefaultTTL:      0,
-			Logger:          logger,
-		})
-		require.NoError(t, err)
-		defer localCache.Close()
-
-		tc := &testTenantsClient{
-			tenants:      map[int64]sm.Tenant{},
-			requestCount: make(map[int64]int),
-		}
-
-		tm := NewManager(ctx, tc, tenantCh, DefaultCacheTimeout, localCache, logger)
-
+		tm, _ := newTestManager(t, ctx)
 		// Cancel before any tenant arrives.
 		cancel()
 
-		_, err = tm.WaitForTenant(ctx)
+		_, err := tm.WaitForTenant(ctx)
 		require.ErrorIs(t, err, context.Canceled)
 	})
 }
