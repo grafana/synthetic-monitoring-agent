@@ -45,6 +45,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	prom "github.com/prometheus/common/model"
 	"github.com/prometheus/prometheus/model/labels"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/prometheus/prometheus/promql/parser"
@@ -57,6 +58,13 @@ import (
 )
 
 var updateGolden = flag.Bool("update-golden", false, "update golden files")
+
+var metricParser = parser.NewParser(parser.Options{
+	EnableExperimentalFunctions:  false,
+	ExperimentalDurationExpr:     false,
+	EnableExtendedRangeSelectors: false,
+	EnableBinopFillModifiers:     false,
+})
 
 // TestValidateMetrics verify that the exposed metrics have not changed.
 //
@@ -946,7 +954,7 @@ func TestValidateLabels(t *testing.T) {
 		n := 0
 
 		for _, s := range ss {
-			labels, err := parser.ParseMetric(s.Labels)
+			labels, err := metricParser.ParseMetric(s.Labels)
 			require.NoError(t, err)
 
 			n = max(n, labels.Len())
@@ -1479,7 +1487,7 @@ func TestScraperCollectData(t *testing.T) {
 
 	getMetricName := func(t *testing.T, ts prompb.TimeSeries) string {
 		for _, l := range ts.GetLabels() {
-			if l.GetName() != labels.MetricName {
+			if l.GetName() != prom.MetricNameLabel {
 				continue
 			}
 
@@ -1505,7 +1513,7 @@ func TestScraperCollectData(t *testing.T) {
 
 		for _, l := range ts.GetLabels() {
 			switch {
-			case l.GetName() == labels.MetricName:
+			case l.GetName() == prom.MetricNameLabel:
 				// ignore
 
 			case l.GetName() == labels.BucketLabel:
@@ -1543,7 +1551,7 @@ func TestScraperCollectData(t *testing.T) {
 	}
 
 	validateStreams := func(t *testing.T, s Scraper, stream logproto.Stream, tc testcase) {
-		sLabels, err := parser.ParseMetric(stream.Labels)
+		sLabels, err := metricParser.ParseMetric(stream.Labels)
 		require.NoError(t, err)
 
 		// Verify that all the expected log labels are present as labels in the stream labels.
