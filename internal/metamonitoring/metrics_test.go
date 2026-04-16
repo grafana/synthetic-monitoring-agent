@@ -42,7 +42,7 @@ func (m *mockPublisher) getPayloads() []capturedPayload {
 	return cp
 }
 
-func newTestHandler(t *testing.T, registry *prometheus.Registry, tenantID int64) (Handler, *mockPublisher) {
+func newTestHandler(t *testing.T, registry *prometheus.Registry, tenantID model.GlobalID) (Handler, *mockPublisher) {
 	t.Helper()
 	pub := &mockPublisher{}
 	handler := NewHandler(HandlerOpts{

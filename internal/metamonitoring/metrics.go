@@ -23,7 +23,7 @@ type HandlerOpts struct {
 	Logger        zerolog.Logger
 	Registry      prometheus.Gatherer
 	Publisher     pusher.Publisher
-	TenantID      int64
+	TenantID      model.GlobalID
 	Interval      time.Duration
 	ProbeTenantCh chan int64
 }
@@ -32,7 +32,7 @@ type metricsHandler struct {
 	logger        zerolog.Logger
 	registry      prometheus.Gatherer
 	publisher     pusher.Publisher
-	tenantID      int64
+	tenantID      model.GlobalID
 	interval      time.Duration
 	probeTenantCh chan int64
 }
@@ -66,7 +66,7 @@ func (m *metricsHandler) Run(ctx context.Context) error {
 	ticker := time.NewTicker(m.interval)
 	defer ticker.Stop()
 
-	m.logger = m.logger.With().Int64("tenantID", m.tenantID).Logger()
+	m.logger = m.logger.With().Int64("tenantID", int64(m.tenantID)).Logger()
 	m.logger.Info().Msg("starting to report metrics")
 	for {
 		select {
@@ -83,7 +83,7 @@ func (m *metricsHandler) Run(ctx context.Context) error {
 func (m *metricsHandler) waitForTenantID(ctx context.Context) error {
 	select {
 	case tenantID := <-m.probeTenantCh:
-		m.tenantID = tenantID
+		m.tenantID = model.GlobalID(tenantID)
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("%w %w", errTenantTimeout, ctx.Err())
@@ -103,7 +103,7 @@ func (m *metricsHandler) reportUsage() error {
 	}
 
 	m.publisher.Publish(&payload{
-		tenantID: model.GlobalID(m.tenantID),
+		tenantID: m.tenantID,
 		metrics:  ts,
 	})
 
