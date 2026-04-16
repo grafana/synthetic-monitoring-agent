@@ -3,6 +3,7 @@ package metamonitoring
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	logproto "github.com/grafana/loki/pkg/push"
@@ -85,7 +86,7 @@ func (m *metricsHandler) waitForTenantID(ctx context.Context) error {
 		m.tenantID = tenantID
 		return nil
 	case <-ctx.Done():
-		return errTenantTimeout
+		return fmt.Errorf("%w %w", errTenantTimeout, ctx.Err())
 	}
 }
 
