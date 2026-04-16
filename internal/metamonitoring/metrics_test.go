@@ -393,6 +393,53 @@ func TestReportUsage(t *testing.T) {
 			require.LessOrEqual(t, stamp, after)
 		})
 	})
+
+	t.Run("includes probe name label on metrics", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			registry := prometheus.NewRegistry()
+			counter := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "test_requests_total",
+				Help: "Test counter",
+			})
+			registry.MustRegister(counter)
+			counter.Add(1)
+
+			probeCh := make(chan *synthetic_monitoring.Probe, 1)
+			pub := &mockPublisher{}
+			handler := NewHandler(HandlerOpts{
+				Logger:    zerolog.New(zerolog.NewTestWriter(t)),
+				Registry:  registry,
+				Publisher: pub,
+				ProbeCh:   probeCh,
+			})
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer func() {
+				cancel()
+				synctest.Wait()
+			}()
+
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("handler.Run: %v", err)
+				}
+			}()
+			synctest.Wait()
+
+			probeCh <- &synthetic_monitoring.Probe{
+				TenantId: 42,
+				Name:     "shark-taco",
+			}
+			time.Sleep(defaultInterval)
+			synctest.Wait()
+
+			payloads := pub.getPayloads()
+			require.Len(t, payloads, 1)
+			require.Equal(t, model.GlobalID(42), payloads[0].tenantID)
+			ts := payloads[0].metrics[0]
+			require.Contains(t, ts.Labels, prompb.Label{Name: "probe", Value: "shark-taco"})
+		})
+	})
 }
 
 func TestRun(t *testing.T) {

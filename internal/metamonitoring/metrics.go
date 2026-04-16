@@ -34,6 +34,7 @@ type metricsHandler struct {
 	registry  prometheus.Gatherer
 	publisher pusher.Publisher
 	tenantID  model.GlobalID
+	probeName string
 	interval  time.Duration
 	probeCh   chan *synthetic_monitoring.Probe
 }
@@ -85,6 +86,7 @@ func (m *metricsHandler) waitForTenantID(ctx context.Context) error {
 	select {
 	case probe := <-m.probeCh:
 		m.tenantID = model.GlobalID(probe.TenantId)
+		m.probeName = probe.Name
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("%w %w", errTenantTimeout, ctx.Err())
@@ -98,7 +100,7 @@ func (m *metricsHandler) reportUsage() error {
 	}
 
 	now := time.Now()
-	ts := mfsToTimeseries(now, mfs)
+	ts := mfsToTimeseries(now, mfs, m.probeName)
 	if len(ts) == 0 {
 		return nil
 	}
@@ -111,7 +113,7 @@ func (m *metricsHandler) reportUsage() error {
 	return nil
 }
 
-func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily) []prompb.TimeSeries {
+func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily, probeName string) []prompb.TimeSeries {
 	stamp := t.UnixNano() / 1e6
 	var ts []prompb.TimeSeries
 
@@ -123,6 +125,7 @@ func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily) []prompb.TimeSeries {
 			ml := metric.GetLabel()
 			labels := make([]prompb.Label, 0, 1+len(ml))
 			labels = append(labels, prompb.Label{Name: "__name__", Value: name})
+			labels = append(labels, prompb.Label{Name: "probe", Value: probeName})
 			for _, l := range ml {
 				labels = append(labels, prompb.Label{Name: l.GetName(), Value: l.GetValue()})
 			}
