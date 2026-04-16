@@ -351,7 +351,7 @@ func run(args []string, stdout io.Writer) error {
 		promRegisterer,
 	)
 
-	probeTenantCh := make(chan int64, 1)
+	probeCh := make(chan *synthetic_monitoring.Probe, 1)
 
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:                    conn,
@@ -359,7 +359,7 @@ func run(args []string, stdout io.Writer) error {
 		Backoff:                 newConnectionBackoff(),
 		Publisher:               publisher,
 		TenantCh:                tenantCh,
-		ProbeTenantCh:           probeTenantCh,
+		ProbeCh:                 probeCh,
 		IsConnected:             readynessHandler.Set,
 		PromRegisterer:          promRegisterer,
 		Features:                features,
@@ -402,11 +402,11 @@ func run(args []string, stdout io.Writer) error {
 	if config.PushTelemetry {
 		g.Go(func() error {
 			metricsHandler := metamonitoring.NewHandler(metamonitoring.HandlerOpts{
-				Logger:        zl.With().Str("subsystem", "metamonitoring").Logger(),
-				Registry:      promRegisterer,
-				Publisher:     publisher,
-				Interval:      config.MetricsInterval,
-				ProbeTenantCh: probeTenantCh,
+				Logger:    zl.With().Str("subsystem", "metamonitoring").Logger(),
+				Registry:  promRegisterer,
+				Publisher: publisher,
+				Interval:  config.MetricsInterval,
+				ProbeCh:   probeCh,
 			})
 
 			return metricsHandler.Run(ctx)

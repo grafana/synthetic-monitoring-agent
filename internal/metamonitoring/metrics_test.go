@@ -9,6 +9,7 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -397,12 +398,12 @@ func TestReportUsage(t *testing.T) {
 func TestRun(t *testing.T) {
 	t.Run("handler returns an error if no tenant is passed to the probeTenantCh", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			probeTenantCh := make(chan int64, 1)
+			probeTenantCh := make(chan *synthetic_monitoring.Probe, 1)
 			handler := NewHandler(HandlerOpts{
-				Logger:        zerolog.New(zerolog.NewTestWriter(t)),
-				Registry:      prometheus.NewPedanticRegistry(),
-				Publisher:     &mockPublisher{},
-				ProbeTenantCh: probeTenantCh,
+				Logger:    zerolog.New(zerolog.NewTestWriter(t)),
+				Registry:  prometheus.NewPedanticRegistry(),
+				Publisher: &mockPublisher{},
+				ProbeCh:   probeTenantCh,
 			})
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
@@ -414,12 +415,12 @@ func TestRun(t *testing.T) {
 
 	t.Run("gets the tenantID from the channel if the TenantID is not set", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			probeTenantCh := make(chan int64, 1)
+			probeTenantCh := make(chan *synthetic_monitoring.Probe, 1)
 			handler := NewHandler(HandlerOpts{
-				Logger:        zerolog.New(zerolog.NewTestWriter(t)),
-				Registry:      prometheus.NewPedanticRegistry(),
-				Publisher:     &mockPublisher{},
-				ProbeTenantCh: probeTenantCh,
+				Logger:    zerolog.New(zerolog.NewTestWriter(t)),
+				Registry:  prometheus.NewPedanticRegistry(),
+				Publisher: &mockPublisher{},
+				ProbeCh:   probeTenantCh,
 			})
 			ctx, cancel := context.WithCancel(context.Background())
 			defer func() {
@@ -433,7 +434,9 @@ func TestRun(t *testing.T) {
 				}
 			}()
 			synctest.Wait()
-			probeTenantCh <- 1
+			probeTenantCh <- &synthetic_monitoring.Probe{
+				TenantId: int64(1),
+			}
 		})
 	})
 	t.Run("publishes on each tick", func(t *testing.T) {

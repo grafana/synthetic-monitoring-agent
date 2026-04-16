@@ -9,6 +9,7 @@ import (
 	logproto "github.com/grafana/loki/pkg/push"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
@@ -20,21 +21,21 @@ const defaultInterval = time.Minute
 var errTenantTimeout = errors.New("timed out waiting for probes tenant id")
 
 type HandlerOpts struct {
-	Logger        zerolog.Logger
-	Registry      prometheus.Gatherer
-	Publisher     pusher.Publisher
-	TenantID      model.GlobalID
-	Interval      time.Duration
-	ProbeTenantCh chan int64
+	Logger    zerolog.Logger
+	Registry  prometheus.Gatherer
+	Publisher pusher.Publisher
+	TenantID  model.GlobalID
+	Interval  time.Duration
+	ProbeCh   chan *synthetic_monitoring.Probe
 }
 
 type metricsHandler struct {
-	logger        zerolog.Logger
-	registry      prometheus.Gatherer
-	publisher     pusher.Publisher
-	tenantID      model.GlobalID
-	interval      time.Duration
-	probeTenantCh chan int64
+	logger    zerolog.Logger
+	registry  prometheus.Gatherer
+	publisher pusher.Publisher
+	tenantID  model.GlobalID
+	interval  time.Duration
+	probeCh   chan *synthetic_monitoring.Probe
 }
 type Handler interface {
 	Run(ctx context.Context) error
@@ -47,12 +48,12 @@ func NewHandler(opts HandlerOpts) Handler {
 	}
 
 	return &metricsHandler{
-		logger:        opts.Logger,
-		registry:      opts.Registry,
-		publisher:     opts.Publisher,
-		interval:      interval,
-		probeTenantCh: opts.ProbeTenantCh,
-		tenantID:      opts.TenantID,
+		logger:    opts.Logger,
+		registry:  opts.Registry,
+		publisher: opts.Publisher,
+		interval:  interval,
+		probeCh:   opts.ProbeCh,
+		tenantID:  opts.TenantID,
 	}
 }
 
@@ -82,8 +83,8 @@ func (m *metricsHandler) Run(ctx context.Context) error {
 
 func (m *metricsHandler) waitForTenantID(ctx context.Context) error {
 	select {
-	case tenantID := <-m.probeTenantCh:
-		m.tenantID = model.GlobalID(tenantID)
+	case probe := <-m.probeCh:
+		m.tenantID = model.GlobalID(probe.TenantId)
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("%w %w", errTenantTimeout, ctx.Err())

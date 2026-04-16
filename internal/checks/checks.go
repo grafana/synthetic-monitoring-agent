@@ -74,7 +74,7 @@ type Updater struct {
 	backoff                 Backoffer
 	publisher               pusher.Publisher
 	tenantCh                chan<- sm.Tenant
-	probeTenantCh           chan<- int64
+	probeCh                 chan<- *sm.Probe
 	probeTenantOnce         sync.Once
 	IsConnected             func(bool)
 	probe                   *sm.Probe
@@ -116,7 +116,7 @@ type UpdaterOptions struct {
 	Backoff                 Backoffer
 	Publisher               pusher.Publisher
 	TenantCh                chan<- sm.Tenant
-	ProbeTenantCh           chan<- int64
+	ProbeCh                 chan<- *sm.Probe
 	IsConnected             func(bool)
 	PromRegisterer          prometheus.Registerer
 	Features                feature.Collection
@@ -244,7 +244,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		backoff:                 opts.Backoff,
 		publisher:               opts.Publisher,
 		tenantCh:                opts.TenantCh,
-		probeTenantCh:           opts.ProbeTenantCh,
+		probeCh:                 opts.ProbeCh,
 		IsConnected:             opts.IsConnected,
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
 		k6Runner:                opts.K6Runner,
@@ -538,9 +538,9 @@ func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities)
 // This is used by metamonitoring to infer which tenant the publisher should send data to.
 func (c *Updater) notifyProbeTenant() {
 	c.probeTenantOnce.Do(func() {
-		if c.probeTenantCh != nil {
-			c.probeTenantCh <- c.probe.TenantId
-			close(c.probeTenantCh)
+		if c.probeCh != nil {
+			c.probeCh <- c.probe
+			close(c.probeCh)
 		}
 	})
 }

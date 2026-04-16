@@ -645,13 +645,13 @@ func TestHandleError(t *testing.T) {
 
 func TestProbeTenantCh(t *testing.T) {
 	t.Run("sends probe tenant ID after registration", func(t *testing.T) {
-		probeTenantCh := make(chan int64, 1)
+		probeTenantCh := make(chan *sm.Probe, 1)
 		u, err := NewUpdater(UpdaterOptions{
 			Conn:           new(grpc.ClientConn),
 			PromRegisterer: prometheus.NewPedanticRegistry(),
 			Publisher:      channelPublisher(make(chan pusher.Payload)),
 			TenantCh:       make(chan<- sm.Tenant),
-			ProbeTenantCh:  probeTenantCh,
+			ProbeCh:        probeTenantCh,
 			Logger:         testhelper.Logger(t),
 		})
 
@@ -659,17 +659,17 @@ func TestProbeTenantCh(t *testing.T) {
 		u.probe = &sm.Probe{Id: 1, TenantId: 42}
 		u.notifyProbeTenant()
 		got := <-probeTenantCh
-		require.Equal(t, u.probe.TenantId, got)
+		require.Equal(t, u.probe.TenantId, got.TenantId)
 	})
 
 	t.Run("only sends once across multiple registrations", func(t *testing.T) {
-		probeTenantCh := make(chan int64, 1)
+		probeCh := make(chan *sm.Probe, 1)
 		u, err := NewUpdater(UpdaterOptions{
 			Conn:           new(grpc.ClientConn),
 			PromRegisterer: prometheus.NewPedanticRegistry(),
 			Publisher:      channelPublisher(make(chan pusher.Payload)),
 			TenantCh:       make(chan<- sm.Tenant),
-			ProbeTenantCh:  probeTenantCh,
+			ProbeCh:        probeCh,
 			Logger:         testhelper.Logger(t),
 		})
 
@@ -681,11 +681,11 @@ func TestProbeTenantCh(t *testing.T) {
 		u.notifyProbeTenant()
 
 		// Confirm that the returned value is the first probe id sent to the channel
-		got := <-probeTenantCh
-		require.Equal(t, got, int64(42))
+		got := <-probeCh
+		require.Equal(t, got.TenantId, int64(42))
 
 		// Confirm no second send
-		_, ok := <-probeTenantCh
+		_, ok := <-probeCh
 		require.False(t, ok)
 	})
 
