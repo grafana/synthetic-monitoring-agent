@@ -534,7 +534,7 @@ func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities)
 	return nil
 }
 
-// notifyProbeTenant will the probes tenantID to the probeTenantCh at most once and then close the channel.
+// notifyProbeTenant will notify the probes tenantID to the probeTenantCh at most once and then close the channel.
 // This is used by metamonitoring to infer which tenant the publisher should send data to.
 func (c *Updater) notifyProbeTenant() {
 	c.probeTenantOnce.Do(func() {
