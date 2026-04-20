@@ -113,6 +113,8 @@ func TestCheckInfoFromSM(t *testing.T) {
 			TenantId: 1234,
 			Created:  1234.5,
 			Modified: 12345.6,
+			Job:      "my-job",
+			Target:   "https://example.com",
 			Settings: sm.CheckSettings{
 				Browser: &sm.BrowserSettings{}, // Make it non-nil so type is Browser.
 			},
@@ -122,6 +124,8 @@ func TestCheckInfoFromSM(t *testing.T) {
 	ci := CheckInfoFromSM(check)
 
 	require.Equal(t, sm.CheckTypeBrowser.String(), ci.Type)
+	require.Equal(t, "my-job", ci.Job)
+	require.Equal(t, "https://example.com", ci.Instance)
 	require.Equal(t, map[string]any{
 		"id":       check.Id,
 		"tenantID": check.TenantId,

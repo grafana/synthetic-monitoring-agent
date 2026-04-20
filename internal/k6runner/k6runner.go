@@ -60,6 +60,10 @@ type Settings struct {
 type CheckInfo struct {
 	// Type is the string representation of the check type this script belongs to (browser, scripted, multihttp, etc.)
 	Type string `json:"type"`
+	// Job is the check's job label.
+	Job string `json:"job"`
+	// Instance is the check's instance label.
+	Instance string `json:"instance"`
 	// Metadata is a collection of key/value pairs containing information about this check, such as check and tenant ID.
 	// It is loosely typed on purpose: Metadata should only be used for informational properties that will make its way
 	// into telemetry, and not for making decision on it.
@@ -73,6 +77,8 @@ func CheckInfoFromSM(smc smmodel.Check) CheckInfo {
 	}
 
 	ci.Type = smc.Type().String()
+	ci.Job = smc.Job
+	ci.Instance = smc.Target
 	ci.Metadata["id"] = smc.Id
 	ci.Metadata["tenantID"] = smc.TenantId
 	ci.Metadata["regionID"] = smc.RegionId
@@ -85,6 +91,8 @@ func CheckInfoFromSM(smc smmodel.Check) CheckInfo {
 // MarshalZerologObject implements zerolog.LogObjectMarshaler so it can be logged in a friendly way.
 func (ci *CheckInfo) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("type", ci.Type)
+	e.Str("job", ci.Job)
+	e.Str("instance", ci.Instance)
 	for k, v := range ci.Metadata {
 		e.Any(k, v)
 	}
