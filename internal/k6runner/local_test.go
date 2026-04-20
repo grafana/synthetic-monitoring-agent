@@ -5,6 +5,8 @@ import (
 	"os"
 	"slices"
 	"testing"
+
+	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
 func TestCreateSecretConfigFile(t *testing.T) {
@@ -138,6 +140,74 @@ func TestBuildK6Args(t *testing.T) {
 				if !slices.Contains(args, want) {
 					t.Errorf("buildK6Args() missing expected argument got \n%v\nwant \n%v", args, want)
 				}
+			}
+		})
+	}
+}
+
+func TestBuildK6ArgsK6RefID(t *testing.T) {
+	const (
+		metricsFn = "/tmp/metrics.json"
+		logsFn    = "/tmp/logs.log"
+		scriptFn  = "/tmp/script.js"
+	)
+
+	browserScript := func(job, instance string) Script {
+		return Script{
+			CheckInfo: CheckInfo{
+				Type:     synthetic_monitoring.CheckTypeBrowser.String(),
+				Job:      job,
+				Instance: instance,
+			},
+		}
+	}
+
+	tests := map[string]struct {
+		script     Script
+		expK6RefID string // empty means the flag must be absent
+	}{
+		"browser check with job and instance": {
+			script:     browserScript("my-job", "https://example.com"),
+			expK6RefID: `{"job":"my-job","instance":"https://example.com"}`,
+		},
+		"non-browser check with job and instance": {
+			script: Script{
+				CheckInfo: CheckInfo{
+					Type:     synthetic_monitoring.CheckTypeScripted.String(),
+					Job:      "my-job",
+					Instance: "https://example.com",
+				},
+			},
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			r := Local{}
+			args, err := r.buildK6Args(tt.script, metricsFn, logsFn, scriptFn, "")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			var (
+				idx        = slices.Index(args, "-e")
+				expPresent = tt.expK6RefID != ""
+				expK6RefID = k6CloudPushRefIDEnvVar + "=" + tt.expK6RefID
+			)
+
+			if expPresent {
+				if idx == -1 || idx+1 >= len(args) {
+					t.Fatalf("buildK6Args() expected -e flag, got args: %v", args)
+				}
+				if args[idx+1] != expK6RefID {
+					t.Fatalf("buildK6Args() -e value = %q, want %q", args[idx+1], expK6RefID)
+				}
+
+				return
+			}
+
+			if idx != -1 {
+				t.Errorf("buildK6Args() unexpected -e flag in args: %v", args)
 			}
 		})
 	}
