@@ -199,14 +199,38 @@ func run(args []string, stdout io.Writer) error {
 
 	hostname, _ := os.Hostname()
 
-	logBuffer := metamonitoring.NewRingBuffer(1000)
-	logShipper := metamonitoring.NewLogShipper(
-		logBuffer,
-		fmt.Sprintf(`{source="sm-agent",log_type="operational",hostname="%s",version="%s"}`, hostname, version.Short()),
-		zerolog.WarnLevel,
+	var (
+		logBuffer         *metamonitoring.RingBuffer
+		eventLogger       *metamonitoring.EventLogger
+		onProbeRegistered func(*synthetic_monitoring.Probe)
+		logWriter         io.Writer = io.Discard
 	)
 
-	zl := zerolog.New(zerolog.MultiLevelWriter(stdout, logShipper)).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
+	if config.PushTelemetry {
+		logBuffer = metamonitoring.NewRingBuffer(1000)
+		shipper := metamonitoring.NewLogShipper(
+			logBuffer,
+			fmt.Sprintf(`{source="sm-agent",log_type="operational",hostname="%s",version="%s"}`, hostname, version.Short()),
+			zerolog.WarnLevel,
+		)
+		logWriter = shipper
+		eventLogger = metamonitoring.NewEventLogger(
+			logBuffer,
+			fmt.Sprintf(`{source="sm-agent",log_type="event",hostname="%s",version="%s"}`, hostname, version.Short()),
+		)
+		onProbeRegistered = func(p *synthetic_monitoring.Probe) {
+			eventLogger.SetLabels(fmt.Sprintf(
+				`{source="sm-agent",log_type="event",hostname="%s",version="%s",probe="%s",region="%s"}`,
+				hostname, version.Short(), p.Name, p.Region,
+			))
+			shipper.SetLabels(fmt.Sprintf(
+				`{source="sm-agent",log_type="operational",hostname="%s",version="%s",probe="%s",region="%s"}`,
+				hostname, version.Short(), p.Name, p.Region,
+			))
+		}
+	}
+
+	zl := zerolog.New(zerolog.MultiLevelWriter(stdout, logWriter)).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
 
 	switch {
 	case config.Debug:
@@ -362,11 +386,6 @@ func run(args []string, stdout io.Writer) error {
 
 	probeCh := make(chan *synthetic_monitoring.Probe, 1)
 
-	eventLogger := metamonitoring.NewEventLogger(
-		logBuffer,
-		fmt.Sprintf(`{source="sm-agent",log_type="event",hostname="%s",version="%s"}`, hostname, version.Short()),
-	)
-
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:                    conn,
 		Logger:                  zl.With().Str("subsystem", "updater").Logger(),
@@ -386,16 +405,7 @@ func run(args []string, stdout io.Writer) error {
 		CostAttributionLabels:   cals,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
 		EventLogger:             eventLogger,
-		OnProbeRegistered: func(p *synthetic_monitoring.Probe) {
-			eventLogger.SetLabels(fmt.Sprintf(
-				`{source="sm-agent",log_type="event",hostname="%s",version="%s",probe="%s",region="%s"}`,
-				hostname, version.Short(), p.Name, p.Region,
-			))
-			logShipper.SetLabels(fmt.Sprintf(
-				`{source="sm-agent",log_type="operational",hostname="%s",version="%s",probe="%s",region="%s"}`,
-				hostname, version.Short(), p.Name, p.Region,
-			))
-		},
+		OnProbeRegistered:       onProbeRegistered,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
