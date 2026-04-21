@@ -386,6 +386,16 @@ func run(args []string, stdout io.Writer) error {
 		CostAttributionLabels:   cals,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
 		EventLogger:             eventLogger,
+		OnProbeRegistered: func(p *synthetic_monitoring.Probe) {
+			eventLogger.SetLabels(fmt.Sprintf(
+				`{source="sm-agent",log_type="event",hostname="%s",version="%s",probe="%s",region="%s"}`,
+				hostname, version.Short(), p.Name, p.Region,
+			))
+			logShipper.SetLabels(fmt.Sprintf(
+				`{source="sm-agent",log_type="operational",hostname="%s",version="%s",probe="%s",region="%s"}`,
+				hostname, version.Short(), p.Name, p.Region,
+			))
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)

@@ -26,9 +26,9 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
-	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
+	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
@@ -76,7 +76,8 @@ type Updater struct {
 	publisher               pusher.Publisher
 	tenantCh                chan<- sm.Tenant
 	probeCh                 chan<- *sm.Probe
-	probeTenantOnce         sync.Once
+	probeRegisteredOnce     sync.Once
+	onProbeRegistered       func(*sm.Probe)
 	IsConnected             func(bool)
 	probe                   *sm.Probe
 	scrapersMutex           sync.Mutex
@@ -120,6 +121,7 @@ type UpdaterOptions struct {
 	TenantCh                chan<- sm.Tenant
 	ProbeCh                 chan<- *sm.Probe
 	IsConnected             func(bool)
+	OnProbeRegistered       func(*sm.Probe)
 	PromRegisterer          prometheus.Registerer
 	Features                feature.Collection
 	K6Runner                k6runner.Runner
@@ -249,6 +251,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantCh:                opts.TenantCh,
 		probeCh:                 opts.ProbeCh,
 		IsConnected:             opts.IsConnected,
+		onProbeRegistered:       opts.OnProbeRegistered,
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
 		k6Runner:                opts.K6Runner,
 		scraperFactory:          scraperFactory,
@@ -413,7 +416,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	c.probe = &result.Probe
 
-	c.notifyProbeTenant()
+	c.notifyProbeRegistered()
 
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
 
@@ -542,13 +545,18 @@ func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities)
 	return nil
 }
 
-// notifyProbeTenant will notify the probes tenantID to the probeTenantCh at most once and then close the channel.
-// This is used by metamonitoring to infer which tenant the publisher should send data to.
-func (c *Updater) notifyProbeTenant() {
-	c.probeTenantOnce.Do(func() {
+// notifyProbeRegistered broadcasts that the probe has registered with the API.
+// It sends the probe on probeCh (then closes it) and invokes the OnProbeRegistered
+// callback if one was configured. Runs at most once per Updater.
+func (c *Updater) notifyProbeRegistered() {
+	c.probeRegisteredOnce.Do(func() {
 		if c.probeCh != nil {
 			c.probeCh <- c.probe
 			close(c.probeCh)
+		}
+		// this updates the logger to have access to the probe information
+		if c.onProbeRegistered != nil {
+			c.onProbeRegistered(c.probe)
 		}
 	})
 }
