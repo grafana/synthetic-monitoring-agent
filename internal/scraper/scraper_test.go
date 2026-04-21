@@ -482,6 +482,7 @@ func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, model
 		zerolog.New(zerolog.NewTestWriter(t)),
 		runner,
 		store,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("cannot create scripted prober: %s", err)
@@ -538,6 +539,7 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 		runner,
 		http.Header{},
 		testhelper.NoopSecretStore{},
+		"",
 	)
 	if err != nil {
 		t.Fatalf("cannot create MultiHTTP prober: %s", err)
@@ -586,6 +588,7 @@ func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 		zerolog.New(zerolog.NewTestWriter(t)),
 		runner,
 		testhelper.NoopSecretStore{},
+		"",
 	)
 	if err != nil {
 		t.Fatalf("cannot create scripted prober: %s", err)
@@ -1850,10 +1853,12 @@ func (p *testProberB) Probe(ctx context.Context, target string, registry *promet
 }
 
 type testProbeFactory struct {
-	builder func() prober.Prober
+	builder      func() prober.Prober
+	gotProbeName string // captures the probe name received by the most recent New call
 }
 
-func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check model.Check) (prober.Prober, string, error) {
+func (f *testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check model.Check, probeName string) (prober.Prober, string, error) {
+	f.gotProbeName = probeName
 	return f.builder(), check.Target, nil
 }
 
@@ -1901,9 +1906,12 @@ func TestScraperRun(t *testing.T) {
 
 	metrics := NewMetrics(&counter, &errCounter)
 
+	probeFactory := &testProbeFactory{builder: func() prober.Prober { return testProber }}
+
 	s, err := NewWithOpts(ctx, check, ScraperOpts{
+		Probe:        sm.Probe{Name: "my-probe"},
 		Metrics:      metrics,
-		ProbeFactory: testProbeFactory{builder: func() prober.Prober { return testProber }},
+		ProbeFactory: probeFactory,
 		Logger:       zerolog.New(zerolog.NewTestWriter(t)),
 		Publisher:    &testPublisher{},
 		LabelsLimiter: testLabelsLimiter{
@@ -1918,6 +1926,7 @@ func TestScraperRun(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, s)
+	require.Equal(t, "my-probe", probeFactory.gotProbeName, "scraper must forward opts.Probe.Name to the prober factory")
 
 	s.Run(ctx)
 

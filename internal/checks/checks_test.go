@@ -477,7 +477,7 @@ func (testProber) Probe(ctx context.Context, target string, registry *prometheus
 
 type testProbeFactory struct{}
 
-func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check model.Check) (prober.Prober, string, error) {
+func (f testProbeFactory) New(ctx context.Context, logger zerolog.Logger, check model.Check, probeName string) (prober.Prober, string, error) {
 	return testProber{}, check.Target, nil
 }
 
