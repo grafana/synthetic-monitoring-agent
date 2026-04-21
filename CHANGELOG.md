@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.57.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.56.0...v0.57.0) (2026-04-21)
+
+
+### Features
+
+* **metamonitoring:** publish internal metrics to remote ([#1749](https://github.com/grafana/synthetic-monitoring-agent/issues/1749)) ([73448a2](https://github.com/grafana/synthetic-monitoring-agent/commit/73448a2df292c36a1792200c48d927f7a7cf9e57))
+
+
+### Fixes
+
+* Parse BBE log timestamps with RFC3339Nano ([#1773](https://github.com/grafana/synthetic-monitoring-agent/issues/1773)) ([a523eaf](https://github.com/grafana/synthetic-monitoring-agent/commit/a523eaf8b6b64d77518c2e0a5cec040fa45913af))
+
+
+### Miscellaneous Chores
+
+* Update actions/upload-artifact digest to 043fb46 ([ddcb70b](https://github.com/grafana/synthetic-monitoring-agent/commit/ddcb70b27ee11d5fd09e8282aed92a289cdb2856))
+* Update docker/build-push-action action to v7.1.0 ([36233d2](https://github.com/grafana/synthetic-monitoring-agent/commit/36233d247c79816baf085b59adac647e4ed7f144))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.36.0 ([bf444f8](https://github.com/grafana/synthetic-monitoring-agent/commit/bf444f82a7bc871b8a9a8a791611628ed5671b43))
+* Update googleapis/release-please-action action to v4.4.1 ([3175b22](https://github.com/grafana/synthetic-monitoring-agent/commit/3175b220135b2f96a08db861caf3f296e827937a))
+* Update module github.com/prometheus/prometheus to v0.311.2 [SECURITY] ([#1774](https://github.com/grafana/synthetic-monitoring-agent/issues/1774)) ([1c897dd](https://github.com/grafana/synthetic-monitoring-agent/commit/1c897dd54162fb8e9760e5b0ade7fa42ef65e49c))
+* Update module golang.org/x/net to v0.53.0 ([ecac8ea](https://github.com/grafana/synthetic-monitoring-agent/commit/ecac8eae81d63dd4e0a99acc844a16549f0a73f2))
+
 ## [0.56.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.55.0...v0.56.0) (2026-04-09)
 
 
