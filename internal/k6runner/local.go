@@ -318,10 +318,11 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 type k6RefID struct {
 	Job      string `json:"job"`
 	Instance string `json:"instance"`
+	Probe    string `json:"probe"`
 }
 
 func buildK6RefID(ci CheckInfo) (string, error) {
-	b, err := json.Marshal(k6RefID{Job: ci.Job, Instance: ci.Instance})
+	b, err := json.Marshal(k6RefID{Job: ci.Job, Instance: ci.Instance, Probe: ci.Probe})
 	if err != nil {
 		return "", err
 	}

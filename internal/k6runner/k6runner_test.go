@@ -121,11 +121,12 @@ func TestCheckInfoFromSM(t *testing.T) {
 		},
 	}
 
-	ci := CheckInfoFromSM(check)
+	ci := CheckInfoFromSM(check, "probe-a")
 
 	require.Equal(t, sm.CheckTypeBrowser.String(), ci.Type)
 	require.Equal(t, "my-job", ci.Job)
 	require.Equal(t, "https://example.com", ci.Instance)
+	require.Equal(t, "probe-a", ci.Probe)
 	require.Equal(t, map[string]any{
 		"id":       check.Id,
 		"tenantID": check.TenantId,

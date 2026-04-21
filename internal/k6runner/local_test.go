@@ -152,12 +152,13 @@ func TestBuildK6ArgsK6RefID(t *testing.T) {
 		scriptFn  = "/tmp/script.js"
 	)
 
-	browserScript := func(job, instance string) Script {
+	browserScript := func(job, instance, probe string) Script {
 		return Script{
 			CheckInfo: CheckInfo{
 				Type:     synthetic_monitoring.CheckTypeBrowser.String(),
 				Job:      job,
 				Instance: instance,
+				Probe:    probe,
 			},
 		}
 	}
@@ -166,9 +167,9 @@ func TestBuildK6ArgsK6RefID(t *testing.T) {
 		script     Script
 		expK6RefID string // empty means the flag must be absent
 	}{
-		"browser check with job and instance": {
-			script:     browserScript("my-job", "https://example.com"),
-			expK6RefID: `{"job":"my-job","instance":"https://example.com"}`,
+		"browser check with job, instance and probe": {
+			script:     browserScript("my-job", "https://example.com", "probe-a"),
+			expK6RefID: `{"job":"my-job","instance":"https://example.com","probe":"probe-a"}`,
 		},
 		"non-browser check with job and instance": {
 			script: Script{
@@ -176,6 +177,7 @@ func TestBuildK6ArgsK6RefID(t *testing.T) {
 					Type:     synthetic_monitoring.CheckTypeScripted.String(),
 					Job:      "my-job",
 					Instance: "https://example.com",
+					Probe:    "probe-a",
 				},
 			},
 		},

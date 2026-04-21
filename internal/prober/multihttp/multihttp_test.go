@@ -128,7 +128,7 @@ func TestNewProber(t *testing.T) {
 			reservedHeaders := http.Header{}
 			reservedHeaders.Add("x-sm-id", fmt.Sprintf("%d-%d", checkId, checkId))
 
-			p, err := NewProber(ctx, tc.check, logger, runner, reservedHeaders, store)
+			p, err := NewProber(ctx, tc.check, logger, runner, reservedHeaders, store, "probe-a")
 			if tc.expectFailure {
 				require.Error(t, err)
 				return
@@ -143,6 +143,7 @@ func TestNewProber(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, proberName, p.module.Prober)
 			require.Equal(t, 10*time.Second, time.Duration(p.module.Script.Settings.Timeout)*time.Millisecond)
+			require.Equal(t, "probe-a", p.module.Script.CheckInfo.Probe)
 			// TODO: check script
 		})
 	}

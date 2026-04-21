@@ -170,7 +170,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		Logger()
 
 	sctx, cancel := context.WithCancel(ctx)
-	smProber, target, err := opts.ProbeFactory.New(sctx, logger, check)
+	smProber, target, err := opts.ProbeFactory.New(sctx, logger, check, opts.Probe.Name)
 	if err != nil {
 		cancel()
 		return nil, err

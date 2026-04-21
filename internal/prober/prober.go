@@ -38,7 +38,7 @@ func Run(ctx context.Context, p Prober, target string, registry *prometheus.Regi
 }
 
 type ProberFactory interface {
-	New(ctx context.Context, logger zerolog.Logger, check model.Check) (Prober, string, error)
+	New(ctx context.Context, logger zerolog.Logger, check model.Check, probeName string) (Prober, string, error)
 }
 
 type proberFactory struct {
@@ -57,7 +57,7 @@ func NewProberFactory(runner k6runner.Runner, probeId int64, features feature.Co
 	}
 }
 
-func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check model.Check) (Prober, string, error) {
+func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check model.Check, probeName string) (Prober, string, error) {
 	var (
 		p      Prober
 		target string
@@ -92,7 +92,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 
 	case sm.CheckTypeScripted:
 		if f.runner != nil {
-			p, err = scripted.NewProber(ctx, check, logger, f.runner, f.secretStore)
+			p, err = scripted.NewProber(ctx, check, logger, f.runner, f.secretStore, probeName)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
@@ -103,7 +103,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		// we know that the runner is actually able to handle browser
 		// checks.
 		if f.runner != nil {
-			p, err = browser.NewProber(ctx, check, logger, f.runner, f.secretStore)
+			p, err = browser.NewProber(ctx, check, logger, f.runner, f.secretStore, probeName)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
@@ -112,7 +112,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 	case sm.CheckTypeMultiHttp:
 		if f.runner != nil {
 			reservedHeaders := f.getReservedHeaders(&check)
-			p, err = multihttp.NewProber(ctx, check, logger, f.runner, reservedHeaders, f.secretStore)
+			p, err = multihttp.NewProber(ctx, check, logger, f.runner, reservedHeaders, f.secretStore, probeName)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")
