@@ -642,3 +642,66 @@ func TestHandleError(t *testing.T) {
 		require.Zero(t, backoff)
 	})
 }
+
+func TestProbeTenantCh(t *testing.T) {
+	t.Run("sends probe tenant ID after registration", func(t *testing.T) {
+		probeTenantCh := make(chan *sm.Probe, 1)
+		u, err := NewUpdater(UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(make(chan pusher.Payload)),
+			TenantCh:       make(chan<- sm.Tenant),
+			ProbeCh:        probeTenantCh,
+			Logger:         testhelper.Logger(t),
+		})
+
+		require.NoError(t, err)
+		u.probe = &sm.Probe{Id: 1, TenantId: 42}
+		u.notifyProbeTenant()
+		got := <-probeTenantCh
+		require.Equal(t, u.probe.TenantId, got.TenantId)
+	})
+
+	t.Run("only sends once across multiple registrations", func(t *testing.T) {
+		probeCh := make(chan *sm.Probe, 1)
+		u, err := NewUpdater(UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(make(chan pusher.Payload)),
+			TenantCh:       make(chan<- sm.Tenant),
+			ProbeCh:        probeCh,
+			Logger:         testhelper.Logger(t),
+		})
+
+		require.NoError(t, err)
+		u.probe = &sm.Probe{Id: 1, TenantId: 42}
+		u.notifyProbeTenant()
+
+		u.probe = &sm.Probe{Id: 2, TenantId: 43}
+		u.notifyProbeTenant()
+
+		// Confirm that the returned value is the first probe id sent to the channel
+		got := <-probeCh
+		require.Equal(t, got.TenantId, int64(42))
+
+		// Confirm no second send
+		_, ok := <-probeCh
+		require.False(t, ok)
+	})
+
+	t.Run("nil channel is safe when feature disabled", func(t *testing.T) {
+		u, err := NewUpdater(UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(make(chan pusher.Payload)),
+			TenantCh:       make(chan<- sm.Tenant),
+			Logger:         testhelper.Logger(t),
+		})
+
+		require.NoError(t, err)
+		u.probe = &sm.Probe{Id: 1, TenantId: 42}
+		require.NotPanics(t, func() {
+			u.notifyProbeTenant()
+		})
+	})
+}

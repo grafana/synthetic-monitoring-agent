@@ -74,6 +74,8 @@ type Updater struct {
 	backoff                 Backoffer
 	publisher               pusher.Publisher
 	tenantCh                chan<- sm.Tenant
+	probeCh                 chan<- *sm.Probe
+	probeTenantOnce         sync.Once
 	IsConnected             func(bool)
 	probe                   *sm.Probe
 	scrapersMutex           sync.Mutex
@@ -114,6 +116,7 @@ type UpdaterOptions struct {
 	Backoff                 Backoffer
 	Publisher               pusher.Publisher
 	TenantCh                chan<- sm.Tenant
+	ProbeCh                 chan<- *sm.Probe
 	IsConnected             func(bool)
 	PromRegisterer          prometheus.Registerer
 	Features                feature.Collection
@@ -241,6 +244,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		backoff:                 opts.Backoff,
 		publisher:               opts.Publisher,
 		tenantCh:                opts.TenantCh,
+		probeCh:                 opts.ProbeCh,
 		IsConnected:             opts.IsConnected,
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
 		k6Runner:                opts.K6Runner,
@@ -405,6 +409,8 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	c.probe = &result.Probe
 
+	c.notifyProbeTenant()
+
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
 
 	logger.Info().Str("probe_name", c.probe.Name).Msg("registered probe with synthetic-monitoring-api")
@@ -526,6 +532,17 @@ func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities)
 	}
 
 	return nil
+}
+
+// notifyProbeTenant will notify the probes tenantID to the probeTenantCh at most once and then close the channel.
+// This is used by metamonitoring to infer which tenant the publisher should send data to.
+func (c *Updater) notifyProbeTenant() {
+	c.probeTenantOnce.Do(func() {
+		if c.probeCh != nil {
+			c.probeCh <- c.probe
+			close(c.probeCh)
+		}
+	})
 }
 
 // ping will use the provided client to send a health signal to the GRPC
@@ -943,7 +960,6 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		c.k6Runner,
 		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals,
 	)
-
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
 	}

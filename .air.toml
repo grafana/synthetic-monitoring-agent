@@ -2,7 +2,7 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  full_bin = "./dist/synthetic-monitoring-agent --debug --api-server-address=localhost:4031 --api-insecure=true --dev=true"
+  full_bin = "./dist/synthetic-monitoring-agent --debug --api-server-address=localhost:4031 --api-insecure --dev --experimental-push-telemetry --k6-uri=/usr/libexec/sm-k6 --k6-repository="
   cmd = "make build"
   delay = 1000
   exclude_dir = [".chglog", ".github"]
