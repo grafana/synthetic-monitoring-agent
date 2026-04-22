@@ -1,15 +1,31 @@
 package scraper
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
+	"testing"
 
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 )
+
+type fixtureSetup func(context.Context, *testing.T) (prober.Prober, model.Check, func())
+
+type fixtureSpec struct {
+	setup            fixtureSetup
+	basicMetricsOnly bool
+}
 
 type MetricLabelCatalogue map[string][]string
 
@@ -22,6 +38,64 @@ type CatalogueComparison struct {
 	MissingMetrics    []string
 	UnexpectedMetrics []string
 	LabelMismatches   map[string]MetricLabelMismatch
+}
+
+func validateMetricSetups() map[string]fixtureSetup {
+	return map[string]fixtureSetup{
+		"ping":       setupPingProbe,
+		"http":       setupHTTPProbe,
+		"http_ssl":   setupHTTPSSLProbe,
+		"dns":        setupDNSProbe,
+		"tcp":        setupTCPProbe,
+		"tcp_ssl":    setupTCPSSLProbe,
+		"traceroute": setupTracerouteProbe,
+		"scripted":   setupScriptedProbe,
+		"multihttp":  setupMultiHTTPProbe,
+		"grpc":       setupGRPCProbe,
+		"grpc_ssl":   setupGRPCSSLProbe,
+		"browser":    setupBrowserProbe,
+	}
+}
+
+func fixtureCatalogueSpecs() map[string]fixtureSpec {
+	specs := make(map[string]fixtureSpec)
+	for name, setup := range validateMetricSetups() {
+		if name == "traceroute" {
+			continue
+		}
+		specs[name] = fixtureSpec{setup: setup, basicMetricsOnly: false}
+		specs[name+"_basic"] = fixtureSpec{setup: setup, basicMetricsOnly: true}
+	}
+	return specs
+}
+
+func runtimeCatalogueSpecs() map[string]fixtureSpec {
+	specs := fixtureCatalogueSpecs()
+	return map[string]fixtureSpec{
+		"scripted":        specs["scripted"],
+		"scripted_basic":  specs["scripted_basic"],
+		"multihttp":       specs["multihttp"],
+		"multihttp_basic": specs["multihttp_basic"],
+		"browser":         specs["browser"],
+		"browser_basic":   specs["browser_basic"],
+	}
+}
+
+func loadMetricLabelCatalogues(t *testing.T, filename string) map[string]MetricLabelCatalogue {
+	t.Helper()
+
+	fh, err := os.Open(filepath.Join("testdata", filename))
+	if err != nil {
+		t.Fatalf("open metric catalogue %s: %v", filename, err)
+	}
+	defer fh.Close()
+
+	var got map[string]MetricLabelCatalogue
+	if err := json.NewDecoder(fh).Decode(&got); err != nil {
+		t.Fatalf("decode metric catalogue %s: %v", filename, err)
+	}
+
+	return got
 }
 
 func CatalogueFromMetricFamilies(mfs []*dto.MetricFamily) MetricLabelCatalogue {
@@ -72,7 +146,7 @@ func CatalogueFromReader(r io.Reader) (MetricLabelCatalogue, error) {
 	for {
 		mf := new(dto.MetricFamily)
 		err := dec.Decode(mf)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return CatalogueFromMetricFamilies(mfs), nil
 		}
 		if err != nil {

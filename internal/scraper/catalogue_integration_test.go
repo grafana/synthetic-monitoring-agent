@@ -24,17 +24,12 @@ func TestValidateMetricCatalogueIntegration(t *testing.T) {
 		t.Fatalf("K6_PATH %q is not usable: %v", k6Path, err)
 	}
 
-	for class, spec := range map[string]fixtureSpec{
-		"scripted":        {setup: setupScriptedProbe, basicMetricsOnly: false},
-		"scripted_basic":  {setup: setupScriptedProbe, basicMetricsOnly: true},
-		"multihttp":       {setup: setupMultiHTTPProbe, basicMetricsOnly: false},
-		"multihttp_basic": {setup: setupMultiHTTPProbe, basicMetricsOnly: true},
-		"browser":         {setup: setupBrowserProbe, basicMetricsOnly: false},
-		"browser_basic":   {setup: setupBrowserProbe, basicMetricsOnly: true},
-	} {
+	expectedCatalogues := loadMetricLabelCatalogues(t, "expected_runtime_metric_catalogue.json")
+
+	for class, spec := range runtimeCatalogueSpecs() {
 		t.Run(class, func(t *testing.T) {
 			t.Setenv("K6_PATH", k6Path)
-			expected, ok := expectedRuntimeMetricCatalogueByAccountingClass[class]
+			expected, ok := expectedCatalogues[class]
 			if !ok {
 				t.Fatalf("missing expected catalogue for %s", class)
 			}
