@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -eu
+
+input=.github/renovate.yaml
+output=.github/renovate.json
+
+toplevel=$(git rev-parse --show-toplevel)
+cd "$toplevel"
+
+if ! test -e "${input}" ; then
+	echo "W: ${input} does not exist. Stop." >&2
+	exit 0
+fi
+
+exec yq --output-format json . < "${input}" > "${output}"

@@ -3,11 +3,31 @@
 
 version: 2
 updates:
+  - package-ecosystem: "docker"
+    directory: "/"
+    labels:
+      - "dependencies"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 0 # Disable updates.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    labels:
+      - "dependencies"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 0 # Disable updates.
   - package-ecosystem: "gomod"
     directory: "/"
     labels:
       - "dependencies"
     schedule:
       interval: "daily"
-    # Disable updates for Go dependencies. If you want to enable them again, remove the next line.
-    open-pull-requests-limit: 0
+    open-pull-requests-limit: 0 # Disable updates.
+  - package-ecosystem: "npm"
+    directory: "/"
+    labels:
+      - "dependencies"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 0 # Disable updates.
