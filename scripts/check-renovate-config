@@ -1,0 +1,29 @@
+#!/bin/sh
+
+set -eu
+
+input=.github/renovate.yaml
+output=.github/renovate.json
+
+summary_output=${1:-/dev/stdout}
+
+toplevel=$(git rev-parse --show-toplevel)
+cd "$toplevel"
+
+if ! git diff --exit-code "${output}" > /dev/null ; then
+	cat <<-EOT
+		::error file=$output,title=Out of date::$output is out of date with respect to $input. Run "make generate-renovate-config" to fix this.
+	EOT
+
+	cat <<-EOT >> "${summary_output}"
+		### Renovate configuration drift :bangbang:
+
+		\`$output\` is out of sync with respect to \`$input\`.
+
+		:bulb: Run \`make generate-renovate-config\` to update it.
+	EOT
+
+	exit 1
+fi
+
+exit 0
