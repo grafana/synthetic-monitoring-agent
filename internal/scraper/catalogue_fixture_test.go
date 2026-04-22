@@ -8,44 +8,10 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/model"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/client_golang/prometheus"
 )
-
-type fixtureSpec struct {
-	setup            func(context.Context, *testing.T) (prober.Prober, model.Check, func())
-	basicMetricsOnly bool
-}
-
-func catalogueFixtureSpecs() map[string]fixtureSpec {
-	return map[string]fixtureSpec{
-		"browser":         {setup: setupBrowserProbe, basicMetricsOnly: false},
-		"browser_basic":   {setup: setupBrowserProbe, basicMetricsOnly: true},
-		"dns":             {setup: setupDNSProbe, basicMetricsOnly: false},
-		"dns_basic":       {setup: setupDNSProbe, basicMetricsOnly: true},
-		"grpc":            {setup: setupGRPCProbe, basicMetricsOnly: false},
-		"grpc_basic":      {setup: setupGRPCProbe, basicMetricsOnly: true},
-		"grpc_ssl":        {setup: setupGRPCSSLProbe, basicMetricsOnly: false},
-		"grpc_ssl_basic":  {setup: setupGRPCSSLProbe, basicMetricsOnly: true},
-		"http":            {setup: setupHTTPProbe, basicMetricsOnly: false},
-		"http_basic":      {setup: setupHTTPProbe, basicMetricsOnly: true},
-		"http_ssl":        {setup: setupHTTPSSLProbe, basicMetricsOnly: false},
-		"http_ssl_basic":  {setup: setupHTTPSSLProbe, basicMetricsOnly: true},
-		"multihttp":       {setup: setupMultiHTTPProbe, basicMetricsOnly: false},
-		"multihttp_basic": {setup: setupMultiHTTPProbe, basicMetricsOnly: true},
-		"ping":            {setup: setupPingProbe, basicMetricsOnly: false},
-		"ping_basic":      {setup: setupPingProbe, basicMetricsOnly: true},
-		"scripted":        {setup: setupScriptedProbe, basicMetricsOnly: false},
-		"scripted_basic":  {setup: setupScriptedProbe, basicMetricsOnly: true},
-		"tcp":             {setup: setupTCPProbe, basicMetricsOnly: false},
-		"tcp_basic":       {setup: setupTCPProbe, basicMetricsOnly: true},
-		"tcp_ssl":         {setup: setupTCPSSLProbe, basicMetricsOnly: false},
-		"tcp_ssl_basic":   {setup: setupTCPSSLProbe, basicMetricsOnly: true},
-	}
-}
 
 func collectFixtureCatalogue(t *testing.T, name string, spec fixtureSpec) MetricLabelCatalogue {
 	return collectFixtureCatalogueWithLogger(t, name, spec, testhelper.Logger(t))

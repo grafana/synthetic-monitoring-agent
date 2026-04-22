@@ -7,11 +7,12 @@ import "testing"
 // intentionally separate from the runtime catalogue integration test, which
 // exercises the richer k6/browser execution path with a real sm-k6 binary.
 func TestExpectedMetricCatalogueMatchesFixtureOutputs(t *testing.T) {
-	seen := make(map[string]struct{}, len(expectedFixtureMetricCatalogueByAccountingClass))
+	expectedCatalogues := loadMetricLabelCatalogues(t, "expected_fixture_metric_catalogue.json")
+	seen := make(map[string]struct{}, len(expectedCatalogues))
 
-	for class, spec := range catalogueFixtureSpecs() {
+	for class, spec := range fixtureCatalogueSpecs() {
 		seen[class] = struct{}{}
-		expected, ok := expectedFixtureMetricCatalogueByAccountingClass[class]
+		expected, ok := expectedCatalogues[class]
 		if !ok {
 			t.Fatalf("missing expected catalogue for accounting class %s", class)
 		}
@@ -23,7 +24,7 @@ func TestExpectedMetricCatalogueMatchesFixtureOutputs(t *testing.T) {
 		}
 	}
 
-	for class := range expectedFixtureMetricCatalogueByAccountingClass {
+	for class := range expectedCatalogues {
 		if _, ok := seen[class]; ok {
 			continue
 		}

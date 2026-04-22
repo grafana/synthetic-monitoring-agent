@@ -77,53 +77,12 @@ var metricParser = parser.NewParser(parser.Options{
 //
 // go test -v -race -run TestValidateMetrics ./internal/scraper/
 func TestValidateMetrics(t *testing.T) {
-	testcases := map[string]struct {
-		setup func(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func())
-	}{
-		"ping": {
-			setup: setupPingProbe,
-		},
-		"http": {
-			setup: setupHTTPProbe,
-		},
-		"http_ssl": {
-			setup: setupHTTPSSLProbe,
-		},
-		"dns": {
-			setup: setupDNSProbe,
-		},
-		"tcp": {
-			setup: setupTCPProbe,
-		},
-		"tcp_ssl": {
-			setup: setupTCPSSLProbe,
-		},
-		"traceroute": {
-			setup: setupTracerouteProbe,
-		},
-		"scripted": {
-			setup: setupScriptedProbe,
-		},
-		"multihttp": {
-			setup: setupMultiHTTPProbe,
-		},
-		"grpc": {
-			setup: setupGRPCProbe,
-		},
-		"grpc_ssl": {
-			setup: setupGRPCSSLProbe,
-		},
-		"browser": {
-			setup: setupBrowserProbe,
-		},
-	}
-
-	for name, testcase := range testcases {
+	for name, setup := range validateMetricSetups() {
 		t.Run(name, func(t *testing.T) {
-			verifyProberMetrics(t, name, testcase.setup, false)
+			verifyProberMetrics(t, name, setup, false)
 		})
 		t.Run(name+"_basic", func(t *testing.T) {
-			verifyProberMetrics(t, name+"_basic", testcase.setup, true)
+			verifyProberMetrics(t, name+"_basic", setup, true)
 		})
 	}
 }
