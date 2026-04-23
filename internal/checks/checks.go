@@ -28,6 +28,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
+	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
@@ -75,7 +76,8 @@ type Updater struct {
 	publisher               pusher.Publisher
 	tenantCh                chan<- sm.Tenant
 	probeCh                 chan<- *sm.Probe
-	probeTenantOnce         sync.Once
+	probeRegisteredOnce     sync.Once
+	onProbeRegistered       func(*sm.Probe)
 	IsConnected             func(bool)
 	probe                   *sm.Probe
 	scrapersMutex           sync.Mutex
@@ -89,6 +91,7 @@ type Updater struct {
 	usageReporter           usage.Reporter
 	tenantCals              *cals.CostAttributionLabels
 	supportsProtocolSecrets bool
+	events                  *metamonitoring.EventLogger
 }
 
 type apiInfo struct {
@@ -118,6 +121,7 @@ type UpdaterOptions struct {
 	TenantCh                chan<- sm.Tenant
 	ProbeCh                 chan<- *sm.Probe
 	IsConnected             func(bool)
+	OnProbeRegistered       func(*sm.Probe)
 	PromRegisterer          prometheus.Registerer
 	Features                feature.Collection
 	K6Runner                k6runner.Runner
@@ -128,6 +132,7 @@ type UpdaterOptions struct {
 	UsageReporter           usage.Reporter
 	CostAttributionLabels   *cals.CostAttributionLabels
 	SupportsProtocolSecrets bool
+	EventLogger             *metamonitoring.EventLogger
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -246,6 +251,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantCh:                opts.TenantCh,
 		probeCh:                 opts.ProbeCh,
 		IsConnected:             opts.IsConnected,
+		onProbeRegistered:       opts.OnProbeRegistered,
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
 		k6Runner:                opts.K6Runner,
 		scraperFactory:          scraperFactory,
@@ -264,6 +270,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		},
 		usageReporter: opts.UsageReporter,
 		tenantCals:    opts.CostAttributionLabels,
+		events:        opts.EventLogger,
 	}, nil
 }
 
@@ -409,7 +416,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	c.probe = &result.Probe
 
-	c.notifyProbeTenant()
+	c.notifyProbeRegistered()
 
 	logger := c.logger.With().Int64("probe_id", c.probe.Id).Logger()
 
@@ -421,7 +428,11 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	// true indicates that probe is connected to API
 	connected = true
 	c.IsConnected(true)
-	defer c.IsConnected(false)
+	c.logEvent("probe_connected")
+	defer func() {
+		c.IsConnected(false)
+		c.logEvent("probe_disconnected")
+	}()
 
 	// this is constant throughout the life of the probe, but since
 	// we don't know the probe's id or name until this point, set it
@@ -534,13 +545,18 @@ func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities)
 	return nil
 }
 
-// notifyProbeTenant will notify the probes tenantID to the probeTenantCh at most once and then close the channel.
-// This is used by metamonitoring to infer which tenant the publisher should send data to.
-func (c *Updater) notifyProbeTenant() {
-	c.probeTenantOnce.Do(func() {
+// notifyProbeRegistered broadcasts that the probe has registered with the API.
+// It sends the probe on probeCh (then closes it) and invokes the OnProbeRegistered
+// callback if one was configured. Runs at most once per Updater.
+func (c *Updater) notifyProbeRegistered() {
+	c.probeRegisteredOnce.Do(func() {
 		if c.probeCh != nil {
 			c.probeCh <- c.probe
 			close(c.probeCh)
+		}
+		// this updates the logger to have access to the probe information
+		if c.onProbeRegistered != nil {
+			c.onProbeRegistered(c.probe)
 		}
 	})
 }
@@ -660,6 +676,12 @@ func (c *Updater) processChanges(ctx context.Context, cc sm.Checks_GetChangesCli
 	}
 }
 
+func (c *Updater) logEvent(msg string, fields ...string) {
+	if c.events != nil {
+		c.events.Log(msg, fields...)
+	}
+}
+
 func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 	c.metrics.changesCounter.WithLabelValues("add").Inc()
 
@@ -671,13 +693,14 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 	defer c.scrapersMutex.Unlock()
 
 	if running, found := c.scrapers[check.GlobalID()]; found {
-		// we can get here if the API sent us a check add twice:
-		// once during the initial connection and another right
-		// after that. The window for that is small, but it
-		// exists.
-
 		return fmt.Errorf("check with id %d already exists (version %s)", check.GlobalID(), running.ConfigVersion())
 	}
+
+	c.logEvent("check_added",
+		"check_id", strconv.FormatInt(check.Id, 10),
+		"target", check.Target,
+		"job", check.Job,
+	)
 
 	return c.addAndStartScraperWithLock(ctx, check)
 }
@@ -688,6 +711,12 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) erro
 	if err := check.Validate(); err != nil {
 		return fmt.Errorf("invalid check: %w", err)
 	}
+
+	c.logEvent("check_updated",
+		"check_id", strconv.FormatInt(check.Id, 10),
+		"target", check.Target,
+		"job", check.Job,
+	)
 
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
@@ -731,6 +760,12 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) erro
 		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("delete request for an unknown check")
 		return errors.New("check not found")
 	}
+
+	c.logEvent("check_deleted",
+		"check_id", strconv.FormatInt(check.Id, 10),
+		"target", check.Target,
+		"job", check.Job,
+	)
 
 	scraper.Stop()
 	checkType := scraper.CheckType().String()

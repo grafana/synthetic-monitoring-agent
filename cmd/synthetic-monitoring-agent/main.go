@@ -197,7 +197,40 @@ func run(args []string, stdout io.Writer) error {
 
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnixMs
 
-	zl := zerolog.New(stdout).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
+	hostname, _ := os.Hostname()
+
+	var (
+		logBuffer         *metamonitoring.RingBuffer
+		eventLogger       *metamonitoring.EventLogger
+		onProbeRegistered func(*synthetic_monitoring.Probe)
+		logWriter         io.Writer = io.Discard
+	)
+
+	if config.PushTelemetry {
+		logBuffer = metamonitoring.NewRingBuffer(1000)
+		shipper := metamonitoring.NewLogShipper(
+			logBuffer,
+			fmt.Sprintf(`{source="sm-agent",log_type="operational",hostname="%s",version="%s"}`, hostname, version.Short()),
+			zerolog.WarnLevel,
+		)
+		logWriter = shipper
+		eventLogger = metamonitoring.NewEventLogger(
+			logBuffer,
+			fmt.Sprintf(`{source="sm-agent",log_type="event",hostname="%s",version="%s"}`, hostname, version.Short()),
+		)
+		onProbeRegistered = func(p *synthetic_monitoring.Probe) {
+			eventLogger.SetLabels(fmt.Sprintf(
+				`{source="sm-agent",log_type="event",hostname="%s",version="%s",probe="%s",region="%s"}`,
+				hostname, version.Short(), p.Name, p.Region,
+			))
+			shipper.SetLabels(fmt.Sprintf(
+				`{source="sm-agent",log_type="operational",hostname="%s",version="%s",probe="%s",region="%s"}`,
+				hostname, version.Short(), p.Name, p.Region,
+			))
+		}
+	}
+
+	zl := zerolog.New(zerolog.MultiLevelWriter(stdout, logWriter)).With().Timestamp().Str("program", filepath.Base(args[0])).Logger()
 
 	switch {
 	case config.Debug:
@@ -371,6 +404,8 @@ func run(args []string, stdout io.Writer) error {
 		UsageReporter:           usageReporter,
 		CostAttributionLabels:   cals,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		EventLogger:             eventLogger,
+		OnProbeRegistered:       onProbeRegistered,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
@@ -407,6 +442,7 @@ func run(args []string, stdout io.Writer) error {
 				Publisher: publisher,
 				Interval:  config.MetricsInterval,
 				ProbeCh:   probeCh,
+				LogBuffer: logBuffer,
 			})
 
 			return metricsHandler.Run(ctx)
