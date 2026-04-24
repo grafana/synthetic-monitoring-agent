@@ -43,7 +43,7 @@ require (
 	github.com/mccutchen/go-httpbin/v2 v2.22.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus-community/pro-bing v0.8.0
-	github.com/puzpuzpuz/xsync/v4 v4.4.0
+	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/spf13/afero v1.15.0
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa
