@@ -77,53 +77,12 @@ var metricParser = parser.NewParser(parser.Options{
 //
 // go test -v -race -run TestValidateMetrics ./internal/scraper/
 func TestValidateMetrics(t *testing.T) {
-	testcases := map[string]struct {
-		setup func(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func())
-	}{
-		"ping": {
-			setup: setupPingProbe,
-		},
-		"http": {
-			setup: setupHTTPProbe,
-		},
-		"http_ssl": {
-			setup: setupHTTPSSLProbe,
-		},
-		"dns": {
-			setup: setupDNSProbe,
-		},
-		"tcp": {
-			setup: setupTCPProbe,
-		},
-		"tcp_ssl": {
-			setup: setupTCPSSLProbe,
-		},
-		"traceroute": {
-			setup: setupTracerouteProbe,
-		},
-		"scripted": {
-			setup: setupScriptedProbe,
-		},
-		"multihttp": {
-			setup: setupMultiHTTPProbe,
-		},
-		"grpc": {
-			setup: setupGRPCProbe,
-		},
-		"grpc_ssl": {
-			setup: setupGRPCSSLProbe,
-		},
-		"browser": {
-			setup: setupBrowserProbe,
-		},
-	}
-
-	for name, testcase := range testcases {
+	for name, setup := range validateMetricSetups() {
 		t.Run(name, func(t *testing.T) {
-			verifyProberMetrics(t, name, testcase.setup, false)
+			verifyProberMetrics(t, name, setup, false)
 		})
 		t.Run(name+"_basic", func(t *testing.T) {
-			verifyProberMetrics(t, name+"_basic", testcase.setup, true)
+			verifyProberMetrics(t, name+"_basic", setup, true)
 		})
 	}
 }
@@ -302,7 +261,11 @@ func setupHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Che
 
 func setupHTTPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
 	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Last-Modified", "Wed, 16 Apr 2026 19:00:00 GMT")
+		w.Header().Set("ETag", `"fixture-http-ssl"`)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
+		_, _ = io.WriteString(w, "fixture ok")
 	}))
 	httpSrv.StartTLS()
 
@@ -343,11 +306,11 @@ func setupDNSProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Chec
 			Target:  "example.org",
 			Timeout: 2000,
 			Settings: sm.CheckSettings{
-				// target is "example.com"
 				Dns: &sm.DnsSettings{
-					Server:    srv,
-					IpVersion: sm.IpVersion_V4,
-					Protocol:  sm.DnsProtocol_UDP,
+					Server:     srv,
+					IpVersion:  sm.IpVersion_V4,
+					Protocol:   sm.DnsProtocol_UDP,
+					RecordType: sm.DnsRecordType_SOA,
 				},
 			},
 		},
@@ -442,10 +405,11 @@ func setupTracerouteProbe(ctx context.Context, t *testing.T) (prober.Prober, mod
 }
 
 func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
-	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	httpSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("scripted fixture ok"))
 	}))
-	httpSrv.Start()
 
 	check := model.Check{
 		Check: sm.Check{
@@ -453,7 +417,21 @@ func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, model
 			Timeout: 2000,
 			Settings: sm.CheckSettings{
 				Scripted: &sm.ScriptedSettings{
-					Script: []byte(`export default function() {}`),
+					Script: []byte(fmt.Sprintf(`
+import http from 'k6/http';
+import { check } from 'k6';
+
+export const options = {
+  insecureSkipTLSVerify: true,
+};
+
+export default function() {
+  const response = http.get(%q);
+  check(response, {
+    ['status is 200']: (r) => r.status === 200,
+  });
+}
+`, httpSrv.URL)),
 				},
 			},
 		},
@@ -491,10 +469,11 @@ func setupScriptedProbe(ctx context.Context, t *testing.T) (prober.Prober, model
 }
 
 func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
-	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	httpSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok","message":"multihttp fixture ok"}`))
 	}))
-	httpSrv.Start()
 
 	check := model.Check{
 		Check: sm.Check{
@@ -508,6 +487,20 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 								Method: sm.HttpMethod_GET,
 								Url:    httpSrv.URL,
 							},
+							Assertions: []*sm.MultiHttpEntryAssertion{
+								{
+									Type:      sm.MultiHttpEntryAssertionType_TEXT,
+									Subject:   sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE,
+									Condition: sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+									Value:     "200",
+								},
+								{
+									Type:      sm.MultiHttpEntryAssertionType_TEXT,
+									Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+									Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+									Value:     "multihttp fixture ok",
+								},
+							},
 						},
 					},
 				},
@@ -519,6 +512,7 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 	var err error
 
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
+		t.Setenv("K6_INSECURE_SKIP_TLS_VERIFY", "true")
 		runner, err = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
 	} else {
 		runner = &testRunner{
@@ -547,18 +541,108 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 }
 
 func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
-	httpSrv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	}))
-	httpSrv.Start()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = io.WriteString(w, `<!doctype html>
+<html>
+  <head>
+    <title>browser fixture</title>
+    <link rel="stylesheet" href="/style.css">
+    <script defer src="/app.js"></script>
+  </head>
+  <body>
+    <h1 id="title">Synthetic Monitoring</h1>
+    <p id="status">browser fixture ok</p>
+    <button id="interact" type="button">Interact</button>
+    <img src="/pixel.png" alt="pixel">
+  </body>
+</html>`)
+	})
+	mux.HandleFunc("/style.css", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "text/css")
+		_, _ = io.WriteString(w, "body { font-family: sans-serif; }")
+	})
+	mux.HandleFunc("/app.js", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript")
+		_, _ = io.WriteString(w, `window.addEventListener('load', () => {
+  const status = document.getElementById('status');
+  const button = document.getElementById('interact');
+  if (status) status.textContent = 'browser fixture ready';
+  if (button && status) {
+    button.addEventListener('click', () => {
+      const start = performance.now();
+      while (performance.now() - start < 120) {
+        // Busy wait long enough to ensure the browser runtime records an input delay.
+      }
+      requestAnimationFrame(() => {
+        status.textContent = 'interaction complete';
+      });
+    });
+  }
+});`)
+	})
+	mux.HandleFunc("/pixel.png", func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte{
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+			0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+			0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+			0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+			0x89, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x44, 0x41,
+			0x54, 0x78, 0x9c, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
+			0x00, 0x03, 0x01, 0x01, 0x00, 0xc9, 0xfe, 0x92,
+			0xef, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e,
+			0x44, 0xae, 0x42, 0x60, 0x82,
+		})
+	})
+	httpSrv := httptest.NewServer(mux)
 
 	check := model.Check{
 		Check: sm.Check{
 			Target:  httpSrv.URL,
-			Timeout: 2000,
+			Timeout: 10000,
 			Settings: sm.CheckSettings{
 				Browser: &sm.BrowserSettings{
-					Script: []byte(`export default function() {}`),
+					Script: []byte(fmt.Sprintf(`
+import { browser } from 'k6/browser';
+import { check, sleep } from 'k6';
+
+export const options = {
+  scenarios: {
+    ui: {
+      executor: 'shared-iterations',
+      options: {
+        browser: {
+          type: 'chromium',
+        },
+      },
+    },
+  },
+};
+
+export default async function () {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+
+  try {
+    await page.goto(%q, { waitUntil: 'networkidle' });
+    const title = await page.locator('#title').textContent();
+    check(title, {
+      ['heading is present']: (value) => value === 'Synthetic Monitoring',
+    });
+    const button = page.locator('#interact');
+    await button.click();
+    await page.waitForFunction(() => {
+      const status = document.getElementById('status');
+      return status && status.textContent === 'interaction complete';
+    });
+    sleep(2);
+  } finally {
+    await page.close();
+  }
+}
+`, httpSrv.URL)),
 				},
 			},
 		},
@@ -718,10 +802,27 @@ func startDNSServer(addr, protocol string, handler func(dns.ResponseWriter, *dns
 func recursiveDNSHandler(w dns.ResponseWriter, r *dns.Msg) {
 	m := new(dns.Msg)
 	m.SetReply(r)
-	answers := []string{
-		"example.com. 3600 IN A 127.0.0.1",
-		"example.com. 3600 IN A 127.0.0.2",
+
+	if len(r.Question) == 0 {
+		if err := w.WriteMsg(m); err != nil {
+			panic(err)
+		}
+		return
 	}
+
+	var answers []string
+	switch r.Question[0].Qtype {
+	case dns.TypeSOA:
+		answers = []string{
+			"example.org. 3600 IN SOA ns1.example.org. hostmaster.example.org. 2026041601 7200 3600 1209600 3600",
+		}
+	default:
+		answers = []string{
+			"example.org. 3600 IN A 127.0.0.1",
+			"example.org. 3600 IN A 127.0.0.2",
+		}
+	}
+
 	for _, rr := range answers {
 		a, err := dns.NewRR(rr)
 		if err != nil {

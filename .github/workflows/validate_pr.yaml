@@ -106,3 +106,44 @@ jobs:
             type=sha,prefix=sha-,suffix=-browser,format=short
             latest-browser
           target: with-browser
+
+      # Run the runtime catalogue validation once per CI on ubuntu-latest rather
+      # than repeating the same loaded-image test on both matrix legs.
+      - name: build browser image for runtime catalogue tests
+        if: matrix.runner == 'ubuntu-latest'
+        uses: grafana/shared-workflows/actions/docker-build-push-image@ef27c620a88acc9f3007f30be5e9407324e8975b # docker-build-push-image/v0.3.0
+        with:
+          registries: dockerhub
+          dockerhub-repository: synthetic-monitoring-agent-runtime-catalogue
+          push: false
+          cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
+          cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache,mode=min
+          platforms: |-
+            ${{ steps.build-info.outputs.os }}/${{ steps.build-info.outputs.arch }}
+          tags: |-
+            type=raw,value=runtime-catalogue-local
+          target: with-browser
+          file: Dockerfile.build
+          load: true
+
+      - name: build runtime catalogue integration test binary
+        if: matrix.runner == 'ubuntu-latest'
+        run: CGO_ENABLED=0 go test -c -o dist/runtime-catalogue-integration.test ./internal/scraper
+
+      - name: run runtime catalogue integration tests
+        if: matrix.runner == 'ubuntu-latest'
+        # This runs the browser-capable runtime catalogue tests as a best-effort
+        # integration signal while the job shape is still being proven out.
+        continue-on-error: true
+        run: |
+          docker run --rm \
+            --entrypoint /catalogue-integration.test \
+            --user root \
+            -v "${{ github.workspace }}:/work" \
+            -v "${{ github.workspace }}/dist/runtime-catalogue-integration.test:/catalogue-integration.test" \
+            -w /work/internal/scraper \
+            -e HOME=/tmp \
+            -e SM_RUNTIME_CATALOGUE_INTEGRATION=1 \
+            -e K6_PATH=/usr/libexec/sm-k6/k6-v1 \
+            docker.io/synthetic-monitoring-agent-runtime-catalogue:runtime-catalogue-local \
+            -test.run TestValidateMetricCatalogueIntegration -test.count=1 -test.v
