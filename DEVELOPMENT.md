@@ -26,6 +26,17 @@ make build-native       # Build only for current OS/arch
 make deps               # Download and verify Go dependencies
 ```
 
+To run scripted, browser, and multihttp checks the agent uses the `sm-k6`
+binary (a k6 build with the Synthetic Monitoring extensions). Use the
+following commands to download it:
+
+```bash
+make sm-k6              # Download sm-k6 for all supported platforms (iterates over XK6_PLATFORMS)
+make sm-k6-native       # Download sm-k6 only for the current host OS/arch
+```
+
+Binaries are placed under `dist/<os>-<arch>/k6-v1`.
+
 ### Testing
 ```bash
 make test               # Run all tests with coverage and race detection
@@ -72,14 +83,29 @@ Code generation is *not* run automatically, but there are some tests
 that try to detect discrepancies.
 
 ### Development
+
 ```bash
-# Run the agent locally (requires API token)
+# Run the agent locally (requires API token and sm-k6 binary)
 ./dist/synthetic-monitoring-agent \
   -api-server-address=synthetic-monitoring-grpc.grafana.net:443 \
   -api-token=<your-token> \
+  -k6-repository=./dist/<os>-<arch> \
   -verbose
+```
 
-# Build Docker images
+The `-k6-repository` flag points the agent at a directory containing the
+`sm-k6` binary. It defaults to `/usr/libexec/sm-k6`.
+
+Other k6 flags:
+
+- **`-k6-uri=<path>`** — direct path to a k6 binary; overrides the
+  repository directory.
+- **`-disable-k6`** — run without the `sm-k6` binary. The agent
+  will not be able to execute k6 checks.
+
+Build Docker images:
+
+```bash
 docker build --target release .              # Without Chromium (smaller)
 docker build --target with-browser .         # With Chromium (for browser checks)
 ```
