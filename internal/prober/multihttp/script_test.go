@@ -857,7 +857,7 @@ func TestSettingsToScript(t *testing.T) {
 			require.NoError(t, err)
 
 			logger := testhelper.Logger(t)
-			prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store)
+			prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store, "")
 			require.NoError(t, err)
 
 			reg := prometheus.NewPedanticRegistry()

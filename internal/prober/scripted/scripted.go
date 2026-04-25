@@ -30,7 +30,7 @@ type Prober struct {
 	secretsRetriever func(context.Context) (k6runner.SecretStore, error)
 }
 
-func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, store secrets.SecretProvider) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, store secrets.SecretProvider, probeName string) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Scripted == nil {
@@ -44,7 +44,7 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 			Settings: k6runner.Settings{
 				Timeout: check.Timeout,
 			},
-			CheckInfo: k6runner.CheckInfoFromSM(check),
+			CheckInfo: k6runner.CheckInfoFromSM(check, probeName),
 		},
 	}
 

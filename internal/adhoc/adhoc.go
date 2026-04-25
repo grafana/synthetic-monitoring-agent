@@ -446,7 +446,7 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 		},
 	}
 
-	p, target, err := h.proberFactory.New(ctx, h.logger, check)
+	p, target, err := h.proberFactory.New(ctx, h.logger, check, h.probe.Name)
 	if err != nil {
 		return nil, err
 	}

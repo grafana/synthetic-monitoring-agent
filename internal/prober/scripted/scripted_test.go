@@ -59,7 +59,7 @@ func TestNewProber(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var runner noopRunner
 			var store testhelper.NoopSecretStore
-			p, err := NewProber(ctx, tc.check, logger, runner, store)
+			p, err := NewProber(ctx, tc.check, logger, runner, store, "probe-a")
 			if tc.expectFailure {
 				require.Error(t, err)
 				return
@@ -69,6 +69,7 @@ func TestNewProber(t *testing.T) {
 			require.Equal(t, proberName, p.module.Prober)
 			require.Equal(t, 10*time.Second, time.Duration(p.module.Script.Settings.Timeout)*time.Millisecond)
 			require.Equal(t, tc.check.Settings.Scripted.Script, p.module.Script.Script)
+			require.Equal(t, "probe-a", p.module.Script.CheckInfo.Probe)
 		})
 	}
 }

@@ -18,6 +18,13 @@ import (
 	"github.com/spf13/afero"
 )
 
+// k6CloudPushRefIDEnvVar is the name of the k6 runtime environment variable used to
+// tag browser tests as originated from Synthetic Monitoring. It contains a reference
+// to the check's job, instance, and probe associated with the execution.
+// k6 will propagate this data to the window.k6 property, which is parsed by FE O11y
+// as a means to correlate between a specific browser session and a check execution.
+const k6CloudPushRefIDEnvVar = "K6_CLOUD_PUSH_REF_ID"
+
 // secretSourceConfig represents the configuration for the secrets store
 type secretSourceConfig struct {
 	URL   string `json:"url"`
@@ -289,7 +296,14 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 		r.logger.Debug().Msg("No secret source configuration to add to k6")
 	}
 
-	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
+	// For browser checks, set K6_CLOUD_PUSH_REF_ID env variable for FE O11y correlation.
+	if script.CheckInfo.Type == synthetic_monitoring.CheckTypeBrowser.String() {
+		if k6RefID, err := buildK6RefID(script.CheckInfo); err != nil {
+			r.logger.Warn().Err(err).Msg("error building k6RefID")
+		} else {
+			args = append(args, "-e", k6CloudPushRefIDEnvVar+"="+k6RefID)
+		}
+	} else {
 		args = append(args,
 			"--vus", "1",
 			"--iterations", "1",
@@ -299,6 +313,18 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 	args = append(args, scriptFn)
 
 	return args, nil
+}
+
+func buildK6RefID(ci CheckInfo) (string, error) {
+	b, err := json.Marshal(struct {
+		Job      string `json:"job"`
+		Instance string `json:"instance"`
+		Probe    string `json:"probe"`
+	}{ci.Job, ci.Instance, ci.Probe})
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
 }
 
 func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
