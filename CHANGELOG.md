@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.57.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.57.0...v0.57.1) (2026-04-29)
+
+
+### Fixes
+
+* Clean up dependency management ([0dbf361](https://github.com/grafana/synthetic-monitoring-agent/commit/0dbf361dea2d269fa8d6f1a2bbcb22ed19b90452))
+
+
+### Documentation
+
+* update building and development docs ([#1792](https://github.com/grafana/synthetic-monitoring-agent/issues/1792)) ([1813f19](https://github.com/grafana/synthetic-monitoring-agent/commit/1813f19fe19f53d61e97cc346032efea47157734))
+
+
+### Miscellaneous Chores
+
+* Update actions/create-github-app-token action to v3.1.1 ([#1780](https://github.com/grafana/synthetic-monitoring-agent/issues/1780)) ([6d7fee9](https://github.com/grafana/synthetic-monitoring-agent/commit/6d7fee9778286e40a04c43d7708627498de590aa))
+* Update alpine Docker tag to v3.23.4 ([6418805](https://github.com/grafana/synthetic-monitoring-agent/commit/641880553ed06287cf5e1b52bcc49280e54c9653))
+* Update dependency grafana/xk6-sm to v1 ([#1787](https://github.com/grafana/synthetic-monitoring-agent/issues/1787)) ([0a044c7](https://github.com/grafana/synthetic-monitoring-agent/commit/0a044c7f56acd6a39132cb0052c8ea2d16078d68))
+* Update docker:dind Docker digest to c77e5d7 ([0bb252c](https://github.com/grafana/synthetic-monitoring-agent/commit/0bb252cb99816ff43a669ca71f1403605d0665c5))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v147 ([#1790](https://github.com/grafana/synthetic-monitoring-agent/issues/1790)) ([c93b622](https://github.com/grafana/synthetic-monitoring-agent/commit/c93b622184ea45ff4474123181ea247696a827f0))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.37.0 ([e457c24](https://github.com/grafana/synthetic-monitoring-agent/commit/e457c24c80a5ad7a4bbf8ba3851661eae63825ca))
+* Update module github.com/grafana/gsm-api-go-client to v0.2.2 ([7459ed4](https://github.com/grafana/synthetic-monitoring-agent/commit/7459ed4698b2120641c7cef85dcab00ad85f2eaa))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.22.1 ([9e3945d](https://github.com/grafana/synthetic-monitoring-agent/commit/9e3945d24225b48fbfe173389bee7f816808da62))
+* Update module github.com/puzpuzpuz/xsync/v4 to v4.5.0 ([dc69e67](https://github.com/grafana/synthetic-monitoring-agent/commit/dc69e67d2389e051ac24fff6c4daac94f3428258))
+* Update module github.com/rs/zerolog to v1.35.1 ([#1791](https://github.com/grafana/synthetic-monitoring-agent/issues/1791)) ([c8cb5dd](https://github.com/grafana/synthetic-monitoring-agent/commit/c8cb5dd91265bf211a800f7624089f735c8e935b))
+
 ## [0.57.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.56.0...v0.57.0) (2026-04-21)
 
 
