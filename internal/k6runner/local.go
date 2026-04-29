@@ -272,7 +272,7 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 		"--no-thresholds",
 		"--no-usage-report",
 		"--no-color",
-		"--no-summary",
+		"--summary-mode", "disabled",
 		"--verbose",
 		"--throw", // Abort with an exception on certain abnormal cases: https://grafana.com/docs/k6/latest/using-k6/k6-options/reference/#throw
 	}
