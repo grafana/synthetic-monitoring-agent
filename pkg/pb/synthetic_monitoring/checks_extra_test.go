@@ -2076,111 +2076,67 @@ func TestRemoteInfoMarshalJSON(t *testing.T) {
 	require.Equal(t, expected, actual, "JSON encoding of RemoteInfo did not match expected output")
 }
 
-func TestScriptedSettingsValidate(t *testing.T) {
+// TestK6ScriptSettingsValidate validates common restrictions fro k6 scripts in
+// scripted and browser settings.
+func TestK6ScriptSettingsValidate(t *testing.T) {
 	testcases := map[string]struct {
-		input    ScriptedSettings
+		script   []byte
 		expError error
 	}{
 		"empty script": {
-			input:    ScriptedSettings{},
+			script:   nil,
 			expError: ErrInvalidK6Script,
 		},
 		"valid script": {
-			input:    ScriptedSettings{Script: []byte(`export default function() {}`)},
+			script:   []byte(`export default function() {}`),
 			expError: nil,
 		},
 		"k6 version pragma": {
-			input:    ScriptedSettings{Script: []byte("\"use k6 > 0.54\";\nexport default function() {}")},
+			script:   []byte("\"use k6 > 0.54\";\nexport default function() {}"),
 			expError: ErrK6ScriptContainsPragma,
 		},
 		"k6 extension pragma": {
-			input:    ScriptedSettings{Script: []byte("\"use k6 with k6/x/faker > 0.4.0\";\nexport default function() {}")},
+			script:   []byte("\"use k6 with k6/x/faker > 0.4.0\";\nexport default function() {}"),
 			expError: ErrK6ScriptContainsPragma,
 		},
 		"bare k6 pragma": {
-			input:    ScriptedSettings{Script: []byte("\"use k6\";\nexport default function() {}")},
+			script:   []byte("\"use k6\";\nexport default function() {}"),
 			expError: ErrK6ScriptContainsPragma,
 		},
-		"pragma in multiline comment": {
-			input:    ScriptedSettings{Script: []byte("/* \"use k6 > 0.54\"; */\nexport default function() {}")},
+		"pragma in multiline comment is allowed": {
+			script:   []byte("/* \"use k6 > 0.54\"; */\nexport default function() {}"),
 			expError: nil,
 		},
-		"pragma in single-line comment": {
-			input:    ScriptedSettings{Script: []byte("// \"use k6 > 0.54\";\nexport default function() {}")},
+		"pragma in single-line comment is allowed": {
+			script:   []byte("// \"use k6 > 0.54\";\nexport default function() {}"),
 			expError: nil,
 		},
 		"use strict is not a pragma": {
-			input:    ScriptedSettings{Script: []byte("\"use strict\";\nexport default function() {}")},
+			script:   []byte("\"use strict\";\nexport default function() {}"),
 			expError: nil,
 		},
 		"k6 import without pragma": {
-			input:    ScriptedSettings{Script: []byte("import http from \"k6/http\";\nexport default function() {}")},
+			script:   []byte("import http from \"k6/http\";\nexport default function() {}"),
 			expError: nil,
 		},
 	}
 
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			err := tc.input.Validate()
-			if tc.expError != nil {
-				require.ErrorIs(t, err, tc.expError)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestBrowserSettingsValidate(t *testing.T) {
-	testcases := map[string]struct {
-		input    BrowserSettings
-		expError error
-	}{
-		"empty script": {
-			input:    BrowserSettings{},
-			expError: ErrInvalidK6Script,
-		},
-		"valid script": {
-			input:    BrowserSettings{Script: []byte(`export default function() {}`)},
-			expError: nil,
-		},
-		"k6 version pragma": {
-			input:    BrowserSettings{Script: []byte("\"use k6 > 0.54\";\nexport default function() {}")},
-			expError: ErrK6ScriptContainsPragma,
-		},
-		"k6 extension pragma": {
-			input:    BrowserSettings{Script: []byte("\"use k6 with k6/x/faker > 0.4.0\";\nexport default function() {}")},
-			expError: ErrK6ScriptContainsPragma,
-		},
-		"bare k6 pragma": {
-			input:    BrowserSettings{Script: []byte("\"use k6\";\nexport default function() {}")},
-			expError: ErrK6ScriptContainsPragma,
-		},
-		"pragma in multiline comment": {
-			input:    BrowserSettings{Script: []byte("/* \"use k6 > 0.54\"; */\nexport default function() {}")},
-			expError: nil,
-		},
-		"pragma in single-line comment": {
-			input:    BrowserSettings{Script: []byte("// \"use k6 > 0.54\";\nexport default function() {}")},
-			expError: nil,
-		},
-		"use strict is not a pragma": {
-			input:    BrowserSettings{Script: []byte("\"use strict\";\nexport default function() {}")},
-			expError: nil,
-		},
-		"k6 import without pragma": {
-			input:    BrowserSettings{Script: []byte("import http from \"k6/http\";\nexport default function() {}")},
-			expError: nil,
-		},
+	validators := map[string]func([]byte) validatable{
+		"scripted": func(s []byte) validatable { return &ScriptedSettings{Script: s} },
+		"browser":  func(s []byte) validatable { return &BrowserSettings{Script: s} },
 	}
 
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			err := tc.input.Validate()
-			if tc.expError != nil {
-				require.ErrorIs(t, err, tc.expError)
-			} else {
-				require.NoError(t, err)
+	for checkType, newSettings := range validators {
+		t.Run(checkType, func(t *testing.T) {
+			for name, tc := range testcases {
+				t.Run(name, func(t *testing.T) {
+					err := newSettings(tc.script).Validate()
+					if tc.expError != nil {
+						require.ErrorIs(t, err, tc.expError)
+					} else {
+						require.NoError(t, err)
+					}
+				})
 			}
 		})
 	}
