@@ -1075,7 +1075,7 @@ func TestValidateHttpUrl(t *testing.T) {
 			expectError: true,
 		},
 		"with username and password": {
-			input:       "http://user:password@example.org/",
+			input:       "http://user:password@example.org/", // trufflehog:ignore
 			expectError: true,
 		},
 
