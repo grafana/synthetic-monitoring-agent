@@ -20,6 +20,7 @@ package synthetic_monitoring
 //go:generate ../../../scripts/enumer -type=MultiHttpEntryAssertionType,MultiHttpEntryAssertionSubjectVariant,MultiHttpEntryAssertionConditionVariant,MultiHttpEntryVariableType -trimprefix=MultiHttpEntryAssertionType_,MultiHttpEntryAssertionSubjectVariant_,MultiHttpEntryAssertionConditionVariant_,MultiHttpEntryVariableType_ -transform=upper -output=multihttp_string.go
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -89,7 +90,8 @@ var (
 
 	ErrInvalidTracerouteHostname = errors.New("invalid traceroute hostname")
 
-	ErrInvalidK6Script = errors.New("invalid K6 script")
+	ErrInvalidK6Script        = errors.New("invalid K6 script")
+	ErrK6ScriptContainsPragma = errors.New("k6 script contains unsupported pragma")
 
 	ErrInvalidMultiHttpTargets = errors.New("invalid multi-http targets")
 
@@ -177,6 +179,22 @@ const (
 // to create special internal checks or metrics that are distinct from user-defined ones.
 // User-provided checks with this marker will be rejected during validation.
 const internalMarker = "__internal__"
+
+// k6 pragma detection patterns, sourced from github.com/grafana/k6deps (dependencies.go).
+const (
+	k6PragmaName       = `(?:k6|k6/[^/]{2}.*|k6/[^x]/.*|k6/x/[/0-9a-zA-Z_-]+|(?:@[a-zA-Z0-9-_]+/)?xk6-(?:[a-zA-Z0-9-_]+)(?:/[a-zA-Z0-9-_]+)*)`
+	k6PragmaConstraint = `=?v?0\.0\.0\+[0-9A-Za-z-]+|[vxX*|,&\^0-9.+-><=, ~]+`
+)
+
+var (
+	// matches any sequence of characters enclosed by '/*' and '*/' including new lines and '*' not followed by '/'
+	reK6MultiLineComment = regexp.MustCompile(`\/\*(?:[^\*]|\*[^\/]|\n)*(\*)+\/`)
+	// matches '//' and any character until end of line skips the '//' sequence in urls (preceded by ':')
+	reK6CommentLine = regexp.MustCompile(`(^|\s|[^:])(//.*)`)
+	reK6Pragma      = regexp.MustCompile(
+		`"use +k6(( with ` + k6PragmaName + `( *(?:` + k6PragmaConstraint + `))?)|(( *(?:` + k6PragmaConstraint + `)?)))"`,
+	)
+)
 
 // MaxAgentMetricLabels returns the maximum number of labels set by the agent
 // to any metric.
@@ -709,6 +727,10 @@ func (s *ScriptedSettings) Validate() error {
 		return ErrInvalidK6Script
 	}
 
+	if scriptContainsK6Pragma(s.Script) {
+		return ErrK6ScriptContainsPragma
+	}
+
 	return nil
 }
 
@@ -737,7 +759,18 @@ func (s *BrowserSettings) Validate() error {
 		return ErrInvalidK6Script
 	}
 
+	if scriptContainsK6Pragma(s.Script) {
+		return ErrK6ScriptContainsPragma
+	}
+
 	return nil
+}
+
+func scriptContainsK6Pragma(script []byte) bool {
+	clean := bytes.ReplaceAll(script, []byte("\r\n"), []byte("\n"))
+	clean = reK6MultiLineComment.ReplaceAll(clean, []byte(""))
+	clean = reK6CommentLine.ReplaceAll(clean, []byte("$1"))
+	return reK6Pragma.Match(clean)
 }
 
 func hasUniqueValues[U any, V comparable](slice []U, fn func(U) V) bool {
