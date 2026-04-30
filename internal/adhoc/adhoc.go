@@ -430,6 +430,7 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 			Target:   req.AdHocCheck.Target,
 			Timeout:  req.AdHocCheck.Timeout,
 			Settings: req.AdHocCheck.Settings,
+			Channels: req.AdHocCheck.Channels,
 
 			// All the following fields are not used for ad-hoc checks.
 			Id:               0, // ad-hoc checks don't have an ID in this sense.
