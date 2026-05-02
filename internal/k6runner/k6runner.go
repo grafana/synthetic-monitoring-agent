@@ -242,12 +242,20 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 
 	// https://github.com/grafana/sm-k6-runner/blob/b811839d444a7e69fd056b0a4e6ccf7e914197f3/internal/mq/runner.go#L51
 	switch result.ErrorCode {
-	case "":
+	case ErrorCodeNone:
 		// No error, all good.
 		return true, durationCollector.duration, nil
 	// TODO: Remove "user" from this list, which has been renamed to "aborted".
-	case "timeout", "killed", "user", "failed", "aborted":
-		// These are user errors. The probe failed, but we don't return an error.
+	case ErrorCodeTimeout, ErrorCodeKilled, "user", ErrorCodeFailed, ErrorCodeAborted,
+		ErrorCodeBrowser, ErrorCodeUnsupportedVersion, ErrorCodeBadVersion,
+		// Runner-service codes. The retry loop in HttpRunner has already done what it can; by the time the Processor
+		// sees these, this tick is a check failure (no further retry).
+		ErrorCodeDispatchCapacity,
+		ErrorCodeDispatcherDrain,
+		ErrorCodeWorkerCrashPreScript,
+		ErrorCodeWorkerCrashMidScript,
+		ErrorCodeSandboxIsolation:
+		// These are user-attributable or operational errors. The probe failed, but we don't return an error.
 		return false, durationCollector.duration, nil
 	default:
 		// We got an "unknown" error, or some other code we do not recognize. Return it so we log it.

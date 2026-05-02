@@ -1,0 +1,658 @@
+openapi: 3.1.0
+
+info:
+  title: Synthetic Monitoring k6 runner HTTP API
+  version: 0.1.0
+  summary: HTTP surface exposed by the Synthetic Monitoring k6 runner
+  description: |
+    The k6 runner API describes endpoints used by the Synthetic Monitoring
+    agent to run k6 scripts.
+
+    There is no authentication. Authentication, authorization and rate
+    limiting are expected to be applied by the surrounding deployment
+    (ingress, service mesh, sidecar, etc.).
+
+    The default listen address is `:9090`, configurable via
+    `--listen-address`.
+  contact:
+    name: Synthetic Monitoring
+    url: https://github.com/grafana/synthetic-monitoring-agent
+  license:
+    name: Apache-2.0
+
+servers:
+  - url: http://localhost:9090
+    description: Default listen address (configurable via `--listen-address`).
+
+tags:
+  - name: Execution
+    description: Script execution.
+  - name: Versions
+    description: k6 binary discovery and version resolution.
+  - name: Operational
+    description: Probes, metrics and debug endpoints.
+
+# No HTTP-level authentication. Auth is expected from the surrounding
+# deployment (ingress, service mesh, sidecar).
+security: []
+
+paths:
+  /run:
+    post:
+      tags: [Execution]
+      summary: Submit a k6 script for execution
+      operationId: runScript
+      description: |
+        Submits a k6 script to be executed by a runner.
+
+        ## Timeouts
+
+        The proxy waits for a runner response for up to `settings.timeout + 2
+        seconds`. If that elapses, the proxy returns `504`. The HTTP server's
+        write timeout is 60 seconds.
+
+        ## `notAfter` clamping
+
+        If `notAfter` is more than 1 hour in the future, the proxy replaces it
+        with `now + settings.timeout + 2 seconds`. If `notAfter` is more than 7
+        days in the past (typically a missing or zero value from an old
+        client), the same fallback is applied.
+
+        ## Status codes
+
+        - `200 OK` is returned for both successful and *controllably* failed
+          runs (`failed`, `aborted`). Inspect `errorCode` in the response body
+          to tell them apart.
+        - `408`, `422`, `503` and `500` indicate runner-side outcomes that the
+          proxy bubbles up.
+        - `422` is also returned by the proxy *before* the runner sees the
+          request when the script type is not routable.
+        - `504` is returned by the proxy itself when the runner does not
+          respond in time.
+      parameters:
+        - $ref: '#/components/parameters/XRequestID'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunRequest'
+            examples:
+              minimal:
+                summary: Minimal HTTP check
+                value:
+                  script: "aW1wb3J0IGh0dHAgZnJvbSAnazYvaHR0cCc7CmV4cG9ydCBkZWZhdWx0IGZ1bmN0aW9uICgpIHsgaHR0cC5nZXQoJ2h0dHBzOi8vZ3JhZmFuYS5jb20nKTsgfQo="
+                  settings:
+                    timeout: 10000
+                  check:
+                    type: http
+                    metadata:
+                      check_id: "abc123"
+                      tenant_id: "xyz789"
+                  notAfter: "2026-05-03T12:00:00Z"
+                  secretStore:
+                    url: ""
+                    token: ""
+                  k6ChannelManifest: "*"
+      responses:
+        '200':
+          description: |
+            Script ran to completion. The body's `errorCode` is `""` (success),
+            `failed` (controlled failure: `fail()`, breached thresholds, etc.),
+            or `aborted` (uncontrolled failure: config error, JS exception,
+            etc.).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+        '400':
+          description: Request body could not be decoded as JSON.
+        '408':
+          description: |
+            The script exceeded its timeout and was killed by the runner
+            (`errorCode: timeout`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+        '422':
+          description: |
+            One of:
+
+            - The script type is not routable in this proxy (no body in this
+              case — proxy rejects before reaching runner).
+            - `errorCode: killed` — k6 exited with signal-mediated status (e.g.
+              OOM).
+            - `errorCode: unsupported-version` — `k6ChannelManifest` does not
+              match any installed k6 binary.
+            - `errorCode: bad-version` — `k6ChannelManifest` is not a valid
+              semver constraint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+        '500':
+          description: |
+            Internal error in the runner that does not map to a known cause
+            (`errorCode: unknown`), or proxy failure to allocate a response
+            channel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+        '503':
+          description: |
+            Error talking to the browser session manager (crocochrome)
+            (`errorCode: browser`). Only applicable to browser scripts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunResponse'
+        '504':
+          description: |
+            The proxy gave up waiting for a runner response. Body is empty.
+            Triggered when no runner picked up the request within
+            `settings.timeout + 2 seconds`.
+
+  /versions:
+    get:
+      tags: [Versions]
+      summary: List installed k6 binaries
+      operationId: listVersions
+      description: |
+        Returns the list of k6 binaries discovered in the runner's k6
+        repository (configured via `--k6-repository`), sorted newest first.
+      responses:
+        '200':
+          description: The list of available k6 binaries.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionsList'
+              example:
+                versions:
+                  - path: /usr/local/libexec/sm-k6/k6-v1
+                    version: "1.0.1"
+        '500':
+          description: |
+            Failed to scan the k6 repository (e.g. unreadable directory, binary
+            that fails `version --json`).
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /versions/resolve:
+    get:
+      tags: [Versions]
+      summary: Resolve a semver constraint to an installed k6 binary
+      operationId: resolveVersion
+      description: |
+        Returns the k6 binary with the highest semver that satisfies the
+        provided constraint. Same selection logic the runner applies at
+        execution time.
+
+        Provided primarily for debugging — clients should not invoke a k6
+        binary by the path returned here directly. The runner itself resolves
+        the constraint when it executes a request.
+      parameters:
+        - in: query
+          name: manifest
+          required: true
+          description: |
+            Semver constraint (e.g. `*`, `^1.0.0`, `>=0.51.0,<2.0.0`).
+            Same syntax as Masterminds/semver/v3.
+          schema:
+            type: string
+          examples:
+            any:
+              value: "*"
+            caret:
+              value: "^1.0.0"
+            range:
+              value: ">=0.51.0,<2.0.0"
+      responses:
+        '200':
+          description: A binary satisfying the constraint was found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Version'
+              example:
+                path: /usr/local/libexec/sm-k6/k6-v1
+                version: "1.0.1"
+        '400':
+          description: The `manifest` query parameter is missing.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          description: No installed binary satisfies the constraint.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '422':
+          description: The constraint is not valid semver.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '500':
+          description: Failed to scan the k6 repository.
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /metrics:
+    get:
+      tags: [Operational]
+      summary: Prometheus metrics
+      operationId: getMetrics
+      description: |
+        Prometheus exposition format.
+      responses:
+        '200':
+          description: Prometheus exposition.
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /live:
+    get:
+      tags: [Operational]
+      summary: Liveness probe
+      operationId: live
+      description: |
+        Liveness probe.
+
+        Append `?full=1` to receive a JSON body listing each registered check;
+        without it, the body is empty.
+      parameters:
+        - $ref: '#/components/parameters/Full'
+      responses:
+        '200':
+          description: All checks passing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: One or more checks are failing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ready:
+    get:
+      tags: [Operational]
+      summary: Readiness probe
+      operationId: ready
+      description: |
+        Readiness probe.
+
+        Once ready, the runner does not transition back to not-ready. Append
+        `?full=1` to receive a JSON body listing each registered check; without
+        it, the body is empty.
+      parameters:
+        - $ref: '#/components/parameters/Full'
+      responses:
+        '200':
+          description: Ready to serve requests.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Not ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /:
+    get:
+      tags: [Operational]
+      summary: Default handler
+      operationId: root
+      description: |
+        Returns a fixed greeting. Useful as a smoke test that the HTTP server
+        is up.
+      responses:
+        '200':
+          description: Plain-text greeting.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: "hello, world!"
+
+  /debug/pprof/:
+    get:
+      tags: [Operational]
+      summary: pprof index
+      operationId: pprofIndex
+      description: |
+        Standard library `net/http/pprof` index page.
+
+        **Only registered when `--debug` is enabled.**
+      responses:
+        '200':
+          description: HTML index of available profiles.
+          content:
+            text/html:
+              schema:
+                type: string
+        '404':
+          description: "`--debug` is not enabled."
+
+  /debug/pprof/cmdline:
+    get:
+      tags: [Operational]
+      summary: pprof cmdline
+      operationId: pprofCmdline
+      description: |
+        Returns the command line that started the runner.
+
+        **Only registered when `--debug` is enabled.**
+      responses:
+        '200':
+          description: Process command line.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          description: "`--debug` is not enabled."
+
+  /debug/pprof/profile:
+    get:
+      tags: [Operational]
+      summary: pprof CPU profile
+      operationId: pprofProfile
+      description: |
+        Returns a pprof CPU profile. Use `?seconds=N` to control the duration.
+
+        **Only registered when `--debug` is enabled.**
+      parameters:
+        - in: query
+          name: seconds
+          required: false
+          description: Duration of the CPU profile in seconds.
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: pprof profile binary.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: "`--debug` is not enabled."
+
+  /debug/pprof/symbol:
+    get:
+      tags: [Operational]
+      summary: pprof symbol resolution
+      operationId: pprofSymbol
+      description: |
+        Resolves program counters to function names.
+
+        **Only registered when `--debug` is enabled.**
+      responses:
+        '200':
+          description: Plain-text symbol table fragment.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '404':
+          description: "`--debug` is not enabled."
+
+  /debug/pprof/trace:
+    get:
+      tags: [Operational]
+      summary: pprof execution trace
+      operationId: pprofTrace
+      description: |
+        Returns a Go execution trace. Use `?seconds=N` to control the duration.
+
+        **Only registered when `--debug` is enabled.**
+      parameters:
+        - in: query
+          name: seconds
+          required: false
+          description: Duration of the trace in seconds.
+          schema:
+            type: number
+            default: 1
+      responses:
+        '200':
+          description: Trace binary.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: "`--debug` is not enabled."
+
+components:
+  parameters:
+    XRequestID:
+      in: header
+      name: x-request-id
+      required: false
+      description: |
+        Optional client-supplied request identifier. The proxy logs it appended
+        to its own internal request ID for correlation. It is not used for any
+        other purpose and does not need to be unique.
+      schema:
+        type: string
+    Full:
+      in: query
+      name: full
+      required: false
+      description: |
+        When set to `1`, the response body is a JSON object listing each
+        registered check. Otherwise the body is empty.
+      schema:
+        type: string
+        enum: ["1"]
+
+  schemas:
+    RunRequest:
+      type: object
+      required: [script, settings, check, notAfter]
+      properties:
+        script:
+          type: string
+          format: byte
+          description: |
+            The k6 script source, base64-encoded (this is how `[]byte` fields
+            are marshaled by Go's `encoding/json`).
+        settings:
+          $ref: '#/components/schemas/Settings'
+        check:
+          $ref: '#/components/schemas/CheckInfo'
+        notAfter:
+          type: string
+          format: date-time
+          description: |
+            Absolute deadline. If the runner picks the request up after this
+            time, it is dropped without execution and no response is returned
+            to the proxy.
+
+            See the endpoint description for clamping rules — the proxy
+            replaces values too far in the future or in the past.
+        secretStore:
+          $ref: '#/components/schemas/SecretStore'
+        k6ChannelManifest:
+          type: string
+          description: |
+            Semver constraint controlling which installed k6 binary will run
+            the script. Same syntax as `/versions/resolve?manifest=`. If empty,
+            the proxy rewrites it to `*`.
+          default: "*"
+          examples:
+            - "*"
+            - "^1.0.0"
+            - ">=0.51.0,<2.0.0"
+
+    Settings:
+      type: object
+      required: [timeout]
+      properties:
+        timeout:
+          type: integer
+          format: int64
+          minimum: 0
+          description: |
+            Maximum execution time for the script, in milliseconds. The runner
+            uses a default of 45 seconds if this is `0`, but a non-zero value
+            is expected from real clients.
+
+    CheckInfo:
+      type: object
+      required: [type]
+      description: |
+        Information about the SM check that triggered this script. Used by the
+        proxy to route between subqueues, and propagated by the runner into
+        telemetry.
+      properties:
+        type:
+          type: string
+          description: |
+            SM check type (`http`, `browser`, `scripted`, `multihttp`, `dns`,
+            `tcp`, etc.). Determines script type routing in the proxy. If
+            empty, the proxy falls back to inspecting the script body.
+          examples: ["http", "browser", "scripted", "multihttp"]
+        metadata:
+          type: object
+          additionalProperties: true
+          description: |
+            Free-form key/value pairs. Loosely typed on purpose — used only for
+            telemetry, never for routing decisions.
+          examples:
+            - check_id: "abc123"
+              tenant_id: "xyz789"
+
+    SecretStore:
+      type: object
+      description: |
+        Optional credentials for the secret management service the script may
+        pull secrets from. Both fields are required for the store to be
+        considered configured; otherwise the runner does not expose secrets to
+        the script.
+      properties:
+        url:
+          type: string
+          description: URL of the secret store service.
+        token:
+          type: string
+          description: Bearer token used to authenticate with the secret store.
+
+    RunResponse:
+      type: object
+      required: [errorCode, metrics, logs]
+      properties:
+        errorCode:
+          $ref: '#/components/schemas/RunErrorCode'
+        error:
+          type: string
+          description: |
+            Human-readable error message. Populated whenever `errorCode != ""`.
+        metrics:
+          type: string
+          format: byte
+          description: |
+            Prometheus exposition emitted by k6 during the run, base64-encoded
+            (Go `[]byte` JSON encoding).
+        logs:
+          type: string
+          format: byte
+          description: |
+            Newline-delimited structured logs emitted by k6 during the run,
+            base64-encoded.
+
+    RunErrorCode:
+      type: string
+      description: |
+        Indicates the outcome of script execution.
+
+        | `errorCode`           | HTTP | Meaning                                                                                                                 |
+        |-----------------------|------|-------------------------------------------------------------------------------------------------------------------------|
+        | `""`                  | 200  | Successful run.                                                                                                         |
+        | `failed`              | 200  | Controlled failure: breached thresholds, `fail()`, `test.abort()`, k6 exited non-zero with a known "user error" status. |
+        | `aborted`             | 200  | Uncontrolled failure: JS exception, config error, panic.                                                                |
+        | `timeout`             | 408  | k6 exceeded `settings.timeout` and was killed by the runner.                                                            |
+        | `killed`              | 422  | k6 exited with signal-mediated status (>=128), e.g. OOM.                                                                |
+        | `unsupported-version` | 422  | No installed binary satisfies `k6ChannelManifest`.                                                                      |
+        | `bad-version`         | 422  | `k6ChannelManifest` is not a valid semver constraint.                                                                   |
+        | `browser`             | 503  | Error contacting the crocochrome browser session manager.                                                               |
+        | `unknown`             | 500  | Anything else.                                                                                                          |
+      enum:
+        - ""
+        - failed
+        - aborted
+        - timeout
+        - killed
+        - unsupported-version
+        - bad-version
+        - browser
+        - unknown
+
+    Version:
+      type: object
+      description: A single installed k6 binary.
+      required: [path, version]
+      properties:
+        path:
+          type: string
+          description: |
+            Absolute path to the binary on the runner's filesystem. For
+            debugging only — clients should not invoke this path directly.
+          example: /usr/local/libexec/sm-k6/k6-v1
+        version:
+          type: string
+          description: |
+            Semver string reported by the binary's `version --json` output.
+          example: "1.0.1"
+
+    VersionsList:
+      type: object
+      required: [versions]
+      properties:
+        versions:
+          description: |
+            Installed k6 binaries, sorted newest first. May be `null` if the
+            repository is empty.
+          oneOf:
+            - type: array
+              items:
+                $ref: '#/components/schemas/Version'
+            - type: "null"
+
+    HealthResponse:
+      type: object
+      description: |
+        Body of `/live` and `/ready` when `?full=1` is supplied. Without the
+        query parameter, the body is empty and only the status code is
+        meaningful.
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, error]
+        failures:
+          type: object
+          description: Map of check name to failure reason.
+          additionalProperties:
+            type: string

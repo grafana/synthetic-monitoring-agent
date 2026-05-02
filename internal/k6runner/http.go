@@ -36,6 +36,31 @@ const (
 	defaultGraceTime = 20 * time.Second
 )
 
+// Per-tier agent-side grace times. These are added on top of the
+// script timeout to bound the agent's wait for the runner to respond.
+// They match the per-stage P99 SLO sums in the runner-service spec
+// (small: 1s dispatch + 500ms setup/teardown + RTT ≈ 1.7s → 3s; browser:
+// 1s + 5s + RTT ≈ 6.2s → 8s).
+const (
+	GraceTimeSmall   = 3 * time.Second
+	GraceTimeBrowser = 8 * time.Second
+)
+
+// GraceFor returns the agent-side request budget grace for the given
+// check type. Use this when talking to the new k6-runner service. The
+// existing in-house runner integration continues to use the legacy
+// [defaultGraceTime] until the migration is complete.
+func GraceFor(checkType string) time.Duration {
+	switch checkType {
+	case "browser":
+		return GraceTimeBrowser
+	case "scripted", "multihttp":
+		return GraceTimeSmall
+	default:
+		return defaultGraceTime
+	}
+}
+
 type requestError struct {
 	Err     string `json:"error"`
 	Message string `json:"msg"`
@@ -52,7 +77,21 @@ type HTTPRunRequest struct {
 	Script      `json:",inline"`
 	SecretStore SecretStore `json:",inline"`
 	NotAfter    time.Time   `json:"notAfter"`
+	// CallerHint records the source of the request ("scheduled" or "adhoc") for telemetry labelling on the runner
+	// side. The runner makes no behavioural decision based on this value.
+	CallerHint string `json:"callerHint,omitempty"`
 }
+
+// Caller hint values for [HTTPRunRequest.CallerHint].
+const (
+	CallerHintScheduled = "scheduled"
+	CallerHintAdhoc     = "adhoc"
+)
+
+// DrainHeader is the response header set by the dispatcher when a request is being returned because the dispatcher
+// is draining. Clients seeing this header should reschedule immediately with no backoff and without counting the
+// outcome as a failure.
+const DrainHeader = "X-K6-Runner-Drain"
 
 type RunResponse struct {
 	Error     string `json:"error,omitempty"`
@@ -135,6 +174,19 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 			return nil, err
 		}
 
+		// A drain response is not a failure: the dispatcher is being deliberately torn down and the agent must retry
+		// immediately. We do not increment the retriable-failure counter for drain so the metric stays a clean signal
+		// of real transient errors. We also skip the wait timer entirely, since the spec requires immediate retry.
+		if errors.Is(err, errDrain) {
+			r.metrics.DrainRetries.Inc()
+			r.logger.Info().Msg("dispatcher draining; retrying immediately")
+			if ctx.Err() != nil {
+				r.metrics.RequestsPerRun.WithLabelValues("0").Observe(attempts)
+				return nil, fmt.Errorf("cannot retry further: %w", errors.Join(err, ctx.Err()))
+			}
+			continue
+		}
+
 		r.metrics.Requests.With(map[string]string{metricLabelSuccess: "0", metricLabelRetriable: "1"}).Inc()
 
 		// Wait, but subtract the amount of time we've already waited as part of the request timeout.
@@ -162,6 +214,13 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 
 // errRetryable indicates that an error is retryable. It is typically joined with another error.
 var errRetryable = errors.New("retryable")
+
+// errDrain indicates that the runner service is being drained and the
+// request should be retried immediately, with no backoff and without
+// counting the outcome as a check failure. The retry loop in [HttpRunner.Run]
+// recognises this sentinel and skips its wait timer and failure-count
+// metric.
+var errDrain = errors.New("dispatcher draining")
 
 func (r HttpRunner) request(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
 	checkTimeout := time.Duration(script.Settings.Timeout) * time.Millisecond
@@ -219,6 +278,13 @@ func (r HttpRunner) request(ctx context.Context, script Script, secretStore Secr
 	}
 
 	defer resp.Body.Close()
+
+	// The dispatcher of the new k6-runner service tags drain responses with [DrainHeader]. A drain response means
+	// "reschedule this request immediately, with no backoff, and don't count it as a failure" — see the spec under
+	// Failure & retry semantics → Dispatcher drain / shutdown.
+	if resp.Header.Get(DrainHeader) != "" {
+		return nil, errors.Join(errRetryable, errDrain)
+	}
 
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusRequestTimeout, http.StatusUnprocessableEntity, http.StatusInternalServerError:
@@ -333,6 +399,10 @@ func (r HttpRunner) Versions(ctx context.Context) <-chan []string {
 type HTTPMetrics struct {
 	Requests       *prometheus.CounterVec
 	RequestsPerRun *prometheus.HistogramVec
+	// DrainRetries counts requests that were retried because the runner
+	// service signalled a drain. These are not counted as retriable
+	// failures: a drain is operationally normal, not a transient error.
+	DrainRetries prometheus.Counter
 }
 
 const (
@@ -370,6 +440,15 @@ func NewHTTPMetrics(registerer prometheus.Registerer) *HTTPMetrics {
 		[]string{metricLabelSuccess},
 	)
 	registerer.MustRegister(m.RequestsPerRun)
+
+	m.DrainRetries = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: "sm_agent",
+		Subsystem: "k6runner",
+		Name:      "request_drain_retries_total",
+		Help: "Number of requests that were retried because the runner service signalled a dispatcher drain. " +
+			"Drain retries are not counted as failures.",
+	})
+	registerer.MustRegister(m.DrainRetries)
 
 	return m
 }
