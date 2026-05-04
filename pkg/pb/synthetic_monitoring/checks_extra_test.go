@@ -2075,3 +2075,69 @@ func TestRemoteInfoMarshalJSON(t *testing.T) {
 	actual := strings.TrimSpace(buf.String())
 	require.Equal(t, expected, actual, "JSON encoding of RemoteInfo did not match expected output")
 }
+
+func TestCheckHasK6Channel(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]struct {
+		channels *Channels
+		expected bool
+	}{
+		"nil channels": {
+			channels: nil,
+			expected: false,
+		},
+		"nil k6": {
+			channels: &Channels{},
+			expected: false,
+		},
+		"empty k6 id": {
+			channels: &Channels{K6: &K6Channel{}},
+			expected: false,
+		},
+		"non-empty k6 id": {
+			channels: &Channels{K6: &K6Channel{Id: "abc"}},
+			expected: true,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			c := Check{Channels: tc.channels}
+			require.Equal(t, tc.expected, c.HasK6Channel())
+		})
+	}
+}
+
+func TestAdHocCheckHasK6Channel(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]struct {
+		channels *Channels
+		expected bool
+	}{
+		"nil channels": {
+			channels: nil,
+			expected: false,
+		},
+		"nil k6": {
+			channels: &Channels{},
+			expected: false,
+		},
+		"empty k6 id": {
+			channels: &Channels{K6: &K6Channel{}},
+			expected: false,
+		},
+		"non-empty k6 id": {
+			channels: &Channels{K6: &K6Channel{Id: "abc"}},
+			expected: true,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			c := AdHocCheck{Channels: tc.channels}
+			require.Equal(t, tc.expected, c.HasK6Channel())
+		})
+	}
+}

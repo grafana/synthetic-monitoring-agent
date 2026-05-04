@@ -325,6 +325,10 @@ func (c Check) Validate() error {
 	return nil
 }
 
+func (c Check) HasK6Channel() bool {
+	return c.Channels != nil && c.Channels.K6 != nil && c.Channels.K6.Id != ""
+}
+
 func (c Check) validateTarget() error {
 	// All targets must be valid label values.
 	if len(c.Target) > maxValidLabelValueLength {
@@ -482,6 +486,10 @@ func (c AdHocCheck) Validate() error {
 	}
 
 	return nil
+}
+
+func (c AdHocCheck) HasK6Channel() bool {
+	return c.Channels != nil && c.Channels.K6 != nil && c.Channels.K6.Id != ""
 }
 
 func (c AdHocCheck) validateTimeout() error {
