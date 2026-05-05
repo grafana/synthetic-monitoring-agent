@@ -112,8 +112,8 @@ github.com/googleapis/enterprise-certificate-proxy v0.3.14 h1:yh8ncqsbUY4shRD5dA
 github.com/googleapis/enterprise-certificate-proxy v0.3.14/go.mod h1:vqVt9yG9480NtzREnTlmGSBmFrA+bzb0yl0TxoBQXOg=
 github.com/googleapis/gax-go/v2 v2.18.0 h1:jxP5Uuo3bxm3M6gGtV94P4lliVetoCB4Wk2x8QA86LI=
 github.com/googleapis/gax-go/v2 v2.18.0/go.mod h1:uSzZN4a356eRG985CzJ3WfbFSpqkLTjsnhWGJR6EwrE=
-github.com/grafana/gsm-api-go-client v0.2.2 h1:5rVVlAEjRlDqFeMo9KPwIkzzauRf3fHYy5F5w0z780k=
-github.com/grafana/gsm-api-go-client v0.2.2/go.mod h1:uAejkP3lLqLqztAyHWO1HZ6Wmi8z9+K86A//KEQgr4E=
+github.com/grafana/gsm-api-go-client v0.3.0 h1:YIMndS1zRDX9GnVI8c6zBDYNh/yYa+2fq4w45auJV8M=
+github.com/grafana/gsm-api-go-client v0.3.0/go.mod h1:RaUDdA+JsIsYDmnNgDSdr7YdXXU3BMo+zu6KFAux+6I=
 github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96 h1:wdu17bfMs5kQZHWzXG6abUHBZNLhIHE6K+LN8PvRIHk=
 github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96/go.mod h1:QClrwZWT4u0N/O0Z0zKnRn36D51XTJMMmy7ICgaECd0=
 github.com/grafana/mtr v0.1.1-0.20221107202107-a9806fdda166 h1:COSDtVDArtLKK9p+mkUlPXCfWFslQFVVuQos39vxQrU=
@@ -196,8 +196,6 @@ github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR
 github.com/rogpeppe/go-internal v1.13.1/go.mod h1:uMEvuHeurkdAXX61udpOXGD/AzZDWNMNyH2VO9fmH0o=
 github.com/rs/zerolog v1.35.1 h1:m7xQeoiLIiV0BCEY4Hs+j2NG4Gp2o2KPKmhnnLiazKI=
 github.com/rs/zerolog v1.35.1/go.mod h1:EjML9kdfa/RMA7h/6z6pYmq1ykOuA8/mjWaEvGI+jcw=
-github.com/sirupsen/logrus v1.9.4 h1:TsZE7l11zFCLZnZ+teH4Umoq5BhEIfIzfRDZ1Uzql2w=
-github.com/sirupsen/logrus v1.9.4/go.mod h1:ftWc9WdOfJ0a92nsE2jF5u5ZwH8Bv2zdeOC42RjbV2g=
 github.com/spf13/afero v1.15.0 h1:b/YBCLWAJdFWJTN9cLhiXXcD7mzKn9Dm86dNnfyQw1I=
 github.com/spf13/afero v1.15.0/go.mod h1:NC2ByUVxtQs4b3sIUphxK0NioZnmxgyCrfzeuq8lxMg=
 github.com/spf13/cobra v0.0.3/go.mod h1:1l0Ry5zgKvJasoi3XT1TypsSe7PqH0Sj9dhYf7v3XqQ=
@@ -221,8 +219,6 @@ github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZ
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
-go.k6.io/k6 v1.7.1 h1:T5EYQPL/GFhw286qsnhjZUekFv3ySujw8TRZfcx+r+I=
-go.k6.io/k6 v1.7.1/go.mod h1:cot5/DeS6zPGNOa5AfXPIlzpA1hPVDpfaD6Y6jmVuT4=
 go.opentelemetry.io/auto/sdk v1.2.1 h1:jXsnJ4Lmnqd11kwkBV2LgLoFMZKizbCi5fNZ/ipaZ64=
 go.opentelemetry.io/auto/sdk v1.2.1/go.mod h1:KRTj+aOaElaLi+wW1kO/DZRXwkF4C5xPbEe3ZiIhN7Y=
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.67.0 h1:OyrsyzuttWTSur2qN/Lm0m2a8yqyIjUVBZcxFPuXq2o=
