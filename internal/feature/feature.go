@@ -13,6 +13,7 @@ const (
 	Traceroute            = "traceroute"
 	K6                    = "k6"
 	ExperimentalDnsProber = "experimental-dns-prober"
+	LLMEvaluator          = "llm-evaluator"
 )
 
 // ErrInvalidCollection is returned when you try to set a flag in an
