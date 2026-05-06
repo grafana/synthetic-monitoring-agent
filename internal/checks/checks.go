@@ -921,6 +921,11 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 			return nil
 		}
 
+	case sm.CheckTypeLLMEvaluator:
+		if !c.features.IsSet(feature.LLMEvaluator) {
+			return nil
+		}
+
 	default:
 	}
 

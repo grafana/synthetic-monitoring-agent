@@ -122,6 +122,12 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		p, err = grpc.NewProber(ctx, check, logger)
 		target = check.Target
 
+	case sm.CheckTypeLLMEvaluator:
+		// TODO(M2): implement LLMEvaluatorProber. The prober requires sm-judge-proxy
+		// running in the PoP and is gated by the "llm-evaluator" feature flag.
+		// Until M2 is complete, the check type is known to the factory but not runnable.
+		err = fmt.Errorf("llm-evaluator checks are not yet implemented")
+
 	default:
 		return nil, "", errUnsupportedCheckType
 	}
