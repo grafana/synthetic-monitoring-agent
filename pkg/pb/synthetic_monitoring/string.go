@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-const _CheckTypeName = "dnshttppingtcptraceroutescriptedmultihttpgrpcbrowser"
+const _CheckTypeName = "dnshttppingtcptraceroutescriptedmultihttpgrpcbrowserllmevaluator"
 
-var _CheckTypeIndex = [...]uint8{0, 3, 7, 11, 14, 24, 32, 41, 45, 52}
+var _CheckTypeIndex = [...]uint8{0, 3, 7, 11, 14, 24, 32, 41, 45, 52, 64}
 
-const _CheckTypeLowerName = "dnshttppingtcptraceroutescriptedmultihttpgrpcbrowser"
+const _CheckTypeLowerName = "dnshttppingtcptraceroutescriptedmultihttpgrpcbrowserllmevaluator"
 
 func (i CheckType) String() string {
 	if i < 0 || i >= CheckType(len(_CheckTypeIndex)-1) {
@@ -33,9 +33,10 @@ func _CheckTypeNoOp() {
 	_ = x[CheckTypeMultiHttp-(6)]
 	_ = x[CheckTypeGrpc-(7)]
 	_ = x[CheckTypeBrowser-(8)]
+	_ = x[CheckTypeLLMEvaluator-(9)]
 }
 
-var _CheckTypeValues = []CheckType{CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute, CheckTypeScripted, CheckTypeMultiHttp, CheckTypeGrpc, CheckTypeBrowser}
+var _CheckTypeValues = []CheckType{CheckTypeDns, CheckTypeHttp, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute, CheckTypeScripted, CheckTypeMultiHttp, CheckTypeGrpc, CheckTypeBrowser, CheckTypeLLMEvaluator}
 
 var _CheckTypeNameToValueMap = map[string]CheckType{
 	_CheckTypeName[0:3]:        CheckTypeDns,
@@ -56,6 +57,8 @@ var _CheckTypeNameToValueMap = map[string]CheckType{
 	_CheckTypeLowerName[41:45]: CheckTypeGrpc,
 	_CheckTypeName[45:52]:      CheckTypeBrowser,
 	_CheckTypeLowerName[45:52]: CheckTypeBrowser,
+	_CheckTypeName[52:64]:      CheckTypeLLMEvaluator,
+	_CheckTypeLowerName[52:64]: CheckTypeLLMEvaluator,
 }
 
 var _CheckTypeNames = []string{
@@ -68,6 +71,7 @@ var _CheckTypeNames = []string{
 	_CheckTypeName[32:41],
 	_CheckTypeName[41:45],
 	_CheckTypeName[45:52],
+	_CheckTypeName[52:64],
 }
 
 // CheckTypeString retrieves an enum value from the enum constants string name.

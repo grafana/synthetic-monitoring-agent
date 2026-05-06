@@ -93,6 +93,13 @@ var (
 
 	ErrInvalidMultiHttpTargets = errors.New("invalid multi-http targets")
 
+	ErrInvalidLLMEvaluatorEndpoint     = errors.New("invalid LLM evaluator endpoint")
+	ErrInvalidLLMEvaluatorModel        = errors.New("invalid LLM evaluator model")
+	ErrInvalidLLMEvaluatorApiKeyRef    = errors.New("invalid LLM evaluator API key reference")
+	ErrInvalidLLMEvaluatorPrompt       = errors.New("invalid LLM evaluator prompt")
+	ErrInvalidLLMEvaluatorSystemPrompt = errors.New("invalid LLM evaluator system prompt: max 500 chars")
+	ErrInvalidLLMEvaluatorCriteria     = errors.New("invalid LLM evaluator criteria")
+
 	ErrTooManyMultiHttpTargets         = errors.New("too many multi-http targets")
 	ErrTooManyMultiHttpAssertions      = errors.New("too many multi-http assertions")
 	ErrTooManyMultiHttpVariables       = errors.New("too many multi-http variables")
@@ -143,10 +150,11 @@ const (
 	MaxMultiHttpVariables    = 5    // Max variables per multi-http target.
 
 	// Frequencies
-	maxCheckFrequency      = time.Hour       // Maximum value for the check's frequency (1 hour)
-	minCheckFrequency      = time.Second     // Minimum default value for the check's frequency (1 second)
-	minTracerouteFrequency = 2 * time.Minute // Minimum value for the traceroute check's frequency (2 min)
-	minK6Frequency         = time.Minute     // Minimum value for k6-class check's frequency (1 min)
+	maxCheckFrequency        = time.Hour       // Maximum value for the check's frequency (1 hour)
+	minCheckFrequency        = time.Second     // Minimum default value for the check's frequency (1 second)
+	minTracerouteFrequency   = 2 * time.Minute // Minimum value for the traceroute check's frequency (2 min)
+	minK6Frequency           = time.Minute     // Minimum value for k6-class check's frequency (1 min)
+	minLLMEvaluatorFrequency = 5 * time.Minute // Minimum value for LLM Evaluator check frequency; LLM calls are expensive
 
 	// Timeouts
 	minCheckTimeout      = minCheckFrequency
@@ -214,15 +222,16 @@ func validateCollection[T validatable](collection []T) error {
 type CheckType int32
 
 const (
-	CheckTypeDns        CheckType = 0
-	CheckTypeHttp       CheckType = 1
-	CheckTypePing       CheckType = 2
-	CheckTypeTcp        CheckType = 3
-	CheckTypeTraceroute CheckType = 4
-	CheckTypeScripted   CheckType = 5
-	CheckTypeMultiHttp  CheckType = 6
-	CheckTypeGrpc       CheckType = 7
-	CheckTypeBrowser    CheckType = 8
+	CheckTypeDns          CheckType = 0
+	CheckTypeHttp         CheckType = 1
+	CheckTypePing         CheckType = 2
+	CheckTypeTcp          CheckType = 3
+	CheckTypeTraceroute   CheckType = 4
+	CheckTypeScripted     CheckType = 5
+	CheckTypeMultiHttp    CheckType = 6
+	CheckTypeGrpc         CheckType = 7
+	CheckTypeBrowser      CheckType = 8
+	CheckTypeLLMEvaluator CheckType = 9
 )
 
 func CheckTypeFromString(in string) (CheckType, bool) {
@@ -263,6 +272,9 @@ func (c Check) Type() CheckType {
 	case c.Settings.Browser != nil:
 		return CheckTypeBrowser
 
+	case c.Settings.LlmEvaluator != nil:
+		return CheckTypeLLMEvaluator
+
 	default:
 		panic("unhandled check type")
 	}
@@ -282,6 +294,11 @@ func (c CheckType) Class() CheckClass {
 
 	case CheckTypeBrowser:
 		return CheckClass_BROWSER
+
+	case CheckTypeLLMEvaluator:
+		// LLM Evaluator uses a single external HTTP request+response pattern,
+		// similar to protocol checks. A dedicated class may be warranted at GA.
+		return CheckClass_PROTOCOL
 
 	default:
 		panic("unhandled check class")
@@ -368,6 +385,10 @@ func (c Check) validateTarget() error {
 	case CheckTypeBrowser:
 		return nil
 
+	case CheckTypeLLMEvaluator:
+		// Target is user-defined metadata; no structural validation required.
+		return nil
+
 	default:
 		panic("unhandled check type")
 	}
@@ -389,6 +410,9 @@ func (c Check) validateFrequency() error {
 
 	case CheckTypeScripted, CheckTypeMultiHttp, CheckTypeBrowser:
 		minFrequency = minK6Frequency.Milliseconds()
+
+	case CheckTypeLLMEvaluator:
+		minFrequency = minLLMEvaluatorFrequency.Milliseconds()
 	}
 
 	if !inClosedRange(c.Frequency, minFrequency, maxFrequency) {
@@ -452,6 +476,9 @@ func (c AdHocCheck) Type() CheckType {
 
 	case c.Settings.Browser != nil:
 		return CheckTypeBrowser
+
+	case c.Settings.LlmEvaluator != nil:
+		return CheckTypeLLMEvaluator
 
 	default:
 		panic("unhandled check type")
@@ -524,6 +551,9 @@ func (c AdHocCheck) validateTarget() error {
 	case CheckTypeBrowser:
 		return nil
 
+	case CheckTypeLLMEvaluator:
+		return nil
+
 	default:
 		panic("unhandled check type")
 	}
@@ -579,6 +609,11 @@ func (s CheckSettings) Validate() error {
 	if s.Browser != nil {
 		settingsCount++
 		validateFn = s.Browser.Validate
+	}
+
+	if s.LlmEvaluator != nil {
+		settingsCount++
+		validateFn = s.LlmEvaluator.Validate
 	}
 
 	if settingsCount != 1 {
@@ -735,6 +770,40 @@ func (s *GrpcSettings) Validate() error {
 func (s *BrowserSettings) Validate() error {
 	if len(s.Script) == 0 {
 		return ErrInvalidK6Script
+	}
+
+	return nil
+}
+
+func (s *LLMEvaluatorSettings) Validate() error {
+	if err := validateHttpUrl(s.Endpoint); err != nil {
+		return ErrInvalidLLMEvaluatorEndpoint
+	}
+
+	if len(s.Model) == 0 {
+		return ErrInvalidLLMEvaluatorModel
+	}
+
+	if len(s.ApiKeyRef) == 0 {
+		return ErrInvalidLLMEvaluatorApiKeyRef
+	}
+
+	if len(s.Prompt) == 0 || len(s.Prompt) > 2000 {
+		return ErrInvalidLLMEvaluatorPrompt
+	}
+
+	if len(s.SystemPrompt) > 500 {
+		return ErrInvalidLLMEvaluatorSystemPrompt
+	}
+
+	if len(s.Criteria) == 0 || len(s.Criteria) > 10 {
+		return ErrInvalidLLMEvaluatorCriteria
+	}
+
+	for _, c := range s.Criteria {
+		if len(c) == 0 || len(c) > 200 {
+			return ErrInvalidLLMEvaluatorCriteria
+		}
 	}
 
 	return nil
@@ -1441,6 +1510,11 @@ func validateTimeout(checkType CheckType, timeout, frequency int64) error {
 		minTimeout = minScriptedTimeout.Milliseconds()
 		maxTimeout = min(frequency, MaxScriptedTimeout.Milliseconds())
 
+	case CheckTypeLLMEvaluator:
+		// LLM calls can be slow; allow the same timeout envelope as scripted checks.
+		minTimeout = minScriptedTimeout.Milliseconds()
+		maxTimeout = min(frequency, MaxScriptedTimeout.Milliseconds())
+
 	default:
 		// timeout must be within the defined limits, and it must be
 		// less than frequency (otherwise we can end up running
@@ -1583,6 +1657,24 @@ func GetCheckInstance(checkType CheckType) Check {
 			Settings: CheckSettings{
 				Browser: &BrowserSettings{
 					Script: []byte("// test"),
+				},
+			},
+		},
+		CheckTypeLLMEvaluator: {
+			Id:        1,
+			TenantId:  1,
+			Target:    "https://api.openai.com/gpt-4o-mini",
+			Job:       "job",
+			Frequency: 300000, // 5 minutes
+			Timeout:   30000,
+			Probes:    []int64{1},
+			Settings: CheckSettings{
+				LlmEvaluator: &LLMEvaluatorSettings{
+					Endpoint:  "https://api.openai.com",
+					Model:     "gpt-4o-mini",
+					ApiKeyRef: "openai-api-key",
+					Prompt:    "What is Grafana Synthetic Monitoring?",
+					Criteria:  []string{"Mentions monitoring or observability"},
 				},
 			},
 		},

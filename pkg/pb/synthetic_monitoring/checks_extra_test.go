@@ -538,6 +538,10 @@ func TestCheckClass(t *testing.T) {
 			input:    GetCheckInstance(CheckTypeBrowser),
 			expected: CheckClass_BROWSER,
 		},
+		CheckTypeLLMEvaluator.String(): {
+			input:    GetCheckInstance(CheckTypeLLMEvaluator),
+			expected: CheckClass_PROTOCOL,
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -598,6 +602,10 @@ func TestCheckTypeString(t *testing.T) {
 			input:    CheckTypeBrowser,
 			expected: "browser",
 		},
+		"llmevaluator": {
+			input:    CheckTypeLLMEvaluator,
+			expected: "llmevaluator",
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -646,6 +654,10 @@ func TestCheckTypeClass(t *testing.T) {
 		CheckTypeBrowser.String(): {
 			input:    CheckTypeBrowser,
 			expected: CheckClass_BROWSER,
+		},
+		CheckTypeLLMEvaluator.String(): {
+			input:    CheckTypeLLMEvaluator,
+			expected: CheckClass_PROTOCOL,
 		},
 	}
 
@@ -2005,6 +2017,124 @@ func TestGetCheckInstance(t *testing.T) {
 		require.Equal(t, checkType, check.Type())
 		require.NoError(t, check.Validate())
 	}
+}
+
+func TestLLMEvaluatorSettingsValidate(t *testing.T) {
+	validSettings := func() *LLMEvaluatorSettings {
+		return &LLMEvaluatorSettings{
+			Endpoint:  "https://api.openai.com",
+			Model:     "gpt-4o-mini",
+			ApiKeyRef: "my-api-key",
+			Prompt:    "What is Grafana Synthetic Monitoring?",
+			Criteria:  []string{"Mentions monitoring"},
+		}
+	}
+
+	t.Run("valid", func(t *testing.T) {
+		require.NoError(t, validSettings().Validate())
+	})
+
+	t.Run("valid with system prompt at boundary", func(t *testing.T) {
+		s := validSettings()
+		s.SystemPrompt = string(make([]byte, 500))
+		require.NoError(t, s.Validate())
+	})
+
+	t.Run("empty endpoint", func(t *testing.T) {
+		s := validSettings()
+		s.Endpoint = ""
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorEndpoint)
+	})
+
+	t.Run("invalid endpoint scheme", func(t *testing.T) {
+		s := validSettings()
+		s.Endpoint = "ftp://api.openai.com"
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorEndpoint)
+	})
+
+	t.Run("not a url endpoint", func(t *testing.T) {
+		s := validSettings()
+		s.Endpoint = "not a url"
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorEndpoint)
+	})
+
+	t.Run("empty model", func(t *testing.T) {
+		s := validSettings()
+		s.Model = ""
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorModel)
+	})
+
+	t.Run("empty apiKeyRef", func(t *testing.T) {
+		s := validSettings()
+		s.ApiKeyRef = ""
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorApiKeyRef)
+	})
+
+	t.Run("empty prompt", func(t *testing.T) {
+		s := validSettings()
+		s.Prompt = ""
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorPrompt)
+	})
+
+	t.Run("prompt too long", func(t *testing.T) {
+		s := validSettings()
+		s.Prompt = string(make([]byte, 2001))
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorPrompt)
+	})
+
+	t.Run("prompt at max length", func(t *testing.T) {
+		s := validSettings()
+		s.Prompt = string(make([]byte, 2000))
+		require.NoError(t, s.Validate())
+	})
+
+	t.Run("system prompt too long", func(t *testing.T) {
+		s := validSettings()
+		s.SystemPrompt = string(make([]byte, 501))
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorSystemPrompt)
+	})
+
+	t.Run("empty criteria", func(t *testing.T) {
+		s := validSettings()
+		s.Criteria = []string{}
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorCriteria)
+	})
+
+	t.Run("too many criteria", func(t *testing.T) {
+		s := validSettings()
+		s.Criteria = make([]string, 11)
+		for i := range s.Criteria {
+			s.Criteria[i] = "valid criterion"
+		}
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorCriteria)
+	})
+
+	t.Run("criteria at max count", func(t *testing.T) {
+		s := validSettings()
+		s.Criteria = make([]string, 10)
+		for i := range s.Criteria {
+			s.Criteria[i] = "valid criterion"
+		}
+		require.NoError(t, s.Validate())
+	})
+
+	t.Run("empty criterion string", func(t *testing.T) {
+		s := validSettings()
+		s.Criteria = []string{"valid", ""}
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorCriteria)
+	})
+
+	t.Run("criterion too long", func(t *testing.T) {
+		s := validSettings()
+		s.Criteria = []string{string(make([]byte, 201))}
+		require.ErrorIs(t, s.Validate(), ErrInvalidLLMEvaluatorCriteria)
+	})
+
+	t.Run("criterion at max length", func(t *testing.T) {
+		s := validSettings()
+		s.Criteria = []string{string(make([]byte, 200))}
+		require.NoError(t, s.Validate())
+	})
 }
 
 func requireRemoteInfoFields(t *testing.T) {
