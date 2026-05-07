@@ -66,6 +66,8 @@ func GetCheckAccountingClass(check synthetic_monitoring.Check) (string, error) {
 			key += "_ssl"
 		}
 
+	case synthetic_monitoring.CheckTypeLLMEvaluator:
+
 	default:
 		return "", ErrUnhandledCheck
 	}

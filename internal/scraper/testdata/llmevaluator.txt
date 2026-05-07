@@ -1,0 +1,22 @@
+# HELP probe_duration_seconds Returns how long the probe took to complete in seconds
+# TYPE probe_duration_seconds gauge
+probe_duration_seconds 0.5
+# HELP probe_success Displays whether or not the probe was a success
+# TYPE probe_success gauge
+probe_success 1
+# HELP sm_check_info Provides information about a single check configuration
+# TYPE sm_check_info gauge
+sm_check_info 1
+# HELP probe_llm_evaluation_score Overall evaluation score from 0 to 1
+# TYPE probe_llm_evaluation_score gauge
+probe_llm_evaluation_score 0.85
+# HELP probe_llm_criteria_passed Whether the criterion was passed
+# TYPE probe_llm_criteria_passed gauge
+probe_llm_criteria_passed{criterion_index="0"} 1
+# HELP probe_llm_target_duration_seconds Time to receive a response from the target LLM
+# TYPE probe_llm_target_duration_seconds gauge
+probe_llm_target_duration_seconds 0.3
+# HELP probe_llm_judge_tokens_total Number of tokens used by the judge LLM
+# TYPE probe_llm_judge_tokens_total gauge
+probe_llm_judge_tokens_total{role="input"} 120
+probe_llm_judge_tokens_total{role="output"} 80
