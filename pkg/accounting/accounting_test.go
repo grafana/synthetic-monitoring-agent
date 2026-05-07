@@ -296,6 +296,39 @@ func getTestCases() map[string]struct {
 			},
 			class: "browser_basic",
 		},
+		"llmevaluator": {
+			input: synthetic_monitoring.Check{
+				Target:  "https://api.openai.com",
+				Timeout: 30000,
+				Settings: synthetic_monitoring.CheckSettings{
+					LlmEvaluator: &synthetic_monitoring.LLMEvaluatorSettings{
+						Endpoint:  "https://api.openai.com",
+						Model:     "gpt-4o-mini",
+						ApiKeyRef: "openai-api-key",
+						Prompt:    "What is Grafana?",
+						Criteria:  []string{"mentions monitoring"},
+					},
+				},
+			},
+			class: "llmevaluator",
+		},
+		"llmevaluator_basic": {
+			input: synthetic_monitoring.Check{
+				Target:           "https://api.openai.com",
+				Timeout:          30000,
+				BasicMetricsOnly: true,
+				Settings: synthetic_monitoring.CheckSettings{
+					LlmEvaluator: &synthetic_monitoring.LLMEvaluatorSettings{
+						Endpoint:  "https://api.openai.com",
+						Model:     "gpt-4o-mini",
+						ApiKeyRef: "openai-api-key",
+						Prompt:    "What is Grafana?",
+						Criteria:  []string{"mentions monitoring"},
+					},
+				},
+			},
+			class: "llmevaluator_basic",
+		},
 	}
 }
 
