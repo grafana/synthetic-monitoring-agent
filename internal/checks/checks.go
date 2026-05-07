@@ -82,6 +82,7 @@ type Updater struct {
 	scrapers                map[model.GlobalID]*scraper.Scraper
 	metrics                 metrics
 	k6Runner                k6runner.Runner
+	judgeURI                string
 	scraperFactory          scraper.Factory
 	tenantLimits            *limits.TenantLimits
 	tenantSecrets           secrets.SecretProvider
@@ -121,6 +122,7 @@ type UpdaterOptions struct {
 	PromRegisterer          prometheus.Registerer
 	Features                feature.Collection
 	K6Runner                k6runner.Runner
+	JudgeURI                string
 	ScraperFactory          scraper.Factory
 	TenantLimits            *limits.TenantLimits
 	SecretProvider          secrets.SecretProvider
@@ -248,6 +250,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		IsConnected:             opts.IsConnected,
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
 		k6Runner:                opts.K6Runner,
+		judgeURI:                opts.JudgeURI,
 		scraperFactory:          scraperFactory,
 		tenantLimits:            opts.TenantLimits,
 		tenantSecrets:           opts.SecretProvider,
@@ -964,6 +967,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		metrics,
 		c.k6Runner,
 		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals,
+		c.judgeURI,
 	)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)

@@ -115,6 +115,7 @@ type HandlerOpts struct {
 	PromRegisterer          prometheus.Registerer
 	Features                feature.Collection
 	K6Runner                k6runner.Runner
+	JudgeURI                string
 	SecretProvider          secrets.SecretProvider
 	SupportsProtocolSecrets bool
 
@@ -149,7 +150,7 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		tenantCh:                     opts.TenantCh,
 		runnerFactory:                opts.runnerFactory,
 		grpcAdhocChecksClientFactory: opts.grpcAdhocChecksClientFactory,
-		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features, opts.SecretProvider),
+		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features, opts.SecretProvider, opts.JudgeURI),
 		supportsProtocolSecrets:      opts.SupportsProtocolSecrets,
 		api: apiInfo{
 			conn: opts.Conn,

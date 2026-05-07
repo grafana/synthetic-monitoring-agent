@@ -503,6 +503,7 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals scraper.TenantCals,
+	_ string,
 ) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,

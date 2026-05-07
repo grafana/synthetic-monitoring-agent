@@ -16,6 +16,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/llmevaluator"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/scripted"
@@ -46,14 +47,16 @@ type proberFactory struct {
 	probeId     int64
 	features    feature.Collection
 	secretStore secrets.SecretProvider
+	judgeURI    string
 }
 
-func NewProberFactory(runner k6runner.Runner, probeId int64, features feature.Collection, secretStore secrets.SecretProvider) ProberFactory {
+func NewProberFactory(runner k6runner.Runner, probeId int64, features feature.Collection, secretStore secrets.SecretProvider, judgeURI string) ProberFactory {
 	return proberFactory{
 		runner:      runner,
 		probeId:     probeId,
 		features:    features,
 		secretStore: secretStore,
+		judgeURI:    judgeURI,
 	}
 }
 
@@ -123,10 +126,11 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		target = check.Target
 
 	case sm.CheckTypeLLMEvaluator:
-		// TODO(M2): implement LLMEvaluatorProber. The prober requires sm-judge-proxy
-		// running in the PoP and is gated by the "llm-evaluator" feature flag.
-		// Until M2 is complete, the check type is known to the factory but not runnable.
-		err = fmt.Errorf("llm-evaluator checks are not yet implemented")
+		if check.Settings.LlmEvaluator == nil {
+			return nil, "", errUnsupportedCheckType
+		}
+		p, err = llmevaluator.NewProber(check, f.secretStore, f.judgeURI, logger)
+		target = check.Target
 
 	default:
 		return nil, "", errUnsupportedCheckType

@@ -17,7 +17,7 @@ func TestProberFactoryCoverage(t *testing.T) {
 	// known check types (as defined in the synthetic_monitoring package).
 
 	var store testhelper.NoopSecretStore
-	pf := NewProberFactory(nil, 0, feature.Collection{}, &store)
+	pf := NewProberFactory(nil, 0, feature.Collection{}, &store, "")
 	ctx := context.Background()
 	testLogger := zerolog.New(zerolog.NewTestWriter(t))
 

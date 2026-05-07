@@ -31,6 +31,7 @@ import (
 	grpcProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
 	httpProber "github.com/grafana/synthetic-monitoring-agent/internal/prober/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/icmp"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/llmevaluator"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/multihttp"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/scripted"
@@ -115,6 +116,9 @@ func TestValidateMetrics(t *testing.T) {
 		},
 		"browser": {
 			setup: setupBrowserProbe,
+		},
+		"llmevaluator": {
+			setup: setupLLMEvaluatorProbe,
 		},
 	}
 
@@ -592,6 +596,61 @@ func setupBrowserProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 	}
 
 	return prober, check, httpSrv.Close
+}
+
+// setupLLMEvaluatorProbe creates a fake target LLM server and a fake judge proxy
+// server, then returns an LLMEvaluator prober wired against them.
+func setupLLMEvaluatorProbe(_ context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
+	// Fake target LLM: returns a fixed chat completion.
+	targetSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"choices":[{"message":{"content":"Grafana is an observability platform."}}]}`)
+	}))
+
+	// Fake judge proxy: returns a passing evaluation with score=1.0.
+	judgeSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{
+			"score": 1.0,
+			"results": [{"criterion_index":0,"passed":true,"reasoning":"yes"}],
+			"judge_input_tokens": 120,
+			"judge_output_tokens": 80
+		}`)
+	}))
+
+	check := model.Check{
+		Check: sm.Check{
+			Target:  targetSrv.URL,
+			Timeout: 5000,
+			Settings: sm.CheckSettings{
+				LlmEvaluator: &sm.LLMEvaluatorSettings{
+					Endpoint:  targetSrv.URL,
+					Model:     "gpt-4o-mini",
+					ApiKeyRef: "test-key",
+					Prompt:    "What is Grafana?",
+					Criteria:  []string{"Mentions observability"},
+				},
+			},
+		},
+	}
+
+	p, err := llmevaluator.NewProber(
+		check,
+		sm.Probe{},
+		testhelper.NoopSecretStore{},
+		judgeSrv.URL,
+		zerolog.New(zerolog.NewTestWriter(t)),
+	)
+	if err != nil {
+		t.Fatalf("cannot create llmevaluator prober: %s", err)
+	}
+
+	cleanup := func() {
+		targetSrv.Close()
+		judgeSrv.Close()
+	}
+
+	return p, check, cleanup
 }
 
 func setupGRPCProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {

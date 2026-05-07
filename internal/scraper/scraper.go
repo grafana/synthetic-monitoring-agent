@@ -95,6 +95,7 @@ type Factory func(
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
+	judgeURI string,
 ) (*Scraper, error)
 
 type (
@@ -130,16 +131,18 @@ func New(
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
+	judgeURI string,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
 		Publisher:             publisher,
 		Logger:                logger,
 		Metrics:               metrics,
-		ProbeFactory:          prober.NewProberFactory(k6runner, probe.Id, features, secretStore),
+		ProbeFactory:          prober.NewProberFactory(k6runner, probe.Id, features, secretStore, judgeURI),
 		LabelsLimiter:         labelsLimiter,
 		Telemeter:             telemeter,
 		CostAttributionLabels: cals,
+		JudgeURI:              judgeURI,
 	})
 }
 
@@ -154,6 +157,7 @@ type ScraperOpts struct {
 	LabelsLimiter         LabelsLimiter
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
+	JudgeURI              string
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {

@@ -74,6 +74,7 @@ func run(args []string, stdout io.Writer) error {
 			K6URI                 string
 			K6Repository          string
 			K6BlacklistedIP       string
+			JudgeURI              string
 			SelectedPublisher     string
 			TelemetryTimeSpan     int
 			AutoMemLimit          bool
@@ -116,6 +117,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.EnablePProf, "enable-pprof", config.EnablePProf, "exposes profiling data via HTTP /debug/pprof/ endpoint")
 	flags.StringVar(&config.HttpListenAddr, "listen-address", config.HttpListenAddr, "listen address")
 	flags.StringVar(&config.K6URI, "k6-uri", config.K6URI, "Path or URI to a specific k6 binary, overrides k6 version autodetection")
+	flags.StringVar(&config.JudgeURI, "judge-uri", config.JudgeURI, "URI for the sm-judge-proxy service (required for LLM Evaluator checks)")
 	flags.StringVar(&config.K6Repository, "k6-repository", config.K6Repository, "path to folder containing k6 binaries")
 	flags.StringVar(&config.K6BlacklistedIP, "blocked-nets", config.K6BlacklistedIP,
 		"IP networks to block in CIDR notation. Setting this to an empty string, or '0.0.0.0/32', will disable the blocklist.")
@@ -364,6 +366,7 @@ func run(args []string, stdout io.Writer) error {
 		PromRegisterer:          promRegisterer,
 		Features:                features,
 		K6Runner:                k6Runner,
+		JudgeURI:                config.JudgeURI,
 		ScraperFactory:          scraper.New,
 		TenantLimits:            limits,
 		SecretProvider:          secretProvider,
@@ -388,6 +391,7 @@ func run(args []string, stdout io.Writer) error {
 		PromRegisterer:          promRegisterer,
 		Features:                features,
 		K6Runner:                k6Runner,
+		JudgeURI:                config.JudgeURI,
 		SecretProvider:          secretProvider,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
 	})

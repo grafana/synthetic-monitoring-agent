@@ -651,7 +651,7 @@ func TestDefaultRunnerFactory(t *testing.T) {
 				probe: &sm.Probe{
 					Name: "test-probe",
 				},
-				proberFactory: prober.NewProberFactory(mockRunner, 0, features, secretStore),
+				proberFactory: prober.NewProberFactory(mockRunner, 0, features, secretStore, ""),
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
