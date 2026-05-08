@@ -20,6 +20,7 @@ package synthetic_monitoring
 //go:generate ../../../scripts/enumer -type=MultiHttpEntryAssertionType,MultiHttpEntryAssertionSubjectVariant,MultiHttpEntryAssertionConditionVariant,MultiHttpEntryVariableType -trimprefix=MultiHttpEntryAssertionType_,MultiHttpEntryAssertionSubjectVariant_,MultiHttpEntryAssertionConditionVariant_,MultiHttpEntryVariableType_ -transform=upper -output=multihttp_string.go
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,7 +33,6 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
-	"golang.org/x/exp/constraints"
 	"golang.org/x/net/http/httpguts"
 )
 
@@ -1457,9 +1457,11 @@ func validateTimeout(checkType CheckType, timeout, frequency int64) error {
 }
 
 // inClosedRange returns true if the value `v` is in [lower, upper].
-func inClosedRange[T constraints.Ordered](v, lower, upper T) bool {
+func inClosedRange[T cmp.Ordered](v, lower, upper T) bool {
 	return v >= lower && v <= upper
 }
+
+const loopbackIPv4 = "127.0.0.1"
 
 func GetCheckInstance(checkType CheckType) Check {
 	var validCheckCases = map[CheckType]Check{
@@ -1473,7 +1475,7 @@ func GetCheckInstance(checkType CheckType) Check {
 			Probes:    []int64{1},
 			Settings: CheckSettings{
 				Dns: &DnsSettings{
-					Server: "127.0.0.1",
+					Server: loopbackIPv4,
 				},
 			},
 		},
@@ -1492,7 +1494,7 @@ func GetCheckInstance(checkType CheckType) Check {
 		CheckTypePing: {
 			Id:        1,
 			TenantId:  1,
-			Target:    "127.0.0.1",
+			Target:    loopbackIPv4,
 			Job:       "job",
 			Frequency: 1000,
 			Timeout:   1000,
@@ -1516,7 +1518,7 @@ func GetCheckInstance(checkType CheckType) Check {
 		CheckTypeTraceroute: {
 			Id:        1,
 			TenantId:  1,
-			Target:    "127.0.0.1",
+			Target:    loopbackIPv4,
 			Job:       "job",
 			Frequency: 120000,
 			Timeout:   30000,

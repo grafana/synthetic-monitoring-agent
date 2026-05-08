@@ -14,6 +14,11 @@ const (
 	LabelValueTenant         = "tenant"
 )
 
+const (
+	metricNamespace = "sm_agent"
+	metricSubsystem = "publisher"
+)
+
 // Metrics contains the prometheus Metrics for a publisher.
 type Metrics struct {
 	PushCounter    *prometheus.CounterVec
@@ -39,8 +44,8 @@ var (
 func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 	m.PushCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
+			Namespace: metricNamespace,
+			Subsystem: metricSubsystem,
 			Name:      "push_total",
 			Help:      "Total number of push events by type.",
 		},
@@ -50,8 +55,8 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 
 	m.ErrorCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
+			Namespace: metricNamespace,
+			Subsystem: metricSubsystem,
 			Name:      "push_errors_total",
 			Help:      "Total number of push errors by type and status.",
 		},
@@ -61,8 +66,8 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 
 	m.FailedCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
+			Namespace: metricNamespace,
+			Subsystem: metricSubsystem,
 			Name:      "push_failed_total",
 			Help:      "Total number of push failures by type.",
 		},
@@ -72,8 +77,8 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 
 	m.BytesOut = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
+			Namespace: metricNamespace,
+			Subsystem: metricSubsystem,
 			Name:      "push_bytes",
 			Help:      "Total number of bytes pushed by type.",
 		},
@@ -83,8 +88,8 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 
 	m.RetriesCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
+			Namespace: metricNamespace,
+			Subsystem: metricSubsystem,
 			Name:      "retries_total",
 			Help:      "Total number of retries performed by type.",
 		},
@@ -94,8 +99,8 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 
 	m.DroppedCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
+			Namespace: metricNamespace,
+			Subsystem: metricSubsystem,
 			Name:      "drop_total",
 			Help:      "Total number of results dropped by type.",
 		},
@@ -105,8 +110,8 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 
 	m.ResponseCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
+			Namespace: metricNamespace,
+			Subsystem: metricSubsystem,
 			Name:      "responses_total",
 			Help:      "Total number of responses received by type and status code.",
 		},
@@ -116,8 +121,8 @@ func NewMetrics(promRegisterer prometheus.Registerer) (m Metrics) {
 
 	m.InstalledHandlers = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Namespace: "sm_agent",
-			Subsystem: "publisher",
+			Namespace: metricNamespace,
+			Subsystem: metricSubsystem,
 			Name:      "handlers_total",
 			Help:      "Total number of installed publisher handlers.",
 		},

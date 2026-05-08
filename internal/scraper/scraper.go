@@ -43,6 +43,11 @@ const (
 	minPublishGap          = 10 * time.Second
 )
 
+const (
+	probeLabelName  = "probe"
+	regionLabelName = "region"
+)
+
 var (
 	staleNaN    uint64  = 0x7ff0000000000002
 	staleMarker float64 = math.Float64frombits(staleNaN)
@@ -163,7 +168,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		Int("region_id", check.RegionId).
 		Int64("tenantId", check.TenantId).
 		Int64("check_id", check.Id).
-		Str("probe", opts.Probe.Name).
+		Str(probeLabelName, opts.Probe.Name).
 		Str("target", check.Target).
 		Str("job", check.Job).
 		Str("check", checkName).
@@ -520,8 +525,8 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	}
 
 	logLabels := []labelPair{
-		{name: "probe", value: s.probe.Name},
-		{name: "region", value: s.probe.Region},
+		{name: probeLabelName, value: s.probe.Name},
+		{name: regionLabelName, value: s.probe.Region},
 		{name: "instance", value: s.check.Target},
 		{name: "job", value: s.check.Job},
 		{name: "check_name", value: s.checkName},
@@ -579,7 +584,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	// TODO(mem): this is constant for the scraper, move this
 	// outside this function?
 	metricLabels := []labelPair{
-		{name: "probe", value: s.probe.Name},
+		{name: probeLabelName, value: s.probe.Name},
 		{name: "config_version", value: s.check.ConfigVersion()},
 		{name: "instance", value: s.check.Target},
 		{name: "job", value: s.check.Job},
@@ -915,10 +920,10 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []
 
 func (s Scraper) buildCheckInfoLabels(userLabels []labelPair) map[string]string {
 	labels := map[string]string{
-		"check_name": s.checkName,
-		"region":     s.probe.Region,
-		"frequency":  strconv.FormatInt(s.check.Frequency, 10),
-		"geohash":    geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude)),
+		"check_name":    s.checkName,
+		regionLabelName: s.probe.Region,
+		"frequency":     strconv.FormatInt(s.check.Frequency, 10),
+		"geohash":       geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude)),
 	}
 	if s.check.AlertSensitivity != "" && s.check.AlertSensitivity != "none" {
 		labels["alert_sensitivity"] = s.check.AlertSensitivity
@@ -975,7 +980,7 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 	ml := metric.GetLabel()
 
 	labels := make([]prompb.Label, 0, 1+len(sharedLabels)+len(ml))
-	labels = append(labels, prompb.Label{Name: "__name__", Value: mName})
+	labels = append(labels, prompb.Label{Name: prom.MetricNameLabel, Value: mName})
 	labels = append(labels, sharedLabels...)
 	for _, l := range ml {
 		labels = append(labels, prompb.Label{Name: *(l.Name), Value: truncateLabelValue(*(l.Value))})
@@ -1002,10 +1007,10 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 			sLabels := make([]prompb.Label, len(labels))
 			copy(sLabels, labels)
 
-			sLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_sum"}
+			sLabels[0] = prompb.Label{Name: prom.MetricNameLabel, Value: mName + "_sum"}
 			ts = append(ts, makeTimeseries(t, s.GetSampleSum(), sLabels...))
 
-			sLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_count"}
+			sLabels[0] = prompb.Label{Name: prom.MetricNameLabel, Value: mName + "_count"}
 			ts = append(ts, makeTimeseries(t, float64(s.GetSampleCount()), sLabels...))
 
 			sLabels = make([]prompb.Label, len(labels)+1)
@@ -1026,16 +1031,16 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 				hLabels := make([]prompb.Label, len(labels))
 				copy(hLabels, labels)
 
-				hLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_sum"}
+				hLabels[0] = prompb.Label{Name: prom.MetricNameLabel, Value: mName + "_sum"}
 				ts = append(ts, makeTimeseries(t, h.GetSampleSum(), hLabels...))
 
-				hLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_count"}
+				hLabels[0] = prompb.Label{Name: prom.MetricNameLabel, Value: mName + "_count"}
 				ts = append(ts, makeTimeseries(t, float64(h.GetSampleCount()), hLabels...))
 
 				hLabels = make([]prompb.Label, len(labels)+1)
 				copy(hLabels, labels)
 
-				hLabels[0] = prompb.Label{Name: "__name__", Value: mName + "_bucket"}
+				hLabels[0] = prompb.Label{Name: prom.MetricNameLabel, Value: mName + "_bucket"}
 				for _, v := range b {
 					hLabels[len(hLabels)-1] = prompb.Label{
 						Name:  "le",

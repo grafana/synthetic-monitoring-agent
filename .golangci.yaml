@@ -74,6 +74,9 @@ linters:
     rules:
       - path: (.+)\.go$
         text: (func|method|type|var|struct field|func parameter|method parameter) [^ ]+ should be .*
+      - path: _test\.go$
+        linters:
+          - goconst
     paths:
       - third_party$
       - builtin$

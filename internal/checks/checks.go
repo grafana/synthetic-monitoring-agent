@@ -52,6 +52,8 @@ const (
 	errTransportClosing    = TransientError("transport closing")
 )
 
+const metricNamespace = "sm_agent"
+
 // Backoffer defines an interface to provide backoff durations.
 //
 // The implementation of this interface SHOULD NOT perform the actual
@@ -132,7 +134,7 @@ type UpdaterOptions struct {
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "sm_agent",
+		Namespace: metricNamespace,
 		Subsystem: "updater",
 		Name:      "changes_total",
 		Help:      "Total number of changes processed.",
@@ -145,7 +147,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	}
 
 	changeErrorsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "sm_agent",
+		Namespace: metricNamespace,
 		Subsystem: "updater",
 		Name:      "change_errors_total",
 		Help:      "Total number of errors during change processing.",
@@ -158,7 +160,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	}
 
 	runningScrapers := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "sm_agent",
+		Namespace: metricNamespace,
 		Subsystem: "updater",
 		Name:      "scrapers_total",
 		Help:      "Total number of running scrapers.",
@@ -171,7 +173,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	}
 
 	scrapesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "sm_agent",
+		Namespace: metricNamespace,
 		Subsystem: "scraper",
 		Name:      "operations_total",
 		Help:      "Total number of scrape operations performed by type.",
@@ -186,7 +188,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	}
 
 	scrapeErrorCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "sm_agent",
+		Namespace: metricNamespace,
 		Subsystem: "scraper",
 		Name:      "errors_total",
 		Help:      "Total number of scraper errors by type and status.",
@@ -202,7 +204,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	}
 
 	connectionStatusGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "sm_agent",
+		Namespace: metricNamespace,
 		Subsystem: "api_connection",
 		Name:      "status",
 		Help:      "API connection status.",
@@ -215,7 +217,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	connectionStatusGauge.Set(0)
 
 	probeInfoGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "sm_agent",
+		Namespace: metricNamespace,
 		Name:      "info",
 		Help:      "Agent information.",
 	}, []string{
