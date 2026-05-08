@@ -12,6 +12,13 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	metricNamespace        = "sm_agent"
+	metricSubsystem        = "telemetry"
+	regionIDLabelName      = "region_id"
+	agentInstanceLabelName = "agent_instance"
+)
+
 // Telemeter maintains the telemetry data for all the tenants running checks
 // in the agent instance, organized by region.
 type Telemeter struct {
@@ -94,7 +101,7 @@ func (t *Telemeter) AddExecution(e Execution) {
 		Int32("regionId", e.RegionID).
 		Logger()
 	labels := prom.Labels{
-		"region_id": strconv.FormatInt(int64(e.RegionID), 10),
+		regionIDLabelName: strconv.FormatInt(int64(e.RegionID), 10),
 	}
 	m := RegionMetrics{
 		t.metrics.pushRequestsActive.With(labels),
@@ -114,46 +121,46 @@ func (t *Telemeter) AddExecution(e Execution) {
 
 func (t *Telemeter) registerMetrics(registerer prom.Registerer) {
 	t.metrics.pushRequestsActive = prom.NewGaugeVec(prom.GaugeOpts{
-		Namespace:   "sm_agent",
-		Subsystem:   "telemetry",
+		Namespace:   metricNamespace,
+		Subsystem:   metricSubsystem,
 		Name:        "push_requests_active",
 		Help:        "Active push telemetry requests",
-		ConstLabels: prom.Labels{"agent_instance": t.instance},
-	}, []string{"region_id"})
+		ConstLabels: prom.Labels{agentInstanceLabelName: t.instance},
+	}, []string{regionIDLabelName})
 	t.metrics.pushRequestsDuration = prom.NewHistogramVec(prom.HistogramOpts{
-		Namespace:   "sm_agent",
-		Subsystem:   "telemetry",
+		Namespace:   metricNamespace,
+		Subsystem:   metricSubsystem,
 		Name:        "push_requests_duration_seconds",
 		Help:        "Duration of push telemetry requests",
 		Buckets:     prom.ExponentialBucketsRange(0.01, 2.0, 10),
-		ConstLabels: prom.Labels{"agent_instance": t.instance},
-	}, []string{"region_id"})
+		ConstLabels: prom.Labels{agentInstanceLabelName: t.instance},
+	}, []string{regionIDLabelName})
 	t.metrics.pushRequestsTotal = prom.NewCounterVec(prom.CounterOpts{
-		Namespace:   "sm_agent",
-		Subsystem:   "telemetry",
+		Namespace:   metricNamespace,
+		Subsystem:   metricSubsystem,
 		Name:        "push_requests_total",
 		Help:        "Total count of push telemetry requests",
-		ConstLabels: prom.Labels{"agent_instance": t.instance},
-	}, []string{"region_id"})
+		ConstLabels: prom.Labels{agentInstanceLabelName: t.instance},
+	}, []string{regionIDLabelName})
 	t.metrics.pushRequestsError = prom.NewCounterVec(prom.CounterOpts{
-		Namespace:   "sm_agent",
-		Subsystem:   "telemetry",
+		Namespace:   metricNamespace,
+		Subsystem:   metricSubsystem,
 		Name:        "push_requests_errors_total",
 		Help:        "Total count of errored push telemetry requests",
-		ConstLabels: prom.Labels{"agent_instance": t.instance},
-	}, []string{"region_id"})
+		ConstLabels: prom.Labels{agentInstanceLabelName: t.instance},
+	}, []string{regionIDLabelName})
 
 	t.metrics.addExecutionDuration = prom.NewHistogramVec(prom.HistogramOpts{
-		Namespace:                       "sm_agent",
-		Subsystem:                       "telemetry",
+		Namespace:                       metricNamespace,
+		Subsystem:                       metricSubsystem,
 		Name:                            "add_execution_duration_seconds",
 		Help:                            "Duration of add telemetry executions",
 		Buckets:                         []float64{.00001, .00002, .00005, .0001, .0002, .0005, .001, .002, .005, .01, .02, .05, .1, .2},
 		NativeHistogramBucketFactor:     1.1,
 		NativeHistogramMaxBucketNumber:  100,
 		NativeHistogramMinResetDuration: time.Hour,
-		ConstLabels:                     prom.Labels{"agent_instance": t.instance},
-	}, []string{"region_id"})
+		ConstLabels:                     prom.Labels{agentInstanceLabelName: t.instance},
+	}, []string{regionIDLabelName})
 
 	registerer.MustRegister(t.metrics.pushRequestsActive)
 	registerer.MustRegister(t.metrics.pushRequestsDuration)

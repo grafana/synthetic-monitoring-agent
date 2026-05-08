@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/go-logfmt/logfmt"
-	"golang.org/x/exp/maps"
 )
 
 var (
@@ -41,7 +40,7 @@ func errorFromLogs(logs []byte) error {
 	keyVals := make(map[string]string, 8) // Typically will be less than 8 fields.
 
 	for dec.ScanRecord() {
-		maps.Clear(keyVals)
+		clear(keyVals)
 
 		for dec.ScanKeyval() {
 			// dec.Key and dec.Value values are not reusable across calls of ScanRecord, but that should be fine.
