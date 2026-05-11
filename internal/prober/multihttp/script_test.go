@@ -849,6 +849,12 @@ func TestSettingsToScript(t *testing.T) {
 
 	for _, k6path := range testhelper.K6Paths(t) {
 		t.Run(filepath.Base(k6path), func(t *testing.T) {
+			// TODO: By now, multiHTTP are forced to run with xk6-sm v1.
+			// See https://github.com/grafana/synthetic-monitoring-agent/blob/26438a93be8af6523fb38a9d0affd1cfc07f438a/internal/prober/multihttp/multihttp.go#L55
+			if strings.Contains(k6path, "v2") {
+				t.Skip("multihttp checks are forced to run with xk6-sm v1")
+			}
+
 			ctx, cancel := testhelper.Context(context.Background(), t)
 			t.Cleanup(cancel)
 
