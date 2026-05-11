@@ -38,7 +38,7 @@ const (
 	maxLogResponseChars = 1000
 
 	// maxLogReasoningChars is the max number of rune characters logged per criterion reasoning.
-	maxLogReasoningChars = 150
+	maxLogReasoningChars = 500
 
 	// targetMaxTokens is the max_tokens sent to the target LLM.
 	targetMaxTokens = 2048
