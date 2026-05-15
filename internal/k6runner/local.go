@@ -175,8 +175,10 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 
 	// Pre-fill logs buffer with k6 versioning info.
 	logsBuf := &bytes.Buffer{}
-	_, _ = fmt.Fprintf(logsBuf,
-		`level=info k6ChannelManifest=%q k6version=%q k6Path=%q msg="Check will be run with resolved k6 version"`+"\n",
+	_, _ = fmt.Fprintf(
+		logsBuf,
+		`time=%q level=info k6ChannelManifest=%q k6version=%q k6Path=%q msg="Check will be run with resolved k6 version"`+"\n",
+		start.Format(time.RFC3339Nano),
 		script.K6ChannelManifest, k6Version.Version.String(), k6Version.Path,
 	)
 
