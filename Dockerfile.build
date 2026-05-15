@@ -20,11 +20,13 @@ FROM alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a
 ARG TARGETOS
 ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
+ARG K6_V1_VERSION=v1.1.0
+ARG K6_V2_VERSION=v2.0.0
 
 RUN adduser -D -u 12345 -g 12345 sm
 
-ADD --chown=sm:sm --chmod=0500 https://github.com/grafana/xk6-sm/releases/download/v1.1.0/sm-k6-${TARGETOS}-${TARGETARCH} /usr/libexec/sm-k6/k6-v1
-ADD --chown=sm:sm --chmod=0500 https://github.com/grafana/xk6-sm/releases/download/v2.0.0/sm-k6-${TARGETOS}-${TARGETARCH} /usr/libexec/sm-k6/k6-v2
+ADD --chown=sm:sm --chmod=0500 https://github.com/grafana/xk6-sm/releases/download/${K6_V1_VERSION}/sm-k6-${TARGETOS}-${TARGETARCH} /usr/libexec/sm-k6/k6-v1
+ADD --chown=sm:sm --chmod=0500 https://github.com/grafana/xk6-sm/releases/download/${K6_V2_VERSION}/sm-k6-${TARGETOS}-${TARGETARCH} /usr/libexec/sm-k6/k6-v2
 COPY --chown=sm:sm --chmod=0500 --from=setcapper /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
 COPY --chown=sm:sm scripts/pre-stop.sh /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt

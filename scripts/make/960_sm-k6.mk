@@ -1,34 +1,36 @@
 XK6_PLATFORMS := $(filter-out linux/arm,$(PLATFORMS)) darwin/arm64 darwin/amd64
 
+K6_V1_VERSION=v1.1.0
+K6_V2_VERSION=v2.0.0
+
 .PHONY: sm-k6
 sm-k6:
 	@true
 
-define sm-k6-v1-binary
-$(DISTDIR)/$(1)-$(2)/k6-v1:
-	mkdir -p "$(DISTDIR)/$(1)-$(2)"
-	# Renovate updates the following line. Keep its syntax as it is.
-	curl -sSL https://github.com/grafana/xk6-sm/releases/download/v1.1.0/sm-k6-$(1)-$(2) -o "$$@" # k6-v1
-	chmod +x "$$@"
-
-sm-k6: $(DISTDIR)/$(1)-$(2)/k6-v1
-endef
-
-define sm-k6-v2-binary
-$(DISTDIR)/$(1)-$(2)/k6-v2:
-	mkdir -p "$(DISTDIR)/$(1)-$(2)"
-	# Renovate updates the following line. Keep its syntax as it is.
-	curl -sSL https://github.com/grafana/xk6-sm/releases/download/v2.0.0/sm-k6-$(1)-$(2) -o "$$@" # k6-v2
-	chmod +x "$$@"
-
-sm-k6: $(DISTDIR)/$(1)-$(2)/k6-v2
-endef
-
-$(foreach BUILD_PLATFORM,$(XK6_PLATFORMS), \
-	$(eval $(call sm-k6-v1-binary,$(word 1,$(subst /, ,$(BUILD_PLATFORM))),$(word 2,$(subst /, ,$(BUILD_PLATFORM))))))
-
-$(foreach BUILD_PLATFORM,$(XK6_PLATFORMS), \
-	$(eval $(call sm-k6-v2-binary,$(word 1,$(subst /, ,$(BUILD_PLATFORM))),$(word 2,$(subst /, ,$(BUILD_PLATFORM))))))
-
 .PHONY: sm-k6-native
-sm-k6-native: $(DISTDIR)/$(HOST_OS)-$(HOST_ARCH)/k6-v1 $(DISTDIR)/$(HOST_OS)-$(HOST_ARCH)/k6-v2
+sm-k6-native:
+	@true
+
+# Args:
+# 1: OS
+# 2: Arch
+# 3: Tag
+# 4: Version
+define sm-k6-binary
+$(DISTDIR)/$(1)-$(2)/k6-$(3):
+	mkdir -p "$(DISTDIR)/$(1)-$(2)"
+	curl -sSL https://github.com/grafana/xk6-sm/releases/download/$(4)/sm-k6-$(1)-$(2) -o "$$@"
+	chmod +x "$$@"
+
+sm-k6: $(DISTDIR)/$(1)-$(2)/k6-$(3)
+
+ifeq ($(HOST_OS)-$(HOST_ARCH),$(1)-$(2))
+sm-k6-native: $(DISTDIR)/$(1)-$(2)/k6-$(3)
+endif
+endef
+
+$(foreach BUILD_PLATFORM,$(XK6_PLATFORMS), \
+	$(eval $(call sm-k6-binary,$(word 1,$(subst /, ,$(BUILD_PLATFORM))),$(word 2,$(subst /, ,$(BUILD_PLATFORM))),v1,$(K6_V1_VERSION))))
+
+$(foreach BUILD_PLATFORM,$(XK6_PLATFORMS), \
+	$(eval $(call sm-k6-binary,$(word 1,$(subst /, ,$(BUILD_PLATFORM))),$(word 2,$(subst /, ,$(BUILD_PLATFORM))),v2,$(K6_V2_VERSION))))

@@ -42,7 +42,7 @@ customManagers:
       - "**/Dockerfile.*"
       - "**/*.mk"
     matchStrings:
-      - "https://github.com/grafana/xk6-sm/releases/download/(?<currentValue>[^/]+)/[^\\s]+\\s.*k6-v1"
+      - "K6_V1_VERSION=(?<currentValue>\\S+)"
 
   - customType: "regex"
     depNameTemplate: "grafana/xk6-sm-v2"
@@ -54,4 +54,4 @@ customManagers:
       - "**/Dockerfile.*"
       - "**/*.mk"
     matchStrings:
-      - "https://github.com/grafana/xk6-sm/releases/download/(?<currentValue>[^/]+)/[^\\s]+\\s.*k6-v2"
+      - "K6_V2_VERSION=(?<currentValue>\\S+)"
