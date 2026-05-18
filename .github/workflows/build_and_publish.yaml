@@ -181,28 +181,15 @@ jobs:
     runs-on: ubuntu-x64
     permissions:
       contents: read
-      id-token: write
     outputs:
       image_name: ${{ steps.extract-image-metadata.outputs.image }}
       image_tag: ${{ steps.extract-image-metadata.outputs.tag }}
     steps:
-      - name: Retrieve release app credentials
-        id: get-secrets
-        uses: grafana/shared-workflows/actions/get-vault-secrets@7d18a46aafb8b875ed76a0bc98852d74b91e7f91  # v1.0.0
+      - name: Get GitHub App token
+        id: get-release-app-token
+        uses: grafana/shared-workflows/actions/create-github-app-token@580590a644e82e79bb2598bdaba0be245a14dda0 # create-github-app-token/v0.2.2
         with:
-          vault_instance: ops
-          repo_secrets: |
-            SM_RELEASE_APP_ID=github-app:app-id
-            SM_RELEASE_APP_PRIVATE_KEY=github-app:private-key
-
-      - name: Generate release app token
-        id: sm-release-app
-        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
-        with:
-          app-id: ${{ env.SM_RELEASE_APP_ID }}
-          private-key: ${{ env.SM_RELEASE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ needs.preflight.outputs.repo_name }}
+          github_app: sm-release-app
 
       - name: checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -277,7 +264,7 @@ jobs:
       - name: add packages to release
         id: add-packages-to-release
         env:
-          GH_TOKEN: ${{ steps.sm-release-app.outputs.token }}
+          GH_TOKEN: ${{ steps.get-release-app-token.outputs.token }}
         if: ${{ always() && inputs.mode == 'prod' }}
         run: |
           tag=${GITHUB_REF##*/}
