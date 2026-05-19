@@ -14,8 +14,9 @@ jobs:
     runs-on: ubuntu-arm64-small
 
     permissions:
-      contents: write
-      pull-requests: write
+      contents: write      # Needed for release-please-action
+      pull-requests: write # Needed for release-please-action
+      id-token: write      # Needed for create-github-app-token
 
     steps:
       - name: Get GitHub App token
