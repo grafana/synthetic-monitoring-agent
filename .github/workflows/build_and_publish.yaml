@@ -181,6 +181,7 @@ jobs:
     runs-on: ubuntu-x64
     permissions:
       contents: read
+      id-token: write
     outputs:
       image_name: ${{ steps.extract-image-metadata.outputs.image }}
       image_tag: ${{ steps.extract-image-metadata.outputs.tag }}
