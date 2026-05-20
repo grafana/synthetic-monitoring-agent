@@ -171,6 +171,10 @@ func TestBuildK6ArgsK6RefID(t *testing.T) {
 			script:     browserScript("my-job", "https://example.com", "probe-a"),
 			expK6RefID: `{"job":"my-job","instance":"https://example.com","probe":"probe-a"}`,
 		},
+		"ad-hoc browser check": {
+			script:     browserScript("", "https://example.com", "probe-a"), // empty job
+			expK6RefID: "",
+		},
 		"non-browser check with job and instance": {
 			script: Script{
 				CheckInfo: CheckInfo{

@@ -308,7 +308,11 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 
 	// For browser checks, set K6_CLOUD_PUSH_REF_ID env variable for FE O11y correlation.
 	if script.CheckInfo.Type == synthetic_monitoring.CheckTypeBrowser.String() {
-		if k6RefID, err := buildK6RefID(script.CheckInfo); err != nil {
+		if script.CheckInfo.Job == "" {
+			// This branch should identify ad-hoc browser checks.
+			// By now avoid setting the k6RefID for that case.
+			logger.Debug().Msg("Skipping k6RefID: check has no job")
+		} else if k6RefID, err := buildK6RefID(script.CheckInfo); err != nil {
 			logger.Warn().Err(err).Msg("error building k6RefID")
 		} else {
 			args = append(args, "-e", k6CloudPushRefIDEnvVar+"="+k6RefID)
