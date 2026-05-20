@@ -263,6 +263,16 @@ func (r Local) Versions(ctx context.Context) <-chan []string {
 }
 
 func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
+	var (
+		logger    *zerolog.Logger
+		nopLogger = zerolog.Nop()
+	)
+	if r.logger != nil {
+		logger = r.logger
+	} else {
+		logger = &nopLogger
+	}
+
 	args := []string{
 		"run",
 		"--out", "sm=" + metricsFn,
@@ -289,19 +299,17 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 	// Add secretStore configuration if available
 	if configFile != "" {
 		args = append(args, "--secret-source", "grafanasecrets=config="+configFile)
-		if r.logger != nil {
-			r.logger.Debug().
-				Str("configFile", configFile).
-				Msg("Adding secret source configuration to k6")
-		}
-	} else if r.logger != nil {
-		r.logger.Debug().Msg("No secret source configuration to add to k6")
+		logger.Debug().Str("configFile", configFile).Msg(
+			"Adding secret source configuration to k6",
+		)
+	} else {
+		logger.Debug().Msg("No secret source configuration to add to k6")
 	}
 
 	// For browser checks, set K6_CLOUD_PUSH_REF_ID env variable for FE O11y correlation.
 	if script.CheckInfo.Type == synthetic_monitoring.CheckTypeBrowser.String() {
 		if k6RefID, err := buildK6RefID(script.CheckInfo); err != nil {
-			r.logger.Warn().Err(err).Msg("error building k6RefID")
+			logger.Warn().Err(err).Msg("error building k6RefID")
 		} else {
 			args = append(args, "-e", k6CloudPushRefIDEnvVar+"="+k6RefID)
 		}
