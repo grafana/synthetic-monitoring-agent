@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.58.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.57.2...v0.58.0) (2026-06-01)
+
+
+### Features
+
+* Add support for xk6-sm v2 ([#1771](https://github.com/grafana/synthetic-monitoring-agent/issues/1771)) ([5c9e31a](https://github.com/grafana/synthetic-monitoring-agent/commit/5c9e31a781d350c3b80f910243bdc9ebb46f9c24))
+
+
+### Fixes
+
+* Add id-token: write for create-github-app-token ([2081da6](https://github.com/grafana/synthetic-monitoring-agent/commit/2081da69b154eb9cadbef7fb9cc572375898bf25))
+* **ci:** Fix build_and_publish publish images permissions ([#1826](https://github.com/grafana/synthetic-monitoring-agent/issues/1826)) ([f77bec5](https://github.com/grafana/synthetic-monitoring-agent/commit/f77bec5ecc8fd360ffd093ead55a579c6d3a3ac4))
+* Fix k6 version resolve log timestamp ([#1815](https://github.com/grafana/synthetic-monitoring-agent/issues/1815)) ([8ca4d3c](https://github.com/grafana/synthetic-monitoring-agent/commit/8ca4d3c75dd251badde3e9c7134d14f5895b7eca))
+* Migrate workflows to NOT use get-vault-secrets ([85d6917](https://github.com/grafana/synthetic-monitoring-agent/commit/85d6917fb473eae1e7d57fef7505cb1134f31dce))
+* Point release please at .github/release-please/release-please-manifest.json ([#1824](https://github.com/grafana/synthetic-monitoring-agent/issues/1824)) ([ba82cfe](https://github.com/grafana/synthetic-monitoring-agent/commit/ba82cfeffaba5cedf0484688067caad61901ae2f))
+
+
+### Miscellaneous Chores
+
+* Update docker:dind Docker digest to 6b9cd91 ([3d04c96](https://github.com/grafana/synthetic-monitoring-agent/commit/3d04c9622386aed956ce776efd0ca995c3b8825e))
+* Update docker/build-push-action action to v7.2.0 ([a6869d3](https://github.com/grafana/synthetic-monitoring-agent/commit/a6869d3951ef23e924b532b7ec3b7ec5cdd6b4ca))
+* Update docker/setup-buildx-action action to v4.1.0 ([f4f16a0](https://github.com/grafana/synthetic-monitoring-agent/commit/f4f16a090db03be0405c25709bc331c7e96eca99))
+* Update go module directive to v1.25.5 ([#1831](https://github.com/grafana/synthetic-monitoring-agent/issues/1831)) ([ea91503](https://github.com/grafana/synthetic-monitoring-agent/commit/ea9150331af4839fe0ad538e123941630ff6ca89))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.23.0 ([#1839](https://github.com/grafana/synthetic-monitoring-agent/issues/1839)) ([621bf6e](https://github.com/grafana/synthetic-monitoring-agent/commit/621bf6e95dd8c21ce31f69e6e4349f6b47d52a0a))
+* Update module golang.org/x/net to v0.54.0 ([e3be410](https://github.com/grafana/synthetic-monitoring-agent/commit/e3be410d74a5412aa71548da333fe73a709ccab7))
+* Update module golang.org/x/net to v0.55.0 [SECURITY] ([#1828](https://github.com/grafana/synthetic-monitoring-agent/issues/1828)) ([4a15270](https://github.com/grafana/synthetic-monitoring-agent/commit/4a152705c974706297b1a13f653ec18abfa8afb2))
+* Update module google.golang.org/grpc to v1.81.1 ([9466945](https://github.com/grafana/synthetic-monitoring-agent/commit/94669455b52f11410be6f98db96b5e109e911776))
+
 ## [0.57.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.57.1...v0.57.2) (2026-05-12)
 
 
