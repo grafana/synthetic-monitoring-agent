@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.58.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.58.0...v0.58.1) (2026-06-02)
+
+
+### Fixes
+
+* Push to GAR, not dockerhub ([5d02f1a](https://github.com/grafana/synthetic-monitoring-agent/commit/5d02f1a9033e9eafda91a54a8acf151ca7fb8437))
+
 ## [0.58.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.57.2...v0.58.0) (2026-06-01)
 
 
