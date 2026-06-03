@@ -274,12 +274,13 @@ jobs:
           find dist/ -mindepth 2 -maxdepth 2 -type f \( -name \*.rpm -o -name \*.deb -o -name \*.tar.gz \) -print0 |
             xargs -r0 gh release upload "$tag"
 
-      - name: push container images to GAR (no browser)
+      - name: push container images to docker hub via mirror (no browser)
         id: push-no-browser-to-docker-hub
         uses: grafana/shared-workflows/actions/docker-build-push-image@ef27c620a88acc9f3007f30be5e9407324e8975b # docker-build-push-image/v0.3.0
         with:
           registries: gar
-          gar-environment: ${{ inputs.mode }}
+          gar-environment: prod
+          gar-repository: dockerhub-${{ needs.preflight.outputs.repo_name }}-prod-mirror
           gar-image: ${{ needs.preflight.outputs.repo_name }}
           # Go thru the motions, but publish only in prod mode.
           push: ${{ inputs.mode == 'prod' }}
@@ -291,12 +292,13 @@ jobs:
             latest
           file: Dockerfile.no-browser
 
-      - name: push container images to GAR (browser)
+      - name: push container images to docker hub via mirror (browser)
         id: push-browser-to-docker-hub
         uses: grafana/shared-workflows/actions/docker-build-push-image@ef27c620a88acc9f3007f30be5e9407324e8975b # docker-build-push-image/v0.3.0
         with:
           registries: gar
-          gar-environment: ${{ inputs.mode }}
+          gar-environment: prod
+          gar-repository: dockerhub-${{ needs.preflight.outputs.repo_name }}-prod-mirror
           gar-image: ${{ needs.preflight.outputs.repo_name }}
           # Go thru the motions, but publish only in prod mode.
           push: ${{ inputs.mode == 'prod' }}
