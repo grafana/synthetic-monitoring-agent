@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.58.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.58.1...v0.58.2) (2026-06-03)
+
+
+### Fixes
+
+* **ci:** publish images to Docker Hub via GAR mirror ([#1845](https://github.com/grafana/synthetic-monitoring-agent/issues/1845)) ([a65e8bf](https://github.com/grafana/synthetic-monitoring-agent/commit/a65e8bf4bf3f928ba09cf8d7df617f9d0871af84))
+
+
+### Miscellaneous Chores
+
+* Update grafana/shared-workflows digest to ae92934 ([dfb9c5b](https://github.com/grafana/synthetic-monitoring-agent/commit/dfb9c5b48f40593ffe19a2b4d99d9bc354eec1c2))
+
 ## [0.58.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.58.0...v0.58.1) (2026-06-02)
 
 
