@@ -19,7 +19,7 @@ sm-k6-native:
 define sm-k6-binary
 $(DISTDIR)/$(1)-$(2)/k6-$(3):
 	mkdir -p "$(DISTDIR)/$(1)-$(2)"
-	curl -sSL https://github.com/grafana/xk6-sm/releases/download/$(4)/sm-k6-$(1)-$(2) -o "$$@"
+	curl -fsSL https://github.com/grafana/xk6-sm/releases/download/$(4)/sm-k6-$(1)-$(2) -o "$$@"
 	chmod +x "$$@"
 
 sm-k6: $(DISTDIR)/$(1)-$(2)/k6-$(3)
