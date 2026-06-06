@@ -494,6 +494,10 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 	return l.logLabelsLimit, nil
 }
 
+func (l testLabelsLimiter) LabelMode(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error) {
+	return sm.LabelMode_LABEL_MODE_PREFIXED, nil
+}
+
 func testScraperFactory(ctx context.Context, check model.Check, publisher pusher.Publisher, _ sm.Probe,
 	_ feature.Collection,
 	logger zerolog.Logger,

@@ -168,6 +168,13 @@ enum TenantStatus {
   DISABLED = 1;
 }
 
+// LabelMode controls how user-defined labels are written to metrics and logs.
+enum LabelMode {
+  LABEL_MODE_PREFIXED   = 0;  // default — legacy behavior; all user labels get label_ prefix
+  LABEL_MODE_DUAL_WRITE = 1;  // writes both label_foo and foo; reversible
+  LABEL_MODE_UNPREFIXED = 2;  // writes foo only; reserved names silently ignored; irreversible
+}
+
 // TenantLimits specifies the limits for a tenant.
 message TenantLimits {
   int64 maxChecks = 1 [(gogoproto.jsontag) = "maxChecks"];
@@ -196,6 +203,8 @@ message Tenant {
   TenantLimits limits = 8 [(gogoproto.jsontag) = "limits"]; // check and label limits
 
   repeated string costAttributionLabels = 9 [(gogoproto.jsontag) = "costAttributionLabels"]; // list of cost attribution label keys that must be set on checks
+
+  LabelMode label_mode = 10 [(gogoproto.jsontag) = "labelMode"]; // controls how user-defined labels are written to metrics and logs
 
   double created = 100 [(gogoproto.jsontag) = "created"]; // time the check was created
   double modified = 101 [(gogoproto.jsontag) = "modified"]; // last time modified

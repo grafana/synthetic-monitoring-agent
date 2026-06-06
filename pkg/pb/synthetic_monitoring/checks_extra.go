@@ -131,6 +131,68 @@ const (
 	HealthCheckTimeout  = 30 * time.Second
 )
 
+// systemLabels is the read-only set of label names reserved by the synthetic-monitoring-agent.
+// User-defined labels with these names are silently ignored by the agent when the
+// tenant's LabelMode is LABEL_MODE_DUAL_WRITE or LABEL_MODE_UNPREFIXED, and are
+// rejected by the API for tenants in dual-write mode or created after the feature epoch.
+//
+// This map must not be modified at runtime. Use IsSystemLabel to query it.
+//
+// # Adding a new reserved label name
+//
+// When a new label name is added here, it becomes reserved immediately for all tenants
+// under enforcement. The following contract applies:
+//
+//   - Pre-existing checks and probes that already use the newly-reserved name are NOT
+//     invalidated retroactively. They continue to execute and appear in list/get responses
+//     without error. There is no background scan or migration.
+//
+//   - For tenants in LABEL_MODE_DUAL_WRITE or LABEL_MODE_UNPREFIXED (and for all tenants
+//     created after the feature epoch), the next mutation of an affected check or probe
+//     (add, update, or re-enable) will return HTTP 400 with a message identifying the
+//     conflicting label. The user must rename the label before proceeding.
+//
+//   - Disabling an affected check is always allowed — disable never triggers reserved-label
+//     enforcement regardless of tenant mode, because a disabled check is never executed.
+//
+//   - The PREFIXED→DUAL_WRITE collision scan (CollectTenantLabelNames) will detect the
+//     newly-reserved label on ENABLED checks and block the mode transition until the user
+//     renames it. DISABLED checks are excluded from this scan by design.
+//
+//   - For tenants still in LABEL_MODE_PREFIXED and created before the feature epoch, no
+//     enforcement applies. Their checks continue to function normally; the newly-reserved
+//     label will appear with a label_ prefix (e.g. label_datacenter="eu"), which avoids
+//     the collision with the system label.
+var systemLabels = map[string]struct{}{
+	"check": {}, "check_name": {}, "cipher": {}, "config_version": {},
+	"fingerprint_sha256": {}, "frequency": {}, "from_cache": {},
+	"from_prefetch_cache": {}, "from_service_worker": {}, "geohash": {},
+	"instance": {}, "issuer": {}, "job": {}, "le": {}, "method": {},
+	"name": {}, "phase": {}, "probe": {}, "proto": {}, "rating": {},
+	"region": {}, "resource_type": {}, "result": {}, "scenario": {},
+	"serialnumber": {}, "status": {}, "subject": {}, "subjectalternative": {},
+	"tls_version": {}, "url": {}, "version": {},
+}
+
+// SystemLabelCount is the number of reserved system label names.
+const SystemLabelCount = 32
+
+// IsSystemLabel reports whether name is reserved by the synthetic-monitoring-agent.
+func IsSystemLabel(name string) bool {
+	_, ok := systemLabels[name]
+	return ok
+}
+
+// SystemLabelNames returns a sorted slice of all reserved system label names.
+// The result is a new slice on each call; callers must not modify it.
+func SystemLabelNames() []string {
+	names := make([]string, 0, len(systemLabels))
+	for n := range systemLabels {
+		names = append(names, n)
+	}
+	return names
+}
+
 const (
 	MaxMetricLabels          = 22   // Prometheus allows for 32 labels, but limit to 22.
 	MaxLogLabels             = 15   // Loki allows a maximum of 15 labels.
