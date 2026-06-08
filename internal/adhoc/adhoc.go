@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	prompb "github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
@@ -517,9 +518,12 @@ func (l *jsonLogger) Log(keyvals ...any) error {
 func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pusher.Publisher) {
 	r.logger.Info().Msg("running ad-hoc check")
 
-	registry := prometheus.NewRegistry()
-
-	logger := &jsonLogger{}
+	var (
+		logger   = &jsonLogger{}
+		registry = prometheus.NewRegistry()
+		// This is the execution ID for the check run.
+		executionID = uuid.New().String()
+	)
 
 	// TODO(mem): decide what to do with these metrics.
 	successGauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -586,6 +590,9 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 					{
 						Timestamp: start,
 						Line:      buf.String(),
+						StructuredMetadata: logproto.LabelsAdapter{
+							{Name: "execution_id", Value: executionID},
+						},
 					},
 				},
 			},

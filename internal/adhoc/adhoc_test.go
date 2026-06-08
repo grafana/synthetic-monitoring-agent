@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	"github.com/google/uuid"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
@@ -139,8 +140,12 @@ func TestHandlerRun(t *testing.T) {
 	require.Len(t, payload.Metrics(), 0)
 	require.Len(t, payload.Streams(), 1)
 
-	logBody := payload.Streams()[0].Entries[0].Line
-	require.Contains(t, logBody, "ad-hoc check done") // log must publish even when verbose is disabled for check tests
+	entry := payload.Streams()[0].Entries[0]
+	require.Contains(t, entry.Line, "ad-hoc check done") // log must publish even when verbose is disabled for check tests
+	require.Len(t, entry.StructuredMetadata, 1)
+	require.Equal(t, "execution_id", entry.StructuredMetadata[0].Name)
+	_, err = uuid.Parse(entry.StructuredMetadata[0].Value)
+	require.NoError(t, err, "execution_id should be a valid UUID")
 }
 
 type channelPublisher chan pusher.Payload
