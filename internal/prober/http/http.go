@@ -71,7 +71,7 @@ func (p Prober) Name() string {
 	return "http"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger) (bool, float64) {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger, _ string) (bool, float64) {
 	slogger := logger.ToSlog(l)
 	if p.cacheBustingQueryParamName != "" {
 		// FIXME(mem): the second target argument should be the probe's name

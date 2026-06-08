@@ -570,6 +570,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		s.summaries, s.histograms,
 		sl,
 		s.check.BasicMetricsOnly,
+		executionID,
 	)
 	if err != nil {
 		return nil, 0, err
@@ -689,10 +690,11 @@ func getProbeMetrics(
 	histograms map[uint64]prometheus.Histogram,
 	logger kitlog.Logger,
 	basicMetricsOnly bool,
+	executionID string,
 ) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
-	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger)
+	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger, executionID)
 
 	mfs, err := registry.Gather()
 	if err != nil {
@@ -723,6 +725,7 @@ func runProber(
 	registry *prometheus.Registry,
 	checkInfoLabels map[string]string,
 	logger kitlog.Logger,
+	executionID string,
 ) bool {
 	start := time.Now()
 
@@ -731,7 +734,7 @@ func runProber(
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	success, duration := prober.Probe(checkCtx, target, registry, logger)
+	success, duration := prober.Probe(checkCtx, target, registry, logger, executionID)
 
 	wallDuration := time.Since(start).Seconds()
 

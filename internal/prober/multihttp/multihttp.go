@@ -90,7 +90,7 @@ func (p Prober) Name() string {
 	return proberName
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, _ string) (bool, float64) {
 	secretStore, err := p.secretsRetriever(ctx)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("running probe")

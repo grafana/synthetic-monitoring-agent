@@ -873,7 +873,7 @@ func TestSettingsToScript(t *testing.T) {
 			userLogger := level.NewFilter(kitlog.NewLogfmtLogger(&buf), level.AllowInfo(), level.SquelchNoLevel(false))
 			require.NotNil(t, userLogger)
 
-			success, duration := prober.Probe(ctx, check.Target, reg, userLogger)
+			success, duration := prober.Probe(ctx, check.Target, reg, userLogger, "test-execution-id")
 
 			t.Log("Log entries:\n" + buf.String())
 

@@ -245,7 +245,7 @@ func TestProber(t *testing.T) {
 	logger := log.NewLogfmtLogger(os.Stdout)
 	require.NotNil(t, logger)
 
-	success, duration := prober.Probe(ctx, "127.0.0.1", registry, logger)
+	success, duration := prober.Probe(ctx, "127.0.0.1", registry, logger, "test-execution-id")
 	require.True(t, success)
 	require.Greater(t, duration, float64(0))
 }

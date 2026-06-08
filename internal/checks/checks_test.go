@@ -471,7 +471,7 @@ func (testProber) Name() string {
 	return "test-prober"
 }
 
-func (testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, _ string) (bool, float64) {
 	return false, 0
 }
 

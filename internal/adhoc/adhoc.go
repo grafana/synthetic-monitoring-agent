@@ -545,7 +545,7 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 	rCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
-	success, duration := r.prober.Probe(rCtx, r.target, registry, logger)
+	success, duration := r.prober.Probe(rCtx, r.target, registry, logger, executionID)
 
 	if success {
 		successGauge.Set(1)

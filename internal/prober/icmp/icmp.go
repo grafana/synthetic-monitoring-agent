@@ -48,7 +48,7 @@ func (p Prober) Name() string {
 	return "ping"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger) (bool, float64) {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger, _ string) (bool, float64) {
 	return probeICMP(ctx, target, p.config, registry, l)
 }
 

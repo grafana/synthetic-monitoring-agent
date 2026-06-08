@@ -167,6 +167,7 @@ func verifyProberMetrics(
 		histograms,
 		logger,
 		basicMetricsOnly,
+		"test-execution-id",
 	)
 
 	require.NoError(t, err, "probe failed")
@@ -1310,7 +1311,7 @@ func (p testProber) Name() string {
 	return "test prober"
 }
 
-func (p testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, _ string) (bool, float64) {
 	counter := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "test_counter",
 	})
@@ -1845,7 +1846,7 @@ func (p testProberB) Name() string {
 	return "test prober"
 }
 
-func (p *testProberB) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p *testProberB) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, _ string) (bool, float64) {
 	p.execCount++
 
 	if p.failureCount < p.wantedFailures {
