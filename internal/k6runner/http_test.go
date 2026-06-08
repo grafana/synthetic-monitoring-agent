@@ -44,6 +44,7 @@ func TestHttpRunnerRun(t *testing.T) {
 			Settings          Settings  `json:"settings"`
 			NotAfter          time.Time `json:"notAfter"`
 			K6ChannelManifest string    `json:"k6ChannelManifest"`
+			ExecutionID       string    `json:"executionId"`
 		}
 
 		err := json.NewDecoder(r.Body).Decode(&req)
@@ -65,6 +66,13 @@ func TestHttpRunnerRun(t *testing.T) {
 			t.Log("Unexpected empty channel manifest")
 			t.Fail()
 			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
+			return
+		}
+
+		if req.ExecutionID != "test-execution-id" {
+			t.Logf("unexpected executionID: got %q, want %q", req.ExecutionID, "test-execution-id")
+			t.Fail()
+			w.WriteHeader(400)
 			return
 		}
 

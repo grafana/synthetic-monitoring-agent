@@ -52,6 +52,7 @@ type HTTPRunRequest struct {
 	Script      `json:",inline"`
 	SecretStore SecretStore `json:",inline"`
 	NotAfter    time.Time   `json:"notAfter"`
+	ExecutionID string      `json:"executionId"`
 }
 
 type RunResponse struct {
@@ -84,7 +85,7 @@ func (r HttpRunner) WithLogger(logger *zerolog.Logger) Runner {
 
 var ErrUnexpectedStatus = errors.New("unexpected status code")
 
-func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretStore, _ string) (*RunResponse, error) {
+func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretStore, executionID string) (*RunResponse, error) {
 	if r.backoff == 0 {
 		panic("zero backoff, runner is misconfigured, refusing to DoS")
 	}
@@ -119,7 +120,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 
 		attempts += 1
 		var err error
-		response, err = r.request(ctx, script, secretStore)
+		response, err = r.request(ctx, script, secretStore, executionID)
 		if err == nil {
 			r.logger.Debug().Bytes("metrics", response.Metrics).Bytes("logs", response.Logs).Msg("script result")
 			r.metrics.Requests.With(map[string]string{metricLabelSuccess: "1", metricLabelRetriable: ""}).Inc()
@@ -163,7 +164,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 // errRetryable indicates that an error is retryable. It is typically joined with another error.
 var errRetryable = errors.New("retryable")
 
-func (r HttpRunner) request(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
+func (r HttpRunner) request(ctx context.Context, script Script, secretStore SecretStore, executionID string) (*RunResponse, error) {
 	checkTimeout := time.Duration(script.Settings.Timeout) * time.Millisecond
 	if checkTimeout == 0 {
 		return nil, ErrNoTimeout
@@ -191,6 +192,7 @@ func (r HttpRunner) request(ctx context.Context, script Script, secretStore Secr
 		Script:      script,
 		SecretStore: secretStore,
 		NotAfter:    notAfter,
+		ExecutionID: executionID,
 	}
 
 	reqBody, err := json.Marshal(runRequest)
