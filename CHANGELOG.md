@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.58.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.58.2...v0.58.3) (2026-06-08)
+
+
+### Fixes
+
+* Add architecture diagrams ([570371a](https://github.com/grafana/synthetic-monitoring-agent/commit/570371a2f1b1a4f11b096a4ad38ec1fc6861b970))
+* Make curl fail if it cannot download k6 ([99a46fd](https://github.com/grafana/synthetic-monitoring-agent/commit/99a46fdeedc019e8915095b4bdf62fb9bc6cc602))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm-v1 to v1.1.5 ([024c3c5](https://github.com/grafana/synthetic-monitoring-agent/commit/024c3c568f54eff9fbfd2afc8387d83a8565eae6))
+* Update docker:dind Docker digest to 7d85d0e ([34e34a5](https://github.com/grafana/synthetic-monitoring-agent/commit/34e34a5a4e387a980558a6bec008a0f8038ef87b))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v148 ([e02adfd](https://github.com/grafana/synthetic-monitoring-agent/commit/e02adfdfebdc051bceff31edf45294f995192a8e))
+* Update golang.org/x/exp digest to 055de63 ([cc927e4](https://github.com/grafana/synthetic-monitoring-agent/commit/cc927e4745d1b871e830b7b50cb5843b9873ed6f))
+* Update module golang.org/x/sync to v0.21.0 ([160dfd8](https://github.com/grafana/synthetic-monitoring-agent/commit/160dfd88ad725a9b1e45c03bc7d09bcb017ff7ad))
+
 ## [0.58.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.58.1...v0.58.2) (2026-06-03)
 
 
