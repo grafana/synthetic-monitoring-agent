@@ -92,7 +92,7 @@ func TestHttpRunnerRun(t *testing.T) {
 	ctx, cancel := testhelper.Context(ctx, t)
 	t.Cleanup(cancel)
 
-	_, err = runner.Run(ctx, script, SecretStore{})
+	_, err = runner.Run(ctx, script, SecretStore{}, "test-execution-id")
 	require.NoError(t, err)
 }
 
@@ -142,7 +142,7 @@ func TestHttpRunnerRunError(t *testing.T) {
 	ctx, cancel = testhelper.Context(ctx, t)
 	t.Cleanup(cancel)
 
-	_, err = runner.Run(ctx, script, SecretStore{})
+	_, err = runner.Run(ctx, script, SecretStore{}, "test-execution-id")
 	require.ErrorIs(t, err, ErrUnexpectedStatus)
 }
 
@@ -333,7 +333,7 @@ func TestScriptHTTPRun(t *testing.T) {
 				zlogger  = testhelper.Logger(t)
 			)
 
-			success, _, err := script.Run(ctx, registry, logger, zlogger, SecretStore{})
+			success, _, err := script.Run(ctx, registry, logger, zlogger, SecretStore{}, "test-execution-id")
 			require.Equal(t, tc.expectSuccess, success)
 			require.Equal(t, tc.expectLogs, logger.buf.String())
 			if tc.expectErrorAs == nil {
@@ -466,7 +466,7 @@ func TestHTTPProcessorRetries(t *testing.T) {
 					logger   testLogger
 					zlogger  = zerolog.New(io.Discard)
 				)
-				success, _, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
+				success, _, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{}, "test-execution-id")
 				require.ErrorIs(t, err, tc.expectError)
 				require.Equal(t, tc.expectError == nil, success)
 				require.Equal(t, tc.expectRequests, requests.Load())
@@ -512,7 +512,7 @@ func TestHTTPProcessorRetries(t *testing.T) {
 			logger   testLogger
 			zlogger  = zerolog.New(io.Discard)
 		)
-		success, _, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{})
+		success, _, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{}, "test-execution-id")
 		require.NoError(t, err)
 		require.True(t, success)
 	})

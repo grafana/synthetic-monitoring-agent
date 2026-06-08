@@ -97,7 +97,7 @@ type Runner interface {
 	// WithLogger returns a copy of the runner configured to use the specified logger.
 	WithLogger(logger *zerolog.Logger) Runner
 	// Run makes the runner run the script.
-	Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error)
+	Run(ctx context.Context, script Script, secretStore SecretStore, executionID string) (*RunResponse, error)
 	// Versions returns a channel to which the list of versions supported by this runner are pushed. Runner
 	// implementations that have a predictable list of versions over time may push a single list to the channel and then
 	// close it, while others may push lists of versions regularly as a result of polling a decoupled system.
@@ -170,11 +170,11 @@ var (
 	ErrFromRunner  = errors.New("runner reported an error")
 )
 
-func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger, secretStore SecretStore) (bool, time.Duration, error) {
+func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger, secretStore SecretStore, executionID string) (bool, time.Duration, error) {
 	k6runner := r.runner.WithLogger(&internalLogger)
 
 	// TODO: This error message is okay to be Debug for local k6 execution, but should be Error for remote runners.
-	result, err := k6runner.Run(ctx, r.script, secretStore)
+	result, err := k6runner.Run(ctx, r.script, secretStore, executionID)
 	if err != nil {
 		internalLogger.Debug().
 			Err(err).

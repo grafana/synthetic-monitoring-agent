@@ -36,7 +36,7 @@ func (r Local) WithLogger(logger *zerolog.Logger) Runner {
 	return r
 }
 
-func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
+func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, _ string) (*RunResponse, error) {
 	logger := r.logger.With().
 		Object("checkInfo", &script.CheckInfo).
 		Str("k6ChannelManifest", script.K6ChannelManifest).
