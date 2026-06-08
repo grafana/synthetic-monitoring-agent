@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/go-logfmt/logfmt"
+	"github.com/google/uuid"
 	logproto "github.com/grafana/loki/pkg/push"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
@@ -1590,6 +1591,12 @@ func TestScraperCollectData(t *testing.T) {
 				require.Equal(t, len(tc.expectedLogEntries), labelsFound)
 			}
 			require.NoError(t, dec.Err())
+
+			// Verify that the execution_id is present in the structured metadata.
+			require.Len(t, entry.StructuredMetadata, 1)
+			require.Equal(t, "execution_id", entry.StructuredMetadata[0].Name)
+			_, err := uuid.Parse(entry.StructuredMetadata[0].Value)
+			require.NoError(t, err, "execution_id should be a valid UUID")
 		}
 	}
 
@@ -2221,7 +2228,7 @@ func TestExtractLogsK6TimeOverridesDefaultTimestamp(t *testing.T) {
 				logger: testhelper.Logger(t),
 			}
 
-			streams := s.extractLogs(time.Now(), []byte(tc.logs), tc.sharedLabels)
+			streams := s.extractLogs(time.Now(), []byte(tc.logs), tc.sharedLabels, "test-execution-id")
 			tc.expected(t, streams)
 		})
 	}
