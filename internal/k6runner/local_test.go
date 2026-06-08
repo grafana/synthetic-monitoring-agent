@@ -95,7 +95,9 @@ func TestBuildK6Args(t *testing.T) {
 		scriptFn      string
 		blacklistedIP string
 		configFile    string
+		executionID   string
 		wantArgs      []string
+		wantAbsent    []string
 	}{
 		"script without secrets": {
 			metricsFn:     "/tmp/metrics.json",
@@ -103,11 +105,14 @@ func TestBuildK6Args(t *testing.T) {
 			scriptFn:      "/tmp/script.js",
 			blacklistedIP: "127.0.0.1",
 			configFile:    "",
+			executionID:   "test-exec-id",
 			wantArgs: []string{
 				"--out", "sm=/tmp/metrics.json",
 				"--log-output", "file=/tmp/logs.log",
 				"--blacklist-ip", "127.0.0.1",
+				"--vus", "--iterations",
 			},
+			wantAbsent: []string{k6CloudPushRefIDEnvVar},
 		},
 		"script with secrets": {
 			script:        Script{},
@@ -116,19 +121,47 @@ func TestBuildK6Args(t *testing.T) {
 			scriptFn:      "/tmp/script.js",
 			blacklistedIP: "127.0.0.1",
 			configFile:    configFilename,
+			executionID:   "test-exec-id",
 			wantArgs: []string{
 				"--out", "sm=/tmp/metrics.json",
 				"--log-output", "file=/tmp/logs.log",
 				"--blacklist-ip", "127.0.0.1",
 				"--secret-source", "grafanasecrets=config=" + configFilename,
+				"--vus", "--iterations",
 			},
+			wantAbsent: []string{k6CloudPushRefIDEnvVar},
+		},
+		"browser check sets K6_CLOUD_PUSH_REF_ID": {
+			script: Script{
+				CheckInfo: CheckInfo{Type: "browser"},
+			},
+			metricsFn:     "/tmp/metrics.json",
+			logsFn:        "/tmp/logs.log",
+			scriptFn:      "/tmp/script.js",
+			blacklistedIP: "127.0.0.1",
+			executionID:   "abc-123",
+			wantArgs: []string{
+				"-e", k6CloudPushRefIDEnvVar + "=sm:abc-123",
+			},
+			wantAbsent: []string{"--vus", "--iterations"},
+		},
+		"browser check with empty executionID omits K6_CLOUD_PUSH_REF_ID": {
+			script: Script{
+				CheckInfo: CheckInfo{Type: "browser"},
+			},
+			metricsFn:     "/tmp/metrics.json",
+			logsFn:        "/tmp/logs.log",
+			scriptFn:      "/tmp/script.js",
+			blacklistedIP: "127.0.0.1",
+			executionID:   "",
+			wantAbsent:    []string{k6CloudPushRefIDEnvVar, "--vus", "--iterations"},
 		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := Local{blacklistedIP: tt.blacklistedIP}
-			args, err := r.buildK6Args(tt.script, tt.metricsFn, tt.logsFn, tt.scriptFn, tt.configFile)
+			args, err := r.buildK6Args(tt.script, tt.metricsFn, tt.logsFn, tt.scriptFn, tt.configFile, tt.executionID)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return
@@ -139,6 +172,32 @@ func TestBuildK6Args(t *testing.T) {
 					t.Errorf("buildK6Args() missing expected argument got \n%v\nwant \n%v", args, want)
 				}
 			}
+			for _, absent := range tt.wantAbsent {
+				if slices.Contains(args, absent) {
+					t.Errorf("buildK6Args() should not contain %q, got \n%v", absent, args)
+				}
+			}
 		})
 	}
+}
+
+func TestBuildK6RefID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid executionID", func(t *testing.T) {
+		got, err := buildK6RefID("abc-123-def")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != "sm:abc-123-def" {
+			t.Errorf("buildK6RefID() = %q, want %q", got, "sm:abc-123-def")
+		}
+	})
+
+	t.Run("empty executionID returns error", func(t *testing.T) {
+		_, err := buildK6RefID("")
+		if err == nil {
+			t.Fatal("expected error for empty executionID, got nil")
+		}
+	})
 }
