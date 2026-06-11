@@ -52,7 +52,10 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 		return p, err
 	}
 
-	const multiHTTPManifest = "^1.0.0" // From v1 and up to, but _not_ including, v2.
+	// Use latest k6 version available.
+	// TestSettingsToScript verifies that multihttp implementation is
+	// compatible with each supported k6 version.
+	const multiHTTPManifest = "*"
 
 	p.module = Module{
 		Prober: sm.CheckTypeMultiHttp.String(),
