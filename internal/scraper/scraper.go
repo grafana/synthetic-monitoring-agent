@@ -12,11 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
-
 	kitlog "github.com/go-kit/kit/log" //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-kit/kit/log/level"  //nolint:staticcheck // TODO(mem): replace in BBE
 	"github.com/go-logfmt/logfmt"
+	"github.com/google/uuid"
 	"github.com/mmcloughlin/geohash"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -30,6 +29,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
@@ -508,6 +508,8 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		userLabels = s.buildUserLabels()
 		// These labels are applied to the sm_check_info metric.
 		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
+		// This is the execution ID for the check run.
+		executionID = uuid.New().String()
 	)
 
 	maxMetricLabels, err := s.labelsLimiter.MetricLabels(ctx, s.check.GlobalTenantID())
@@ -568,6 +570,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		s.summaries, s.histograms,
 		sl,
 		s.check.BasicMetricsOnly,
+		executionID,
 	)
 	if err != nil {
 		return nil, 0, err
@@ -604,9 +607,8 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	}
 	logLabels = append(logLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
 
-	// streams need to have all the labels applied to them because
-	// loki does not support joins
-	streams := s.extractLogs(t, logs.Bytes(), logLabels)
+	// streams need to have all the labels applied to them because loki does not support joins
+	streams := s.extractLogs(t, logs.Bytes(), logLabels, executionID)
 
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.GlobalTenantID()}, duration, err
 }
@@ -688,10 +690,11 @@ func getProbeMetrics(
 	histograms map[uint64]prometheus.Histogram,
 	logger kitlog.Logger,
 	basicMetricsOnly bool,
+	executionID string,
 ) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
-	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger)
+	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger, executionID)
 
 	mfs, err := registry.Gather()
 	if err != nil {
@@ -722,6 +725,7 @@ func runProber(
 	registry *prometheus.Registry,
 	checkInfoLabels map[string]string,
 	logger kitlog.Logger,
+	executionID string,
 ) bool {
 	start := time.Now()
 
@@ -730,7 +734,7 @@ func runProber(
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	success, duration := prober.Probe(checkCtx, target, registry, logger)
+	success, duration := prober.Probe(checkCtx, target, registry, logger, executionID)
 
 	wallDuration := time.Since(start).Seconds()
 
@@ -817,7 +821,7 @@ func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.
 	return nil
 }
 
-func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair) Streams {
+func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair, executionID string) Streams {
 	var line strings.Builder
 
 	dec := logfmt.NewDecoder(bytes.NewReader(logs))
@@ -880,6 +884,9 @@ RECORD:
 		entries = append(entries, logproto.Entry{
 			Timestamp: t,
 			Line:      line.String(),
+			StructuredMetadata: logproto.LabelsAdapter{
+				{Name: "execution_id", Value: executionID},
+			},
 		})
 	}
 

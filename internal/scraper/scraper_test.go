@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/go-logfmt/logfmt"
+	"github.com/google/uuid"
 	logproto "github.com/grafana/loki/pkg/push"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
@@ -166,6 +167,7 @@ func verifyProberMetrics(
 		histograms,
 		logger,
 		basicMetricsOnly,
+		"test-execution-id",
 	)
 
 	require.NoError(t, err, "probe failed")
@@ -1309,7 +1311,7 @@ func (p testProber) Name() string {
 	return "test prober"
 }
 
-func (p testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, _ string) (bool, float64) {
 	counter := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "test_counter",
 	})
@@ -1590,6 +1592,12 @@ func TestScraperCollectData(t *testing.T) {
 				require.Equal(t, len(tc.expectedLogEntries), labelsFound)
 			}
 			require.NoError(t, dec.Err())
+
+			// Verify that the execution_id is present in the structured metadata.
+			require.Len(t, entry.StructuredMetadata, 1)
+			require.Equal(t, "execution_id", entry.StructuredMetadata[0].Name)
+			_, err := uuid.Parse(entry.StructuredMetadata[0].Value)
+			require.NoError(t, err, "execution_id should be a valid UUID")
 		}
 	}
 
@@ -1790,7 +1798,7 @@ type testRunner struct {
 
 var _ k6runner.Runner = &testRunner{}
 
-func (r *testRunner) Run(ctx context.Context, script k6runner.Script, secretStore k6runner.SecretStore) (*k6runner.RunResponse, error) {
+func (r *testRunner) Run(ctx context.Context, script k6runner.Script, secretStore k6runner.SecretStore, _ string) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{
 		Metrics: r.metrics,
 		Logs:    r.logs,
@@ -1838,7 +1846,7 @@ func (p testProberB) Name() string {
 	return "test prober"
 }
 
-func (p *testProberB) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p *testProberB) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, _ string) (bool, float64) {
 	p.execCount++
 
 	if p.failureCount < p.wantedFailures {
@@ -2221,7 +2229,7 @@ func TestExtractLogsK6TimeOverridesDefaultTimestamp(t *testing.T) {
 				logger: testhelper.Logger(t),
 			}
 
-			streams := s.extractLogs(time.Now(), []byte(tc.logs), tc.sharedLabels)
+			streams := s.extractLogs(time.Now(), []byte(tc.logs), tc.sharedLabels, "test-execution-id")
 			tc.expected(t, streams)
 		})
 	}

@@ -51,7 +51,7 @@ func (p Prober) Name() string {
 	return "dns"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, _ string) (bool, float64) {
 	cfg := p.config
 
 	if p.experimental {

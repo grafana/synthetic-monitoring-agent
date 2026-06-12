@@ -42,7 +42,7 @@ func (p Prober) Name() string {
 	return "grpc"
 }
 
-func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger) (bool, float64) {
+func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger, _ string) (bool, float64) {
 	slogger := logger.ToSlog(l)
 	return bbeprober.ProbeGRPC(ctx, target, p.config, registry, slogger), 0
 }

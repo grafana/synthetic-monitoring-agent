@@ -471,7 +471,7 @@ func (testProber) Name() string {
 	return "test-prober"
 }
 
-func (testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
+func (testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, _ string) (bool, float64) {
 	return false, 0
 }
 
@@ -533,7 +533,7 @@ func (noopRunner) WithLogger(logger *zerolog.Logger) k6runner.Runner {
 	return r
 }
 
-func (noopRunner) Run(ctx context.Context, script k6runner.Script, secretStore k6runner.SecretStore) (*k6runner.RunResponse, error) {
+func (noopRunner) Run(ctx context.Context, script k6runner.Script, secretStore k6runner.SecretStore, _ string) (*k6runner.RunResponse, error) {
 	return &k6runner.RunResponse{}, nil
 }
 

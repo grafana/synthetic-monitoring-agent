@@ -21,7 +21,7 @@ var _ k6runner.Runner = (*fakeRunner)(nil)
 
 func (r *fakeRunner) WithLogger(_ *zerolog.Logger) k6runner.Runner { return r }
 
-func (r *fakeRunner) Run(_ context.Context, _ k6runner.Script, _ k6runner.SecretStore) (*k6runner.RunResponse, error) {
+func (r *fakeRunner) Run(_ context.Context, _ k6runner.Script, _ k6runner.SecretStore, _ string) (*k6runner.RunResponse, error) {
 	return nil, errors.New("not implemented")
 }
 

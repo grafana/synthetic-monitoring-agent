@@ -30,11 +30,11 @@ const errUnsupportedCheckType = error_types.BasicError("unsupported check type")
 
 type Prober interface {
 	Name() string
-	Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64)
+	Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (bool, float64)
 }
 
-func Run(ctx context.Context, p Prober, target string, registry *prometheus.Registry, logger logger.Logger) (bool, float64) {
-	return p.Probe(ctx, target, registry, logger)
+func Run(ctx context.Context, p Prober, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (bool, float64) {
+	return p.Probe(ctx, target, registry, logger, executionID)
 }
 
 type ProberFactory interface {

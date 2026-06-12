@@ -18,6 +18,13 @@ import (
 	"github.com/spf13/afero"
 )
 
+// k6CloudPushRefIDEnvVar is the name of the k6 runtime environment variable used to
+// tag browser tests as originated from Synthetic Monitoring. It contains a reference
+// to the check's execution ID. k6 will propagate this data to the window.k6 property,
+// which is parsed by FE O11y as a means to correlate between a specific browser session
+// and a check execution.
+const k6CloudPushRefIDEnvVar = "K6_CLOUD_PUSH_REF_ID"
+
 // secretSourceConfig represents the configuration for the secrets store
 type secretSourceConfig struct {
 	URL   string `json:"url"`
@@ -36,7 +43,7 @@ func (r Local) WithLogger(logger *zerolog.Logger) Runner {
 	return r
 }
 
-func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) (*RunResponse, error) {
+func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, executionID string) (*RunResponse, error) {
 	logger := r.logger.With().
 		Object("checkInfo", &script.CheckInfo).
 		Str("k6ChannelManifest", script.K6ChannelManifest).
@@ -118,7 +125,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore) 
 		logger.Warn().Msg("No secret store configuration available")
 	}
 
-	args, err := r.buildK6Args(script, metricsFn, logsFn, scriptFn, configFile)
+	args, err := r.buildK6Args(script, metricsFn, logsFn, scriptFn, configFile, executionID)
 	if err != nil {
 		return nil, fmt.Errorf("building k6 arguments: %w", err)
 	}
@@ -255,7 +262,17 @@ func (r Local) Versions(ctx context.Context) <-chan []string {
 	return ch
 }
 
-func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile string) ([]string, error) {
+func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile, executionID string) ([]string, error) {
+	var (
+		logger    *zerolog.Logger
+		nopLogger = zerolog.Nop()
+	)
+	if r.logger != nil {
+		logger = r.logger
+	} else {
+		logger = &nopLogger
+	}
+
 	args := []string{
 		"run",
 		"--out", "sm=" + metricsFn,
@@ -282,16 +299,20 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 	// Add secretStore configuration if available
 	if configFile != "" {
 		args = append(args, "--secret-source", "grafanasecrets=config="+configFile)
-		if r.logger != nil {
-			r.logger.Debug().
-				Str("configFile", configFile).
-				Msg("Adding secret source configuration to k6")
-		}
-	} else if r.logger != nil {
-		r.logger.Debug().Msg("No secret source configuration to add to k6")
+		logger.Debug().Str("configFile", configFile).Msg(
+			"Adding secret source configuration to k6",
+		)
+	} else {
+		logger.Debug().Msg("No secret source configuration to add to k6")
 	}
 
-	if script.CheckInfo.Type != synthetic_monitoring.CheckTypeBrowser.String() {
+	if script.CheckInfo.Type == synthetic_monitoring.CheckTypeBrowser.String() {
+		if k6RefID, err := buildK6RefID(executionID); err != nil {
+			logger.Warn().Err(err).Msg("error building k6RefID")
+		} else {
+			args = append(args, "-e", k6CloudPushRefIDEnvVar+"="+k6RefID)
+		}
+	} else {
 		args = append(args,
 			"--vus", "1",
 			"--iterations", "1",
@@ -301,6 +322,15 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 	args = append(args, scriptFn)
 
 	return args, nil
+}
+
+// buildK6RefID builds the K6 Cloud Ref. ID by prefixing the
+// Synthetic Monitoring check executionID with "sm:".
+func buildK6RefID(executionID string) (string, error) {
+	if executionID == "" {
+		return "", fmt.Errorf("executionID is empty")
+	}
+	return "sm:" + executionID, nil
 }
 
 func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
