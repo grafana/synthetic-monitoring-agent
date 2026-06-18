@@ -15,6 +15,9 @@ jobs:
     strategy:
       matrix:
         runner: [ ubuntu-latest, github-hosted-ubuntu-arm64 ]
+        include:
+          - runner: ubuntu-latest
+            build_catalogue: true
     runs-on: ${{ matrix.runner }}
 
     permissions:
@@ -107,10 +110,10 @@ jobs:
             latest-browser
           target: with-browser
 
-      # Run the runtime catalogue validation once per CI on ubuntu-latest rather
-      # than repeating the same loaded-image test on both matrix legs.
+      # Run the runtime catalogue validation once per CI rather than repeating
+      # the same loaded-image test on both matrix legs.
       - name: build browser image for runtime catalogue tests
-        if: matrix.runner == 'ubuntu-latest'
+        if: matrix.build_catalogue
         uses: grafana/shared-workflows/actions/docker-build-push-image@ef27c620a88acc9f3007f30be5e9407324e8975b # docker-build-push-image/v0.3.0
         with:
           registries: dockerhub
@@ -127,11 +130,11 @@ jobs:
           load: true
 
       - name: build runtime catalogue integration test binary
-        if: matrix.runner == 'ubuntu-latest'
+        if: matrix.build_catalogue
         run: CGO_ENABLED=0 go test -c -o dist/runtime-catalogue-integration.test ./internal/scraper
 
       - name: run runtime catalogue integration tests
-        if: matrix.runner == 'ubuntu-latest'
+        if: matrix.build_catalogue
         # This runs the browser-capable runtime catalogue tests as a best-effort
         # integration signal while the job shape is still being proven out.
         continue-on-error: true
