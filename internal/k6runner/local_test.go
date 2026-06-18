@@ -1,10 +1,14 @@
 package k6runner
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"slices"
+	"strings"
 	"testing"
+
+	"github.com/spf13/afero"
 )
 
 func TestCreateSecretConfigFile(t *testing.T) {
@@ -45,7 +49,7 @@ func TestCreateSecretConfigFile(t *testing.T) {
 				return
 			}
 
-			if info.Mode().Perm() != 0600 {
+			if info.Mode().Perm() != 0o600 {
 				t.Errorf("expected file permissions 0600, got %v", info.Mode().Perm())
 			}
 
@@ -176,6 +180,98 @@ func TestBuildK6Args(t *testing.T) {
 				if slices.Contains(args, absent) {
 					t.Errorf("buildK6Args() should not contain %q, got \n%v", absent, args)
 				}
+			}
+		})
+	}
+}
+
+func TestReadFileLimit(t *testing.T) {
+	t.Parallel()
+
+	writeFile := func(fs afero.Fs, name, content string) {
+		t.Helper()
+		if err := afero.WriteFile(fs, name, []byte(content), 0o600); err != nil {
+			t.Fatalf("writing test file: %v", err)
+		}
+	}
+
+	tests := map[string]struct {
+		fileContent   string
+		limit         int64
+		existing      string // pre-filled content in the buffer (not counted toward limit)
+		wantContent   string
+		wantTruncated bool
+	}{
+		"file fits within limit": {
+			fileContent:   "line one\nline two\n",
+			limit:         100,
+			wantContent:   "line one\nline two\n",
+			wantTruncated: false,
+		},
+		"file fits exactly at limit": {
+			fileContent:   "line one\nline two\n", // 18 bytes
+			limit:         18,
+			wantContent:   "line one\nline two\n",
+			wantTruncated: false,
+		},
+		"limit falls mid-line: partial line is dropped": {
+			// limit falls inside "line three", so "line three\n" is dropped entirely
+			fileContent:   "line one\nline two\nline three\n",
+			limit:         20, // "line one\nline two\n" is 18 bytes; limit cuts 2 bytes into "line three"
+			wantContent:   "line one\nline two\n",
+			wantTruncated: true,
+		},
+		"large final line straddling limit is dropped, not truncated": {
+			// Simulates a large httpDebug response line that pushes past the limit.
+			// The preceding small lines should be kept; the large line should be dropped entirely.
+			fileContent:   "small line one\nsmall line two\n" + strings.Repeat("x", 50),
+			limit:         50, // cuts into the large line
+			wantContent:   "small line one\nsmall line two\n",
+			wantTruncated: true,
+		},
+		"pre-existing buffer content is not counted toward limit": {
+			existing:      "pre-existing line\n",
+			fileContent:   "file line one\nfile line two\n",
+			limit:         100, // more than enough for the file content
+			wantContent:   "pre-existing line\nfile line one\nfile line two\n",
+			wantTruncated: false,
+		},
+		"pre-existing buffer content is not counted toward limit, file truncated": {
+			existing:      "pre-existing line\n",
+			fileContent:   "file line one\nfile line two\n",
+			limit:         20, // cuts into "file line two\n"
+			wantContent:   "pre-existing line\nfile line one\n",
+			wantTruncated: true,
+		},
+		// edge case: when there is not a newline in the existing buffer, partial content is kept
+		"no newline in existing: partial line is kept up to the limit": {
+			existing:      "",
+			fileContent:   "line one line two\n",
+			limit:         5,
+			wantContent:   "line ",
+			wantTruncated: true,
+		},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := afero.NewMemMapFs()
+			writeFile(fs, "test.log", tt.fileContent)
+
+			existing := &bytes.Buffer{}
+			existing.WriteString(tt.existing)
+
+			got, truncated, err := readFileLimit(fs, "test.log", tt.limit, existing)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if truncated != tt.wantTruncated {
+				t.Errorf("truncated = %v, want %v", truncated, tt.wantTruncated)
+			}
+			if got.String() != tt.wantContent {
+				t.Errorf("content mismatch:\ngot:  %q\nwant: %q", got.String(), tt.wantContent)
 			}
 		})
 	}
