@@ -1459,10 +1459,10 @@ func TestScraperCollectData(t *testing.T) {
 
 	var (
 		baseExpectedMetricLabels = map[string]string{
-			"config_version": strconv.Itoa(modifiedTs * 1_000_000_000),
-			"instance":       checkTarget,
-			"job":            job,
-			"probe":          probeName,
+			configVersionLabelName: strconv.Itoa(modifiedTs * 1_000_000_000),
+			"instance":             checkTarget,
+			"job":                  job,
+			"probe":                probeName,
 			// "source":         CheckInfoSource,
 		}
 		baseExpectedInfoLabels = map[string]string{

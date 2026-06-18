@@ -35,11 +35,11 @@ func TestCatalogueFromReaderDNSGoldenIncludesSerial(t *testing.T) {
 // names across repeated series for the same metric family.
 func TestCatalogueFromTimeseries(t *testing.T) {
 	catalogue := CatalogueFromTimeseries(TimeSeries{
-		{Labels: []prompb.Label{{Name: "__name__", Value: "probe_success"}, {Name: "config_version", Value: "1"}, {Name: "job", Value: "j"}}},
-		{Labels: []prompb.Label{{Name: "__name__", Value: "probe_success"}, {Name: "config_version", Value: "2"}, {Name: "probe", Value: "p"}}},
+		{Labels: []prompb.Label{{Name: "__name__", Value: "probe_success"}, {Name: configVersionLabelName, Value: "1"}, {Name: "job", Value: "j"}}},
+		{Labels: []prompb.Label{{Name: "__name__", Value: "probe_success"}, {Name: configVersionLabelName, Value: "2"}, {Name: "probe", Value: "p"}}},
 	})
 
-	expected := []string{"config_version", "job", "probe"}
+	expected := []string{configVersionLabelName, "job", "probe"}
 	got := catalogue["probe_success"]
 	if len(got) != len(expected) {
 		t.Fatalf("unexpected labels: %v", got)
@@ -55,11 +55,11 @@ func TestCatalogueFromTimeseries(t *testing.T) {
 // fixture and runtime catalogue contract tests.
 func TestCompareMetricCatalogue(t *testing.T) {
 	expected := MetricLabelCatalogue{
-		"probe_success":    {"config_version"},
+		"probe_success":    {configVersionLabelName},
 		"probe_dns_serial": {},
 	}
 	observed := MetricLabelCatalogue{
-		"probe_success":    {"config_version", "unexpected_label"},
+		"probe_success":    {configVersionLabelName, "unexpected_label"},
 		"probe_other":      {},
 		"probe_dns_serial": {},
 	}

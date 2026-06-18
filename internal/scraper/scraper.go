@@ -44,8 +44,9 @@ const (
 )
 
 const (
-	probeLabelName  = "probe"
-	regionLabelName = "region"
+	probeLabelName         = "probe"
+	regionLabelName        = "region"
+	configVersionLabelName = "config_version"
 )
 
 var (
@@ -588,7 +589,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	// outside this function?
 	metricLabels := []labelPair{
 		{name: probeLabelName, value: s.probe.Name},
-		{name: "config_version", value: s.check.ConfigVersion()},
+		{name: configVersionLabelName, value: s.check.ConfigVersion()},
 		{name: "instance", value: s.check.Target},
 		{name: "job", value: s.check.Job},
 		// {name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
