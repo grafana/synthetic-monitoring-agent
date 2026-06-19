@@ -116,6 +116,8 @@ github.com/googleapis/gax-go/v2 v2.22.0 h1:PjIWBpgGIVKGoCXuiCoP64altEJCj3/Ei+kSU
 github.com/googleapis/gax-go/v2 v2.22.0/go.mod h1:irWBbALSr0Sk3qlqb9SyJ1h68WjgeFuiOzI4Rqw5+aY=
 github.com/grafana/gsm-api-go-client v0.3.4 h1:invc+CMwYgh6k7K1fGHg6ODYHbYiCcjjoPMSSRU77aE=
 github.com/grafana/gsm-api-go-client v0.3.4/go.mod h1:6Rwz3URlHhfT/5cC0SlxgHVRzSZC8OO6lgisobVaKLA=
+github.com/grafana/ckit v0.0.0-20251024151910-87043f5a3cf7 h1:ht6BCnZ9DBo+ZjeyxB7aungT/HtDwlWNJypHkKrL1kk=
+github.com/grafana/ckit v0.0.0-20251024151910-87043f5a3cf7/go.mod h1:OoVSd3NXKXf5Bz47bvWyO1yZBVImyTrHHgw0wW5eIrU=
 github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96 h1:wdu17bfMs5kQZHWzXG6abUHBZNLhIHE6K+LN8PvRIHk=
 github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96/go.mod h1:QClrwZWT4u0N/O0Z0zKnRn36D51XTJMMmy7ICgaECd0=
 github.com/grafana/mtr v0.1.1-0.20221107202107-a9806fdda166 h1:COSDtVDArtLKK9p+mkUlPXCfWFslQFVVuQos39vxQrU=
