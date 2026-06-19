@@ -657,7 +657,7 @@ func TestProbeTenantCh(t *testing.T) {
 
 		require.NoError(t, err)
 		u.probe = &sm.Probe{Id: 1, TenantId: 42}
-		u.notifyProbeTenant()
+		u.notifyProbeRegistered()
 		got := <-probeTenantCh
 		require.Equal(t, u.probe.TenantId, got.TenantId)
 	})
@@ -675,10 +675,10 @@ func TestProbeTenantCh(t *testing.T) {
 
 		require.NoError(t, err)
 		u.probe = &sm.Probe{Id: 1, TenantId: 42}
-		u.notifyProbeTenant()
+		u.notifyProbeRegistered()
 
 		u.probe = &sm.Probe{Id: 2, TenantId: 43}
-		u.notifyProbeTenant()
+		u.notifyProbeRegistered()
 
 		// Confirm that the returned value is the first probe id sent to the channel
 		got := <-probeCh
@@ -701,7 +701,49 @@ func TestProbeTenantCh(t *testing.T) {
 		require.NoError(t, err)
 		u.probe = &sm.Probe{Id: 1, TenantId: 42}
 		require.NotPanics(t, func() {
-			u.notifyProbeTenant()
+			u.notifyProbeRegistered()
 		})
+	})
+
+	t.Run("invokes OnProbeRegistered callback with the probe", func(t *testing.T) {
+		var got *sm.Probe
+		u, err := NewUpdater(UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(make(chan pusher.Payload)),
+			TenantCh:       make(chan<- sm.Tenant),
+			Logger:         testhelper.Logger(t),
+			OnProbeRegistered: func(p *sm.Probe) {
+				got = p
+			},
+		})
+
+		require.NoError(t, err)
+		u.probe = &sm.Probe{Id: 1, TenantId: 42, Name: "shark-taco", Region: "us"}
+		u.notifyProbeRegistered()
+		require.NotNil(t, got)
+		require.Equal(t, "shark-taco", got.Name)
+		require.Equal(t, "us", got.Region)
+	})
+
+	t.Run("OnProbeRegistered fires at most once", func(t *testing.T) {
+		var count int
+		u, err := NewUpdater(UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(make(chan pusher.Payload)),
+			TenantCh:       make(chan<- sm.Tenant),
+			Logger:         testhelper.Logger(t),
+			OnProbeRegistered: func(*sm.Probe) {
+				count++
+			},
+		})
+
+		require.NoError(t, err)
+		u.probe = &sm.Probe{Id: 1}
+		u.notifyProbeRegistered()
+		u.notifyProbeRegistered()
+		u.notifyProbeRegistered()
+		require.Equal(t, 1, count)
 	})
 }
