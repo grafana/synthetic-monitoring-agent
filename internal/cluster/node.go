@@ -1,6 +1,10 @@
 package cluster
 
-import "github.com/grafana/synthetic-monitoring-agent/internal/model"
+import (
+	"github.com/grafana/ckit/shard"
+
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+)
 
 // Node is an agent's view of itself as a member of the cluster. Each agent holds
 // one Node and uses it to decide which checks it should run.
@@ -22,3 +26,17 @@ func NewMono() Node { return monoNode{} }
 func (monoNode) IsOwner(model.GlobalID) (bool, error) { return true, nil }
 
 func (monoNode) Ready() bool { return true }
+
+// ringNode is the gossip-backed implementation of Node.
+type ringNode struct {
+	sharder shard.Sharder
+}
+
+// IsOwner reports whether the local node owns (should run) the check.
+func (n *ringNode) IsOwner(globalID model.GlobalID) (bool, error) {
+	owners, err := n.sharder.Lookup(keyOf(globalID), 1, shard.OpReadWrite)
+	if err != nil {
+		return false, err
+	}
+	return owners[0].Self, nil
+}
