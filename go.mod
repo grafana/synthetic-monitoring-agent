@@ -34,6 +34,7 @@ require (
 	github.com/felixge/httpsnoop v1.1.0
 	github.com/go-kit/log v0.2.1
 	github.com/gogo/status v1.1.1
+	github.com/grafana/ckit v0.0.0-20251024151910-87043f5a3cf7
 	github.com/grafana/gsm-api-go-client v0.3.5
 	github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96
 	github.com/jpillora/backoff v1.0.0
@@ -72,6 +73,7 @@ require (
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.1 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
