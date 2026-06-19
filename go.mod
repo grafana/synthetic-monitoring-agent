@@ -34,6 +34,7 @@ require (
 	github.com/felixge/httpsnoop v1.1.0
 	github.com/go-kit/log v0.2.1
 	github.com/gogo/status v1.1.1
+	github.com/grafana/ckit v0.0.0-20251024151910-87043f5a3cf7
 	github.com/grafana/gsm-api-go-client v0.3.1
 	github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96
 	github.com/jpillora/backoff v1.0.0
