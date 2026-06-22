@@ -811,6 +811,51 @@ func TestReconcileAllFirstBatch(t *testing.T) {
 	})
 }
 
+// TestRequestReconcileCoalesces verifies that bursts of reconcile requests
+// collapse into a single pending notification and never block the caller.
+func TestRequestReconcileCoalesces(t *testing.T) {
+	u := newTestUpdater(t, newFakeNode())
+
+	for range 10 {
+		u.RequestReconcile()
+	}
+
+	require.Len(t, u.reconcileCh, 1)
+}
+
+// TestReconcileLoopReconciles verifies that a reconcile request drives
+// reconcileAll through the drain loop: a buffered, newly-owned check starts.
+func TestReconcileLoopReconciles(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		node := newFakeNode()
+		u := newTestUpdater(t, node)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		go u.runReconcileLoop(ctx)
+
+		check := validCheck(t, 9000)
+		cid := check.GlobalID()
+
+		// Not owned: the add is buffered but starts no scraper.
+		node.setOwned(cid, false)
+		require.NoError(t, u.handleCheckAdd(ctx, check))
+		require.False(t, scraperExists(u, cid))
+
+		// Ownership gained + a reconcile request: the loop starts the check.
+		node.setOwned(cid, true)
+		u.RequestReconcile()
+		synctest.Wait()
+
+		require.True(t, scraperExists(u, cid))
+		require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+		cancel()
+		synctest.Wait()
+	})
+}
+
 // fakeNode is a cluster.Node with directly controllable ownership, used to drive
 // the Updater's ownership filtering without a real gossip ring.
 type fakeNode struct {

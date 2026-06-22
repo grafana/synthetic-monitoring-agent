@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -85,6 +86,7 @@ type Updater struct {
 	scrapers                map[model.GlobalID]*scraper.Scraper
 	node                    cluster.Node
 	knownChecks             map[model.GlobalID]model.Check
+	reconcileCh             chan struct{}
 	metrics                 metrics
 	k6Runner                k6runner.Runner
 	scraperFactory          scraper.Factory
@@ -262,6 +264,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
 		node:                    node,
 		knownChecks:             make(map[model.GlobalID]model.Check),
+		reconcileCh:             make(chan struct{}, 1),
 		k6Runner:                opts.K6Runner,
 		scraperFactory:          scraperFactory,
 		tenantLimits:            opts.TenantLimits,
@@ -284,6 +287,8 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 
 func (c *Updater) Run(ctx context.Context) error {
 	c.backoff.Reset()
+
+	go c.runReconcileLoop(ctx)
 
 	for {
 		wasConnected, err := c.loop(ctx)
@@ -953,6 +958,39 @@ func (c *Updater) reconcileCheckWithLock(ctx context.Context, cid model.GlobalID
 	}
 
 	return nil
+}
+
+// RequestReconcile schedules a reconciliation of all checks. It is called by the
+// cluster wrapper whenever membership changes. The send is non-blocking and
+// coalescing: if a reconcile is already pending, the request is dropped because
+// the pending one will observe the latest membership anyway.
+func (c *Updater) RequestReconcile() {
+	select {
+	case c.reconcileCh <- struct{}{}:
+	default:
+		// a reconcile is already pending; coalesce
+	}
+}
+
+// runReconcileLoop drains reconcile requests and applies them one at a time,
+// behind a rate limiter so bursts of membership changes (e.g. during cluster
+// startup) settle into a bounded number of reconciliations. It runs until ctx is
+// cancelled.
+func (c *Updater) runReconcileLoop(ctx context.Context) {
+	limiter := rate.NewLimiter(rate.Every(time.Second), 1)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-c.reconcileCh:
+			if err := limiter.Wait(ctx); err != nil {
+				return
+			}
+			c.reconcileAll(ctx)
+		}
+	}
 }
 
 // reconcileAll drives every check to its desired state, starting newly-owned
