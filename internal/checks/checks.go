@@ -24,6 +24,7 @@ import (
 	logproto "github.com/grafana/loki/pkg/push"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
+	"github.com/grafana/synthetic-monitoring-agent/internal/cluster"
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -82,6 +83,8 @@ type Updater struct {
 	probe                   *sm.Probe
 	scrapersMutex           sync.Mutex
 	scrapers                map[model.GlobalID]*scraper.Scraper
+	node                    cluster.Node
+	knownChecks             map[model.GlobalID]model.Check
 	metrics                 metrics
 	k6Runner                k6runner.Runner
 	scraperFactory          scraper.Factory
@@ -124,6 +127,7 @@ type UpdaterOptions struct {
 	Features                feature.Collection
 	K6Runner                k6runner.Runner
 	ScraperFactory          scraper.Factory
+	Node                    cluster.Node
 	TenantLimits            *limits.TenantLimits
 	SecretProvider          secrets.SecretProvider
 	Telemeter               *telemetry.Telemeter
@@ -237,6 +241,13 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		scraperFactory = opts.ScraperFactory
 	}
 
+	node := opts.Node
+	if node == nil {
+		// Clustering disabled: a single-node cluster that owns every check,
+		// preserving the agent's pre-clustering behavior.
+		node = cluster.NewMono()
+	}
+
 	return &Updater{
 		api: apiInfo{
 			conn: opts.Conn,
@@ -249,6 +260,8 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		probeCh:                 opts.ProbeCh,
 		IsConnected:             opts.IsConnected,
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
+		node:                    node,
+		knownChecks:             make(map[model.GlobalID]model.Check),
 		k6Runner:                opts.K6Runner,
 		scraperFactory:          scraperFactory,
 		tenantLimits:            opts.TenantLimits,
@@ -672,16 +685,20 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
-	if running, found := c.scrapers[check.GlobalID()]; found {
+	cid := check.GlobalID()
+
+	if running, found := c.scrapers[cid]; found {
 		// we can get here if the API sent us a check add twice:
 		// once during the initial connection and another right
 		// after that. The window for that is small, but it
 		// exists.
 
-		return fmt.Errorf("check with id %d already exists (version %s)", check.GlobalID(), running.ConfigVersion())
+		return fmt.Errorf("check with id %d already exists (version %s)", cid, running.ConfigVersion())
 	}
 
-	return c.addAndStartScraperWithLock(ctx, check)
+	c.knownChecks[cid] = check
+
+	return c.reconcileCheckWithLock(ctx, cid)
 }
 
 func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) error {
@@ -701,23 +718,8 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) erro
 // MUST be called with the scrapersMutex lock held.
 func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check model.Check) error {
 	cid := check.GlobalID()
-
-	scraper, found := c.scrapers[cid]
-	if !found {
-		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("update request for an unknown check")
-		return c.addAndStartScraperWithLock(ctx, check)
-	}
-
-	// this is the lazy way to update the scraper: tear everything
-	// down, start it again.
-
-	scraper.Stop()
-	checkType := scraper.CheckType().String()
-	delete(c.scrapers, cid)
-
-	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
-
-	return c.addAndStartScraperWithLock(ctx, check)
+	c.knownChecks[cid] = check
+	return c.reconcileCheckWithLock(ctx, cid)
 }
 
 func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) error {
@@ -728,20 +730,14 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) erro
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
-	scraper, found := c.scrapers[cid]
-	if !found {
+	if _, found := c.knownChecks[cid]; !found {
 		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("delete request for an unknown check")
 		return errors.New("check not found")
 	}
 
-	scraper.Stop()
-	checkType := scraper.CheckType().String()
+	delete(c.knownChecks, cid)
 
-	delete(c.scrapers, cid)
-
-	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
-
-	return nil
+	return c.reconcileCheckWithLock(ctx, cid)
 }
 
 // handleFirstBatch takes a list of changes and adds them to the running set
@@ -760,35 +756,18 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) erro
 // We have to do this exactly once per reconnect. It's up to the calling code
 // to ensure this.
 func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
-	newChecks := make(map[model.GlobalID]struct{})
-
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
-	// add checks from the provided list
+	// Rebuild the desired set from scratch. Anything the server doesn't resend
+	// in the first batch is no longer ours: it gets left out of knownChecks and
+	// reconcileAll stops its scraper as an orphan.
+	knownChecks := make(map[model.GlobalID]model.Check, len(changes.Checks))
+
 	for _, checkChange := range changes.Checks {
 		c.logger.Debug().Interface("check change", checkChange).Msg("got check change")
 
-		switch checkChange.Operation {
-		case sm.CheckOperation_CHECK_ADD:
-			var check model.Check
-			if err := check.FromSM(checkChange.Check); err != nil {
-				c.logger.Error().Err(err).Interface("check_change", checkChange).Msg("dropping check during add operation")
-				continue
-			}
-
-			if err := c.handleInitialChangeAddWithLock(ctx, check); err != nil {
-				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
-				c.logger.Error().Err(err).Int64("check_id", check.Id).Int("region_id", check.RegionId).
-					Msg("adding check failed, dropping check")
-				continue
-			}
-
-			// add this to the list of checks we have seen during
-			// this operation
-			newChecks[check.GlobalID()] = struct{}{}
-
-		default:
+		if checkChange.Operation != sm.CheckOperation_CHECK_ADD {
 			// we should never hit this because the first time we
 			// connect the server will only send adds.
 			c.logger.Warn().
@@ -797,64 +776,28 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 				Msg("unexpected operation, dropping check change")
 			continue
 		}
-	}
 
-	// remove all the running scrapers that weren't sent with the first batch
-	for id, scraper := range c.scrapers {
-		if _, found := newChecks[id]; found {
+		var check model.Check
+		if err := check.FromSM(checkChange.Check); err != nil {
+			c.logger.Error().Err(err).Interface("check_change", checkChange).Msg("dropping check during add operation")
 			continue
 		}
 
-		cid, rid := model.GetLocalAndRegionIDs(id)
-		c.logger.Debug().
-			Int64("check_id", cid).
-			Int("region_id", rid).
-			Msg("stopping scraper during first batch handling")
+		c.metrics.changesCounter.WithLabelValues("add").Inc()
 
-		checkType := scraper.CheckType().String()
-		scraper.Stop()
-
-		delete(c.scrapers, id)
-
-		c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
-	}
-}
-
-// handleCheckUpdateWithLock the specified check to the running checks.
-//
-// It deals with the case where this check is the product of a reconnection
-// and changes the operation to an update if necessary.
-//
-// This function MUST be called with the scrapers mutex held.
-func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check model.Check) error {
-	if running, found := c.scrapers[check.GlobalID()]; found {
-		oldVersion := running.ConfigVersion()
-		newVersion := check.ConfigVersion()
-
-		if oldVersion == newVersion {
-			// we already have this, skip
-			//
-			// XXX(mem): beware, the probe might have changed
-			return nil
+		if err := check.Validate(); err != nil {
+			c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
+			c.logger.Error().Err(err).Int64("check_id", check.Id).Int("region_id", check.RegionId).
+				Msg("adding check failed, dropping check")
+			continue
 		}
 
-		// transform this request into an update
-		c.logger.Debug().Str("old_check_version", oldVersion).Str("new_check_version", newVersion).Msg("transforming add into update")
-		return c.handleCheckUpdateWithLock(ctx, check)
+		knownChecks[check.GlobalID()] = check
 	}
 
-	c.metrics.changesCounter.WithLabelValues("add").Inc()
+	c.knownChecks = knownChecks
 
-	if err := check.Validate(); err != nil {
-		return err
-	}
-
-	if err := c.addAndStartScraperWithLock(ctx, check); err != nil {
-		c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
-		return err
-	}
-
-	return nil
+	c.reconcileAllWithLock(ctx)
 }
 
 func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, firstBatch bool) {
@@ -973,6 +916,85 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 	c.metrics.runningScrapers.WithLabelValues(checkType).Inc()
 
 	return nil
+}
+
+// reconcileCheckWithLock drives a single check's scraper to the desired state:
+// the check runs if and only if it is known (present in knownChecks) and owned
+// by this node. It MUST be called with the scrapersMutex held.
+func (c *Updater) reconcileCheckWithLock(ctx context.Context, cid model.GlobalID) error {
+	check, known := c.knownChecks[cid]
+
+	shouldRun := false
+	if known {
+		owned, err := c.node.IsOwner(cid)
+		if err != nil {
+			return fmt.Errorf("determining ownership of check %d: %w", cid, err)
+		}
+		shouldRun = owned
+	}
+
+	running, isRunning := c.scrapers[cid]
+
+	switch {
+	case shouldRun && !isRunning:
+		return c.addAndStartScraperWithLock(ctx, check)
+
+	case shouldRun && isRunning:
+		if running.ConfigVersion() == check.ConfigVersion() {
+			// already running the desired configuration
+			return nil
+		}
+		// configuration changed: tear it down and start it again.
+		c.stopScraperWithLock(cid, running)
+		return c.addAndStartScraperWithLock(ctx, check)
+
+	case !shouldRun && isRunning:
+		c.stopScraperWithLock(cid, running)
+	}
+
+	return nil
+}
+
+// reconcileAll drives every check to its desired state, starting newly-owned
+// checks and stopping checks that are no longer owned or no longer known. It is
+// idempotent and safe to call repeatedly (e.g. on every membership change).
+func (c *Updater) reconcileAll(ctx context.Context) {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+	c.reconcileAllWithLock(ctx)
+}
+
+// reconcileAllWithLock is the body of reconcileAll. It MUST be called with the
+// scrapersMutex held.
+func (c *Updater) reconcileAllWithLock(ctx context.Context) {
+	reconcile := func(checkID model.GlobalID) {
+		if err := c.reconcileCheckWithLock(ctx, checkID); err != nil {
+			checkID, regionID := model.GetLocalAndRegionIDs(checkID)
+			c.logger.Error().Err(err).Int64("check_id", checkID).Int("region_id", regionID).Msg("reconciling check")
+		}
+	}
+
+	for checkID := range c.knownChecks {
+		reconcile(checkID)
+	}
+
+	// Stop scrapers for checks that are no longer known (orphans): these are not
+	// in knownChecks, so the loop above never visits them.
+	for checkID := range c.scrapers {
+		if _, known := c.knownChecks[checkID]; known {
+			continue
+		}
+		reconcile(checkID)
+	}
+}
+
+// stopScraperWithLock stops a running scraper and updates the bookkeeping. It
+// MUST be called with the scrapersMutex held.
+func (c *Updater) stopScraperWithLock(cid model.GlobalID, s *scraper.Scraper) {
+	checkType := s.CheckType().String()
+	s.Stop()
+	delete(c.scrapers, cid)
+	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
 }
 
 // sleepCtx is like time.Sleep, but it pays attention to the
