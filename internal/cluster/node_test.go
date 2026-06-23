@@ -1,6 +1,7 @@
 package cluster
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/grafana/ckit/peer"
@@ -22,31 +23,26 @@ func TestMonoNode(t *testing.T) {
 	}
 }
 
-// participants builds a Participant peer set, marking the peer named self as the
-// local node.
-func participants(self string, names ...string) []peer.Peer {
-	ps := make([]peer.Peer, 0, len(names))
-	for _, name := range names {
-		ps = append(ps, peer.Peer{
-			Name:  name,
-			Addr:  name + ":80",
-			Self:  name == self,
-			State: peer.StateParticipant,
-		})
-	}
-	return ps
-}
+// TestNewRingNode verifies a Ring can be constructed and exposes its ckit handler
+// and metrics. It does not start gossip; multi-node behavior is covered by the
+// integration test (item 14).
+func TestNewRingNode(t *testing.T) {
+	r, err := NewRingNode(RingConfig{
+		Name:          "test-node",
+		AdvertiseAddr: "127.0.0.1:7946",
+		Client:        &http.Client{},
+		OnChange:      func() {},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, r)
 
-// ringCluster returns one ringNode per name, each seeing the same peer set but
-// with its own Self flag set, simulating every agent's local view.
-func ringCluster(names ...string) map[string]*ringNode {
-	cluster := make(map[string]*ringNode, len(names))
-	for _, self := range names {
-		s := shard.Ring(512)
-		s.SetPeers(participants(self, names...))
-		cluster[self] = &ringNode{sharder: s}
-	}
-	return cluster
+	var _ Node = r
+
+	route, h := r.Handler()
+	require.NotEmpty(t, route)
+	require.NotNil(t, h)
+
+	require.NotNil(t, r.Metrics())
 }
 
 // TestRingNodeSingleConsistentOwner asserts RF=1 (exactly one owner) and that
@@ -73,7 +69,7 @@ func TestRingNodeDeterministic(t *testing.T) {
 	for id := model.GlobalID(1); id <= 200; id++ {
 		want, err := n.IsOwner(id)
 		require.NoError(t, err)
-		for i := 0; i < 5; i++ {
+		for range 5 {
 			got, err := n.IsOwner(id)
 			require.NoError(t, err)
 			require.Equalf(t, want, got, "IsOwner not deterministic for check %d", id)
@@ -110,8 +106,67 @@ func TestRingNodeDistribution(t *testing.T) {
 }
 
 func TestRingNodeNoEligiblePeers(t *testing.T) {
-	n := &ringNode{sharder: shard.Ring(512)} // no peers set
+	n := &RingNode{sharder: shard.Ring(512)} // no peers set
 
 	_, err := n.IsOwner(1)
 	require.Error(t, err)
+}
+
+// TestReconcileObserver verifies our wrapper: onChange fires on a participant
+// change, the observer stays registered, and viewer churn is filtered out (the
+// reason we wrap with ParticipantObserver).
+func TestReconcileObserver(t *testing.T) {
+	calls := 0
+	obs := reconcileObserver(func() { calls++ })
+
+	// A participant change fires onChange and keeps the observer registered.
+	require.True(t, obs.NotifyPeersChanged(participants("a", "a")))
+	require.Equal(t, 1, calls)
+
+	// A viewer joining is not a participant change: onChange must not fire.
+	withViewer := append(participants("a", "a"), peer.Peer{
+		Name:  "v",
+		Addr:  "v:80",
+		State: peer.StateViewer,
+	})
+	require.True(t, obs.NotifyPeersChanged(withViewer))
+	require.Equal(t, 1, calls)
+
+	// A new participant joining fires onChange again.
+	require.True(t, obs.NotifyPeersChanged(participants("a", "a", "b")))
+	require.Equal(t, 2, calls)
+}
+
+// TestReconcileObserverNilOnChange verifies the observer tolerates a nil
+// onChange without panicking.
+func TestReconcileObserverNilOnChange(t *testing.T) {
+	obs := reconcileObserver(nil)
+	require.True(t, obs.NotifyPeersChanged(participants("a", "a")))
+}
+
+// participants builds a Participant peer set, marking the peer named self as the
+// local node.
+func participants(self string, names ...string) []peer.Peer {
+	ps := make([]peer.Peer, 0, len(names))
+	for _, name := range names {
+		ps = append(ps, peer.Peer{
+			Name:  name,
+			Addr:  name + ":80",
+			Self:  name == self,
+			State: peer.StateParticipant,
+		})
+	}
+	return ps
+}
+
+// ringCluster returns one RingNode per name, each seeing the same peer set but
+// with its own Self flag set, simulating every agent's local view.
+func ringCluster(names ...string) map[string]*RingNode {
+	cluster := make(map[string]*RingNode, len(names))
+	for _, self := range names {
+		s := shard.Ring(512)
+		s.SetPeers(participants(self, names...))
+		cluster[self] = &RingNode{sharder: s}
+	}
+	return cluster
 }
