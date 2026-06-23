@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.59.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.58.3...v0.59.0) (2026-06-22)
+
+
+### Features
+
+* Run multihttp checks with k6 v2 ([#1844](https://github.com/grafana/synthetic-monitoring-agent/issues/1844)) ([ea3d091](https://github.com/grafana/synthetic-monitoring-agent/commit/ea3d09178ebe5e413e1a1e0e5be8334b2c25b4db))
+* Set k6 ref. id as check execution ID for browser checks run by local runner ([#1853](https://github.com/grafana/synthetic-monitoring-agent/issues/1853)) ([a7b636a](https://github.com/grafana/synthetic-monitoring-agent/commit/a7b636a709573d36f168a89fd82dc7f563b72e3b))
+
+
+### Miscellaneous Chores
+
+* Update actions/checkout digest to df4cb1c ([da266fa](https://github.com/grafana/synthetic-monitoring-agent/commit/da266fa430e2d3efe2f5c7ec63bbd9d40a57990d))
+* Update alpine Docker tag to v3.24.0 ([b153b48](https://github.com/grafana/synthetic-monitoring-agent/commit/b153b48e54ca588bb0cd6360acf84ecdd3aeb715))
+* Update alpine Docker tag to v3.24.1 ([#1874](https://github.com/grafana/synthetic-monitoring-agent/issues/1874)) ([2b3267f](https://github.com/grafana/synthetic-monitoring-agent/commit/2b3267f90346797ff5dbb5fe3addf14c24a347e8))
+* Update dependency grafana/xk6-sm-v1 to v1.1.6 ([#1865](https://github.com/grafana/synthetic-monitoring-agent/issues/1865)) ([257c394](https://github.com/grafana/synthetic-monitoring-agent/commit/257c394c25c6ae0018384cb51549aec621ffc740))
+* Update dependency grafana/xk6-sm-v2 to v2.0.1 ([15c2eb8](https://github.com/grafana/synthetic-monitoring-agent/commit/15c2eb868fe01ae38767143727b10914128ad455))
+* Update docker:dind Docker digest to 7bb861a ([#1869](https://github.com/grafana/synthetic-monitoring-agent/issues/1869)) ([0beeaf9](https://github.com/grafana/synthetic-monitoring-agent/commit/0beeaf95c9cf673aa35b4f2a2cdea15979d29767))
+* Update docker:dind Docker digest to ad68e89 ([1a28e7d](https://github.com/grafana/synthetic-monitoring-agent/commit/1a28e7d25aa6228db3794e2319b81f8fda6c3aac))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v149 ([#1871](https://github.com/grafana/synthetic-monitoring-agent/issues/1871)) ([ba9cd35](https://github.com/grafana/synthetic-monitoring-agent/commit/ba9cd3592af8f8656cf3ce59d43b403362137381))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:149.0.7827.53-r0-3.23.4 Docker digest to d6d6a5d ([#1876](https://github.com/grafana/synthetic-monitoring-agent/issues/1876)) ([bc63cab](https://github.com/grafana/synthetic-monitoring-agent/commit/bc63cab7f5050fd49f239b43079eef658034e68a))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.40.1 ([e12f5d0](https://github.com/grafana/synthetic-monitoring-agent/commit/e12f5d09525bddf3e1f757871b563b282f821b24))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.41.0 ([01004ae](https://github.com/grafana/synthetic-monitoring-agent/commit/01004aeacad35412d65d63090b9f94479dd42240))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.41.1 ([#1872](https://github.com/grafana/synthetic-monitoring-agent/issues/1872)) ([87ead5e](https://github.com/grafana/synthetic-monitoring-agent/commit/87ead5e1186dd12b495d79ea05fa4c0c7d303d7b))
+* Update golang.org/x/exp digest to c48552f ([#1868](https://github.com/grafana/synthetic-monitoring-agent/issues/1868)) ([c172b55](https://github.com/grafana/synthetic-monitoring-agent/commit/c172b5516261d3e60d710870ec61b99b45f84596))
+* Update module github.com/felixge/httpsnoop to v1.1.0 ([#1867](https://github.com/grafana/synthetic-monitoring-agent/issues/1867)) ([e0e7d54](https://github.com/grafana/synthetic-monitoring-agent/commit/e0e7d54b96b23b42b9bf18b1e69cc31511f92e3a))
+* Update module github.com/grafana/gsm-api-go-client to v0.3.1 ([2804902](https://github.com/grafana/synthetic-monitoring-agent/commit/2804902d15e5c28d6e0a9710aaca11b8799692bc))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.23.1 ([3b9c947](https://github.com/grafana/synthetic-monitoring-agent/commit/3b9c9474115c070353a0021aa94f2f11ae02f85b))
+* Update module github.com/prometheus-community/pro-bing to v0.9.0 ([e6e3f79](https://github.com/grafana/synthetic-monitoring-agent/commit/e6e3f79357a679fee945bee1b84ce8eed924ac52))
+* Update module golang.org/x/net to v0.56.0 ([f212dab](https://github.com/grafana/synthetic-monitoring-agent/commit/f212dab5627016c87e1f9d42b8a9d3b130b60125))
+
 ## [0.58.3](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.58.2...v0.58.3) (2026-06-08)
 
 
