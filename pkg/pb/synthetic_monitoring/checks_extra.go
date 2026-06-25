@@ -131,6 +131,48 @@ const (
 	HealthCheckTimeout  = 30 * time.Second
 )
 
+// systemLabels is the read-only set of label names reserved by the synthetic-monitoring-agent.
+// User-defined labels with these names are silently ignored by the agent when the
+// tenant's LabelMode is LABEL_MODE_DUAL_WRITE or LABEL_MODE_UNPREFIXED, and are
+// rejected by the API for tenants in dual-write mode or created after the feature epoch.
+//
+// This map must not be modified at runtime. Use IsSystemLabel to query it.
+//
+// Intentionally excluded labels — not useful in the SM context; the agent omits
+// them from metrics and logs:
+//
+//   - from_cache, from_prefetch_cache, from_service_worker, resource_type
+//   - region: the agent renames this to sm_region (see sm_region in this map).
+//
+// Tenants are free to define any of these as user labels without collision risk.
+var systemLabels = map[string]struct{}{
+	"check": {}, "check_name": {}, "cipher": {}, "config_version": {},
+	"fingerprint_sha256": {}, "frequency": {}, "geohash": {},
+	"instance": {}, "issuer": {}, "job": {}, "le": {}, "method": {},
+	"name": {}, "phase": {}, "probe": {}, "proto": {}, "rating": {},
+	"result": {}, "scenario": {}, "serialnumber": {}, "sm_region": {}, "status": {},
+	"subject": {}, "subjectalternative": {}, "tls_version": {}, "url": {}, "version": {},
+}
+
+// SystemLabelCount is the number of reserved system label names.
+const SystemLabelCount = 27
+
+// IsSystemLabel reports whether name is reserved by the synthetic-monitoring-agent.
+func IsSystemLabel(name string) bool {
+	_, ok := systemLabels[name]
+	return ok
+}
+
+// SystemLabelNames returns a slice of all reserved system label names.
+// Order is not guaranteed. The result is a new slice on each call; callers must not modify it.
+func SystemLabelNames() []string {
+	names := make([]string, 0, len(systemLabels))
+	for n := range systemLabels {
+		names = append(names, n)
+	}
+	return names
+}
+
 const (
 	MaxMetricLabels          = 22   // Prometheus allows for 32 labels, but limit to 22.
 	MaxLogLabels             = 15   // Loki allows a maximum of 15 labels.
@@ -1464,7 +1506,7 @@ func inClosedRange[T cmp.Ordered](v, lower, upper T) bool {
 const loopbackIPv4 = "127.0.0.1"
 
 func GetCheckInstance(checkType CheckType) Check {
-	var validCheckCases = map[CheckType]Check{
+	validCheckCases := map[CheckType]Check{
 		CheckTypeDns: {
 			Id:        1,
 			TenantId:  1,
@@ -1608,7 +1650,7 @@ func (ri RemoteInfo) MarshalZerologObject(e *zerolog.Event) {
 
 func (ri RemoteInfo) MarshalJSON() ([]byte, error) {
 	type T RemoteInfo
-	var tmp = T(ri)
+	tmp := T(ri)
 
 	tmp.Password = `<encrypted>`
 
