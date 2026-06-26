@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/grafana/ckit"
 	"github.com/grafana/ckit/peer"
@@ -11,6 +12,9 @@ import (
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 )
+
+// DefaultRejoinInterval is used by Run when RingConfig.RejoinInterval is zero.
+const DefaultRejoinInterval = 60 * time.Second
 
 // tokensPerNode defines how many tokens each node is given on the consistent-hash
 // ring. All nodes must use the same value, otherwise they build different views
@@ -46,9 +50,11 @@ func (monoNode) Ready() bool { return true }
 // consistent-hash sharder, and notifies the rest of the agent (via onChange)
 // whenever cluster membership changes.
 type RingNode struct {
-	node     *ckit.Node
-	sharder  shard.Sharder
-	onChange func()
+	node           *ckit.Node
+	sharder        shard.Sharder
+	onChange       func()
+	discover       DiscoverFn
+	rejoinInterval time.Duration
 }
 
 var _ Node = (*RingNode)(nil)
@@ -67,6 +73,12 @@ type RingConfig struct {
 	Client *http.Client
 	// OnChange is invoked whenever the set of participant peers changes.
 	OnChange func()
+	// Discover resolves the peers to join. It is called by Join at startup and
+	// re-invoked by Run on every RejoinInterval.
+	Discover DiscoverFn
+	// RejoinInterval is how often Run re-resolves peers and re-joins, picking up
+	// scale-ups and restarted peers. Zero uses DefaultRejoinInterval.
+	RejoinInterval time.Duration
 }
 
 // NewRingNode builds a gossip-backed RingNode. The returned node is not yet a cluster
@@ -87,7 +99,18 @@ func NewRingNode(cfg RingConfig) (*RingNode, error) {
 		return nil, err
 	}
 
-	r := &RingNode{node: node, sharder: sharder, onChange: cfg.OnChange}
+	rejoinInterval := cfg.RejoinInterval
+	if rejoinInterval <= 0 {
+		rejoinInterval = DefaultRejoinInterval
+	}
+
+	r := &RingNode{
+		node:           node,
+		sharder:        sharder,
+		onChange:       cfg.OnChange,
+		discover:       cfg.Discover,
+		rejoinInterval: rejoinInterval,
+	}
 	node.Observe(reconcileObserver(r.onChange))
 
 	return r, nil
@@ -118,8 +141,53 @@ func (r *RingNode) IsOwner(globalID model.GlobalID) (bool, error) {
 // TODO: Set min-cluster-size gate. For now it is fail-open.
 func (r *RingNode) Ready() bool { return true }
 
-// Start joins the cluster, attempting to connect to the given peers.
-func (r *RingNode) Start(peers []string) error { return r.node.Start(peers) }
+// Join resolves peers via the configured DiscoverFn and joins the cluster. If
+// discovery fails or returns no peers, the node bootstraps a single-node
+// cluster; Run folds in peers once discovery succeeds, since ckit's Start is
+// additive.
+//
+// TODO: log discovery/join failures once a logger is wired into RingNode (see
+// the Log TODO in NewRingNode); they are currently recovered silently by the
+// bootstrap fallback and Run's retry.
+func (r *RingNode) Join() error {
+	peers, err := r.resolvePeers()
+	if err != nil || len(peers) == 0 {
+		return r.node.Start(nil)
+	}
+	if err := r.node.Start(peers); err != nil {
+		// Joining the discovered peers failed; bootstrap solo and let Run retry.
+		return r.node.Start(nil)
+	}
+	return nil
+}
+
+// Run periodically re-resolves peers and re-joins so the ring picks up
+// scale-ups and restarted peers. It blocks until ctx is cancelled.
+func (r *RingNode) Run(ctx context.Context) error {
+	ticker := time.NewTicker(r.rejoinInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			peers, err := r.resolvePeers()
+			if err != nil || len(peers) == 0 {
+				continue
+			}
+			// Start is additive; transient errors are retried on the next tick.
+			_ = r.node.Start(peers)
+		}
+	}
+}
+
+func (r *RingNode) resolvePeers() ([]string, error) {
+	if r.discover == nil {
+		return nil, nil
+	}
+	return r.discover()
+}
 
 // SetParticipant transitions the node to the Participant state, making it
 // eligible to own checks.
