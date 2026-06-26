@@ -202,6 +202,7 @@ func testHandleCheckOpImpl(t *testing.T) {
 			TenantCh:       make(chan<- sm.Tenant),
 			Logger:         testhelper.Logger(t),
 			ScraperFactory: testScraperFactory,
+			Node:           cluster.NewMono(),
 		},
 	)
 
