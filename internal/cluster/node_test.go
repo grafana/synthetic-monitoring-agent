@@ -3,6 +3,8 @@ package cluster
 import (
 	"net/http"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/grafana/ckit/peer"
 	"github.com/grafana/ckit/shard"
@@ -110,6 +112,60 @@ func TestRingNodeNoEligiblePeers(t *testing.T) {
 
 	_, err := n.IsOwner(1)
 	require.Error(t, err)
+}
+
+// TestRingNodeReadyFailOpen verifies that a trivially-small minimum cluster
+// size makes the node ready immediately (a lone agent runs everything).
+func TestRingNodeReadyFailOpen(t *testing.T) {
+	for _, min := range []int{0, 1} {
+		n := &RingNode{sharder: shard.Ring(512), minClusterSize: min}
+		require.Truef(t, n.Ready(), "minClusterSize %d must be ready immediately", min)
+	}
+}
+
+// TestRingNodeReadyLatches verifies the node becomes ready once it reaches the
+// minimum cluster size and stays ready even if peers later drop below it.
+func TestRingNodeReadyLatches(t *testing.T) {
+	s := shard.Ring(512)
+	n := &RingNode{sharder: s, minClusterSize: 3}
+
+	require.False(t, n.Ready(), "must not be ready before reaching the minimum")
+
+	s.SetPeers(participants("a", "a", "b", "c"))
+	n.updateReadyState()
+	require.True(t, n.Ready(), "must be ready once the minimum is reached")
+
+	// A dip below the minimum must not un-ready the node (latching).
+	s.SetPeers(participants("a", "a"))
+	n.updateReadyState()
+	require.True(t, n.Ready(), "readiness must latch despite dropping below the minimum")
+}
+
+// TestRingNodeReadyDeadline verifies the fail-open deadline: when the minimum is
+// never reached, the wait-timeout makes the node ready and fires onChange once.
+// It runs under synctest so the deadline fires on the fake clock, deterministically.
+func TestRingNodeReadyDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		changed := make(chan struct{}, 4)
+		n := &RingNode{
+			sharder:        shard.Ring(512),
+			minClusterSize: 3,
+			waitTimeout:    20 * time.Millisecond,
+			onChange:       func() { changed <- struct{}{} },
+		}
+
+		require.False(t, n.Ready(), "must not be ready before the deadline")
+
+		n.startReadinessDeadline()
+
+		// Advance the fake clock past the deadline; Wait then lets the timer's
+		// callback goroutine settle.
+		time.Sleep(n.waitTimeout)
+		synctest.Wait()
+
+		require.True(t, n.Ready(), "must be ready after the deadline passes")
+		require.Len(t, changed, 1, "deadline must fire onChange exactly once")
+	})
 }
 
 // TestReconcileObserver verifies our wrapper: onChange fires on a participant
