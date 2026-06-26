@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -21,6 +22,13 @@ const DefaultRejoinInterval = 60 * time.Second
 // RingConfig.MinimumSizeWaitTimeout is zero. After it elapses without reaching
 // the minimum cluster size, the node becomes ready anyway (fail-open).
 const DefaultMinimumSizeWaitTimeout = 60 * time.Second
+
+// DefaultDrainTimeout is used by Drain when RingConfig.DrainTimeout is zero. It
+// is the window during which local scrapers keep running after the node
+// announces it is leaving, so surviving peers can take the checks over with
+// overlap rather than a gap. Keep it well under the deployment's termination
+// grace period so the node stops cleanly before being force-killed.
+const DefaultDrainTimeout = 10 * time.Second
 
 // readyState is the convergence state machine consulted by Ready. It latches:
 // once stateReady or stateDeadlinePassed is reached it never returns to
@@ -83,6 +91,7 @@ type RingNode struct {
 
 	minClusterSize int
 	waitTimeout    time.Duration
+	drainTimeout   time.Duration
 
 	mu         sync.Mutex
 	readyState readyState
@@ -119,6 +128,10 @@ type RingConfig struct {
 	// MinimumClusterSize: once it elapses the node becomes ready anyway. Zero
 	// uses DefaultMinimumSizeWaitTimeout.
 	MinimumSizeWaitTimeout time.Duration
+	// DrainTimeout is how long Drain keeps local scrapers running after
+	// announcing departure, to overlap peer takeover. Zero uses
+	// DefaultDrainTimeout.
+	DrainTimeout time.Duration
 }
 
 // NewRingNode builds a gossip-backed RingNode. The returned node is not yet a cluster
@@ -149,6 +162,11 @@ func NewRingNode(cfg RingConfig) (*RingNode, error) {
 		waitTimeout = DefaultMinimumSizeWaitTimeout
 	}
 
+	drainTimeout := cfg.DrainTimeout
+	if drainTimeout <= 0 {
+		drainTimeout = DefaultDrainTimeout
+	}
+
 	r := &RingNode{
 		node:           node,
 		sharder:        sharder,
@@ -157,6 +175,7 @@ func NewRingNode(cfg RingConfig) (*RingNode, error) {
 		rejoinInterval: rejoinInterval,
 		minClusterSize: cfg.MinimumClusterSize,
 		waitTimeout:    waitTimeout,
+		drainTimeout:   drainTimeout,
 		readyState:     stateNotReady,
 	}
 	node.Observe(reconcileObserver(r.handleMembershipChange))
@@ -315,6 +334,26 @@ func (r *RingNode) SetParticipant(ctx context.Context) error {
 // peers take over its checks before it leaves.
 func (r *RingNode) SetTerminating(ctx context.Context) error {
 	return r.node.ChangeState(ctx, peer.StateTerminating)
+}
+
+// Drain gracefully removes the node from the cluster on shutdown. It announces
+// departure (Terminating, which OpReadWrite excludes, so surviving peers'
+// observers fire and take over this node's checks), keeps local scrapers running
+// through the drain window to overlap that takeover, then leaves the cluster.
+//
+// It is best-effort: a failed state transition does not skip the drain window or
+// Stop, and any errors are joined and returned. The caller must run Drain before
+// tearing scrapers down, and should pass a context that outlives the drain
+// window (i.e. not the already-cancelled shutdown context).
+func (r *RingNode) Drain(ctx context.Context) error {
+	termErr := r.SetTerminating(ctx)
+
+	select {
+	case <-time.After(r.drainTimeout):
+	case <-ctx.Done():
+	}
+
+	return errors.Join(termErr, r.Stop())
 }
 
 // Stop removes the node from the cluster.
