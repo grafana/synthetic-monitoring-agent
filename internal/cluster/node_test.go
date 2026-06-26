@@ -35,7 +35,6 @@ func TestNewRingNode(t *testing.T) {
 		Name:          "test-node",
 		AdvertiseAddr: "127.0.0.1:7946",
 		Client:        &http.Client{},
-		OnChange:      func() {},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, r)
@@ -202,18 +201,17 @@ func TestReconcileObserverNilOnChange(t *testing.T) {
 	require.True(t, obs.NotifyPeersChanged(participants("a", "a")))
 }
 
-// TestDrain verifies the graceful-shutdown path on a lone node: it announces
+// TestStop verifies the graceful-shutdown path on a lone node: it announces
 // departure, keeps running through the drain window, then leaves the cluster.
 // Multi-node handover is covered by the integration test (item 14).
-func TestDrain(t *testing.T) {
+func TestStop(t *testing.T) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	r, err := NewRingNode(RingConfig{
-		Name:          "drain-node",
+		Name:          "stop-node",
 		AdvertiseAddr: lis.Addr().String(),
 		Client:        NewGossipClient(),
-		OnChange:      func() {},
 		DrainTimeout:  50 * time.Millisecond,
 	})
 	require.NoError(t, err)
@@ -223,13 +221,13 @@ func TestDrain(t *testing.T) {
 	defer func() { _ = srv.Shutdown(context.Background()) }()
 	go func() { _ = srv.Run(lis) }()
 
-	require.NoError(t, r.Join())
-	require.NoError(t, r.SetParticipant(context.Background()))
+	require.NoError(t, r.join())
+	require.NoError(t, r.setParticipant(context.Background()))
 
 	start := time.Now()
-	require.NoError(t, r.Drain(context.Background()))
+	require.NoError(t, r.Stop(context.Background()))
 	require.GreaterOrEqual(t, time.Since(start), r.drainTimeout,
-		"Drain must keep running through the drain window before leaving")
+		"Stop must keep running through the drain window before leaving")
 }
 
 // participants builds a Participant peer set, marking the peer named self as the
