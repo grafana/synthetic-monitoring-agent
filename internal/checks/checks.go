@@ -927,6 +927,13 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 // the check runs if and only if it is known (present in knownChecks) and owned
 // by this node. It MUST be called with the scrapersMutex held.
 func (c *Updater) reconcileCheckWithLock(ctx context.Context, cid model.GlobalID) error {
+	if !c.node.Ready() {
+		// Buffer: the check is already recorded in knownChecks by the caller and
+		// is replayed on the next reconcileAll once Ready() flips. While not
+		// ready no scrapers have been started, so there is nothing to stop.
+		return nil
+	}
+
 	check, known := c.knownChecks[cid]
 
 	shouldRun := false

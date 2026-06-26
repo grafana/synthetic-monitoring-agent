@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/grafana/ckit"
@@ -15,6 +16,30 @@ import (
 
 // DefaultRejoinInterval is used by Run when RingConfig.RejoinInterval is zero.
 const DefaultRejoinInterval = 60 * time.Second
+
+// DefaultMinimumSizeWaitTimeout is used by NewRingNode when
+// RingConfig.MinimumSizeWaitTimeout is zero. After it elapses without reaching
+// the minimum cluster size, the node becomes ready anyway (fail-open).
+const DefaultMinimumSizeWaitTimeout = 60 * time.Second
+
+// readyState is the convergence state machine consulted by Ready. It latches:
+// once stateReady or stateDeadlinePassed is reached it never returns to
+// stateNotReady, so a transient dip below the minimum cluster size does not
+// stop steady-state reconciliation.
+type readyState int
+
+const (
+	// stateNotReady is the initial state: the ring has not yet reached the
+	// minimum cluster size and the wait-timeout has not elapsed, so ownership is
+	// not trusted and checks are buffered.
+	stateNotReady readyState = iota
+	// stateReady means the ring reached the minimum cluster size; ownership is
+	// trusted.
+	stateReady
+	// stateDeadlinePassed means the minimum was never reached but the
+	// wait-timeout elapsed, so the node trusts ownership anyway (fail-open).
+	stateDeadlinePassed
+)
 
 // tokensPerNode defines how many tokens each node is given on the consistent-hash
 // ring. All nodes must use the same value, otherwise they build different views
@@ -55,6 +80,13 @@ type RingNode struct {
 	onChange       func()
 	discover       DiscoverFn
 	rejoinInterval time.Duration
+
+	minClusterSize int
+	waitTimeout    time.Duration
+
+	mu         sync.Mutex
+	readyState readyState
+	deadline   *time.Timer
 }
 
 var _ Node = (*RingNode)(nil)
@@ -79,6 +111,14 @@ type RingConfig struct {
 	// RejoinInterval is how often Run re-resolves peers and re-joins, picking up
 	// scale-ups and restarted peers. Zero uses DefaultRejoinInterval.
 	RejoinInterval time.Duration
+	// MinimumClusterSize is the number of peers (including this node) the ring
+	// must reach before Ready reports true. Zero or one makes the node ready
+	// immediately (fail-open: a lone agent runs everything).
+	MinimumClusterSize int
+	// MinimumSizeWaitTimeout bounds how long the node waits to reach
+	// MinimumClusterSize: once it elapses the node becomes ready anyway. Zero
+	// uses DefaultMinimumSizeWaitTimeout.
+	MinimumSizeWaitTimeout time.Duration
 }
 
 // NewRingNode builds a gossip-backed RingNode. The returned node is not yet a cluster
@@ -104,14 +144,22 @@ func NewRingNode(cfg RingConfig) (*RingNode, error) {
 		rejoinInterval = DefaultRejoinInterval
 	}
 
+	waitTimeout := cfg.MinimumSizeWaitTimeout
+	if waitTimeout <= 0 {
+		waitTimeout = DefaultMinimumSizeWaitTimeout
+	}
+
 	r := &RingNode{
 		node:           node,
 		sharder:        sharder,
 		onChange:       cfg.OnChange,
 		discover:       cfg.Discover,
 		rejoinInterval: rejoinInterval,
+		minClusterSize: cfg.MinimumClusterSize,
+		waitTimeout:    waitTimeout,
+		readyState:     stateNotReady,
 	}
-	node.Observe(reconcileObserver(r.onChange))
+	node.Observe(reconcileObserver(r.handleMembershipChange))
 
 	return r, nil
 }
@@ -128,6 +176,59 @@ func reconcileObserver(onChange func()) ckit.Observer {
 	}))
 }
 
+// handleMembershipChange runs on every participant-set change. It refreshes the
+// readiness state first so a reconcile triggered by onChange observes the new
+// Ready() value, then notifies the rest of the agent. onChange is invoked
+// without r.mu held: it runs on ckit's notifier goroutine and feeds the
+// non-blocking RequestReconcile.
+func (r *RingNode) handleMembershipChange() {
+	r.updateReadyState()
+	if r.onChange != nil {
+		r.onChange()
+	}
+}
+
+// updateReadyState latches the node ready once the sharder reports at least
+// MinimumClusterSize peers. It is a no-op once already latched or when the
+// minimum is trivially satisfied.
+func (r *RingNode) updateReadyState() {
+	if r.minClusterSize <= 1 {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.readyState != stateNotReady {
+		return
+	}
+	if len(r.sharder.Peers()) >= r.minClusterSize {
+		r.readyState = stateReady
+	}
+}
+
+// startReadinessDeadline arms the fail-open timer: if MinimumClusterSize is
+// never reached within waitTimeout, the node becomes ready anyway and a single
+// onChange fires so checks buffered before convergence start. It is a no-op when
+// the minimum is trivially satisfied.
+func (r *RingNode) startReadinessDeadline() {
+	if r.minClusterSize <= 1 || r.waitTimeout <= 0 {
+		return
+	}
+
+	r.deadline = time.AfterFunc(r.waitTimeout, func() {
+		r.mu.Lock()
+		if r.readyState == stateNotReady {
+			r.readyState = stateDeadlinePassed
+		}
+		r.mu.Unlock()
+
+		if r.onChange != nil {
+			r.onChange()
+		}
+	})
+}
+
 // IsOwner reports whether the local node owns the check.
 func (r *RingNode) IsOwner(globalID model.GlobalID) (bool, error) {
 	owners, err := r.sharder.Lookup(keyOf(globalID), 1, shard.OpReadWrite)
@@ -137,9 +238,19 @@ func (r *RingNode) IsOwner(globalID model.GlobalID) (bool, error) {
 	return owners[0].Self, nil
 }
 
-// Ready reports whether the ring has converged enough to trust ownership.
-// TODO: Set min-cluster-size gate. For now it is fail-open.
-func (r *RingNode) Ready() bool { return true }
+// Ready reports whether the ring has converged enough to trust ownership. With
+// MinimumClusterSize <= 1 it is always true (a lone agent runs everything);
+// otherwise it is true once the node has latched ready, either by reaching the
+// minimum cluster size or by the wait-timeout deadline passing (fail-open).
+func (r *RingNode) Ready() bool {
+	if r.minClusterSize <= 1 {
+		return true
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.readyState != stateNotReady
+}
 
 // Join resolves peers via the configured DiscoverFn and joins the cluster. If
 // discovery fails or returns no peers, the node bootstraps a single-node
@@ -190,9 +301,14 @@ func (r *RingNode) resolvePeers() ([]string, error) {
 }
 
 // SetParticipant transitions the node to the Participant state, making it
-// eligible to own checks.
+// eligible to own checks. It arms the readiness deadline: convergence only
+// matters once the node can own checks.
 func (r *RingNode) SetParticipant(ctx context.Context) error {
-	return r.node.ChangeState(ctx, peer.StateParticipant)
+	if err := r.node.ChangeState(ctx, peer.StateParticipant); err != nil {
+		return err
+	}
+	r.startReadinessDeadline()
+	return nil
 }
 
 // SetTerminating transitions the node to the Terminating state so surviving
@@ -202,7 +318,12 @@ func (r *RingNode) SetTerminating(ctx context.Context) error {
 }
 
 // Stop removes the node from the cluster.
-func (r *RingNode) Stop() error { return r.node.Stop() }
+func (r *RingNode) Stop() error {
+	if r.deadline != nil {
+		r.deadline.Stop()
+	}
+	return r.node.Stop()
+}
 
 // Handler returns the route and HTTP handler for gossip traffic.
 func (r *RingNode) Handler() (string, http.Handler) { return r.node.Handler() }

@@ -856,6 +856,39 @@ func TestReconcileLoopReconciles(t *testing.T) {
 	})
 }
 
+// TestReconcileReadyGate verifies the convergence gate: while the node is not
+// ready, an owned check is recorded in knownChecks but starts no scraper; once
+// the node becomes ready, reconcileAll releases the buffered check.
+func TestReconcileReadyGate(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		node := newFakeNode()
+		node.setReady(false)
+		u := newTestUpdater(t, node)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		check := validCheck(t, 9500)
+		cid := check.GlobalID()
+		node.setOwned(cid, true)
+
+		// Owned but not ready: the add is buffered (recorded in knownChecks) and
+		// starts no scraper.
+		require.NoError(t, u.handleCheckAdd(ctx, check))
+		require.False(t, scraperExists(u, cid))
+		_, known := u.knownChecks[cid]
+		require.True(t, known, "check must be recorded in knownChecks while buffered")
+
+		// Readiness flips: reconcileAll releases the buffered check.
+		node.setReady(true)
+		u.reconcileAll(ctx)
+		require.True(t, scraperExists(u, cid))
+		require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+		synctest.Wait()
+	})
+}
+
 // fakeNode is a cluster.Node with directly controllable ownership, used to drive
 // the Updater's ownership filtering without a real gossip ring.
 type fakeNode struct {
@@ -872,6 +905,12 @@ func (f *fakeNode) setOwned(id model.GlobalID, v bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.owned[id] = v
+}
+
+func (f *fakeNode) setReady(v bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.ready = v
 }
 
 func (f *fakeNode) IsOwner(id model.GlobalID) (bool, error) {
