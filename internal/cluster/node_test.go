@@ -1,6 +1,8 @@
 package cluster
 
 import (
+	"context"
+	"net"
 	"net/http"
 	"testing"
 	"testing/synctest"
@@ -198,6 +200,36 @@ func TestReconcileObserver(t *testing.T) {
 func TestReconcileObserverNilOnChange(t *testing.T) {
 	obs := reconcileObserver(nil)
 	require.True(t, obs.NotifyPeersChanged(participants("a", "a")))
+}
+
+// TestDrain verifies the graceful-shutdown path on a lone node: it announces
+// departure, keeps running through the drain window, then leaves the cluster.
+// Multi-node handover is covered by the integration test (item 14).
+func TestDrain(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	r, err := NewRingNode(RingConfig{
+		Name:          "drain-node",
+		AdvertiseAddr: lis.Addr().String(),
+		Client:        NewGossipClient(),
+		OnChange:      func() {},
+		DrainTimeout:  50 * time.Millisecond,
+	})
+	require.NoError(t, err)
+
+	route, h := r.Handler()
+	srv := NewGossipServer(route, h)
+	defer func() { _ = srv.Shutdown(context.Background()) }()
+	go func() { _ = srv.Run(lis) }()
+
+	require.NoError(t, r.Join())
+	require.NoError(t, r.SetParticipant(context.Background()))
+
+	start := time.Now()
+	require.NoError(t, r.Drain(context.Background()))
+	require.GreaterOrEqual(t, time.Since(start), r.drainTimeout,
+		"Drain must keep running through the drain window before leaving")
 }
 
 // participants builds a Participant peer set, marking the peer named self as the
