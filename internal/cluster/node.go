@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -179,70 +180,11 @@ func NewRingNode(cfg RingConfig) (*RingNode, error) {
 	return r, nil
 }
 
-// reconcileObserver builds a ckit observer that invokes onChange on every change
-// to the set of participant peers (viewer churn is filtered out by ParticipantObserver).
-func reconcileObserver(onChange func()) ckit.Observer {
-	return ckit.ParticipantObserver(ckit.FuncObserver(func(_ []peer.Peer) bool {
-		if onChange != nil {
-			onChange()
-		}
-		// Stay registered for the node's lifetime; Stop() tears everything down.
-		return true
-	}))
-}
+// Handler returns the route and HTTP handler for gossip traffic.
+func (r *RingNode) Handler() (string, http.Handler) { return r.node.Handler() }
 
-// handleMembershipChange runs on every participant-set change. It refreshes the
-// readiness state first so a reconcile triggered by onChange observes the new
-// Ready() value, then notifies the rest of the agent. onChange is invoked
-// without r.mu held: it runs on ckit's notifier goroutine and feeds the
-// non-blocking RequestReconcile.
-func (r *RingNode) handleMembershipChange() {
-	r.updateReadyState()
-	if r.onChange != nil {
-		r.onChange()
-	}
-}
-
-// updateReadyState latches the node ready once the sharder reports at least
-// MinimumClusterSize peers. It is a no-op once already latched or when the
-// minimum is trivially satisfied.
-func (r *RingNode) updateReadyState() {
-	if r.minClusterSize <= 1 {
-		return
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if r.readyState != stateNotReady {
-		return
-	}
-	if len(r.sharder.Peers()) >= r.minClusterSize {
-		r.readyState = stateReady
-	}
-}
-
-// startReadinessDeadline arms the fail-open timer: if MinimumClusterSize is
-// never reached within waitTimeout, the node becomes ready anyway and a single
-// onChange fires so checks buffered before convergence start. It is a no-op when
-// the minimum is trivially satisfied.
-func (r *RingNode) startReadinessDeadline() {
-	if r.minClusterSize <= 1 || r.waitTimeout <= 0 {
-		return
-	}
-
-	r.deadline = time.AfterFunc(r.waitTimeout, func() {
-		r.mu.Lock()
-		if r.readyState == stateNotReady {
-			r.readyState = stateDeadlinePassed
-		}
-		r.mu.Unlock()
-
-		if r.onChange != nil {
-			r.onChange()
-		}
-	})
-}
+// Metrics returns the ckit node's Prometheus collector.
+func (r *RingNode) Metrics() prometheus.Collector { return r.node.Metrics() }
 
 // IsOwner reports whether the local node owns the check.
 func (r *RingNode) IsOwner(globalID model.GlobalID) (bool, error) {
@@ -351,6 +293,71 @@ func (r *RingNode) setTerminating(ctx context.Context) error {
 	return r.node.ChangeState(ctx, peer.StateTerminating)
 }
 
+// reconcileObserver builds a ckit observer that invokes onChange on every change
+// to the set of participant peers (viewer churn is filtered out by ParticipantObserver).
+func reconcileObserver(onChange func()) ckit.Observer {
+	return ckit.ParticipantObserver(ckit.FuncObserver(func(_ []peer.Peer) bool {
+		if onChange != nil {
+			onChange()
+		}
+		// Stay registered for the node's lifetime; Stop() tears everything down.
+		return true
+	}))
+}
+
+// handleMembershipChange runs on every participant-set change. It refreshes the
+// readiness state first so a reconcile triggered by onChange observes the new
+// Ready() value, then notifies the rest of the agent. onChange is invoked
+// without r.mu held: it runs on ckit's notifier goroutine and feeds the
+// non-blocking RequestReconcile.
+func (r *RingNode) handleMembershipChange() {
+	r.updateReadyState()
+	if r.onChange != nil {
+		r.onChange()
+	}
+}
+
+// updateReadyState latches the node ready once the sharder reports at least
+// MinimumClusterSize peers. It is a no-op once already latched or when the
+// minimum is trivially satisfied.
+func (r *RingNode) updateReadyState() {
+	if r.minClusterSize <= 1 {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.readyState != stateNotReady {
+		return
+	}
+	if len(r.sharder.Peers()) >= r.minClusterSize {
+		r.readyState = stateReady
+	}
+}
+
+// startReadinessDeadline arms the fail-open timer: if MinimumClusterSize is
+// never reached within waitTimeout, the node becomes ready anyway and a single
+// onChange fires so checks buffered before convergence start. It is a no-op when
+// the minimum is trivially satisfied.
+func (r *RingNode) startReadinessDeadline() {
+	if r.minClusterSize <= 1 || r.waitTimeout <= 0 {
+		return
+	}
+
+	r.deadline = time.AfterFunc(r.waitTimeout, func() {
+		r.mu.Lock()
+		if r.readyState == stateNotReady {
+			r.readyState = stateDeadlinePassed
+		}
+		r.mu.Unlock()
+
+		if r.onChange != nil {
+			r.onChange()
+		}
+	})
+}
+
 // Stop gracefully removes the node from the cluster on shutdown: it first drains
 // (announces departure and waits the drain window so surviving peers take over)
 // and then leaves the cluster.
@@ -374,18 +381,14 @@ func (r *RingNode) Stop(ctx context.Context) error {
 // the drain window so that takeover can happen while this node is still a known
 // cluster member, before it leaves.
 func (r *RingNode) drain(ctx context.Context) error {
-	err := r.setTerminating(ctx)
+	if err := r.setTerminating(ctx); err != nil {
+		return fmt.Errorf("transitioning to terminating state: %w", err)
+	}
 
 	select {
 	case <-time.After(r.drainTimeout):
 	case <-ctx.Done():
 	}
 
-	return err
+	return nil
 }
-
-// Handler returns the route and HTTP handler for gossip traffic.
-func (r *RingNode) Handler() (string, http.Handler) { return r.node.Handler() }
-
-// Metrics returns the ckit node's Prometheus collector.
-func (r *RingNode) Metrics() prometheus.Collector { return r.node.Metrics() }
