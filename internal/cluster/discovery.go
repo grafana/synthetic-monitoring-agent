@@ -15,7 +15,7 @@ import (
 
 // DiscoverFn resolves the current set of peer addresses the node should try to
 // join. It is called once at startup and then re-invoked on RejoinInterval (see
-// RingNode.Run) so the ring picks up scale-ups and restarted peers; ckit's
+// RingNode.Start) so the ring picks up scale-ups and restarted peers; ckit's
 // Start is additive, so returning the full current set on every call is correct.
 type DiscoverFn func() ([]string, error)
 

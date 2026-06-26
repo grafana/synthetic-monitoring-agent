@@ -3,6 +3,7 @@ package cluster
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -15,7 +16,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 )
 
-// DefaultRejoinInterval is used by Run when RingConfig.RejoinInterval is zero.
+// DefaultRejoinInterval is used when RingConfig.RejoinInterval is zero.
 const DefaultRejoinInterval = 60 * time.Second
 
 // DefaultMinimumSizeWaitTimeout is the recommended
@@ -23,11 +24,11 @@ const DefaultRejoinInterval = 60 * time.Second
 // minimum cluster size, the node becomes ready anyway (fail-open).
 const DefaultMinimumSizeWaitTimeout = 60 * time.Second
 
-// DefaultDrainTimeout is used by Drain when RingConfig.DrainTimeout is zero. It
-// is the window during which local scrapers keep running after the node
-// announces it is leaving, so surviving peers can take the checks over with
-// overlap rather than a gap. Keep it well under the deployment's termination
-// grace period so the node stops cleanly before being force-killed.
+// DefaultDrainTimeout is used by Stop when RingConfig.DrainTimeout is zero. It
+// is how long the node stays in the cluster as Terminating after announcing its
+// departure, giving surviving peers time to observe the change and take over its
+// checks before it leaves. Keep it well under the deployment's termination grace
+// period so the node stops cleanly before being force-killed.
 const DefaultDrainTimeout = 10 * time.Second
 
 // readyState is the convergence state machine consulted by Ready. It latches:
@@ -111,12 +112,10 @@ type RingConfig struct {
 	Label string
 	// Client is the HTTP/2 client used for gossip transport.
 	Client *http.Client
-	// OnChange is invoked whenever the set of participant peers changes.
-	OnChange func()
 	// Discover resolves the peers to join. It is called by Join at startup and
-	// re-invoked by Run on every RejoinInterval.
+	// re-invoked on every RejoinInterval.
 	Discover DiscoverFn
-	// RejoinInterval is how often Run re-resolves peers and re-joins, picking up
+	// RejoinInterval is how often the node re-resolves peers and re-joins, picking up
 	// scale-ups and restarted peers. Zero uses DefaultRejoinInterval.
 	RejoinInterval time.Duration
 	// MinimumClusterSize is the number of peers (including this node) the ring
@@ -127,9 +126,9 @@ type RingConfig struct {
 	// MinimumClusterSize: once it elapses the node becomes ready anyway. Zero
 	// disables the deadline: the node waits until MinimumClusterSize is reached.
 	MinimumSizeWaitTimeout time.Duration
-	// DrainTimeout is how long Drain keeps local scrapers running after
-	// announcing departure, to overlap peer takeover. Zero uses
-	// DefaultDrainTimeout.
+	// DrainTimeout is how long Stop stays in the cluster as Terminating after
+	// announcing departure, giving peers time to take over before it leaves. Zero
+	// uses DefaultDrainTimeout.
 	DrainTimeout time.Duration
 }
 
@@ -164,7 +163,6 @@ func NewRingNode(cfg RingConfig) (*RingNode, error) {
 	r := &RingNode{
 		node:           node,
 		sharder:        sharder,
-		onChange:       cfg.OnChange,
 		discover:       cfg.Discover,
 		rejoinInterval: rejoinInterval,
 		minClusterSize: cfg.MinimumClusterSize,
@@ -172,9 +170,122 @@ func NewRingNode(cfg RingConfig) (*RingNode, error) {
 		drainTimeout:   drainTimeout,
 		readyState:     stateNotReady,
 	}
-	node.Observe(reconcileObserver(r.handleMembershipChange))
 
 	return r, nil
+}
+
+// Handler returns the route and HTTP handler for gossip traffic.
+func (r *RingNode) Handler() (string, http.Handler) { return r.node.Handler() }
+
+// Metrics returns the ckit node's Prometheus collector.
+func (r *RingNode) Metrics() prometheus.Collector { return r.node.Metrics() }
+
+// IsOwner reports whether the local node owns the check.
+func (r *RingNode) IsOwner(globalID model.GlobalID) (bool, error) {
+	owners, err := r.sharder.Lookup(keyOf(globalID), 1, shard.OpReadWrite)
+	if err != nil {
+		return false, err
+	}
+	return owners[0].Self, nil
+}
+
+// Ready reports whether the ring has converged enough to trust ownership. With
+// MinimumClusterSize <= 1 it is always true (a lone agent runs everything);
+// otherwise it is true once the node has latched ready, either by reaching the
+// minimum cluster size or by the wait-timeout deadline passing (fail-open).
+// Without a wait-timeout, only reaching the minimum cluster size makes it ready.
+func (r *RingNode) Ready() bool {
+	if r.minClusterSize <= 1 {
+		return true
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.readyState != stateNotReady
+}
+
+// Start registers onChange (invoked whenever the set of participant peers
+// changes; may be nil), joins the cluster, becomes a participant (eligible to
+// own checks), and then runs the periodic rejoin loop until ctx is cancelled. It
+// blocks; run it under errgroup.Go. Serve Handler() before calling Start.
+func (r *RingNode) Start(ctx context.Context, onChange func()) error {
+	r.onChange = onChange
+	// Subscribe to participant-set changes:
+	// ckit invokes handleMembershipChange on every join/leave.
+	r.node.Observe(reconcileObserver(r.handleMembershipChange))
+
+	if err := r.join(); err != nil {
+		return err
+	}
+	if err := r.setParticipant(ctx); err != nil {
+		return err
+	}
+	return r.rejoinLoop(ctx)
+}
+
+// join resolves peers via the configured DiscoverFn and joins the cluster. If
+// discovery fails or returns no peers, the node bootstraps a single-node
+// cluster; the rejoin loop folds in peers once discovery succeeds, since ckit's
+// Start is additive.
+//
+// TODO: log discovery/join failures once a logger is wired into RingNode (see
+// the Log TODO in NewRingNode); they are currently recovered silently by the
+// bootstrap fallback and the rejoin loop's retry.
+func (r *RingNode) join() error {
+	peers, err := r.resolvePeers()
+	if err != nil || len(peers) == 0 {
+		return r.node.Start(nil)
+	}
+	if err := r.node.Start(peers); err != nil {
+		// Joining the discovered peers failed; bootstrap solo and let the node retry.
+		return r.node.Start(nil)
+	}
+	return nil
+}
+
+// rejoinLoop periodically re-resolves peers and re-joins so the ring picks up
+// scale-ups and restarted peers. It blocks until ctx is cancelled.
+func (r *RingNode) rejoinLoop(ctx context.Context) error {
+	ticker := time.NewTicker(r.rejoinInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			peers, err := r.resolvePeers()
+			if err != nil || len(peers) == 0 {
+				continue
+			}
+			// Start is additive; transient errors are retried on the next tick.
+			_ = r.node.Start(peers)
+		}
+	}
+}
+
+func (r *RingNode) resolvePeers() ([]string, error) {
+	if r.discover == nil {
+		return nil, nil
+	}
+	return r.discover()
+}
+
+// setParticipant transitions the node to the Participant state, making it
+// eligible to own checks. It arms the readiness deadline: convergence only
+// matters once the node can own checks.
+func (r *RingNode) setParticipant(ctx context.Context) error {
+	if err := r.node.ChangeState(ctx, peer.StateParticipant); err != nil {
+		return err
+	}
+	r.startReadinessDeadline()
+	return nil
+}
+
+// setTerminating transitions the node to the Terminating state so surviving
+// peers take over its checks before it leaves.
+func (r *RingNode) setTerminating(ctx context.Context) error {
+	return r.node.ChangeState(ctx, peer.StateTerminating)
 }
 
 // reconcileObserver builds a ckit observer that invokes onChange on every change
@@ -242,125 +353,38 @@ func (r *RingNode) startReadinessDeadline() {
 	})
 }
 
-// IsOwner reports whether the local node owns the check.
-func (r *RingNode) IsOwner(globalID model.GlobalID) (bool, error) {
-	owners, err := r.sharder.Lookup(keyOf(globalID), 1, shard.OpReadWrite)
-	if err != nil {
-		return false, err
-	}
-	return owners[0].Self, nil
-}
-
-// Ready reports whether the ring has converged enough to trust ownership. With
-// MinimumClusterSize <= 1 it is always true (a lone agent runs everything);
-// otherwise it is true once the node has latched ready, either by reaching the
-// minimum cluster size or by the wait-timeout deadline passing (fail-open).
-// Without a wait-timeout, only reaching the minimum cluster size makes it ready.
-func (r *RingNode) Ready() bool {
-	if r.minClusterSize <= 1 {
-		return true
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.readyState != stateNotReady
-}
-
-// Join resolves peers via the configured DiscoverFn and joins the cluster. If
-// discovery fails or returns no peers, the node bootstraps a single-node
-// cluster; Run folds in peers once discovery succeeds, since ckit's Start is
-// additive.
+// Stop gracefully removes the node from the cluster on shutdown: it first drains
+// (announces departure and waits the drain window so surviving peers take over)
+// and then leaves the cluster.
 //
-// TODO: log discovery/join failures once a logger is wired into RingNode (see
-// the Log TODO in NewRingNode); they are currently recovered silently by the
-// bootstrap fallback and Run's retry.
-func (r *RingNode) Join() error {
-	peers, err := r.resolvePeers()
-	if err != nil || len(peers) == 0 {
-		return r.node.Start(nil)
-	}
-	if err := r.node.Start(peers); err != nil {
-		// Joining the discovered peers failed; bootstrap solo and let Run retry.
-		return r.node.Start(nil)
-	}
-	return nil
-}
+// It is best-effort: a failed drain does not skip leaving, and any errors are
+// joined and returned. ctx bounds the drain window (whichever of ctx or
+// DrainTimeout elapses first), so pass one that outlives the drain — not the
+// already-cancelled shutdown context.
+func (r *RingNode) Stop(ctx context.Context) error {
+	err := r.drain(ctx)
 
-// Run periodically re-resolves peers and re-joins so the ring picks up
-// scale-ups and restarted peers. It blocks until ctx is cancelled.
-func (r *RingNode) Run(ctx context.Context) error {
-	ticker := time.NewTicker(r.rejoinInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-			peers, err := r.resolvePeers()
-			if err != nil || len(peers) == 0 {
-				continue
-			}
-			// Start is additive; transient errors are retried on the next tick.
-			_ = r.node.Start(peers)
-		}
-	}
-}
-
-func (r *RingNode) resolvePeers() ([]string, error) {
-	if r.discover == nil {
-		return nil, nil
-	}
-	return r.discover()
-}
-
-// SetParticipant transitions the node to the Participant state, making it
-// eligible to own checks. It arms the readiness deadline: convergence only
-// matters once the node can own checks.
-func (r *RingNode) SetParticipant(ctx context.Context) error {
-	if err := r.node.ChangeState(ctx, peer.StateParticipant); err != nil {
-		return err
-	}
-	r.startReadinessDeadline()
-	return nil
-}
-
-// SetTerminating transitions the node to the Terminating state so surviving
-// peers take over its checks before it leaves.
-func (r *RingNode) SetTerminating(ctx context.Context) error {
-	return r.node.ChangeState(ctx, peer.StateTerminating)
-}
-
-// Drain gracefully removes the node from the cluster on shutdown. It announces
-// departure (Terminating, which OpReadWrite excludes, so surviving peers'
-// observers fire and take over this node's checks), keeps local scrapers running
-// through the drain window to overlap that takeover, then leaves the cluster.
-//
-// It is best-effort: a failed state transition does not skip the drain window or
-// Stop, and any errors are joined and returned. The caller must run Drain before
-// tearing scrapers down, and should pass a context that outlives the drain
-// window (i.e. not the already-cancelled shutdown context).
-func (r *RingNode) Drain(ctx context.Context) error {
-	termErr := r.SetTerminating(ctx)
-
-	select {
-	case <-time.After(r.drainTimeout):
-	case <-ctx.Done():
-	}
-
-	return errors.Join(termErr, r.Stop())
-}
-
-// Stop removes the node from the cluster.
-func (r *RingNode) Stop() error {
 	if r.deadline != nil {
 		r.deadline.Stop()
 	}
-	return r.node.Stop()
+
+	return errors.Join(err, r.node.Stop())
 }
 
-// Handler returns the route and HTTP handler for gossip traffic.
-func (r *RingNode) Handler() (string, http.Handler) { return r.node.Handler() }
+// drain announces departure (Terminating, which OpReadWrite excludes, so
+// surviving peers' observers fire and take over this node's checks) and waits
+// the drain window so that takeover can happen while this node is still a known
+// cluster member, before it leaves. The drain window also bounds the wait for
+// the Terminating broadcast, so drain never exceeds DrainTimeout.
+func (r *RingNode) drain(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, r.drainTimeout)
+	defer cancel()
 
-// Metrics returns the ckit node's Prometheus collector.
-func (r *RingNode) Metrics() prometheus.Collector { return r.node.Metrics() }
+	if err := r.setTerminating(ctx); err != nil {
+		return fmt.Errorf("transitioning to terminating state: %w", err)
+	}
+
+	<-ctx.Done()
+
+	return nil
+}
