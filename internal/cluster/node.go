@@ -16,6 +16,10 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 )
 
+// DefaultListenPort is the recommended port for gossip traffic, matching
+// memberlist's default.
+const DefaultListenPort = 7946
+
 // DefaultRejoinInterval is used when RingConfig.RejoinInterval is zero.
 const DefaultRejoinInterval = 60 * time.Second
 

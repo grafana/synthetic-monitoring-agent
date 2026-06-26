@@ -246,13 +246,6 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		scraperFactory = opts.ScraperFactory
 	}
 
-	node := opts.Node
-	if node == nil {
-		// Clustering disabled: a single-node cluster that owns every check,
-		// preserving the agent's pre-clustering behavior.
-		node = cluster.NewMono()
-	}
-
 	return &Updater{
 		api: apiInfo{
 			conn: opts.Conn,
@@ -265,7 +258,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		probeCh:                 opts.ProbeCh,
 		IsConnected:             opts.IsConnected,
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
-		node:                    node,
+		node:                    opts.Node,
 		knownChecks:             make(map[model.GlobalID]model.Check),
 		reconcileCh:             make(chan struct{}, 1),
 		k6Runner:                opts.K6Runner,
