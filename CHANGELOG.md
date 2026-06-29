@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.60.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.59.0...v0.60.0) (2026-06-29)
+
+
+### Features
+
+* **proto:** add LabelMode enum to Tenant proto ([#1878](https://github.com/grafana/synthetic-monitoring-agent/issues/1878)) ([6a9bf2d](https://github.com/grafana/synthetic-monitoring-agent/commit/6a9bf2dfeb294e4f32142674124bc6fa0794cf43))
+* Unit + Integration tests for check execution metrics ([#1782](https://github.com/grafana/synthetic-monitoring-agent/issues/1782)) ([2097ccd](https://github.com/grafana/synthetic-monitoring-agent/commit/2097ccda26734bd77f53cf4469e9b7a9dadcc1c1))
+
+
+### Miscellaneous Chores
+
+* Update actions/cache action to v6 ([#1882](https://github.com/grafana/synthetic-monitoring-agent/issues/1882)) ([7483248](https://github.com/grafana/synthetic-monitoring-agent/commit/74832484b213a24f1dff90af9ea959f59ae5ebea))
+* Update dependency grafana/xk6-sm-v1 to v1.1.7 ([#1880](https://github.com/grafana/synthetic-monitoring-agent/issues/1880)) ([9838325](https://github.com/grafana/synthetic-monitoring-agent/commit/9838325d6f723518494cb855dfb84b0301179027))
+
 ## [0.59.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.58.3...v0.59.0) (2026-06-22)
 
 
