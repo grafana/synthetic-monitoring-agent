@@ -395,7 +395,7 @@ func run(args []string, stdout io.Writer) error {
 	)
 
 	if config.Cluster.Enabled {
-		ringNode, err = buildClusterNode(config.Cluster, zl.With().Str("subsystem", "cluster").Logger())
+		ringNode, err = buildClusterNode(config.Cluster, zl.With().Str("subsystem", "cluster").Logger(), promRegisterer)
 		if err != nil {
 			return err
 		}
@@ -548,7 +548,7 @@ func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 // buildClusterNode constructs the gossip ring node from the cluster flags. It
 // only constructs it — it does not start gossip or join the cluster; the caller
 // does that via RingNode.Start.
-func buildClusterNode(cfg clusterConfig, logger zerolog.Logger) (*cluster.RingNode, error) {
+func buildClusterNode(cfg clusterConfig, logger zerolog.Logger, registerer prometheus.Registerer) (*cluster.RingNode, error) {
 	nodeName, err := clusterNodeName(cfg.NodeName)
 	if err != nil {
 		return nil, fmt.Errorf("resolving cluster node name: %w", err)
@@ -570,11 +570,12 @@ func buildClusterNode(cfg clusterConfig, logger zerolog.Logger) (*cluster.RingNo
 		Label:                  cfg.Label,
 		Client:                 cluster.NewGossipClient(),
 		Discover:               discoverFn,
+		Logger:                 logger,
 		RejoinInterval:         cfg.RejoinInterval,
 		MinimumClusterSize:     cfg.MinimumSize,
 		MinimumSizeWaitTimeout: cfg.MinimumSizeWaitTimeout,
 		DrainTimeout:           cfg.DrainTimeout,
-	})
+	}, registerer)
 	if err != nil {
 		return nil, fmt.Errorf("creating cluster node: %w", err)
 	}

@@ -243,7 +243,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		scraperFactory = opts.ScraperFactory
 	}
 
-	return &Updater{
+	c := &Updater{
 		api: apiInfo{
 			conn: opts.Conn,
 		},
@@ -275,7 +275,39 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		},
 		usageReporter: opts.UsageReporter,
 		tenantCals:    opts.CostAttributionLabels,
-	}, nil
+	}
+
+	knownChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: "updater",
+		Name:      "known_checks",
+		Help:      "Total number of checks known to the agent, owned or not.",
+	}, func() float64 {
+		c.scrapersMutex.Lock()
+		defer c.scrapersMutex.Unlock()
+		return float64(len(c.knownChecks))
+	})
+
+	if err := opts.PromRegisterer.Register(knownChecksGauge); err != nil {
+		return nil, err
+	}
+
+	ownedChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: "updater",
+		Name:      "owned_checks",
+		Help:      "Number of checks the agent owns and is currently running.",
+	}, func() float64 {
+		c.scrapersMutex.Lock()
+		defer c.scrapersMutex.Unlock()
+		return float64(len(c.scrapers))
+	})
+
+	if err := opts.PromRegisterer.Register(ownedChecksGauge); err != nil {
+		return nil, err
+	}
+
+	return c, nil
 }
 
 func (c *Updater) Run(ctx context.Context) error {

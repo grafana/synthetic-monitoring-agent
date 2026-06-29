@@ -972,3 +972,66 @@ func scraperExists(u *Updater, cid model.GlobalID) bool {
 	_, ok := u.scrapers[cid]
 	return ok
 }
+
+// TestCheckCountGauges verifies the known/owned check gauges track the desired
+// set and the running scraper set as ownership changes.
+func TestCheckCountGauges(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		reg := prometheus.NewPedanticRegistry()
+		node := newFakeNode()
+
+		u, err := NewUpdater(UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: reg,
+			Publisher:      channelPublisher(make(chan pusher.Payload, 100)),
+			TenantCh:       make(chan<- sm.Tenant),
+			Logger:         testhelper.Logger(t),
+			ScraperFactory: testScraperFactory,
+			Node:           node,
+		})
+		require.NoError(t, err)
+		u.probe = &sm.Probe{Id: 100, Name: "test-probe"}
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_updater_known_checks"))
+		require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_updater_owned_checks"))
+
+		owned := validCheck(t, 6000)
+		ownedID := owned.GlobalID()
+		node.setOwned(ownedID, true)
+		require.NoError(t, u.handleCheckAdd(ctx, owned))
+
+		notOwned := validCheck(t, 6001)
+		node.setOwned(notOwned.GlobalID(), false)
+		require.NoError(t, u.handleCheckAdd(ctx, notOwned))
+
+		// Both checks are known; only the owned one runs.
+		require.Equal(t, 2.0, gaugeValue(t, reg, "sm_agent_updater_known_checks"))
+		require.Equal(t, 1.0, gaugeValue(t, reg, "sm_agent_updater_owned_checks"))
+
+		// Disowning the running check stops it on reconcile; it stays known.
+		node.setOwned(ownedID, false)
+		u.reconcileAll(ctx)
+		require.Equal(t, 2.0, gaugeValue(t, reg, "sm_agent_updater_known_checks"))
+		require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_updater_owned_checks"))
+
+		synctest.Wait()
+	})
+}
+
+func gaugeValue(t *testing.T, g prometheus.Gatherer, name string) float64 {
+	t.Helper()
+
+	mfs, err := g.Gather()
+	require.NoError(t, err)
+	for _, mf := range mfs {
+		if mf.GetName() == name {
+			require.NotEmpty(t, mf.GetMetric())
+			return mf.GetMetric()[0].GetGauge().GetValue()
+		}
+	}
+	t.Fatalf("metric %q not found", name)
+	return 0
+}
