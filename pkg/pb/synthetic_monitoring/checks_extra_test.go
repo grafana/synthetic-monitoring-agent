@@ -6,6 +6,8 @@ import (
 	"errors"
 	"flag"
 	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -2074,4 +2076,53 @@ func TestRemoteInfoMarshalJSON(t *testing.T) {
 	expected := `{"name":"the name","url":"https://example.com","username":"the username","password":"\u003cencrypted\u003e"}`
 	actual := strings.TrimSpace(buf.String())
 	require.Equal(t, expected, actual, "JSON encoding of RemoteInfo did not match expected output")
+}
+
+func TestSystemLabelsSliceIsSorted(t *testing.T) {
+	systemLabelsSorted := slices.Clone(systemLabels)
+	slices.Sort(systemLabelsSorted)
+
+	require.Equal(t, systemLabelsSorted, systemLabels, "systemLabels must be sorted")
+}
+
+// BenchmarkIsSystemLabel pins down the performance of IsSystemLabel.
+//
+// The lookup inputs are weighted roughly 80% misses to 20% hits, which mirrors
+// the common case of querying user-defined labels that are not reserved.
+func BenchmarkIsSystemLabel(b *testing.B) {
+	// hits: every reserved system label (~20% of the workload).
+	hits := slices.Clone(systemLabels)
+
+	// misses: generated label names that are not reserved (~80% of the workload).
+	missCount := 4 * len(hits)
+	misses := make([]string, 0, missCount)
+	prefixes := []string{"alpha", "delta", "kilo", "november", "sierra", "zulu"}
+	for i := range missCount {
+		misses = append(misses, prefixes[i%len(prefixes)]+"_label_"+strconv.Itoa(i))
+	}
+
+	// Interleave one hit for every four misses so neither path runs in a long
+	// uninterrupted block.
+	names := make([]string, 0, len(hits)+len(misses))
+	for i, j := 0, 0; i < len(hits) || j < len(misses); {
+		if i < len(hits) {
+			names = append(names, hits[i])
+			i++
+		}
+
+		for k := 0; k < 4 && j < len(misses); k++ {
+			names = append(names, misses[j])
+			j++
+		}
+	}
+
+	b.ResetTimer()
+
+	var found bool
+
+	for i := 0; i < b.N; i++ {
+		found = IsSystemLabel(names[i%len(names)])
+	}
+
+	_ = found
 }
