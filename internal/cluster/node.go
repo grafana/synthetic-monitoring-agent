@@ -2,7 +2,6 @@ package cluster
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -12,6 +11,7 @@ import (
 	"github.com/grafana/ckit/peer"
 	"github.com/grafana/ckit/shard"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 )
@@ -59,6 +59,10 @@ const (
 // poorly.
 const tokensPerNode = 512
 
+// metricNamespace is the Prometheus namespace for cluster metrics, matching the
+// rest of the agent.
+const metricNamespace = "sm_agent"
+
 // Node is an agent's view of itself as a member of the cluster. Each agent holds
 // one Node and uses it to decide which checks it should run.
 type Node interface {
@@ -84,6 +88,7 @@ func (monoNode) Ready() bool { return true }
 // consistent-hash sharder, and notifies the rest of the agent (via onChange)
 // whenever cluster membership changes.
 type RingNode struct {
+	logger         zerolog.Logger
 	node           *ckit.Node
 	sharder        shard.Sharder
 	onChange       func()
@@ -97,6 +102,11 @@ type RingNode struct {
 	mu         sync.Mutex
 	readyState readyState
 	deadline   *time.Timer
+
+	metrics struct {
+		resolveFailures prometheus.Counter
+		joinFailures    prometheus.Counter
+	}
 }
 
 var _ Node = (*RingNode)(nil)
@@ -113,6 +123,8 @@ type RingConfig struct {
 	// Client is the HTTP/2 client used for gossip transport (built by the
 	// caller; see item 7).
 	Client *http.Client
+	// Logger records join/rejoin failures. The zero value is a silent no-op.
+	Logger zerolog.Logger
 	// Discover resolves the peers to join. It is called by Join at startup and
 	// re-invoked on every RejoinInterval.
 	Discover DiscoverFn
@@ -135,7 +147,7 @@ type RingConfig struct {
 
 // NewRingNode builds a gossip-backed RingNode. The returned node is not yet a cluster
 // member: the caller must Start it and transition it to Participant.
-func NewRingNode(cfg RingConfig) (*RingNode, error) {
+func NewRingNode(cfg RingConfig, registerer prometheus.Registerer) (*RingNode, error) {
 	sharder := shard.Ring(tokensPerNode)
 
 	node, err := ckit.NewNode(cfg.Client, ckit.Config{
@@ -167,6 +179,7 @@ func NewRingNode(cfg RingConfig) (*RingNode, error) {
 	}
 
 	r := &RingNode{
+		logger:         cfg.Logger,
 		node:           node,
 		sharder:        sharder,
 		discover:       cfg.Discover,
@@ -175,6 +188,13 @@ func NewRingNode(cfg RingConfig) (*RingNode, error) {
 		waitTimeout:    waitTimeout,
 		drainTimeout:   drainTimeout,
 		readyState:     stateNotReady,
+	}
+
+	if registerer == nil {
+		registerer = prometheus.NewRegistry()
+	}
+	if err := r.registerMetrics(registerer); err != nil {
+		return nil, err
 	}
 
 	return r, nil
@@ -214,6 +234,7 @@ func (r *RingNode) Ready() bool {
 // own checks), and then runs the periodic rejoin loop until ctx is cancelled. It
 // blocks; run it under errgroup.Go. Serve Handler() before calling Start.
 func (r *RingNode) Start(ctx context.Context, onChange func()) error {
+	r.logger.Info().Msg("starting cluster node")
 	r.onChange = onChange
 	// Subscribe to participant-set changes:
 	// ckit invokes handleMembershipChange on every join/leave.
@@ -231,20 +252,35 @@ func (r *RingNode) Start(ctx context.Context, onChange func()) error {
 // join resolves peers via the configured DiscoverFn and joins the cluster. If
 // discovery fails or returns no peers, the node bootstraps a single-node
 // cluster; the rejoin loop folds in peers once discovery succeeds, since ckit's
-// Start is additive.
-//
-// TODO: log discovery/join failures once a logger is wired into RingNode (see
-// the Log TODO in NewRingNode); they are currently recovered silently by the
-// bootstrap fallback and the rejoin loop's retry.
+// Start is additive. Failures are logged and counted but not propagated: the
+// bootstrap fallback keeps the agent running (fail-open), at the cost of briefly
+// owning every check until it rejoins.
 func (r *RingNode) join() error {
 	peers, err := r.resolvePeers()
-	if err != nil || len(peers) == 0 {
+	if err != nil {
+		r.metrics.resolveFailures.Inc()
+		r.logger.Warn().Err(err).Msg("peer discovery failed; bootstrapping single-node ring")
+
 		return r.node.Start(nil)
 	}
+
+	if len(peers) == 0 {
+		r.logger.Info().Msg("no peers discovered; bootstrapping single-node ring")
+
+		return r.node.Start(nil)
+	}
+
 	if err := r.node.Start(peers); err != nil {
-		// Joining the discovered peers failed; bootstrap solo and let the node retry.
+		r.metrics.joinFailures.Inc()
+		r.logger.Warn().Err(err).Strs("peers", peers).Msg(
+			"joining discovered peers failed; bootstrapping single-node ring and retrying",
+		)
+
 		return r.node.Start(nil)
 	}
+
+	r.logger.Info().Int("peers", len(peers)).Msg("joined cluster")
+
 	return nil
 }
 
@@ -260,11 +296,22 @@ func (r *RingNode) rejoinLoop(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			peers, err := r.resolvePeers()
-			if err != nil || len(peers) == 0 {
+			if err != nil {
+				r.metrics.resolveFailures.Inc()
+				r.logger.Warn().Err(err).Msg("peer discovery failed during rejoin; retrying next interval")
+
 				continue
 			}
+
+			if len(peers) == 0 {
+				continue
+			}
+
 			// Start is additive; transient errors are retried on the next tick.
-			_ = r.node.Start(peers)
+			if err := r.node.Start(peers); err != nil {
+				r.metrics.joinFailures.Inc()
+				r.logger.Warn().Err(err).Msg("rejoin failed; retrying next interval")
+			}
 		}
 	}
 }
@@ -362,18 +409,25 @@ func (r *RingNode) startReadinessDeadline() {
 // (announces departure and waits the drain window so surviving peers take over)
 // and then leaves the cluster.
 //
-// It is best-effort: a failed drain does not skip leaving, and any errors are
-// joined and returned. ctx bounds the drain window (whichever of ctx or
-// DrainTimeout elapses first), so pass one that outlives the drain — not the
-// already-cancelled shutdown context.
+// It is best-effort: a failed drain does not skip leaving.
+// ctx bounds the drain window (whichever of ctx or DrainTimeout elapses first).
 func (r *RingNode) Stop(ctx context.Context) error {
-	err := r.drain(ctx)
+	r.logger.Info().Msg("stopping cluster node")
+
+	if err := r.drain(ctx); err != nil {
+		r.logger.Warn().Err(err).Msg("failed to drain cluster node")
+	}
 
 	if r.deadline != nil {
 		r.deadline.Stop()
 	}
 
-	return errors.Join(err, r.node.Stop())
+	if err := r.node.Stop(); err != nil {
+		r.logger.Warn().Err(err).Msg("failed to stop cluster node")
+		return fmt.Errorf("stopping cluster node: %w", err)
+	}
+
+	return nil
 }
 
 // drain announces departure (Terminating, which OpReadWrite excludes, so
@@ -391,4 +445,55 @@ func (r *RingNode) drain(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (r *RingNode) registerMetrics(reg prometheus.Registerer) error {
+	if err := reg.Register(r.node.Metrics()); err != nil {
+		return err
+	}
+
+	clusterSize := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: "cluster",
+		Name:      "size",
+		Help:      "Number of participant peers in the ring, including this node.",
+	}, func() float64 {
+		return float64(len(r.sharder.Peers()))
+	})
+	if err := reg.Register(clusterSize); err != nil {
+		return err
+	}
+
+	ringReady := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: "cluster",
+		Name:      "ring_ready",
+		Help:      "Whether the ring has converged enough to trust ownership (1) or not (0).",
+	}, func() float64 {
+		if r.Ready() {
+			return 1
+		}
+		return 0
+	})
+	if err := reg.Register(ringReady); err != nil {
+		return err
+	}
+
+	r.metrics.resolveFailures = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: "cluster",
+		Name:      "peer_resolve_failures_total",
+		Help:      "Number of peer discovery/resolution failures on join and rejoin.",
+	})
+	if err := reg.Register(r.metrics.resolveFailures); err != nil {
+		return err
+	}
+
+	r.metrics.joinFailures = prometheus.NewCounter(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: "cluster",
+		Name:      "join_failures_total",
+		Help:      "Number of failures joining discovered peers on join and rejoin.",
+	})
+	return reg.Register(r.metrics.joinFailures)
 }

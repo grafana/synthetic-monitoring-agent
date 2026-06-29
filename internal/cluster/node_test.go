@@ -2,6 +2,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/grafana/ckit/peer"
 	"github.com/grafana/ckit/shard"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
@@ -35,7 +37,7 @@ func TestNewRingNode(t *testing.T) {
 		Name:          "test-node",
 		AdvertiseAddr: "127.0.0.1:7946",
 		Client:        &http.Client{},
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.NotNil(t, r)
 
@@ -213,7 +215,7 @@ func TestStop(t *testing.T) {
 		AdvertiseAddr: lis.Addr().String(),
 		Client:        NewGossipClient(),
 		DrainTimeout:  50 * time.Millisecond,
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	route, h := r.Handler()
@@ -228,6 +230,57 @@ func TestStop(t *testing.T) {
 	require.NoError(t, r.Stop(context.Background()))
 	require.GreaterOrEqual(t, time.Since(start), r.drainTimeout,
 		"Stop must keep running through the drain window before leaving")
+}
+
+// TestRingNodeMetrics verifies the cluster size and ring-ready gauges registered
+// by NewRingNode reflect the live ring state.
+func TestRingNodeMetrics(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	r, err := NewRingNode(RingConfig{
+		Name:               "metrics-node",
+		AdvertiseAddr:      "127.0.0.1:7946",
+		Client:             &http.Client{},
+		MinimumClusterSize: 3,
+	}, reg)
+	require.NoError(t, err)
+
+	// Before reaching the minimum the ring is not ready and has no peers.
+	require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_cluster_ring_ready"))
+	require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_cluster_size"))
+
+	// Reaching the minimum cluster size latches readiness.
+	r.sharder.SetPeers(participants("metrics-node", "metrics-node", "b", "c"))
+	r.updateReadyState()
+
+	require.Equal(t, 1.0, gaugeValue(t, reg, "sm_agent_cluster_ring_ready"))
+	require.Equal(t, 3.0, gaugeValue(t, reg, "sm_agent_cluster_size"))
+}
+
+// TestJoinResolveFailure verifies that a peer-discovery failure on join is
+// counted and recovered by bootstrapping a single-node ring (fail-open).
+func TestJoinResolveFailure(t *testing.T) {
+	reg := prometheus.NewRegistry()
+
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	r, err := NewRingNode(RingConfig{
+		Name:          "join-fail-node",
+		AdvertiseAddr: lis.Addr().String(),
+		Client:        NewGossipClient(),
+		Discover:      func() ([]string, error) { return nil, errors.New("discovery boom") },
+	}, reg)
+	require.NoError(t, err)
+
+	route, h := r.Handler()
+	srv := NewGossipServer(route, h)
+	defer func() { _ = srv.Shutdown(context.Background()) }()
+	go func() { _ = srv.Run(lis) }()
+
+	// Discovery fails, but join falls back to a single-node bootstrap.
+	require.NoError(t, r.join())
+	require.Equal(t, 1.0, counterValue(t, reg, "sm_agent_cluster_peer_resolve_failures_total"))
 }
 
 // participants builds a Participant peer set, marking the peer named self as the
@@ -255,4 +308,34 @@ func ringCluster(names ...string) map[string]*RingNode {
 		cluster[self] = &RingNode{sharder: s}
 	}
 	return cluster
+}
+
+func gaugeValue(t *testing.T, g prometheus.Gatherer, name string) float64 {
+	t.Helper()
+
+	mfs, err := g.Gather()
+	require.NoError(t, err)
+	for _, mf := range mfs {
+		if mf.GetName() == name {
+			require.NotEmpty(t, mf.GetMetric())
+			return mf.GetMetric()[0].GetGauge().GetValue()
+		}
+	}
+	t.Fatalf("metric %q not found", name)
+	return 0
+}
+
+func counterValue(t *testing.T, g prometheus.Gatherer, name string) float64 {
+	t.Helper()
+
+	mfs, err := g.Gather()
+	require.NoError(t, err)
+	for _, mf := range mfs {
+		if mf.GetName() == name {
+			require.NotEmpty(t, mf.GetMetric())
+			return mf.GetMetric()[0].GetCounter().GetValue()
+		}
+	}
+	t.Fatalf("metric %q not found", name)
+	return 0
 }
