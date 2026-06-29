@@ -50,6 +50,7 @@ flowchart LR
 | -------------------------------------------------------- | ------------------------------------------- |
 | Understand startup, flags, signals, dependency wiring    | [cmd.md](cmd.md)  |
 | Trace how a check arrives from the API and starts running | [updater.md](updater.md) |
+| Split checks across a fleet of agents (clustering)       | [cluster.md](cluster.md) |
 | Understand how a single check gets executed on schedule  | [scraper.md](scraper.md) |
 | Add a new check type or modify an existing prober        | [prober.md](prober.md) |
 | Touch scripted / browser / multihttp execution           | [k6runner.md](k6runner.md) |
@@ -65,6 +66,7 @@ flowchart LR
 - **[k6 runner](k6runner.md)** — `internal/k6runner`. Runs k6 scripts either as a local subprocess or via a remote HTTP runner.
 - **[Publisher](publisher.md)** — `internal/pusher`. Per-tenant push handlers; batches and ships to Prometheus and Loki.
 - **[Adhoc handler](adhoc.md)** — `internal/adhoc`. Separate gRPC stream for on-demand "test this check now" runs.
+- **[Clustering](cluster.md)** — `internal/cluster`. Optional gossip ring (`grafana/ckit`) that splits check ownership across a fleet of agents (RF=1). Off by default. Consumed by the Updater via the `Node` interface.
 
 ## Supporting components (follow-up docs)
 
@@ -157,6 +159,7 @@ quick index from "I changed code under X" to "I should update doc Y".
 | `internal/k6runner/*`, `internal/k6version/*`           | `k6runner.md`          |
 | `internal/pusher/*`, `internal/pkg/{prom,loki}/*`       | `publisher.md`         |
 | `internal/adhoc/*`                                      | `adhoc.md`             |
+| `internal/cluster/*`                                    | `cluster.md`           |
 | Top-level data flow or any new cross-component pathway  | this file                           |
 | Add a new gRPC RPC                                      | the doc for the component that owns it |
 | Add a new check type                                    | `prober.md` (+ `k6runner.md` if k6-backed) |
