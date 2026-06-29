@@ -139,105 +139,6 @@ type UpdaterOptions struct {
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
-	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricNamespace,
-		Subsystem: "updater",
-		Name:      "changes_total",
-		Help:      "Total number of changes processed.",
-	}, []string{
-		"type",
-	})
-
-	if err := opts.PromRegisterer.Register(changesCounter); err != nil {
-		return nil, err
-	}
-
-	changeErrorsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricNamespace,
-		Subsystem: "updater",
-		Name:      "change_errors_total",
-		Help:      "Total number of errors during change processing.",
-	}, []string{
-		"type",
-	})
-
-	if err := opts.PromRegisterer.Register(changeErrorsCounter); err != nil {
-		return nil, err
-	}
-
-	runningScrapers := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: metricNamespace,
-		Subsystem: "updater",
-		Name:      "scrapers_total",
-		Help:      "Total number of running scrapers.",
-	}, []string{
-		"type",
-	})
-
-	if err := opts.PromRegisterer.Register(runningScrapers); err != nil {
-		return nil, err
-	}
-
-	scrapesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricNamespace,
-		Subsystem: "scraper",
-		Name:      "operations_total",
-		Help:      "Total number of scrape operations performed by type.",
-	}, []string{
-		"type",
-		"tenantId",
-		"regionId",
-	})
-
-	if err := opts.PromRegisterer.Register(scrapesCounter); err != nil {
-		return nil, err
-	}
-
-	scrapeErrorCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricNamespace,
-		Subsystem: "scraper",
-		Name:      "errors_total",
-		Help:      "Total number of scraper errors by type and status.",
-	}, []string{
-		"type",
-		"source",
-		"tenantId",
-		"regionId",
-	})
-
-	if err := opts.PromRegisterer.Register(scrapeErrorCounter); err != nil {
-		return nil, err
-	}
-
-	connectionStatusGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: metricNamespace,
-		Subsystem: "api_connection",
-		Name:      "status",
-		Help:      "API connection status.",
-	})
-
-	if err := opts.PromRegisterer.Register(connectionStatusGauge); err != nil {
-		return nil, err
-	}
-
-	connectionStatusGauge.Set(0)
-
-	probeInfoGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: metricNamespace,
-		Name:      "info",
-		Help:      "Agent information.",
-	}, []string{
-		"id",
-		"name",
-		"version",
-		"commit",
-		"buildstamp",
-	})
-
-	if err := opts.PromRegisterer.Register(probeInfoGauge); err != nil {
-		return nil, err
-	}
-
 	scraperFactory := scraper.New
 	if opts.ScraperFactory != nil {
 		scraperFactory = opts.ScraperFactory
@@ -264,47 +165,12 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantSecrets:           opts.SecretProvider,
 		telemeter:               opts.Telemeter,
 		supportsProtocolSecrets: opts.SupportsProtocolSecrets,
-		metrics: metrics{
-			changeErrorsCounter: changeErrorsCounter,
-			changesCounter:      changesCounter,
-			connectionStatus:    connectionStatusGauge,
-			probeInfo:           probeInfoGauge,
-			runningScrapers:     runningScrapers,
-			scrapeErrorCounter:  scrapeErrorCounter,
-			scrapesCounter:      scrapesCounter,
-		},
-		usageReporter: opts.UsageReporter,
-		tenantCals:    opts.CostAttributionLabels,
+		usageReporter:           opts.UsageReporter,
+		tenantCals:              opts.CostAttributionLabels,
 	}
 
-	knownChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Namespace: metricNamespace,
-		Subsystem: "updater",
-		Name:      "known_checks",
-		Help:      "Total number of checks known to the agent, owned or not.",
-	}, func() float64 {
-		c.scrapersMutex.Lock()
-		defer c.scrapersMutex.Unlock()
-		return float64(len(c.knownChecks))
-	})
-
-	if err := opts.PromRegisterer.Register(knownChecksGauge); err != nil {
-		return nil, err
-	}
-
-	ownedChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Namespace: metricNamespace,
-		Subsystem: "updater",
-		Name:      "owned_checks",
-		Help:      "Number of checks the agent owns and is currently running.",
-	}, func() float64 {
-		c.scrapersMutex.Lock()
-		defer c.scrapersMutex.Unlock()
-		return float64(len(c.scrapers))
-	})
-
-	if err := opts.PromRegisterer.Register(ownedChecksGauge); err != nil {
-		return nil, err
+	if err := c.registerMetrics(opts.PromRegisterer); err != nil {
+		return nil, fmt.Errorf("registering metrics: %w", err)
 	}
 
 	return c, nil
@@ -1065,6 +931,123 @@ func (c *Updater) stopScraperWithLock(cid model.GlobalID, s *scraper.Scraper) {
 	s.Stop()
 	delete(c.scrapers, cid)
 	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
+}
+
+func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
+	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: "updater",
+		Name:      "changes_total",
+		Help:      "Total number of changes processed.",
+	}, []string{
+		"type",
+	})
+
+	changeErrorsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: "updater",
+		Name:      "change_errors_total",
+		Help:      "Total number of errors during change processing.",
+	}, []string{
+		"type",
+	})
+
+	runningScrapers := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: "updater",
+		Name:      "scrapers_total",
+		Help:      "Total number of running scrapers.",
+	}, []string{
+		"type",
+	})
+
+	scrapesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: "scraper",
+		Name:      "operations_total",
+		Help:      "Total number of scrape operations performed by type.",
+	}, []string{
+		"type",
+		"tenantId",
+		"regionId",
+	})
+
+	scrapeErrorCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: "scraper",
+		Name:      "errors_total",
+		Help:      "Total number of scraper errors by type and status.",
+	}, []string{
+		"type",
+		"source",
+		"tenantId",
+		"regionId",
+	})
+
+	connectionStatusGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: "api_connection",
+		Name:      "status",
+		Help:      "API connection status.",
+	})
+
+	probeInfoGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Name:      "info",
+		Help:      "Agent information.",
+	}, []string{
+		"id",
+		"name",
+		"version",
+		"commit",
+		"buildstamp",
+	})
+
+	knownChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: "updater",
+		Name:      "known_checks",
+		Help:      "Total number of checks known to the agent, owned or not.",
+	}, func() float64 {
+		c.scrapersMutex.Lock()
+		defer c.scrapersMutex.Unlock()
+		return float64(len(c.knownChecks))
+	})
+
+	ownedChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: "updater",
+		Name:      "owned_checks",
+		Help:      "Number of checks the agent owns and is currently running.",
+	}, func() float64 {
+		c.scrapersMutex.Lock()
+		defer c.scrapersMutex.Unlock()
+		return float64(len(c.scrapers))
+	})
+
+	for _, collector := range []prometheus.Collector{
+		changesCounter, changeErrorsCounter, runningScrapers,
+		scrapesCounter, scrapeErrorCounter, connectionStatusGauge,
+		probeInfoGauge, knownChecksGauge, ownedChecksGauge,
+	} {
+		if err := registerer.Register(collector); err != nil {
+			return err
+		}
+	}
+
+	connectionStatusGauge.Set(0)
+
+	c.metrics = metrics{
+		changeErrorsCounter: changeErrorsCounter,
+		changesCounter:      changesCounter,
+		connectionStatus:    connectionStatusGauge,
+		probeInfo:           probeInfoGauge,
+		runningScrapers:     runningScrapers,
+		scrapeErrorCounter:  scrapeErrorCounter,
+		scrapesCounter:      scrapesCounter,
+	}
+
+	return nil
 }
 
 // sleepCtx is like time.Sleep, but it pays attention to the
