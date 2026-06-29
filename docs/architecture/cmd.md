@@ -57,7 +57,7 @@ The single entry point is `run()` in `main.go`. The sequence below mirrors
 the actual order in that function — keep it in sync if you reorder
 anything.
 
-1. **Parse flags** into a single `config` struct (`main.go` ~lines 60–138). `-dev` enables several debug toggles at once. `-features` accepts a comma-separated feature-flag list.
+1. **Parse flags** into a single `config` struct (`main.go` ~lines 60–138). `-dev` enables several debug toggles at once. `-features` accepts a comma-separated feature-flag list. The `-cluster-*` flags (grouped on `clusterConfig`) configure gossip-based check ownership and are documented in [cluster.md](cluster.md).
 2. **Resolve the API token**: command line → `SM_AGENT_API_TOKEN` → `API_TOKEN`.
 3. **Set GOMEMLIMIT** based on cgroup/system memory if `-enable-auto-memlimit` is on (default). Implemented via `setupGoMemLimit()`.
 4. **Build the root `errgroup.Group`** from a cancellable context. Every long-running task is registered with `g.Go(...)`; `g.Wait()` at the end of `run()` is the agent's lifetime.
@@ -71,7 +71,8 @@ anything.
 12. **Dial the API server** (`dialAPIServer()` in `grpc.go`). Uses bearer-token credentials and gRPC keep-alive set to `synthetic_monitoring.HealthCheckInterval` / `HealthCheckTimeout`.
 13. **Build the k6 runner** if the `k6` feature is set (it is, by default, unless `-disable-k6`). Validates `-blocked-nets` as a CIDR.
 14. **Build the tenant manager**, **publisher** (selected by `-publisher`; v2 is the default), **limits**, **secret provider**, **cost attribution labels**, and **telemeter**.
-15. **Spawn the Updater**: `checks.NewUpdater(...)` + `g.Go(updater.Run)`.
+15. **Spawn the Updater**: `checks.NewUpdater(...)` + `g.Go(updater.Run)`. The Updater receives a `cluster.Node` — a `RingNode` when `-cluster-enabled`, otherwise a no-op `monoNode` that owns every check.
+    - **If `-cluster-enabled`:** the cluster node is built earlier (`buildClusterNode`, defaulting to `monoNode` when disabled). Around the Updater it: mounts `node.Handler()` on a **dedicated h2c gossip listener** on `-cluster-listen-port` (separate from the metrics/health server), then `g.Go(ringNode.Start(ctx, updater.RequestReconcile))` to join the ring, become a Participant, and run the rejoin loop. On shutdown a separate `g.Go` calls `ringNode.Stop(context.Background())` to drain (announce Terminating, wait `-cluster-drain-timeout`) before leaving. See [cluster.md](cluster.md).
 16. **Spawn the Adhoc handler**: `adhoc.NewHandler(...)` + `g.Go(handler.Run)`.
 17. **Spawn metamonitoring** if `-experimental-push-telemetry` is set.
 18. **Spawn the k6 versions handler** if a k6 runner exists.
