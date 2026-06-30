@@ -541,7 +541,15 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		return nil, 0, fmt.Errorf("retrieving tenant log labels limit: %w", err)
 	}
 
-	if len(checkInfoLabels) > maxMetricLabels {
+	// In DUAL_WRITE mode, buildUserLabels emits both prefixed and un-prefixed
+	// forms, so checkInfoLabels can contain up to 2× the user label entries.
+	// Cap at 40 (the Mimir hard limit) to avoid false-firing while still
+	// guarding against genuinely invalid sizes.
+	checkInfoLimit := min(maxMetricLabels*2, 40)
+	if labelMode != sm.LabelMode_LABEL_MODE_DUAL_WRITE {
+		checkInfoLimit = maxMetricLabels
+	}
+	if len(checkInfoLabels) > checkInfoLimit {
 		// This should never happen.
 		return nil, 0, fmt.Errorf("invalid configuration, too many labels: %d", len(checkInfoLabels))
 	}
