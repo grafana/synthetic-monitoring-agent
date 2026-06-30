@@ -613,10 +613,6 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// In DUAL_WRITE and UNPREFIXED modes, append un-prefixed user labels to every
 	// execution metric (probe_success, probe_duration_seconds, probe_http_*, etc.).
-	// This enables label-based filtering and cost attribution directly on high-frequency
-	// series without requiring a join to sm_check_info.
-	// Only the un-prefixed form is added — the dual-write of prefixed+un-prefixed
-	// continues to apply to sm_check_info and Loki streams only.
 	metricLabels = append(metricLabels, userLabelsForExecution(s.probe.Labels, s.check.Labels, labelMode)...)
 
 	ts := s.extractTimeseries(t, mfs, metricLabels)
@@ -642,8 +638,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	}
 	streamLogLabels = append(streamLogLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
 
-	// full set of structured metadata consists of any overflow labels
-	// and the execution_id
+	// full set of structured metadata consists of any overflow labels and the execution_id
 	overflowMetadata = append(overflowMetadata, logproto.LabelAdapter{Name: "execution_id", Value: executionID})
 	structuredMetadata := overflowMetadata
 
@@ -863,7 +858,7 @@ func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.
 
 // extractLogs parses logfmt-encoded log bytes and returns Loki streams using sharedLabels
 // as stream labels. Any labels in structuredMetadata are attached to each log entry as
-// Loki structured metadata (queryable but not indexed as stream labels).
+// Loki structured metadata.
 func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair, structuredMetadata []logproto.LabelAdapter) Streams {
 	var line strings.Builder
 
