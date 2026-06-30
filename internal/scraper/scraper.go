@@ -644,7 +644,8 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// full set of structured metadata consists of any overflow labels
 	// and the execution_id
-	structuredMetadata := append(overflowMetadata, logproto.LabelAdapter{Name: "execution_id", Value: executionID})
+	overflowMetadata = append(overflowMetadata, logproto.LabelAdapter{Name: "execution_id", Value: executionID})
+	structuredMetadata := overflowMetadata
 
 	// streams need to have all the labels applied to them because loki does not support joins
 	streams := s.extractLogs(t, logs.Bytes(), streamLogLabels, structuredMetadata)
