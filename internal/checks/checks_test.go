@@ -494,6 +494,12 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 	return l.logLabelsLimit, nil
 }
 
+type testLabellingMode struct{}
+
+func (l testLabellingMode) ForTenant(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error) {
+	return sm.LabelMode_LABEL_MODE_PREFIXED, nil
+}
+
 func testScraperFactory(ctx context.Context, check model.Check, publisher pusher.Publisher, _ sm.Probe,
 	_ feature.Collection,
 	logger zerolog.Logger,
@@ -503,6 +509,7 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals scraper.TenantCals,
+	labellingMode scraper.TenantLabelMode,
 ) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
@@ -513,6 +520,7 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 			Publisher:     publisher,
 			Metrics:       metrics,
 			LabelsLimiter: testLabelsLimiter{},
+			LabellingMode: testLabellingMode{},
 			Telemeter:     telemeter,
 		},
 	)

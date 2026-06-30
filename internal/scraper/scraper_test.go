@@ -1092,9 +1092,10 @@ func TestValidateLabels(t *testing.T) {
 					maxMetricLabels: 100,
 					maxLogLabels:    100,
 				},
-				summaries:  make(map[uint64]prometheus.Summary),
-				histograms: make(map[uint64]prometheus.Histogram),
-				check:      check,
+				labellingMode: testLabellingMode{},
+				summaries:     make(map[uint64]prometheus.Summary),
+				histograms:    make(map[uint64]prometheus.Histogram),
+				check:         check,
 				probe: sm.Probe{
 					Id:        100,
 					TenantId:  200,
@@ -1435,6 +1436,14 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 	return l.maxLogLabels, nil
 }
 
+type testLabellingMode struct {
+	mode sm.LabelMode
+}
+
+func (l testLabellingMode) ForTenant(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error) {
+	return l.mode, nil
+}
+
 type testCalTenants struct {
 	costAttributionLabels []string
 }
@@ -1713,8 +1722,9 @@ func TestScraperCollectData(t *testing.T) {
 					maxMetricLabels: tc.maxMetricLabels,
 					maxLogLabels:    tc.maxLogLabels,
 				},
-				summaries:  make(map[uint64]prometheus.Summary),
-				histograms: make(map[uint64]prometheus.Histogram),
+				labellingMode: testLabellingMode{},
+				summaries:     make(map[uint64]prometheus.Summary),
+				histograms:    make(map[uint64]prometheus.Histogram),
 				check: model.Check{
 					Check: sm.Check{
 						Id:               1,
@@ -2019,7 +2029,8 @@ func TestScraperRun(t *testing.T) {
 			maxMetricLabels: 20,
 			maxLogLabels:    15,
 		},
-		Telemeter: testTelemeter,
+		LabellingMode: testLabellingMode{},
+		Telemeter:     testTelemeter,
 		CostAttributionLabels: testCalTenants{
 			costAttributionLabels: []string{"testing", "you"},
 		},
@@ -2351,9 +2362,10 @@ func TestHTTPCheckLogTimestampsAreNonDecreasing(t *testing.T) {
 			maxMetricLabels: 20,
 			maxLogLabels:    15,
 		},
-		summaries:  make(map[uint64]prometheus.Summary),
-		histograms: make(map[uint64]prometheus.Histogram),
-		check:      check,
+		labellingMode: testLabellingMode{},
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		check:         check,
 		probe: sm.Probe{
 			Name:   "test-probe",
 			Region: "test-region",

@@ -69,6 +69,13 @@ type TenantCals interface {
 	CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error)
 }
 
+// TenantLabelMode provides the label migration mode for a tenant.
+// The implementation reads from the GetTenant response, which is cached by the
+// tenant manager, so calls within the cache TTL are fast local reads.
+type TenantLabelMode interface {
+	ForTenant(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error)
+}
+
 type Telemeter interface {
 	AddExecution(e telemetry.Execution)
 }
@@ -82,8 +89,9 @@ type Scraper struct {
 	check         model.Check
 	probe         sm.Probe
 	prober        prober.Prober
-	labelsLimiter LabelsLimiter
-	stop          chan struct{}
+	labelsLimiter  LabelsLimiter
+	labellingMode  TenantLabelMode
+	stop           chan struct{}
 	metrics       Metrics
 	summaries     map[uint64]prometheus.Summary
 	histograms    map[uint64]prometheus.Histogram
@@ -101,6 +109,7 @@ type Factory func(
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
+	labellingMode TenantLabelMode,
 ) (*Scraper, error)
 
 type (
@@ -136,6 +145,7 @@ func New(
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
+	labellingMode TenantLabelMode,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
@@ -146,6 +156,7 @@ func New(
 		LabelsLimiter:         labelsLimiter,
 		Telemeter:             telemeter,
 		CostAttributionLabels: cals,
+		LabellingMode:         labellingMode,
 	})
 }
 
@@ -158,6 +169,7 @@ type ScraperOpts struct {
 	Metrics               Metrics
 	ProbeFactory          prober.ProberFactory
 	LabelsLimiter         LabelsLimiter
+	LabellingMode         TenantLabelMode
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
 }
@@ -192,6 +204,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		probe:         opts.Probe,
 		prober:        smProber,
 		labelsLimiter: opts.LabelsLimiter,
+		labellingMode: opts.LabellingMode,
 		stop:          make(chan struct{}),
 		metrics:       opts.Metrics,
 		summaries:     make(map[uint64]prometheus.Summary),
