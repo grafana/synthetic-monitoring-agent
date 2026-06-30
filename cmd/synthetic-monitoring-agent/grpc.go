@@ -13,11 +13,13 @@ import (
 	"google.golang.org/grpc/keepalive"
 )
 
-func dialAPIServer(ctx context.Context, addr string, allowInsecure bool, apiToken string) (*grpc.ClientConn, error) {
+// newAPIServerClient creates a client connection to an API server. It does not
+// block: grpc.NewClient returns immediately with the connection in IDLE and
+// connects lazily in the background on the first RPC.
+func newAPIServerClient(addr string, allowInsecure bool, apiToken string) (*grpc.ClientConn, error) {
 	apiCreds := creds{Token: apiToken}
 
 	opts := []grpc.DialOption{
-		grpc.WithBlock(), //nolint:staticcheck,nolintlint // Will be removed in v2. TODO: Migrate to NewClient.
 		grpc.WithPerRPCCredentials(apiCreds),
 		// Keep-alive is necessary to detect network failures in absence of writes from the client.
 		// Without it, the agent would hang if the server disappears while waiting for a response.
@@ -40,7 +42,7 @@ func dialAPIServer(ctx context.Context, addr string, allowInsecure bool, apiToke
 	}
 	opts = append(opts, grpc.WithTransportCredentials(transportCreds))
 
-	return grpc.DialContext(ctx, addr, opts...) //nolint:staticcheck,nolintlint // Will be removed in v2. TODO: Migrate to NewClient.
+	return grpc.NewClient(addr, opts...)
 }
 
 func grpcApiHost(addr string) string {
