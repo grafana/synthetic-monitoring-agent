@@ -517,7 +517,10 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	labelMode, err := s.labellingMode.ForTenant(ctx, s.check.GlobalTenantID())
 	if err != nil {
-		return nil, 0, fmt.Errorf("retrieving tenant label mode: %w", err)
+		// Fall back to PREFIXED on transient errors so that a temporary tenant
+		// cache miss does not abort the scrape.
+		s.logger.Warn().Err(err).Msg("could not retrieve tenant label mode, falling back to PREFIXED")
+		labelMode = sm.LabelMode_LABEL_MODE_PREFIXED
 	}
 
 	var (
