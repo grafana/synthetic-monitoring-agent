@@ -144,3 +144,27 @@ func TestBuildUserLabels_DualWrite_ReservedNamePassthrough(t *testing.T) {
 	assert.Equal(t, "probe", result[2].name)
 	assert.Equal(t, "env", result[3].name)
 }
+
+// TestBuildUserLabels_Unprefixed_Basic: single label env=prod produces only env=prod.
+func TestBuildUserLabels_Unprefixed_Basic(t *testing.T) {
+	result := buildUserLabels(
+		nil,
+		labels("env", "prod"),
+		sm.LabelMode_LABEL_MODE_UNPREFIXED,
+	)
+	require.Len(t, result, 1)
+	assert.Equal(t, "env", result[0].name)
+	assert.Equal(t, "prod", result[0].value)
+}
+
+// TestBuildUserLabels_Unprefixed_ReservedNamePassthrough: reserved names are NOT dropped.
+func TestBuildUserLabels_Unprefixed_ReservedNamePassthrough(t *testing.T) {
+	result := buildUserLabels(
+		nil,
+		labels("probe", "myprobe", "env", "prod"),
+		sm.LabelMode_LABEL_MODE_UNPREFIXED,
+	)
+	require.Len(t, result, 2)
+	findLabel(t, result, "probe")
+	findLabel(t, result, "env")
+}
