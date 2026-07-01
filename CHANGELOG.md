@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.60.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.60.0...v0.60.1) (2026-07-01)
+
+
+### Fixes
+
+* Remove usage of deprecated grpc.WithBlock() ([#1873](https://github.com/grafana/synthetic-monitoring-agent/issues/1873)) ([ea9dd59](https://github.com/grafana/synthetic-monitoring-agent/commit/ea9dd59a41cb19050d87ccd3415170db4464beb2))
+
+
+### Miscellaneous Chores
+
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.42.0 ([#1886](https://github.com/grafana/synthetic-monitoring-agent/issues/1886)) ([977c234](https://github.com/grafana/synthetic-monitoring-agent/commit/977c2348bade1f58a587bbf631566cb7e2970f41))
+
 ## [0.60.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.59.0...v0.60.0) (2026-06-29)
 
 
