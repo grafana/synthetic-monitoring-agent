@@ -69,6 +69,10 @@ type TenantCals interface {
 	CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error)
 }
 
+type TenantLabelMode interface {
+	ForTenant(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error)
+}
+
 type Telemeter interface {
 	AddExecution(e telemetry.Execution)
 }
@@ -83,6 +87,7 @@ type Scraper struct {
 	probe         sm.Probe
 	prober        prober.Prober
 	labelsLimiter LabelsLimiter
+	labellingMode TenantLabelMode
 	stop          chan struct{}
 	metrics       Metrics
 	summaries     map[uint64]prometheus.Summary
@@ -101,6 +106,7 @@ type Factory func(
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
+	labellingMode TenantLabelMode,
 ) (*Scraper, error)
 
 type (
@@ -136,6 +142,7 @@ func New(
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
+	labellingMode TenantLabelMode,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
@@ -146,6 +153,7 @@ func New(
 		LabelsLimiter:         labelsLimiter,
 		Telemeter:             telemeter,
 		CostAttributionLabels: cals,
+		LabellingMode:         labellingMode,
 	})
 }
 
@@ -158,6 +166,7 @@ type ScraperOpts struct {
 	Metrics               Metrics
 	ProbeFactory          prober.ProberFactory
 	LabelsLimiter         LabelsLimiter
+	LabellingMode         TenantLabelMode
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
 }
@@ -192,6 +201,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		probe:         opts.Probe,
 		prober:        smProber,
 		labelsLimiter: opts.LabelsLimiter,
+		labellingMode: opts.LabellingMode,
 		stop:          make(chan struct{}),
 		metrics:       opts.Metrics,
 		summaries:     make(map[uint64]prometheus.Summary),
@@ -503,10 +513,19 @@ func tickWithOffset(
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
+	target := s.target
+
+	labelMode, err := s.labellingMode.ForTenant(ctx, s.check.GlobalTenantID())
+	if err != nil {
+		// Fall back to PREFIXED on transient errors so that a temporary tenant
+		// cache miss does not abort the scrape.
+		s.logger.Warn().Err(err).Msg("could not retrieve tenant label mode, falling back to PREFIXED")
+		labelMode = sm.LabelMode_LABEL_MODE_PREFIXED
+	}
+
 	var (
-		target = s.target
 		// These are the labels defined by the user.
-		userLabels = s.buildUserLabels()
+		userLabels = buildUserLabels(s.probe.Labels, s.check.Labels, labelMode)
 		// These labels are applied to the sm_check_info metric.
 		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
 		// This is the execution ID for the check run.
@@ -522,7 +541,15 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		return nil, 0, fmt.Errorf("retrieving tenant log labels limit: %w", err)
 	}
 
-	if len(checkInfoLabels) > maxMetricLabels {
+	// In DUAL_WRITE mode, buildUserLabels emits both prefixed and un-prefixed
+	// forms, so checkInfoLabels can contain up to 2× the user label entries.
+	// Cap at 40 (the Mimir hard limit) to avoid false-firing while still
+	// guarding against genuinely invalid sizes.
+	checkInfoLimit := min(maxMetricLabels*2, 40)
+	if labelMode != sm.LabelMode_LABEL_MODE_DUAL_WRITE {
+		checkInfoLimit = maxMetricLabels
+	}
+	if len(checkInfoLabels) > checkInfoLimit {
 		// This should never happen.
 		return nil, 0, fmt.Errorf("invalid configuration, too many labels: %d", len(checkInfoLabels))
 	}
@@ -595,6 +622,10 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		// {name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
 	}
 
+	// In DUAL_WRITE and UNPREFIXED modes, append un-prefixed user labels to every
+	// execution metric (probe_success, probe_duration_seconds, probe_http_*, etc.).
+	metricLabels = append(metricLabels, userLabelsForExecution(s.probe.Labels, s.check.Labels, labelMode)...)
+
 	ts := s.extractTimeseries(t, mfs, metricLabels)
 
 	successValue := "1"
@@ -603,13 +634,27 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		successValue = "0"
 	}
 
-	if len(logLabels) >= maxLogLabels {
-		logLabels = logLabels[:maxLogLabels-1]
+	// Split logLabels into stream labels and structured metadata overflow.
+	// maxLogLabels - 1 reserves one slot for probe_success which is always appended.
+	var streamLogLabels []labelPair
+	var overflowMetadata []logproto.LabelAdapter
+	maxUserLogLabels := maxLogLabels - 1
+	if len(logLabels) > maxUserLogLabels {
+		streamLogLabels = logLabels[:maxUserLogLabels]
+		for _, lp := range logLabels[maxUserLogLabels:] {
+			overflowMetadata = append(overflowMetadata, logproto.LabelAdapter{Name: lp.name, Value: lp.value})
+		}
+	} else {
+		streamLogLabels = logLabels
 	}
-	logLabels = append(logLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
+	streamLogLabels = append(streamLogLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
+
+	// full set of structured metadata consists of any overflow labels and the execution_id
+	overflowMetadata = append(overflowMetadata, logproto.LabelAdapter{Name: "execution_id", Value: executionID})
+	structuredMetadata := overflowMetadata
 
 	// streams need to have all the labels applied to them because loki does not support joins
-	streams := s.extractLogs(t, logs.Bytes(), logLabels, executionID)
+	streams := s.extractLogs(t, logs.Bytes(), streamLogLabels, structuredMetadata)
 
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.GlobalTenantID()}, duration, err
 }
@@ -822,7 +867,10 @@ func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.
 	return nil
 }
 
-func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair, executionID string) Streams {
+// extractLogs parses logfmt-encoded log bytes and returns Loki streams using sharedLabels
+// as stream labels. Any labels in structuredMetadata are attached to each log entry as
+// Loki structured metadata.
+func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair, structuredMetadata []logproto.LabelAdapter) Streams {
 	var line strings.Builder
 
 	dec := logfmt.NewDecoder(bytes.NewReader(logs))
@@ -883,11 +931,9 @@ RECORD:
 			s.logger.Warn().Err(err).Msg("encoding logs")
 		}
 		entries = append(entries, logproto.Entry{
-			Timestamp: t,
-			Line:      line.String(),
-			StructuredMetadata: logproto.LabelsAdapter{
-				{Name: "execution_id", Value: executionID},
-			},
+			Timestamp:          t,
+			Line:               line.String(),
+			StructuredMetadata: structuredMetadata,
 		})
 	}
 
@@ -942,32 +988,89 @@ func (s Scraper) buildCheckInfoLabels(userLabels []labelPair) map[string]string 
 	return labels
 }
 
-func (s Scraper) buildUserLabels() []labelPair {
-	labels := []labelPair{}
-	idx := make(map[string]int)
+// buildUserLabels builds the user-defined label pairs from probe and check labels
+// according to the tenant's LabelMode.
+//
+// Reserved system label names are not filtered here. The API enforces that tenants
+// in DUAL_WRITE or UNPREFIXED mode cannot have user labels whose names collide with
+// the reserved set at the time of migration. Any collision that occurs post-migration
+// can only be caused by adding a new label to the reserved set, in which case the
+// user-defined value should win — preserving existing tenant behaviour is preferable
+// to silently breaking it.
+//
+// In DUAL_WRITE mode, all prefixed forms are emitted first, followed by all
+// un-prefixed forms: [label_foo, label_bar, foo, bar]. This ordering ensures that
+// in the event of log stream label overflow, the prefixed forms — which existing
+// policies depend on — are preserved as stream labels, while the un-prefixed forms
+// spill into StructuredMetadata.
+func buildUserLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []labelPair {
+	// Collect unique labels in order, with check values overriding probe values.
+	collected := []labelPair{}
+	seen := make(map[string]int) // name → index in collected
 
-	// add probe labels
-	for _, l := range s.probe.Labels {
-		idx[l.Name] = len(labels)
-
-		labels = append(labels,
-			labelPair{name: "label_" + l.Name, value: l.Value})
-	}
-
-	// add check labels
-	for _, l := range s.check.Labels {
-		if where, found := idx[l.Name]; found {
-			// already there, update value
-			labels[where].value = l.Value
-			continue
+	for _, src := range [][]sm.Label{probeLabels, checkLabels} {
+		for _, l := range src {
+			if i, found := seen[l.Name]; found {
+				collected[i].value = l.Value
+				continue
+			}
+			seen[l.Name] = len(collected)
+			collected = append(collected, labelPair{name: l.Name, value: l.Value})
 		}
-
-		idx[l.Name] = len(labels)
-
-		labels = append(labels,
-			labelPair{name: "label_" + l.Name, value: l.Value})
 	}
 
+	switch mode {
+	case sm.LabelMode_LABEL_MODE_DUAL_WRITE:
+		// All prefixed forms first, then all un-prefixed forms.
+		labels := make([]labelPair, 0, 2*len(collected))
+		for _, e := range collected {
+			labels = append(labels, labelPair{name: "label_" + e.name, value: e.value})
+		}
+		for _, e := range collected {
+			labels = append(labels, labelPair{name: e.name, value: e.value})
+		}
+		return labels
+	case sm.LabelMode_LABEL_MODE_UNPREFIXED:
+		labels := make([]labelPair, 0, len(collected))
+		for _, e := range collected {
+			labels = append(labels, labelPair{name: e.name, value: e.value})
+		}
+		return labels
+	default: // LABEL_MODE_PREFIXED
+		labels := make([]labelPair, 0, len(collected))
+		for _, e := range collected {
+			labels = append(labels, labelPair{name: "label_" + e.name, value: e.value})
+		}
+		return labels
+	}
+}
+
+// userLabelsForExecution returns the un-prefixed user-defined labels to be added to
+// check execution metrics (probe_success, probe_duration_seconds, probe_http_*, etc.)
+// in DUAL_WRITE and UNPREFIXED modes.
+//
+// In PREFIXED mode this returns nil — execution metrics carry no user labels.
+//
+// In DUAL_WRITE and UNPREFIXED modes, only the un-prefixed form is returned — the
+// dual-write of prefixed+un-prefixed applies only to sm_check_info and Loki streams.
+func userLabelsForExecution(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []labelPair {
+	if mode == sm.LabelMode_LABEL_MODE_PREFIXED {
+		return nil
+	}
+
+	var labels []labelPair
+	seen := make(map[string]int) // base name → index in labels; check overrides probe
+
+	for _, src := range [][]sm.Label{probeLabels, checkLabels} {
+		for _, l := range src {
+			if idx, found := seen[l.Name]; found {
+				labels[idx].value = l.Value
+				continue
+			}
+			seen[l.Name] = len(labels)
+			labels = append(labels, labelPair{name: l.Name, value: l.Value})
+		}
+	}
 	return labels
 }
 

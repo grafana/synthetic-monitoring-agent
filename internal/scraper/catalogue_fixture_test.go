@@ -41,6 +41,7 @@ func collectFixtureCatalogueWithLogger(t *testing.T, name string, spec fixtureSp
 		logger:        logger,
 		prober:        probeImpl,
 		labelsLimiter: testLabelsLimiter{maxMetricLabels: 100, maxLogLabels: 100},
+		labellingMode: testLabellingMode{},
 		summaries:     make(map[uint64]prometheus.Summary),
 		histograms:    make(map[uint64]prometheus.Histogram),
 		check:         check,
