@@ -1513,7 +1513,19 @@ func TestScraperCollectData(t *testing.T) {
 		return labels
 	}
 
+	// generateUnprefixedLabelSet produces {"l0":"c0","l1":"c1",...} — used to describe
+	// expected user labels on execution metrics in DUAL_WRITE and UNPREFIXED modes.
+	generateUnprefixedLabelSet := func(offset, count int, valuePrefix string) map[string]string {
+		labels := make(map[string]string)
+		for i := range count {
+			n := strconv.Itoa(offset + i)
+			labels["l"+n] = valuePrefix + n
+		}
+		return labels
+	}
+
 	type testcase struct {
+		labelMode            sm.LabelMode // zero value = PREFIXED
 		maxMetricLabels      int
 		maxLogLabels         int
 		checkLabels          []sm.Label
@@ -1596,6 +1608,146 @@ func TestScraperCollectData(t *testing.T) {
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
 		},
+
+		// ── DUAL_WRITE and UNPREFIXED mode tests ──────────────────────────────────
+		//
+		// Key differences:
+		//   expectedMetricLabels includes un-prefixed user labels (execution metrics
+		//     gain user labels via customMetricLabels in DUAL_WRITE/UNPREFIXED).
+		//   expectedInfoLabels includes both forms in DUAL_WRITE (prefixed first in the
+		//     slice produced by buildUserLabels, then un-prefixed) and un-prefixed only
+		//     in UNPREFIXED.
+		//   expectedLogLabels follows DUAL_WRITE ordering: all prefixed forms before all
+		//     un-prefixed forms in the stream labels; overflow goes to StructuredMetadata.
+
+		"dual write basic": {
+			// 3 check labels + 1 probe label; no stream-label overflow.
+			// Verifies: execution metrics carry un-prefixed user labels;
+			//           sm_check_info carries both forms;
+			//           log stream carries both forms in correct ordering.
+			labelMode:       sm.LabelMode_LABEL_MODE_DUAL_WRITE,
+			maxMetricLabels: defMaxMetricLabels,
+			maxLogLabels:    defMaxLogLabels,
+			checkLabels:     generateLabels(0, 3, "c"),
+			probeLabels:     generateLabels(10, 1, "p"),
+			// Execution metrics: base + un-prefixed user labels.
+			expectedMetricLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			// sm_check_info: system sharedLabels (probe, config_version, instance, job)
+			// + check-info system labels + both forms of user labels from ConstLabels.
+			expectedInfoLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				baseExpectedInfoLabels,
+				generateLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateLabelSet(0, 3, "c"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			// Log stream: DUAL_WRITE ordering — all prefixed first, then un-prefixed.
+			// 4 user labels × 2 = 8 entries + 6 system labels = 14; probe_success
+			// is appended last, totalling 15 = defMaxLogLabels. No overflow.
+			expectedLogLabels: mergeMaps(
+				baseExpectedLogLabels,
+				generateLabelSet(10, 1, "p"),
+				generateLabelSet(0, 3, "c"),
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			expectedLogEntries: mergeMaps(
+				baseExpectedLogLabels,
+				generateLabelSet(10, 1, "p"),
+				generateLabelSet(0, 3, "c"),
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+		},
+
+		"unprefixed basic": {
+			// 3 check labels + 1 probe label in UNPREFIXED mode.
+			// Verifies: execution metrics carry un-prefixed user labels;
+			//           sm_check_info and log stream carry only un-prefixed forms.
+			labelMode:       sm.LabelMode_LABEL_MODE_UNPREFIXED,
+			maxMetricLabels: defMaxMetricLabels,
+			maxLogLabels:    defMaxLogLabels,
+			checkLabels:     generateLabels(0, 3, "c"),
+			probeLabels:     generateLabels(10, 1, "p"),
+			expectedMetricLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			expectedInfoLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				baseExpectedInfoLabels,
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			expectedLogLabels: mergeMaps(
+				baseExpectedLogLabels,
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			expectedLogEntries: mergeMaps(
+				baseExpectedLogLabels,
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+		},
+
+		"dual write log overflow": {
+			// 10 check labels + 3 probe labels in DUAL_WRITE mode causes log stream
+			// overflow. DUAL_WRITE ordering means all prefixed forms come first in the
+			// stream labels, so they are preserved when the label count exceeds the cap;
+			// the un-prefixed forms spill into StructuredMetadata instead.
+			//
+			// Label budget: 6 system + 26 user (13×2) = 32 total; cap at
+			// defMaxLogLabels-1=14 stream slots before probe_success.
+			// Stream labels: system labels (6) + first 8 prefixed user labels.
+			// Overflow into StructuredMetadata: remaining prefixed (5) + all 13
+			// un-prefixed user labels.
+			labelMode:       sm.LabelMode_LABEL_MODE_DUAL_WRITE,
+			maxMetricLabels: defMaxMetricLabels,
+			maxLogLabels:    defMaxLogLabels,
+			checkLabels:     generateLabels(0, 10, "c"),
+			probeLabels:     generateLabels(10, 3, "p"),
+			// Execution metrics: base + all un-prefixed user labels.
+			expectedMetricLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				generateUnprefixedLabelSet(10, 3, "p"),
+				generateUnprefixedLabelSet(0, 10, "c"),
+			),
+			// sm_check_info: system sharedLabels + both forms of user labels from ConstLabels.
+			expectedInfoLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				baseExpectedInfoLabels,
+				generateLabelSet(10, 3, "p"),
+				generateUnprefixedLabelSet(10, 3, "p"),
+				generateLabelSet(0, 10, "c"),
+				generateUnprefixedLabelSet(0, 10, "c"),
+			),
+			// Stream labels: system(6) + 8 prefixed user labels (prefixed-first
+			// ordering means label_l10,label_l11,label_l12 + label_l0..label_l4
+			// fill the 8 available slots before the cap).
+			expectedLogLabels: mergeMaps(
+				baseExpectedLogLabels,
+				generateLabelSet(10, 3, "p"), // label_l10, label_l11, label_l12
+				generateLabelSet(0, 5, "c"),  // label_l0 .. label_l4
+			),
+			// Log entry body includes all user labels in both forms (log entry is not
+			// truncated, only stream labels are capped). The entries in
+			// expectedLogEntries \ expectedLogLabels become StructuredMetadata overflow
+			// and are validated by assertStructuredMetadata.
+			expectedLogEntries: mergeMaps(
+				baseExpectedLogLabels,
+				generateLabelSet(10, 3, "p"),
+				generateLabelSet(0, 10, "c"),
+				generateUnprefixedLabelSet(10, 3, "p"),
+				generateUnprefixedLabelSet(0, 10, "c"),
+			),
+		},
 	}
 
 	getMetricName := func(t *testing.T, ts prompb.TimeSeries) string {
@@ -1616,6 +1768,16 @@ func TestScraperCollectData(t *testing.T) {
 		require.NotNil(t, ts)
 
 		metricName := getMetricName(t, ts)
+
+		// Ensure no label name appears more than once. Duplicate label keys are
+		// rejected by Mimir and indicate a bug in label assembly (e.g. user labels
+		// reaching a metric via both ConstLabels and sharedLabels).
+		seenLabelNames := make(map[string]bool, len(ts.GetLabels()))
+		for _, l := range ts.GetLabels() {
+			require.Falsef(t, seenLabelNames[l.GetName()],
+				"duplicate label %q in metric %s", l.GetName(), metricName)
+			seenLabelNames[l.GetName()] = true
+		}
 
 		actualLabels := make(map[string]string)
 		actualLabelsCount := 0
@@ -1751,7 +1913,7 @@ func TestScraperCollectData(t *testing.T) {
 					maxMetricLabels: tc.maxMetricLabels,
 					maxLogLabels:    tc.maxLogLabels,
 				},
-				labellingMode: testLabellingMode{},
+				labellingMode: testLabellingMode{mode: tc.labelMode},
 				summaries:     make(map[uint64]prometheus.Summary),
 				histograms:    make(map[uint64]prometheus.Histogram),
 				check: model.Check{

@@ -526,11 +526,23 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		s.logger.Warn().Err(err).Msg("could not retrieve tenant label mode, falling back to PREFIXED")
 	}
 
+	// TODO(mem): this is constant for the scraper, move this
+	// outside this function?
+	// sysMetricLabels are the common labels present on ALL metrics
+	// emitted by the system.
+	sysMetricLabels := []labelPair{
+		{name: probeLabelName, value: s.probe.Name},
+		{name: configVersionLabelName, value: s.check.ConfigVersion()},
+		{name: "instance", value: s.check.Target},
+		{name: "job", value: s.check.Job},
+		// {name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
+	}
+
 	var (
 		// These are the labels defined by the user.
 		userLabels = buildUserLabels(s.probe.Labels, s.check.Labels, labelMode)
 		// These labels are applied to the sm_check_info metric.
-		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
+		checkInfoLabels = s.buildCheckInfoLabels(userLabels, sysMetricLabels)
 		// This is the execution ID for the check run.
 		executionID = uuid.New().String()
 	)
@@ -615,22 +627,12 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	// At this point we know the check has been executed, regardless of
 	// whether it succeeded or not.
 
-	// TODO(mem): this is constant for the scraper, move this
-	// outside this function?
-	metricLabels := []labelPair{
-		{name: probeLabelName, value: s.probe.Name},
-		{name: configVersionLabelName, value: s.check.ConfigVersion()},
-		{name: "instance", value: s.check.Target},
-		{name: "job", value: s.check.Job},
-		// {name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
-	}
-
-	// In DUAL_WRITE and UNPREFIXED modes, append un-prefixed user labels to every
-	// execution metric (probe_success, probe_duration_seconds, probe_http_*, etc.).
+	// In DUAL_WRITE and UNPREFIXED modes, un-prefixed user labels are appended to
+	// execution metrics (probe_success, probe_duration_seconds, probe_http_*, etc.).
 	// user-defined label values are retained over system-defined values.
-	metricLabels = appendUniqueLabels(userLabelsForExecution(s.probe.Labels, s.check.Labels, labelMode), metricLabels)
+	executionMetricLabels := appendUniqueLabels(customMetricLabels(s.probe.Labels, s.check.Labels, labelMode), sysMetricLabels)
 
-	ts := s.extractTimeseries(t, mfs, metricLabels)
+	ts := s.extractTimeseries(t, mfs, executionMetricLabels)
 
 	successValue := "1"
 	if !success {
@@ -953,43 +955,66 @@ RECORD:
 	}
 }
 
-func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair) TimeSeries {
-	return extractTimeseries(t, metrics, sharedLabels, s.summaries, s.histograms, s.logger)
+func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair) TimeSeries {
+	return extractTimeseries(t, metrics, executionLabels, s.summaries, s.histograms, s.logger)
 }
 
-func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
-	metricLabels := make([]prompb.Label, 0, len(sharedLabels))
-	for _, label := range sharedLabels {
-		metricLabels = append(metricLabels, prompb.Label{Name: label.name, Value: truncateLabelValue(label.value)})
+// extractTimeseries converts gathered Prometheus metrics into remote-write time series.
+//
+//	executionLabels: system labels + un-prefixed user labels; applied to all check execution
+//		metrics (probe_success, etc.).
+func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
+	toPrompb := func(pairs []labelPair) []prompb.Label {
+		out := make([]prompb.Label, 0, len(pairs))
+		for _, label := range pairs {
+			out = append(out, prompb.Label{Name: label.name, Value: truncateLabelValue(label.value)})
+		}
+		return out
 	}
+
+	executionPrompb := toPrompb(executionLabels)
 
 	var ts []prompb.TimeSeries
 	for _, mf := range metrics {
 		mName := mf.GetName()
 		mType := mf.GetType()
 
+		shared := executionPrompb
+		if mName == CheckInfoMetricName {
+			// sm_check_info is already constructed with the user labels
+			// added to it under the correct LabeLMode paradigm.
+			shared = nil
+		}
+
 		for _, m := range mf.GetMetric() {
-			ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
+			ts = appendDtoToTimeseries(ts, t, mName, shared, mType, m)
 		}
 	}
 
 	return ts
 }
 
-func (s Scraper) buildCheckInfoLabels(userLabels []labelPair) map[string]string {
-	labels := map[string]string{
-		"check_name":    s.checkName,
-		regionLabelName: s.probe.Region,
-		"frequency":     strconv.FormatInt(s.check.Frequency, 10),
-		"geohash":       geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude)),
+func (s Scraper) buildCheckInfoLabels(userLabels []labelPair, commonLabels []labelPair) map[string]string {
+	baseLabels := []labelPair{
+		{name: "check_name", value: s.checkName},
+		{name: regionLabelName, value: s.probe.Region},
+		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
+		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
 	}
+	baseLabels = append(baseLabels, commonLabels...)
+
 	if s.check.AlertSensitivity != "" && s.check.AlertSensitivity != "none" {
-		labels["alert_sensitivity"] = s.check.AlertSensitivity
+		baseLabels = append(baseLabels, labelPair{name: "alert_sensitivity", value: s.check.AlertSensitivity})
 	}
-	for _, label := range userLabels {
-		labels[label.name] = label.value
+
+	checkInfoLabels := appendUniqueLabels(userLabels, baseLabels)
+
+	labelMap := make(map[string]string, len(checkInfoLabels))
+	for _, l := range checkInfoLabels {
+		labelMap[l.name] = l.value
 	}
-	return labels
+
+	return labelMap
 }
 
 // buildUserLabels builds the user-defined label pairs from probe and check labels
@@ -1034,12 +1059,12 @@ func buildUserLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []l
 	}
 }
 
-// userLabelsForExecution returns the un-prefixed user-defined labels to be added to
+// customMetricLabels returns the un-prefixed user-defined labels to be added to
 // check execution metrics (probe_success, probe_duration_seconds, probe_http_*, etc.)
 // in DUAL_WRITE and UNPREFIXED modes.
 //
 // In PREFIXED mode this returns nil — execution metrics carry no custom labels.
-func userLabelsForExecution(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []labelPair {
+func customMetricLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []labelPair {
 	if mode == sm.LabelMode_LABEL_MODE_PREFIXED {
 		return nil
 	}
@@ -1049,8 +1074,27 @@ func userLabelsForExecution(probeLabels, checkLabels []sm.Label, mode sm.LabelMo
 func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.TimeSeries {
 	var ts prompb.TimeSeries
 
-	ts.Labels = make([]prompb.Label, len(labels))
-	copy(ts.Labels, labels)
+	// duplicate labels on timeseries are rejected by Mimir.
+	// this is also a common point to enforce conflict resolution
+	// for LabelMode - user-defined labels should appear first in the list
+	// of labels associated with each timeseries so that de-duplication favours retaining them
+	// over system-defined values.
+	ts.Labels = make([]prompb.Label, 0, len(labels))
+
+	for _, l := range labels {
+		dup := false
+
+		for i := range ts.Labels {
+			if ts.Labels[i].Name == l.Name {
+				dup = true
+				break
+			}
+		}
+
+		if !dup {
+			ts.Labels = append(ts.Labels, l)
+		}
+	}
 
 	ts.Samples = []prompb.Sample{
 		{Timestamp: t.UnixNano() / 1e6, Value: value},

@@ -168,11 +168,11 @@ func TestBuildUserLabels_Unprefixed_ReservedNamePassthrough(t *testing.T) {
 	findLabel(t, result, "env")
 }
 
-// ── userLabelsForExecution tests ─────────────────────────────────────────────
+// ── customMetricLabels tests ─────────────────────────────────────────────
 
 // TestUserLabelsForExecution_Prefixed: PREFIXED mode returns nil — no user labels on execution metrics.
 func TestUserLabelsForExecution_Prefixed(t *testing.T) {
-	result := userLabelsForExecution(
+	result := customMetricLabels(
 		makeLabels("env", "prod"),
 		makeLabels("team", "platform"),
 		sm.LabelMode_LABEL_MODE_PREFIXED,
@@ -182,7 +182,7 @@ func TestUserLabelsForExecution_Prefixed(t *testing.T) {
 
 // TestUserLabelsForExecution_DualWrite: DUAL_WRITE returns only un-prefixed form.
 func TestUserLabelsForExecution_DualWrite(t *testing.T) {
-	result := userLabelsForExecution(
+	result := customMetricLabels(
 		nil,
 		makeLabels("env", "prod", "team", "platform"),
 		sm.LabelMode_LABEL_MODE_DUAL_WRITE,
@@ -196,7 +196,7 @@ func TestUserLabelsForExecution_DualWrite(t *testing.T) {
 
 // TestUserLabelsForExecution_Unprefixed: UNPREFIXED returns un-prefixed form.
 func TestUserLabelsForExecution_Unprefixed(t *testing.T) {
-	result := userLabelsForExecution(
+	result := customMetricLabels(
 		nil,
 		makeLabels("env", "prod"),
 		sm.LabelMode_LABEL_MODE_UNPREFIXED,
@@ -211,7 +211,7 @@ func TestUserLabelsForExecution_Unprefixed(t *testing.T) {
 // and the user-defined value should win to avoid breaking existing behaviour.
 func TestUserLabelsForExecution_ReservedNamePassthrough(t *testing.T) {
 	for _, mode := range []sm.LabelMode{sm.LabelMode_LABEL_MODE_DUAL_WRITE, sm.LabelMode_LABEL_MODE_UNPREFIXED} {
-		result := userLabelsForExecution(
+		result := customMetricLabels(
 			nil,
 			makeLabels("probe", "myprobe", "env", "prod"),
 			mode,
@@ -224,7 +224,7 @@ func TestUserLabelsForExecution_ReservedNamePassthrough(t *testing.T) {
 
 // TestUserLabelsForExecution_CheckOverridesProbe: check label wins over probe label for the same name.
 func TestUserLabelsForExecution_CheckOverridesProbe(t *testing.T) {
-	result := userLabelsForExecution(
+	result := customMetricLabels(
 		makeLabels("env", "staging"),
 		makeLabels("env", "prod"),
 		sm.LabelMode_LABEL_MODE_DUAL_WRITE,
