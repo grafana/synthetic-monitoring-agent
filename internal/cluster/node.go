@@ -392,6 +392,8 @@ func (r *RingNode) startReadinessDeadline() {
 		return
 	}
 
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.deadline = time.AfterFunc(r.waitTimeout, func() {
 		r.mu.Lock()
 		if r.readyState == stateNotReady {
@@ -418,8 +420,11 @@ func (r *RingNode) Stop(ctx context.Context) error {
 		r.logger.Warn().Err(err).Msg("failed to drain cluster node")
 	}
 
-	if r.deadline != nil {
-		r.deadline.Stop()
+	r.mu.Lock()
+	d := r.deadline
+	r.mu.Unlock()
+	if d != nil {
+		d.Stop()
 	}
 
 	if err := r.node.Stop(); err != nil {
