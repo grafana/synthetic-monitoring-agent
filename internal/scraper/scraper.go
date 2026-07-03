@@ -49,6 +49,10 @@ const (
 	configVersionLabelName = "config_version"
 )
 
+// mimirMaxLabelsIngest protects us and Mimir from hitting an error due to
+// ingest limit; is short of the true ingest limit to retain room for growth.
+const mimirMaxLabelsIngest = 40
+
 var (
 	staleNaN    uint64  = 0x7ff0000000000002
 	staleMarker float64 = math.Float64frombits(staleNaN)
@@ -517,10 +521,9 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	labelMode, err := s.labellingMode.ForTenant(ctx, s.check.GlobalTenantID())
 	if err != nil {
-		// Fall back to PREFIXED on transient errors so that a temporary tenant
+		// ForTenant falls back to PREFIXED on transient errors so that a temporary tenant
 		// cache miss does not abort the scrape.
 		s.logger.Warn().Err(err).Msg("could not retrieve tenant label mode, falling back to PREFIXED")
-		labelMode = sm.LabelMode_LABEL_MODE_PREFIXED
 	}
 
 	var (
@@ -543,9 +546,9 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// In DUAL_WRITE mode, buildUserLabels emits both prefixed and un-prefixed
 	// forms, so checkInfoLabels can contain up to 2× the user label entries.
-	// Cap at 40 (the Mimir hard limit) to avoid false-firing while still
-	// guarding against genuinely invalid sizes.
-	checkInfoLimit := min(maxMetricLabels*2, 40)
+	// Cap at mimirMaxLabelsIngest to avoid false-firing while still guarding
+	// against genuinely invalid sizes.
+	checkInfoLimit := min(maxMetricLabels*2, mimirMaxLabelsIngest)
 	if labelMode != sm.LabelMode_LABEL_MODE_DUAL_WRITE {
 		checkInfoLimit = maxMetricLabels
 	}
@@ -624,7 +627,8 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// In DUAL_WRITE and UNPREFIXED modes, append un-prefixed user labels to every
 	// execution metric (probe_success, probe_duration_seconds, probe_http_*, etc.).
-	metricLabels = append(metricLabels, userLabelsForExecution(s.probe.Labels, s.check.Labels, labelMode)...)
+	// user-defined label values are retained over system-defined values.
+	metricLabels = appendUniqueLabels(userLabelsForExecution(s.probe.Labels, s.check.Labels, labelMode), metricLabels)
 
 	ts := s.extractTimeseries(t, mfs, metricLabels)
 
@@ -1004,44 +1008,29 @@ func (s Scraper) buildCheckInfoLabels(userLabels []labelPair) map[string]string 
 // policies depend on — are preserved as stream labels, while the un-prefixed forms
 // spill into StructuredMetadata.
 func buildUserLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []labelPair {
-	// Collect unique labels in order, with check values overriding probe values.
-	collected := []labelPair{}
-	seen := make(map[string]int) // name → index in collected
-
-	for _, src := range [][]sm.Label{probeLabels, checkLabels} {
-		for _, l := range src {
-			if i, found := seen[l.Name]; found {
-				collected[i].value = l.Value
-				continue
-			}
-			seen[l.Name] = len(collected)
-			collected = append(collected, labelPair{name: l.Name, value: l.Value})
-		}
-	}
+	// Probe labels first, then any non-colliding check labels. On a name
+	// collision the check value overwrites in place, so check values win while
+	// probe ordering is preserved.
+	userLabels := mergeUserLabels(probeLabels, checkLabels)
 
 	switch mode {
 	case sm.LabelMode_LABEL_MODE_DUAL_WRITE:
 		// All prefixed forms first, then all un-prefixed forms.
-		labels := make([]labelPair, 0, 2*len(collected))
-		for _, e := range collected {
+		labels := make([]labelPair, 0, 2*len(userLabels))
+		for _, e := range userLabels {
 			labels = append(labels, labelPair{name: "label_" + e.name, value: e.value})
 		}
-		for _, e := range collected {
+		for _, e := range userLabels {
 			labels = append(labels, labelPair{name: e.name, value: e.value})
 		}
 		return labels
 	case sm.LabelMode_LABEL_MODE_UNPREFIXED:
-		labels := make([]labelPair, 0, len(collected))
-		for _, e := range collected {
-			labels = append(labels, labelPair{name: e.name, value: e.value})
+		return userLabels
+	default: // LABEL_MODE_PREFIXED - prefix custom label names with label_
+		for i := range userLabels {
+			userLabels[i].name = "label_" + userLabels[i].name
 		}
-		return labels
-	default: // LABEL_MODE_PREFIXED
-		labels := make([]labelPair, 0, len(collected))
-		for _, e := range collected {
-			labels = append(labels, labelPair{name: "label_" + e.name, value: e.value})
-		}
-		return labels
+		return userLabels
 	}
 }
 
@@ -1049,29 +1038,12 @@ func buildUserLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []l
 // check execution metrics (probe_success, probe_duration_seconds, probe_http_*, etc.)
 // in DUAL_WRITE and UNPREFIXED modes.
 //
-// In PREFIXED mode this returns nil — execution metrics carry no user labels.
-//
-// In DUAL_WRITE and UNPREFIXED modes, only the un-prefixed form is returned — the
-// dual-write of prefixed+un-prefixed applies only to sm_check_info and Loki streams.
+// In PREFIXED mode this returns nil — execution metrics carry no custom labels.
 func userLabelsForExecution(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []labelPair {
 	if mode == sm.LabelMode_LABEL_MODE_PREFIXED {
 		return nil
 	}
-
-	var labels []labelPair
-	seen := make(map[string]int) // base name → index in labels; check overrides probe
-
-	for _, src := range [][]sm.Label{probeLabels, checkLabels} {
-		for _, l := range src {
-			if idx, found := seen[l.Name]; found {
-				labels[idx].value = l.Value
-				continue
-			}
-			seen[l.Name] = len(labels)
-			labels = append(labels, labelPair{name: l.Name, value: l.Value})
-		}
-	}
-	return labels
+	return buildUserLabels(probeLabels, checkLabels, sm.LabelMode_LABEL_MODE_UNPREFIXED)
 }
 
 func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.TimeSeries {
@@ -1085,6 +1057,58 @@ func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.T
 	}
 
 	return ts
+}
+
+// mergeUserLabels combines probe- and check-level labels into a single ordered
+// slice. Probe labels come first (in order), followed by any check labels whose
+// names do not appear among the probe labels. When a check label's name collides
+// with a probe label, the check value overwrites the probe value in place,
+// preserving the label's original position.
+func mergeUserLabels(probeLabels, checkLabels []sm.Label) []labelPair {
+	labels := make([]labelPair, 0, len(probeLabels)+len(checkLabels))
+	idx := make(map[string]int, len(probeLabels))
+
+	for _, l := range probeLabels {
+		idx[l.Name] = len(labels)
+		labels = append(labels, labelPair{name: l.Name, value: l.Value})
+	}
+
+	for _, l := range checkLabels {
+		if where, found := idx[l.Name]; found {
+			labels[where].value = l.Value
+			continue
+		}
+		idx[l.Name] = len(labels)
+		labels = append(labels, labelPair{name: l.Name, value: l.Value})
+	}
+
+	return labels
+}
+
+// appendUniqueLabels returns a slice of key-value labels which
+// are unique by key. Duplicates are discarded, meaning values
+// from prior slices are favoured over latter ones.
+func appendUniqueLabels(slice1, slice2 []labelPair) []labelPair {
+	if slice1 == nil && slice2 == nil {
+		return nil
+	}
+
+	result := make([]labelPair, 0, len(slice1)+len(slice2))
+	seen := make(map[string]bool)
+
+	addUnique := func(slice []labelPair) {
+		for _, val := range slice {
+			if !seen[val.name] {
+				seen[val.name] = true
+				result = append(result, val)
+			}
+		}
+	}
+
+	addUnique(slice1)
+	addUnique(slice2)
+
+	return slices.Clip(result)
 }
 
 func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sharedLabels []prompb.Label, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {

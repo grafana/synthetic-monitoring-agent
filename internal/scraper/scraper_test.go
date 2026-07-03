@@ -1663,6 +1663,38 @@ func TestScraperCollectData(t *testing.T) {
 		}
 	}
 
+	// assertStructuredMetadata verifies that each log entry's StructuredMetadata
+	// contains a valid execution_id UUID plus any overflow labels (those present in
+	// expectedLogEntries but absent from expectedLogLabels — they fit in the log
+	// entry body but were truncated from the stream label set).
+	assertStructuredMetadata := func(t *testing.T, entry logproto.Entry, tc testcase) {
+		t.Helper()
+		executionIDFound := false
+		overflowFound := 0
+		for _, meta := range entry.StructuredMetadata {
+			if meta.Name == "execution_id" {
+				executionIDFound = true
+				_, err := uuid.Parse(meta.Value)
+				require.NoError(t, err, "execution_id should be a valid UUID")
+			} else {
+				expectedVal, inEntries := tc.expectedLogEntries[meta.Name]
+				_, inLabels := tc.expectedLogLabels[meta.Name]
+				require.Truef(t, inEntries && !inLabels,
+					"unexpected structured metadata entry: %s=%s", meta.Name, meta.Value)
+				require.Equal(t, expectedVal, meta.Value, "overflow label value mismatch: %s", meta.Name)
+				overflowFound++
+			}
+		}
+		require.True(t, executionIDFound, "execution_id not found in structured metadata")
+		expectedOverflow := 0
+		for name := range tc.expectedLogEntries {
+			if _, inLabels := tc.expectedLogLabels[name]; !inLabels {
+				expectedOverflow++
+			}
+		}
+		require.Equal(t, expectedOverflow, overflowFound, "overflow label count in structured metadata")
+	}
+
 	validateStreams := func(t *testing.T, s Scraper, stream logproto.Stream, tc testcase) {
 		sLabels, err := metricParser.ParseMetric(stream.Labels)
 		require.NoError(t, err)
@@ -1704,34 +1736,7 @@ func TestScraperCollectData(t *testing.T) {
 			}
 			require.NoError(t, dec.Err())
 
-			// Verify StructuredMetadata contains execution_id and any overflow log labels.
-			// Overflow labels are those present in expectedLogEntries but not in expectedLogLabels
-			// (they fit in the log entry body but were truncated from the stream label set).
-			executionIDFound := false
-			overflowFound := 0
-			for _, meta := range entry.StructuredMetadata {
-				if meta.Name == "execution_id" {
-					executionIDFound = true
-					_, err := uuid.Parse(meta.Value)
-					require.NoError(t, err, "execution_id should be a valid UUID")
-				} else {
-					expectedVal, inEntries := tc.expectedLogEntries[meta.Name]
-					_, inLabels := tc.expectedLogLabels[meta.Name]
-					require.Truef(t, inEntries && !inLabels,
-						"unexpected structured metadata entry: %s=%s", meta.Name, meta.Value)
-					require.Equal(t, expectedVal, meta.Value, "overflow label value mismatch: %s", meta.Name)
-					overflowFound++
-				}
-			}
-			require.True(t, executionIDFound, "execution_id not found in structured metadata")
-
-			expectedOverflow := 0
-			for name := range tc.expectedLogEntries {
-				if _, inLabels := tc.expectedLogLabels[name]; !inLabels {
-					expectedOverflow++
-				}
-			}
-			require.Equal(t, expectedOverflow, overflowFound, "overflow label count in structured metadata")
+			assertStructuredMetadata(t, entry, tc)
 		}
 	}
 
