@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -182,9 +181,9 @@ func run(args []string, stdout io.Writer) error {
 	// Using API_TOKEN should be deprecated after March 1st, 2023.
 	config.ApiToken = Secret(stringFromEnv("API_TOKEN", stringFromEnv("SM_AGENT_API_TOKEN", string(config.ApiToken))))
 
-	// Enable protocol secrets support via environment variable.
-	// This is a feature flag to allow testing before enabling by default.
-	config.EnableProtocolSecrets = boolFromEnv("SM_AGENT_ENABLE_PROTOCOL_SECRETS", config.EnableProtocolSecrets)
+	// Enable protocol secrets support via the "protocol-secrets" feature flag.
+	// This allows testing before enabling by default.
+	config.EnableProtocolSecrets = features.IsSet(feature.ProtocolSecrets)
 
 	if config.ApiToken == "" {
 		return fmt.Errorf("invalid API token")
@@ -480,21 +479,6 @@ func stringFromEnv(name string, override string) string {
 	}
 
 	return os.Getenv(name)
-}
-
-func boolFromEnv(name string, defaultValue bool) bool {
-	value := os.Getenv(name)
-	if value == "" {
-		return defaultValue
-	}
-
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		// If parsing fails, return the default value
-		return defaultValue
-	}
-
-	return parsed
 }
 
 func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {

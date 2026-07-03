@@ -67,6 +67,22 @@ func TestCollection(t *testing.T) {
 	}
 }
 
+func TestNamedFeatureConstants(t *testing.T) {
+	// Guard the exported feature-name constants against typos: parsing the
+	// literal name must make IsSet(<constant>) true.
+	for name, want := range map[string]string{
+		"traceroute":       Traceroute,
+		"k6":               K6,
+		"protocol-secrets": ProtocolSecrets,
+	} {
+		require.Equal(t, name, want)
+
+		c := NewCollection()
+		require.NoError(t, c.Set(name))
+		require.True(t, c.IsSet(want))
+	}
+}
+
 func TestCollectionFromFlag(t *testing.T) {
 	testcases := map[string]struct {
 		input            []string
