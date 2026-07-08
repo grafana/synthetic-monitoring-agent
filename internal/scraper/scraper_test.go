@@ -1537,7 +1537,7 @@ func TestScraperCollectData(t *testing.T) {
 	}
 
 	const (
-		defMaxMetricLabels = 20
+		defMaxMetricLabels = 22
 		defMaxLogLabels    = 15
 	)
 
@@ -1599,8 +1599,8 @@ func TestScraperCollectData(t *testing.T) {
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 3, "p")),
 		},
 		"max labels override": {
-			maxMetricLabels:      21,
-			maxLogLabels:         21,
+			maxMetricLabels:      23,
+			maxLogLabels:         23,
 			checkLabels:          generateLabels(0, 10, "c"),
 			probeLabels:          generateLabels(10, 4, "p"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),

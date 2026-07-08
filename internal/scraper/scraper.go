@@ -557,7 +557,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	}
 
 	// In DUAL_WRITE mode, buildUserLabels emits both prefixed and un-prefixed
-	// forms, so checkInfoLabels can contain up to 2× the user label entries.
+	// forms, so the user portion can be up to 2× the user label entries.
 	// Cap at mimirMaxLabelsIngest to avoid false-firing while still guarding
 	// against genuinely invalid sizes.
 	checkInfoLimit := min(maxMetricLabels*2, mimirMaxLabelsIngest)
@@ -577,7 +577,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		{name: "check_name", value: s.checkName},
 		{name: "source", value: CheckInfoSource}, // identify log lines that belong to synthetic-monitoring-agent
 	}
-	logLabels = append(logLabels, userLabels...)
+	logLabels = mergeLogLabels(logLabels, userLabels)
 
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
@@ -1127,6 +1127,35 @@ func mergeUserLabels(probeLabels, checkLabels []sm.Label) []labelPair {
 	}
 
 	return labels
+}
+
+// mergeLogLabels merges user-defined labels into the system log labels. On a
+// name collision the user value wins in place, preserving the ordering of the
+// system labels; user labels whose names do not collide are appended after them.
+//
+// Ordering matters: the system labels keep their leading positions so they are
+// retained as stream labels when the label set exceeds the stream cap and the
+// tail spills into structured metadata. User values still win on collision,
+// which protects a tenant whose existing label name later becomes reserved.
+func mergeLogLabels(systemLabels, userLabels []labelPair) []labelPair {
+	merged := make([]labelPair, len(systemLabels)+len(userLabels))
+	copy(merged, systemLabels)
+
+	idx := make(map[string]int, len(systemLabels))
+	for i, l := range merged {
+		idx[l.name] = i
+	}
+
+	for _, l := range userLabels {
+		if where, found := idx[l.name]; found {
+			merged[where].value = l.value
+			continue
+		}
+		idx[l.name] = len(merged)
+		merged = append(merged, l)
+	}
+
+	return merged
 }
 
 // appendUniqueLabels returns a slice of key-value labels which
