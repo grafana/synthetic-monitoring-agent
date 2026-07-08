@@ -1,7 +1,9 @@
 package metamonitoring
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -470,9 +472,125 @@ func TestReportUsage(t *testing.T) {
 			require.Contains(t, ts.Labels, prompb.Label{Name: "probe", Value: "shark-taco"})
 		})
 	})
+
+	t.Run("includes instance label when instance name is set", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			registry := prometheus.NewRegistry()
+			counter := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "test_requests_total",
+				Help: "Test counter",
+			})
+			registry.MustRegister(counter)
+			counter.Add(1)
+
+			pub := &mockPublisher{}
+			handler := NewHandler(HandlerOpts{
+				Logger:    zerolog.New(zerolog.NewTestWriter(t)),
+				Registry:  registry,
+				Publisher: pub,
+				TenantID:  1,
+				Instance:  "sm-agent-0",
+			})
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer func() {
+				cancel()
+				synctest.Wait()
+			}()
+
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("handler.Run: %v", err)
+				}
+			}()
+			time.Sleep(defaultInterval)
+			synctest.Wait()
+
+			payloads := pub.getPayloads()
+			require.Len(t, payloads, 1)
+			ts := payloads[0].metrics[0]
+			require.Contains(t, ts.Labels, prompb.Label{Name: "instance", Value: "sm-agent-0"})
+		})
+	})
+
+	t.Run("omits instance label when instance name is empty", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			registry := prometheus.NewRegistry()
+			counter := prometheus.NewCounter(prometheus.CounterOpts{
+				Name: "test_requests_total",
+				Help: "Test counter",
+			})
+			registry.MustRegister(counter)
+			counter.Add(1)
+
+			handler, pub := newTestHandler(t, registry, 1)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer func() {
+				cancel()
+				synctest.Wait()
+			}()
+
+			go func() {
+				if err := handler.Run(ctx); err != nil {
+					t.Errorf("handler.Run: %v", err)
+				}
+			}()
+			time.Sleep(defaultInterval)
+			synctest.Wait()
+
+			payloads := pub.getPayloads()
+			require.Len(t, payloads, 1)
+			ts := payloads[0].metrics[0]
+			for _, l := range ts.Labels {
+				require.NotEqual(t, "instance", l.Name)
+			}
+		})
+	})
 }
 
 func TestRun(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		instance     string
+		wantInstance bool
+	}{
+		{
+			name:         "logs tenant and instance when instance is set",
+			instance:     "sm-agent-0",
+			wantInstance: true,
+		},
+		{
+			name: "omits instance from log when instance is not set",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var logs bytes.Buffer
+			handler := NewHandler(HandlerOpts{
+				Logger:    zerolog.New(&logs),
+				Registry:  prometheus.NewRegistry(),
+				Publisher: &mockPublisher{},
+				TenantID:  42,
+				Instance:  tc.instance,
+				Interval:  time.Hour,
+			})
+
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			require.NoError(t, handler.Run(ctx))
+
+			var event map[string]any
+			require.NoError(t, json.Unmarshal(logs.Bytes(), &event))
+			require.Equal(t, float64(42), event["tenantID"])
+			require.Equal(t, "starting to report metrics", event["message"])
+			instance, ok := event["instance"]
+			require.Equal(t, tc.wantInstance, ok)
+			if tc.wantInstance {
+				require.Equal(t, tc.instance, instance)
+			}
+		})
+	}
+
 	t.Run("handler returns an error if no tenant is passed to the probeTenantCh", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			probeTenantCh := make(chan *synthetic_monitoring.Probe, 1)

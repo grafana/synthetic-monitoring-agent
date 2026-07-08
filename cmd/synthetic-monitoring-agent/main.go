@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -409,12 +410,22 @@ func run(args []string, stdout io.Writer) error {
 	// When clustering is disabled, the updater uses the mono node (owns everything),
 	// The updater needs the node, so it is built first; the node is started after the updater exists.
 	var (
-		clusterNode cluster.Node      = cluster.NewMono() // passed to the updater
-		ringNode    *cluster.RingNode                     // set + started only when clustering is enabled
+		clusterNode     cluster.Node      = cluster.NewMono() // passed to the updater
+		ringNode        *cluster.RingNode                     // set + started only when clustering is enabled
+		clusterNodeName string
 	)
 
 	if config.Cluster.Enabled {
-		ringNode, err = buildClusterNode(config.Cluster, zl.With().Str("subsystem", "cluster").Logger(), promRegisterer)
+		var hostnameErr error
+		clusterNodeName, hostnameErr = resolveClusterNodeName(config.Cluster.NodeName, os.Hostname)
+		if hostnameErr != nil {
+			zl.Warn().
+				Err(hostnameErr).
+				Str("nodeName", clusterNodeName).
+				Msg("failed to resolve hostname; using generated cluster node name")
+		}
+
+		ringNode, err = buildClusterNode(config.Cluster, clusterNodeName, zl.With().Str("subsystem", "cluster").Logger(), promRegisterer)
 		if err != nil {
 			return err
 		}
@@ -519,6 +530,7 @@ func run(args []string, stdout io.Writer) error {
 				Publisher: publisher,
 				Interval:  config.MetricsInterval,
 				ProbeCh:   probeCh,
+				Instance:  clusterNodeName,
 			})
 
 			return metricsHandler.Run(ctx)
@@ -572,12 +584,7 @@ func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 // buildClusterNode constructs the gossip ring node from the cluster flags. It
 // only constructs it — it does not start gossip or join the cluster; the caller
 // does that via RingNode.Start.
-func buildClusterNode(cfg clusterConfig, logger zerolog.Logger, registerer prometheus.Registerer) (*cluster.RingNode, error) {
-	nodeName, err := clusterNodeName(cfg.NodeName)
-	if err != nil {
-		return nil, fmt.Errorf("resolving cluster node name: %w", err)
-	}
-
+func buildClusterNode(cfg clusterConfig, nodeName string, logger zerolog.Logger, registerer prometheus.Registerer) (*cluster.RingNode, error) {
 	advertiseAddr, err := clusterAdvertiseAddr(cfg.AdvertiseAddress, cfg.AdvertiseInterfaces, cfg.ListenPort)
 	if err != nil {
 		return nil, fmt.Errorf("resolving cluster advertise address: %w", err)
@@ -607,13 +614,23 @@ func buildClusterNode(cfg clusterConfig, logger zerolog.Logger, registerer prome
 	return node, nil
 }
 
-// clusterNodeName returns the configured node name, falling back to the
-// hostname (the stable pod name in Kubernetes) when unset.
-func clusterNodeName(name string) (string, error) {
+// resolveClusterNodeName returns the configured node name, falling back to the
+// hostname (the stable pod name in Kubernetes) when unset. If the hostname
+// cannot be resolved, it returns a generated name and the resolution error.
+func resolveClusterNodeName(name string, hostname func() (string, error)) (string, error) {
 	if name != "" {
 		return name, nil
 	}
-	return os.Hostname()
+
+	resolvedName, err := hostname()
+	if err == nil && resolvedName != "" {
+		return resolvedName, nil
+	}
+	if err == nil {
+		err = errors.New("hostname is empty")
+	}
+
+	return uuid.New().String(), err
 }
 
 // clusterAdvertiseAddr returns the explicit advertise address when set,

@@ -84,7 +84,7 @@ and grouped onto the `clusterConfig` struct; `buildClusterNode` maps them onto
 | Flag                                 | Type     | Default                       | Purpose                                                                                          |
 | ------------------------------------ | -------- | ----------------------------- | ------------------------------------------------------------------------------------------------ |
 | `-cluster-enabled`                   | bool     | `false`                       | Form a gossip cluster so checks are split across agents (each check runs on one owning agent).   |
-| `-cluster-node-name`                 | string   | hostname                      | Unique, stable name for this node in the cluster.                                                |
+| `-cluster-node-name`                 | string   | hostname, then generated UUID | Unique, stable name for this node in the cluster.                                                |
 | `-cluster-advertise-address`         | string   | resolved                      | `host:port` other nodes use to reach this one. Resolved from advertise interfaces + listen port if unset. |
 | `-cluster-advertise-interfaces`      | list     | `eth0,en0`                    | Interfaces to pick the advertise address from when `-cluster-advertise-address` is unset.        |
 | `-cluster-listen-port`               | int      | `7946`                        | Port for gossip traffic (plaintext HTTP/2).                                                      |
@@ -106,7 +106,10 @@ is an interchangeable ring member:
 
 - **Stable identity.** `-cluster-node-name` defaults to the hostname, which is the
   stable pod name under a `StatefulSet`. Leave it unset and run agents as a
-  `StatefulSet` so names survive restarts.
+  `StatefulSet` so names survive restarts. If hostname resolution fails, the
+  agent generates a process-scoped UUID to avoid collisions. That fallback is
+  not stable across restarts, so deployments that require stable identity
+  should provide a stable hostname or set `-cluster-node-name` explicitly.
 - **Gossip transport.** Each agent listens on `-cluster-listen-port` (default
   `7946`) for plaintext HTTP/2 (h2c) gossip, on a dedicated listener separate from
   the metrics/health HTTP server.
