@@ -1175,6 +1175,65 @@ func TestMakeTimeseries(t *testing.T) {
 	}
 }
 
+// TestMakeTimeseriesDeduplicates verifies that makeTimeseries drops duplicate
+// label names, keeping the first occurrence (Mimir rejects duplicate keys)
+func TestMakeTimeseriesDeduplicates(t *testing.T) {
+	ts := makeTimeseries(time.Unix(1, 0), 1,
+		prompb.Label{Name: prom.MetricNameLabel, Value: "m"},
+		prompb.Label{Name: "probe", Value: "user-probe"},
+		prompb.Label{Name: "job", Value: "system"},
+		prompb.Label{Name: "probe", Value: "system"}, // duplicate name — must be dropped
+		prompb.Label{Name: "env", Value: "prod"},
+	)
+
+	require.Equal(t, []prompb.Label{
+		{Name: prom.MetricNameLabel, Value: "m"},
+		{Name: "probe", Value: "user-probe"}, // first occurrence wins
+		{Name: "job", Value: "system"},
+		{Name: "env", Value: "prod"},
+	}, ts.Labels)
+}
+
+// TestScraperCollectDataTooManyMetricLabels verifies that the check-info label
+// guard rejects a scrape whose non-system label count exceeds the tenant's
+// metric-label budget, before any data is emitted.
+func TestScraperCollectDataTooManyMetricLabels(t *testing.T) {
+	s := Scraper{
+		checkName:     "check name",
+		target:        "test target",
+		logger:        testhelper.Logger(t),
+		prober:        testProber{},
+		labelsLimiter: testLabelsLimiter{maxMetricLabels: 1, maxLogLabels: 15},
+		labellingMode: testLabellingMode{},
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		check: model.Check{
+			Check: sm.Check{
+				Id:               1,
+				TenantId:         2,
+				Frequency:        2000,
+				Timeout:          2000,
+				Enabled:          true,
+				Target:           "target name",
+				Job:              "job name",
+				BasicMetricsOnly: true,
+				Created:          42,
+				Modified:         42,
+				Labels: []sm.Label{
+					{Name: "a", Value: "1"},
+					{Name: "b", Value: "2"},
+					{Name: "c", Value: "3"},
+				},
+				Settings: sm.CheckSettings{Http: &sm.HttpSettings{}},
+			},
+		},
+		probe: sm.Probe{Id: 100, TenantId: 200, Name: "probe name", Region: "REGION"},
+	}
+
+	_, _, err := s.collectData(context.Background(), time.Unix(3141, 0))
+	require.ErrorIs(t, err, errTooManyLabels)
+}
+
 func TestAppendDtoToTimeseries(t *testing.T) {
 	makeUint64Ptr := func(n uint64) *uint64 {
 		return &n
@@ -1438,10 +1497,11 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 
 type testLabellingMode struct {
 	mode sm.LabelMode
+	err  error
 }
 
 func (l testLabellingMode) ForTenant(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error) {
-	return l.mode, nil
+	return l.mode, l.err
 }
 
 type testCalTenants struct {
@@ -1526,6 +1586,7 @@ func TestScraperCollectData(t *testing.T) {
 
 	type testcase struct {
 		labelMode            sm.LabelMode // zero value = PREFIXED
+		labelModeErr         error        // simulates a tenant label-mode lookup failure
 		maxMetricLabels      int
 		maxLogLabels         int
 		checkLabels          []sm.Label
@@ -1748,6 +1809,47 @@ func TestScraperCollectData(t *testing.T) {
 				generateUnprefixedLabelSet(0, 10, "c"),
 			),
 		},
+
+		"unprefixed system label collision": {
+			labelMode:       sm.LabelMode_LABEL_MODE_UNPREFIXED,
+			maxMetricLabels: defMaxMetricLabels,
+			maxLogLabels:    defMaxLogLabels,
+			checkLabels: []sm.Label{
+				{Name: "job", Value: "user-job"},
+				{Name: "env", Value: "prod"},
+			},
+			expectedMetricLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				map[string]string{"job": "user-job", "env": "prod"},
+			),
+			expectedInfoLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				baseExpectedInfoLabels,
+				map[string]string{"job": "user-job", "env": "prod"},
+			),
+			expectedLogLabels: mergeMaps(
+				baseExpectedLogLabels,
+				map[string]string{"job": "user-job", "env": "prod"},
+			),
+			expectedLogEntries: mergeMaps(
+				baseExpectedLogLabels,
+				map[string]string{"job": "user-job", "env": "prod"},
+			),
+		},
+
+		// This tests the default label mode falls back to PREFIXED, but note
+		// the scraper would actually abort if there was no tenant in cache due to
+		// the label limits being unavailable.
+		"label mode fetch error degrades to prefixed": {
+			labelModeErr:         errors.New("simulated tenant label-mode fetch failure"),
+			maxMetricLabels:      defMaxMetricLabels,
+			maxLogLabels:         defMaxLogLabels,
+			checkLabels:          generateLabels(1, 3, "c"),
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(1, 3, "c")),
+			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c")),
+			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c")),
+		},
 	}
 
 	getMetricName := func(t *testing.T, ts prompb.TimeSeries) string {
@@ -1913,7 +2015,7 @@ func TestScraperCollectData(t *testing.T) {
 					maxMetricLabels: tc.maxMetricLabels,
 					maxLogLabels:    tc.maxLogLabels,
 				},
-				labellingMode: testLabellingMode{mode: tc.labelMode},
+				labellingMode: testLabellingMode{mode: tc.labelMode, err: tc.labelModeErr},
 				summaries:     make(map[uint64]prometheus.Summary),
 				histograms:    make(map[uint64]prometheus.Histogram),
 				check: model.Check{

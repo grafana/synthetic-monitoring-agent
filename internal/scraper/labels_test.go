@@ -232,3 +232,47 @@ func TestUserLabelsForExecution_CheckOverridesProbe(t *testing.T) {
 	require.Len(t, result, 1)
 	require.Equal(t, "prod", result[0].value, "check label should override probe label")
 }
+
+// ── mergeLogLabels tests ─────────────────────────────────────────────────────
+
+// TestMergeLogLabels_UserWinsSystemOrderingPreserved verifies that user labels
+// override colliding system labels in place (user value wins), system labels
+// keep their leading positions (so they survive stream-label overflow), and
+// non-colliding user labels are appended after the system set. The input system
+// slice must not be mutated.
+func TestMergeLogLabels_UserWinsSystemOrderingPreserved(t *testing.T) {
+	system := []labelPair{
+		{name: "probe", value: "p"},
+		{name: "job", value: "sysjob"},
+		{name: "region", value: "r"},
+	}
+	user := []labelPair{
+		{name: "job", value: "userjob"}, // collides with system "job"
+		{name: "env", value: "prod"},    // new
+	}
+
+	got := mergeLogLabels(system, user)
+
+	require.Equal(t, []labelPair{
+		{name: "probe", value: "p"},
+		{name: "job", value: "userjob"}, // user value wins, position preserved
+		{name: "region", value: "r"},
+		{name: "env", value: "prod"}, // appended after the system labels
+	}, got)
+
+	// The input system slice must be left untouched.
+	require.Equal(t, "sysjob", system[1].value)
+}
+
+// TestMergeLogLabels_NoUserLabels verifies the system labels pass through
+// unchanged when there are no user labels.
+func TestMergeLogLabels_NoUserLabels(t *testing.T) {
+	system := []labelPair{
+		{name: "probe", value: "p"},
+		{name: "job", value: "sysjob"},
+	}
+
+	got := mergeLogLabels(system, nil)
+
+	require.Equal(t, system, got)
+}

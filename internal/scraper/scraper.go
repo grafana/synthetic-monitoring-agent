@@ -218,6 +218,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 var (
 	errCheckFailed       = errors.New("probe failed")
 	errUnsupportedMetric = errors.New("unsupported metric type")
+	errTooManyLabels     = errors.New("invalid configuration, too many labels")
 )
 
 type checkStateMachine struct {
@@ -566,7 +567,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	}
 	if len(checkInfoLabels) > checkInfoLimit {
 		// This should never happen.
-		return nil, 0, fmt.Errorf("invalid configuration, too many labels: %d", len(checkInfoLabels))
+		return nil, 0, fmt.Errorf("%w: %d", errTooManyLabels, len(checkInfoLabels))
 	}
 
 	logLabels := []labelPair{
@@ -1138,7 +1139,7 @@ func mergeUserLabels(probeLabels, checkLabels []sm.Label) []labelPair {
 // tail spills into structured metadata. User values still win on collision,
 // which protects a tenant whose existing label name later becomes reserved.
 func mergeLogLabels(systemLabels, userLabels []labelPair) []labelPair {
-	merged := make([]labelPair, len(systemLabels)+len(userLabels))
+	merged := make([]labelPair, len(systemLabels), len(systemLabels)+len(userLabels))
 	copy(merged, systemLabels)
 
 	idx := make(map[string]int, len(systemLabels))
