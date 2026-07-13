@@ -104,6 +104,25 @@ func TestHttpRunnerRun(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestNewHTTPMetricsExportsGraceTime(t *testing.T) {
+	t.Parallel()
+
+	registry := prometheus.NewRegistry()
+	NewHTTPMetrics(registry, 42*time.Second)
+
+	metricFamilies, err := registry.Gather()
+	require.NoError(t, err)
+
+	for _, metricFamily := range metricFamilies {
+		if metricFamily.GetName() == "sm_agent_k6runner_grace_time_seconds" {
+			require.Equal(t, 42.0, metricFamily.GetMetric()[0].GetGauge().GetValue())
+			return
+		}
+	}
+
+	t.Fatal("sm_agent_k6runner_grace_time_seconds metric was not exported")
+}
+
 func TestHttpRunnerRunError(t *testing.T) {
 	t.Parallel()
 
@@ -320,7 +339,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 
-			runner := HttpRunner{url: srv.URL, graceTime: time.Second, backoff: time.Second, metrics: NewHTTPMetrics(prometheus.NewRegistry())}
+			runner := HttpRunner{url: srv.URL, graceTime: time.Second, backoff: time.Second, metrics: NewHTTPMetrics(prometheus.NewRegistry(), time.Second)}
 			script, err := NewProcessor(Script{
 				Script: []byte("tee-hee"),
 				Settings: Settings{
@@ -460,7 +479,7 @@ func TestHTTPProcessorRetries(t *testing.T) {
 				srv := httptest.NewServer(mux)
 				t.Cleanup(srv.Close)
 
-				runner := HttpRunner{url: srv.URL, graceTime: tc.graceTime, backoff: time.Second, metrics: NewHTTPMetrics(prometheus.NewRegistry())}
+				runner := HttpRunner{url: srv.URL, graceTime: tc.graceTime, backoff: time.Second, metrics: NewHTTPMetrics(prometheus.NewRegistry(), tc.graceTime)}
 				processor, err := NewProcessor(Script{Script: nil, Settings: Settings{tc.scriptTimeout.Milliseconds()}}, runner)
 				require.NoError(t, err)
 
@@ -506,7 +525,7 @@ func TestHTTPProcessorRetries(t *testing.T) {
 
 		addr := <-listenerCh
 
-		runner := HttpRunner{url: "http://" + addr, graceTime: time.Second, backoff: time.Second, metrics: NewHTTPMetrics(prometheus.NewRegistry())}
+		runner := HttpRunner{url: "http://" + addr, graceTime: time.Second, backoff: time.Second, metrics: NewHTTPMetrics(prometheus.NewRegistry(), time.Second)}
 		processor, err := NewProcessor(Script{Script: nil, Settings: Settings{Timeout: 1000}}, runner)
 		require.NoError(t, err)
 

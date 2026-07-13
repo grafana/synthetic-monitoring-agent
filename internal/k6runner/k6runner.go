@@ -130,7 +130,7 @@ func New(opts RunnerOpts) (Runner, error) {
 			logger:              &logger,
 			graceTime:           defaultGraceTime,
 			backoff:             defaultBackoff,
-			metrics:             NewHTTPMetrics(registerer),
+			metrics:             NewHTTPMetrics(registerer, defaultGraceTime),
 			versionPollInterval: 30 * time.Second,
 		}
 	} else {
