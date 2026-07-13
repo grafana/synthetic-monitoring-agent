@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.61.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.60.1...v0.61.0) (2026-07-13)
+
+
+### Features
+
+* Gate protocol secrets with the protocol-secrets feature ([#1891](https://github.com/grafana/synthetic-monitoring-agent/issues/1891)) ([5de9440](https://github.com/grafana/synthetic-monitoring-agent/commit/5de944059e881c9ea104debdf8e0e25502a28b18))
+
 ## [0.60.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.60.0...v0.60.1) (2026-07-01)
 
 
