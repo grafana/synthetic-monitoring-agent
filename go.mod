@@ -40,7 +40,7 @@ require (
 	github.com/maypok86/otter/v2 v2.3.0
 	github.com/mccutchen/go-httpbin/v2 v2.23.1
 	github.com/patrickmn/go-cache v2.1.0+incompatible
-	github.com/prometheus-community/pro-bing v0.9.0
+	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/spf13/afero v1.15.0
