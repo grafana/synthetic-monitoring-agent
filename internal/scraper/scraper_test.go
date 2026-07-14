@@ -1811,7 +1811,12 @@ func TestScraperCollectData(t *testing.T) {
 			),
 		},
 
-		"unprefixed system label collision": {
+		// In UNPREFIXED mode a user label named "job" collides with the reserved
+		// system "job" label. buildUserLabels drops it (sm.IsSystemLabel), so the
+		// system value is retained on every surface — execution metrics,
+		// sm_check_info, and the log stream — rather than being overwritten. The
+		// non-reserved "env" label is emitted normally.
+		"unprefixed reserved label dropped": {
 			labelMode:       sm.LabelMode_LABEL_MODE_UNPREFIXED,
 			maxMetricLabels: defMaxMetricLabels,
 			maxLogLabels:    defMaxLogLabels,
@@ -1819,22 +1824,23 @@ func TestScraperCollectData(t *testing.T) {
 				{Name: "job", Value: "user-job"},
 				{Name: "env", Value: "prod"},
 			},
+			// "job" keeps its system value (from base); only "env" is added.
 			expectedMetricLabels: mergeMaps(
 				baseExpectedMetricLabels,
-				map[string]string{"job": "user-job", "env": "prod"},
+				map[string]string{"env": "prod"},
 			),
 			expectedInfoLabels: mergeMaps(
 				baseExpectedMetricLabels,
 				baseExpectedInfoLabels,
-				map[string]string{"job": "user-job", "env": "prod"},
+				map[string]string{"env": "prod"},
 			),
 			expectedLogLabels: mergeMaps(
 				baseExpectedLogLabels,
-				map[string]string{"job": "user-job", "env": "prod"},
+				map[string]string{"env": "prod"},
 			),
 			expectedLogEntries: mergeMaps(
 				baseExpectedLogLabels,
-				map[string]string{"job": "user-job", "env": "prod"},
+				map[string]string{"env": "prod"},
 			),
 		},
 

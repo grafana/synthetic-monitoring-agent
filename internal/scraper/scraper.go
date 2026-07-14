@@ -1021,18 +1021,18 @@ func (s Scraper) buildCheckInfoLabels(userLabels []labelPair, commonLabels []lab
 // buildUserLabels builds the user-defined label pairs from probe and check labels
 // according to the tenant's LabelMode.
 //
-// Reserved system label names are not filtered here. The API enforces that tenants
-// in DUAL_WRITE or UNPREFIXED mode cannot have user labels whose names collide with
-// the reserved set at the time of migration. Any collision that occurs post-migration
-// can only be caused by adding a new label to the reserved set, in which case the
-// user-defined value should win — preserving existing tenant behaviour is preferable
-// to silently breaking it.
+// In DUAL_WRITE and UNPREFIXED modes, un-prefixed user labels whose names are
+// reserved system labels (sm.IsSystemLabel) are dropped. This asserts the API's
+// guarantee that a migrated tenant carries no such label, and prevents a stray
+// reserved name from overwriting an intrinsic per-series metric label such as
+// `le` or `phase`. Prefixed forms (`label_*`) are never dropped, since no reserved
+// name begins with "label_", and PREFIXED mode is left untouched.
 //
 // In DUAL_WRITE mode, all prefixed forms are emitted first, followed by all
-// un-prefixed forms: [label_foo, label_bar, foo, bar]. This ordering ensures that
-// in the event of log stream label overflow, the prefixed forms — which existing
-// policies depend on — are preserved as stream labels, while the un-prefixed forms
-// spill into StructuredMetadata.
+// surviving un-prefixed forms: [label_foo, label_bar, foo, bar]. This ordering
+// ensures that in the event of log stream label overflow, the prefixed forms —
+// which existing policies depend on — are preserved as stream labels, while the
+// un-prefixed forms spill into StructuredMetadata.
 func buildUserLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []labelPair {
 	// Probe labels first, then any non-colliding check labels. On a name
 	// collision the check value overwrites in place, so check values win while
@@ -1047,11 +1047,23 @@ func buildUserLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []l
 			labels = append(labels, labelPair{name: "label_" + e.name, value: e.value})
 		}
 		for _, e := range userLabels {
+			// reserved labels should be dropped from the user's custom set
+			if sm.IsSystemLabel(e.name) {
+				continue
+			}
 			labels = append(labels, labelPair{name: e.name, value: e.value})
 		}
 		return labels
 	case sm.LabelMode_LABEL_MODE_UNPREFIXED:
-		return userLabels
+		filtered := make([]labelPair, 0, len(userLabels))
+		for _, e := range userLabels {
+			// reserved labels should be dropped from the user's custom set
+			if sm.IsSystemLabel(e.name) {
+				continue
+			}
+			filtered = append(filtered, e)
+		}
+		return filtered
 	default: // LABEL_MODE_PREFIXED - prefix custom label names with label_
 		for i := range userLabels {
 			userLabels[i].name = "label_" + userLabels[i].name

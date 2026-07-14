@@ -68,7 +68,7 @@ func TestBuildUserLabels_Prefixed_TwoDistinctLabels(t *testing.T) {
 }
 
 // TestBuildUserLabels_Prefixed_ReservedNotDropped: in PREFIXED mode, reserved names are NOT
-// dropped — enforcement is at the API layer, not here.
+// dropped.
 func TestBuildUserLabels_Prefixed_ReservedNotDropped(t *testing.T) {
 	result := buildUserLabels(
 		nil,
@@ -128,20 +128,21 @@ func TestBuildUserLabels_DualWrite_CheckOverridesProbe(t *testing.T) {
 	require.Equal(t, "prod", result[1].value, "un-prefixed form should have check value")
 }
 
-// TestBuildUserLabels_DualWrite_ReservedNamePassthrough: reserved names are NOT dropped —
-// user-defined value wins over the system-emitted value for post-migration additions.
-func TestBuildUserLabels_DualWrite_ReservedNamePassthrough(t *testing.T) {
+// TestBuildUserLabels_DualWrite_ReservedNameDropped: a reserved name keeps its prefixed
+// form (label_le, which cannot collide) but its un-prefixed form is dropped so it cannot
+// overwrite an intrinsic per-series metric label. Non-reserved names keep both forms.
+func TestBuildUserLabels_DualWrite_ReservedNameDropped(t *testing.T) {
 	result := buildUserLabels(
 		nil,
-		makeLabels("probe", "myprobe", "env", "prod"),
+		makeLabels("le", "user-value", "env", "prod"),
 		sm.LabelMode_LABEL_MODE_DUAL_WRITE,
 	)
-	// [label_probe, label_env, probe, env]
-	require.Len(t, result, 4)
-	require.Equal(t, "label_probe", result[0].name)
+	// [label_le, label_env, env] — the un-prefixed "le" is dropped.
+	require.Len(t, result, 3)
+	require.Equal(t, "label_le", result[0].name)
 	require.Equal(t, "label_env", result[1].name)
-	require.Equal(t, "probe", result[2].name)
-	require.Equal(t, "env", result[3].name)
+	require.Equal(t, "env", result[2].name)
+	assertNoLabel(t, result, "le")
 }
 
 // TestBuildUserLabels_Unprefixed_Basic: single label env=prod produces only env=prod.
@@ -156,16 +157,17 @@ func TestBuildUserLabels_Unprefixed_Basic(t *testing.T) {
 	require.Equal(t, "prod", result[0].value)
 }
 
-// TestBuildUserLabels_Unprefixed_ReservedNamePassthrough: reserved names are NOT dropped.
-func TestBuildUserLabels_Unprefixed_ReservedNamePassthrough(t *testing.T) {
+// TestBuildUserLabels_Unprefixed_ReservedNameDropped: a reserved name is dropped entirely
+// in UNPREFIXED mode; non-reserved names pass through.
+func TestBuildUserLabels_Unprefixed_ReservedNameDropped(t *testing.T) {
 	result := buildUserLabels(
 		nil,
-		makeLabels("probe", "myprobe", "env", "prod"),
+		makeLabels("le", "user-value", "env", "prod"),
 		sm.LabelMode_LABEL_MODE_UNPREFIXED,
 	)
-	require.Len(t, result, 2)
-	findLabel(t, result, "probe")
-	findLabel(t, result, "env")
+	require.Len(t, result, 1)
+	require.Equal(t, "env", result[0].name)
+	assertNoLabel(t, result, "le")
 }
 
 // ── customMetricLabels tests ─────────────────────────────────────────────
@@ -206,19 +208,19 @@ func TestUserLabelsForExecution_Unprefixed(t *testing.T) {
 	require.Equal(t, "prod", result[0].value)
 }
 
-// TestUserLabelsForExecution_ReservedNamePassthrough: reserved names are NOT dropped —
-// if a tenant reaches this state post-migration it means we added a new reserved label,
-// and the user-defined value should win to avoid breaking existing behaviour.
-func TestUserLabelsForExecution_ReservedNamePassthrough(t *testing.T) {
+// TestUserLabelsForExecution_ReservedNameDropped: reserved names are dropped from
+// execution-metric labels in both DUAL_WRITE and UNPREFIXED, so a user label cannot
+// overwrite an intrinsic per-series metric label such as `le`.
+func TestUserLabelsForExecution_ReservedNameDropped(t *testing.T) {
 	for _, mode := range []sm.LabelMode{sm.LabelMode_LABEL_MODE_DUAL_WRITE, sm.LabelMode_LABEL_MODE_UNPREFIXED} {
 		result := customMetricLabels(
 			nil,
-			makeLabels("probe", "myprobe", "env", "prod"),
+			makeLabels("le", "user-value", "env", "prod"),
 			mode,
 		)
-		require.Len(t, result, 2)
-		findLabel(t, result, "probe")
-		findLabel(t, result, "env")
+		require.Len(t, result, 1)
+		require.Equal(t, "env", result[0].name)
+		assertNoLabel(t, result, "le")
 	}
 }
 

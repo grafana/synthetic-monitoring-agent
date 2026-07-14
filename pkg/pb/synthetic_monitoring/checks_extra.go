@@ -139,11 +139,11 @@ const (
 // A tenant therefore cannot enter a non-PREFIXED mode while holding a label
 // whose name collides with the current reserved set.
 //
-// The agent does NOT filter these names itself. A collision is only reachable
-// if a name is added to this set after a tenant already uses it; in that case
-// the agent lets the user-defined value win, deliberately preserving existing
-// tenant behaviour rather than dropping the label. This protects tenants
-// against future expansion of the reserved set. See buildUserLabels in
+// The agent also asserts this reservation as a backstop: in DUAL_WRITE and
+// UNPREFIXED modes it drops un-prefixed user labels whose names are reserved,
+// rather than letting them win, so a stray reserved name cannot overwrite an
+// intrinsic per-series metric label (`le`, `phase`, ...). Prefixed forms
+// (`label_*`) and PREFIXED-mode labels are unaffected. See buildUserLabels in
 // internal/scraper for the collision-resolution contract.
 //
 // This map must not be modified at runtime. Use IsSystemLabel to query it.
