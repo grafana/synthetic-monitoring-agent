@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -2064,6 +2065,227 @@ func TestScraperCollectData(t *testing.T) {
 			}
 		})
 	}
+}
+
+func findPromPbLabel(t *testing.T, labels []prompb.Label, name string) string {
+	idx := slices.IndexFunc(labels, func(v prompb.Label) bool { return v.GetName() == name })
+	require.GreaterOrEqualf(t, idx, int(0), "label %q must be present", name)
+
+	return labels[idx].GetValue()
+}
+
+// histogramProber emits a single histogram (test_duration_seconds) with several
+// buckets, so the gathered metric families contain multiple *_bucket series that
+// differ only by their intrinsic `le` label. This is the shape that makes a
+// reserved-name collision destructive: unlike sm_check_info's single-valued
+// identity labels, `le` is per-series.
+type histogramProber struct{}
+
+func (histogramProber) Name() string { return "histogram prober" }
+
+func (histogramProber) Probe(_ context.Context, _ string, registry *prometheus.Registry, _ logger.Logger, _ string) (bool, float64) {
+	h := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "test_duration_seconds",
+		Buckets: []float64{0.1, 0.5, 1},
+	})
+	registry.MustRegister(h)
+
+	// Observations spread across buckets so every bucket series is distinct.
+	h.Observe(0.05)
+	h.Observe(0.3)
+	h.Observe(0.8)
+
+	return true, 1
+}
+
+// TestScraperCollectDataReservedLabelCollision pins the agent's behaviour when
+// a tenant carries a user label whose name collides with a *per-series
+// intrinsic* reserved label (`le`) while in UNPREFIXED mode.
+//
+// Per checks_extra.go, the API is supposed to make this unreachable: reserved
+// names are rejected at check create/update and at the LabelMode transition.
+// This test is the agent-side backstop for the case where such a label reaches
+// the scraper anyway. It asserts the safe contract: the histogram's real
+// bucket boundaries survive as distinct series ({0.1, 0.5, 1, +Inf}) and are
+// NOT collapsed onto the user's value.
+//
+// TODO(mem): Remove this note. This test FAILS against the current
+// implementation. customMetricLabels seeds the user `le` into
+// executionMetricLabels, appendDtoToTimeseries appends the real bucket `le`
+// last, and makeTimeseries de-dupes keeping the first occurrence, so every
+// bucket collapses to le=user-value. It will pass once per-series
+// reserved-name filtering is added to customMetricLabels. The same collapse
+// also corrupts the agent's own probe_all_duration_seconds histogram, so this
+// is not limited to custom prober metrics.
+func TestScraperCollectDataReservedLabelCollision(t *testing.T) {
+	s := Scraper{
+		checkName:     "check name",
+		target:        "test target",
+		logger:        testhelper.Logger(t),
+		prober:        histogramProber{},
+		labelsLimiter: testLabelsLimiter{maxMetricLabels: 22, maxLogLabels: 15},
+		labellingMode: testLabellingMode{mode: sm.LabelMode_LABEL_MODE_UNPREFIXED},
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		check: model.Check{
+			Check: sm.Check{
+				Id:               1,
+				TenantId:         2,
+				Frequency:        2000,
+				Timeout:          2000,
+				Enabled:          true,
+				Target:           "target name",
+				Job:              "job name",
+				BasicMetricsOnly: false,
+				Created:          42,
+				Modified:         42,
+				// User label collides with the reserved, per-series `le`.
+				Labels:   []sm.Label{{Name: "le", Value: "user-value"}},
+				Settings: sm.CheckSettings{Http: &sm.HttpSettings{}},
+			},
+		},
+		probe: sm.Probe{
+			Id:       100,
+			TenantId: 200,
+			Name:     "probe name",
+			Region:   "REGION",
+		},
+	}
+
+	data, _, err := s.collectData(context.Background(), time.Unix(3141, 0))
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	// Collect the `le` value from every test_duration_seconds_bucket
+	// series. Scoped to this histogram so the count is deterministic; note
+	// that the agent's own probe_all_duration_seconds_bucket series
+	// collapse identically.
+	bucketLEs := make(map[string]int)
+	bucketSeries := 0
+
+	for _, ts := range data.Metrics() {
+		name := findPromPbLabel(t, ts.GetLabels(), prom.MetricNameLabel)
+		if name != "test_duration_seconds_bucket" {
+			continue
+		}
+
+		le := findPromPbLabel(t, ts.GetLabels(), labels.BucketLabel)
+
+		bucketSeries++
+		bucketLEs[le]++
+	}
+
+	// A 3-boundary histogram yields 4 bucket series: 0.1, 0.5, 1, +Inf.
+	require.Equal(t, 4, bucketSeries, "expected one series per bucket boundary")
+
+	// The intended contract: real bucket boundaries survive, distinct and
+	// un-clobbered by the user's `le=user-value`.
+	require.Equal(t,
+		map[string]int{"0.1": 1, "0.5": 1, "1": 1, "+Inf": 1},
+		bucketLEs,
+		"histogram bucket `le` labels were overwritten/collapsed by the user label")
+}
+
+// phaseProber emits probe_http_duration_seconds as a gauge with a `phase`
+// label, mirroring the real HTTP prober's per-phase timing breakdown. `phase`
+// is a reserved, per-series label (checks_extra.go) but, unlike `le` above, it
+// is a name a tenant might plausibly define themselves, which makes this the
+// more realistic collision vehicle.
+type phaseProber struct{}
+
+func (phaseProber) Name() string { return "phase prober" }
+
+func (phaseProber) Probe(_ context.Context, _ string, registry *prometheus.Registry, _ logger.Logger, _ string) (bool, float64) {
+	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "probe_http_duration_seconds",
+	}, []string{"phase"})
+	registry.MustRegister(g)
+
+	// One series per HTTP phase, each with a distinct value.
+	for i, phase := range []string{"resolve", "connect", "tls", "processing", "transfer"} {
+		g.WithLabelValues(phase).Set(float64(i+1) * 0.01)
+	}
+
+	return true, 1
+}
+
+// TestScraperCollectDataReservedPhaseCollision is the realistic sibling of
+// TestScraperCollectDataReservedLabelCollision: it collides a user label with
+// the reserved per-series label `phase` on the multi-series
+// probe_http_duration_seconds gauge instead of `le` on a histogram.
+//
+// It feeds a check label phase=user-value in UNPREFIXED mode and asserts the
+// five per-phase series retain their distinct phase values.
+//
+// TODO(mem): remove this note. Like the `le` test above it FAILS against the
+// current implementation: customMetricLabels seeds the user `phase` into
+// executionMetricLabels ahead of each metric's own `phase` label
+// (appendDtoToTimeseries appends the metric's labels after sharedLabels), and
+// makeTimeseries' keep-first dedup drops the real phase, so all five series
+// collapse to phase=user-value. It will pass once per-series reserved-name
+// filtering is added to customMetricLabels.
+func TestScraperCollectDataReservedPhaseCollision(t *testing.T) {
+	s := Scraper{
+		checkName:     "check name",
+		target:        "test target",
+		logger:        testhelper.Logger(t),
+		prober:        phaseProber{},
+		labelsLimiter: testLabelsLimiter{maxMetricLabels: 22, maxLogLabels: 15},
+		labellingMode: testLabellingMode{mode: sm.LabelMode_LABEL_MODE_UNPREFIXED},
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		check: model.Check{
+			Check: sm.Check{
+				Id:               1,
+				TenantId:         2,
+				Frequency:        2000,
+				Timeout:          2000,
+				Enabled:          true,
+				Target:           "target name",
+				Job:              "job name",
+				BasicMetricsOnly: false,
+				Created:          42,
+				Modified:         42,
+				// User label collides with the reserved, per-series `phase`.
+				Labels:   []sm.Label{{Name: "phase", Value: "user-value"}},
+				Settings: sm.CheckSettings{Http: &sm.HttpSettings{}},
+			},
+		},
+		probe: sm.Probe{
+			Id:       100,
+			TenantId: 200,
+			Name:     "probe name",
+			Region:   "REGION",
+		},
+	}
+
+	data, _, err := s.collectData(context.Background(), time.Unix(3141, 0))
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	// Collect the `phase` value from every probe_http_duration_seconds series.
+	phases := make(map[string]int)
+	phaseSeries := 0
+	for _, ts := range data.Metrics() {
+		name := findPromPbLabel(t, ts.GetLabels(), prom.MetricNameLabel)
+		if name != "probe_http_duration_seconds" {
+			continue
+		}
+
+		phase := findPromPbLabel(t, ts.GetLabels(), "phase")
+
+		phaseSeries++
+		phases[phase]++
+	}
+
+	// Five phases emitted, so five distinct series.
+	require.Equal(t, 5, phaseSeries, "expected one series per HTTP phase")
+
+	// The intended contract: each phase survives as its own series, un-clobbered
+	// by the user's phase=user-value.
+	require.Equal(t, map[string]int{
+		"resolve": 1, "connect": 1, "tls": 1, "processing": 1, "transfer": 1,
+	}, phases, "per-phase series were overwritten/collapsed by the user label")
 }
 
 // these are generated using
