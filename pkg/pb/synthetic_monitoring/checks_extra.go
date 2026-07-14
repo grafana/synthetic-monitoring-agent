@@ -133,10 +133,18 @@ const (
 )
 
 // systemLabels is the read-only set of label names reserved by the
-// synthetic-monitoring-agent. User-defined labels with these names are
-// silently ignored by the agent when the tenant's LabelMode is
-// LABEL_MODE_DUAL_WRITE or LABEL_MODE_UNPREFIXED, and are rejected by the API
-// for tenants in dual-write mode or created after the feature epoch.
+// synthetic-monitoring-agent. The API enforces this reservation: user-defined
+// labels with these names are rejected at check create/update and when a
+// tenant's LabelMode changes to LABEL_MODE_DUAL_WRITE or LABEL_MODE_UNPREFIXED.
+// A tenant therefore cannot enter a non-PREFIXED mode while holding a label
+// whose name collides with the current reserved set.
+//
+// The agent also asserts this reservation as a backstop: in DUAL_WRITE and
+// UNPREFIXED modes it drops un-prefixed user labels whose names are reserved,
+// rather than letting them win, so a stray reserved name cannot overwrite an
+// intrinsic per-series metric label (`le`, `phase`, ...). Prefixed forms
+// (`label_*`) and PREFIXED-mode labels are unaffected. See buildUserLabels in
+// internal/scraper for the collision-resolution contract.
 //
 // This map must not be modified at runtime. Use IsSystemLabel to query it.
 //

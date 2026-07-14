@@ -14,6 +14,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1092,9 +1093,10 @@ func TestValidateLabels(t *testing.T) {
 					maxMetricLabels: 100,
 					maxLogLabels:    100,
 				},
-				summaries:  make(map[uint64]prometheus.Summary),
-				histograms: make(map[uint64]prometheus.Histogram),
-				check:      check,
+				labellingMode: testLabellingMode{},
+				summaries:     make(map[uint64]prometheus.Summary),
+				histograms:    make(map[uint64]prometheus.Histogram),
+				check:         check,
 				probe: sm.Probe{
 					Id:        100,
 					TenantId:  200,
@@ -1172,6 +1174,65 @@ func TestMakeTimeseries(t *testing.T) {
 			require.Equal(t, tc.value, actual.Samples[0].Value)
 		})
 	}
+}
+
+// TestMakeTimeseriesDeduplicates verifies that makeTimeseries drops duplicate
+// label names, keeping the first occurrence (Mimir rejects duplicate keys)
+func TestMakeTimeseriesDeduplicates(t *testing.T) {
+	ts := makeTimeseries(time.Unix(1, 0), 1,
+		prompb.Label{Name: prom.MetricNameLabel, Value: "m"},
+		prompb.Label{Name: "probe", Value: "user-probe"},
+		prompb.Label{Name: "job", Value: "system"},
+		prompb.Label{Name: "probe", Value: "system"}, // duplicate name — must be dropped
+		prompb.Label{Name: "env", Value: "prod"},
+	)
+
+	require.Equal(t, []prompb.Label{
+		{Name: prom.MetricNameLabel, Value: "m"},
+		{Name: "probe", Value: "user-probe"}, // first occurrence wins
+		{Name: "job", Value: "system"},
+		{Name: "env", Value: "prod"},
+	}, ts.Labels)
+}
+
+// TestScraperCollectDataTooManyMetricLabels verifies that the check-info label
+// guard rejects a scrape whose non-system label count exceeds the tenant's
+// metric-label budget, before any data is emitted.
+func TestScraperCollectDataTooManyMetricLabels(t *testing.T) {
+	s := Scraper{
+		checkName:     "check name",
+		target:        "test target",
+		logger:        testhelper.Logger(t),
+		prober:        testProber{},
+		labelsLimiter: testLabelsLimiter{maxMetricLabels: 1, maxLogLabels: 15},
+		labellingMode: testLabellingMode{},
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		check: model.Check{
+			Check: sm.Check{
+				Id:               1,
+				TenantId:         2,
+				Frequency:        2000,
+				Timeout:          2000,
+				Enabled:          true,
+				Target:           "target name",
+				Job:              "job name",
+				BasicMetricsOnly: true,
+				Created:          42,
+				Modified:         42,
+				Labels: []sm.Label{
+					{Name: "a", Value: "1"},
+					{Name: "b", Value: "2"},
+					{Name: "c", Value: "3"},
+				},
+				Settings: sm.CheckSettings{Http: &sm.HttpSettings{}},
+			},
+		},
+		probe: sm.Probe{Id: 100, TenantId: 200, Name: "probe name", Region: "REGION"},
+	}
+
+	_, _, err := s.collectData(context.Background(), time.Unix(3141, 0))
+	require.ErrorIs(t, err, errTooManyLabels)
 }
 
 func TestAppendDtoToTimeseries(t *testing.T) {
@@ -1435,6 +1496,15 @@ func (l testLabelsLimiter) LogLabels(ctx context.Context, tenantID model.GlobalI
 	return l.maxLogLabels, nil
 }
 
+type testLabellingMode struct {
+	mode sm.LabelMode
+	err  error
+}
+
+func (l testLabellingMode) ForTenant(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error) {
+	return l.mode, l.err
+}
+
 type testCalTenants struct {
 	costAttributionLabels []string
 }
@@ -1443,6 +1513,7 @@ func (t testCalTenants) CostAttributionLabels(_ context.Context, tenantID model.
 	return t.costAttributionLabels, nil
 }
 
+//nolint:gocyclo
 func TestScraperCollectData(t *testing.T) {
 	const (
 		checkName     = "check name"
@@ -1503,7 +1574,20 @@ func TestScraperCollectData(t *testing.T) {
 		return labels
 	}
 
+	// generateUnprefixedLabelSet produces {"l0":"c0","l1":"c1",...} — used to describe
+	// expected user labels on execution metrics in DUAL_WRITE and UNPREFIXED modes.
+	generateUnprefixedLabelSet := func(offset, count int, valuePrefix string) map[string]string {
+		labels := make(map[string]string)
+		for i := range count {
+			n := strconv.Itoa(offset + i)
+			labels["l"+n] = valuePrefix + n
+		}
+		return labels
+	}
+
 	type testcase struct {
+		labelMode            sm.LabelMode // zero value = PREFIXED
+		labelModeErr         error        // simulates a tenant label-mode lookup failure
 		maxMetricLabels      int
 		maxLogLabels         int
 		checkLabels          []sm.Label
@@ -1515,7 +1599,7 @@ func TestScraperCollectData(t *testing.T) {
 	}
 
 	const (
-		defMaxMetricLabels = 20
+		defMaxMetricLabels = 22
 		defMaxLogLabels    = 15
 	)
 
@@ -1577,14 +1661,202 @@ func TestScraperCollectData(t *testing.T) {
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 3, "p")),
 		},
 		"max labels override": {
-			maxMetricLabels:      21,
-			maxLogLabels:         21,
+			maxMetricLabels:      23,
+			maxLogLabels:         23,
 			checkLabels:          generateLabels(0, 10, "c"),
 			probeLabels:          generateLabels(10, 4, "p"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
 			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
 			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
 			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(0, 10, "c"), generateLabelSet(10, 4, "p")),
+		},
+
+		// ── DUAL_WRITE and UNPREFIXED mode tests ──────────────────────────────────
+		//
+		// Key differences:
+		//   expectedMetricLabels includes un-prefixed user labels (execution metrics
+		//     gain user labels via customMetricLabels in DUAL_WRITE/UNPREFIXED).
+		//   expectedInfoLabels includes both forms in DUAL_WRITE (prefixed first in the
+		//     slice produced by buildUserLabels, then un-prefixed) and un-prefixed only
+		//     in UNPREFIXED.
+		//   expectedLogLabels follows DUAL_WRITE ordering: all prefixed forms before all
+		//     un-prefixed forms in the stream labels; overflow goes to StructuredMetadata.
+
+		"dual write basic": {
+			// 3 check labels + 1 probe label; no stream-label overflow.
+			// Verifies: execution metrics carry un-prefixed user labels;
+			//           sm_check_info carries both forms;
+			//           log stream carries both forms in correct ordering.
+			labelMode:       sm.LabelMode_LABEL_MODE_DUAL_WRITE,
+			maxMetricLabels: defMaxMetricLabels,
+			maxLogLabels:    defMaxLogLabels,
+			checkLabels:     generateLabels(0, 3, "c"),
+			probeLabels:     generateLabels(10, 1, "p"),
+			// Execution metrics: base + un-prefixed user labels.
+			expectedMetricLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			// sm_check_info: system sharedLabels (probe, config_version, instance, job)
+			// + check-info system labels + both forms of user labels from ConstLabels.
+			expectedInfoLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				baseExpectedInfoLabels,
+				generateLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateLabelSet(0, 3, "c"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			// Log stream: DUAL_WRITE ordering — all prefixed first, then un-prefixed.
+			// 4 user labels × 2 = 8 entries + 6 system labels = 14; probe_success
+			// is appended last, totalling 15 = defMaxLogLabels. No overflow.
+			expectedLogLabels: mergeMaps(
+				baseExpectedLogLabels,
+				generateLabelSet(10, 1, "p"),
+				generateLabelSet(0, 3, "c"),
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			expectedLogEntries: mergeMaps(
+				baseExpectedLogLabels,
+				generateLabelSet(10, 1, "p"),
+				generateLabelSet(0, 3, "c"),
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+		},
+
+		"unprefixed basic": {
+			// 3 check labels + 1 probe label in UNPREFIXED mode.
+			// Verifies: execution metrics carry un-prefixed user labels;
+			//           sm_check_info and log stream carry only un-prefixed forms.
+			labelMode:       sm.LabelMode_LABEL_MODE_UNPREFIXED,
+			maxMetricLabels: defMaxMetricLabels,
+			maxLogLabels:    defMaxLogLabels,
+			checkLabels:     generateLabels(0, 3, "c"),
+			probeLabels:     generateLabels(10, 1, "p"),
+			expectedMetricLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			expectedInfoLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				baseExpectedInfoLabels,
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			expectedLogLabels: mergeMaps(
+				baseExpectedLogLabels,
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+			expectedLogEntries: mergeMaps(
+				baseExpectedLogLabels,
+				generateUnprefixedLabelSet(10, 1, "p"),
+				generateUnprefixedLabelSet(0, 3, "c"),
+			),
+		},
+
+		"dual write log overflow": {
+			// 10 check labels + 3 probe labels in DUAL_WRITE mode causes log stream
+			// overflow. DUAL_WRITE ordering means all prefixed forms come first in the
+			// stream labels, so they are preserved when the label count exceeds the cap;
+			// the un-prefixed forms spill into StructuredMetadata instead.
+			//
+			// Label budget: 6 system + 26 user (13×2) = 32 total; cap at
+			// defMaxLogLabels-1=14 stream slots before probe_success.
+			// Stream labels: system labels (6) + first 8 prefixed user labels.
+			// Overflow into StructuredMetadata: remaining prefixed (5) + all 13
+			// un-prefixed user labels.
+			labelMode:       sm.LabelMode_LABEL_MODE_DUAL_WRITE,
+			maxMetricLabels: defMaxMetricLabels,
+			maxLogLabels:    defMaxLogLabels,
+			checkLabels:     generateLabels(0, 10, "c"),
+			probeLabels:     generateLabels(10, 3, "p"),
+			// Execution metrics: base + all un-prefixed user labels.
+			expectedMetricLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				generateUnprefixedLabelSet(10, 3, "p"),
+				generateUnprefixedLabelSet(0, 10, "c"),
+			),
+			// sm_check_info: system sharedLabels + both forms of user labels from ConstLabels.
+			expectedInfoLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				baseExpectedInfoLabels,
+				generateLabelSet(10, 3, "p"),
+				generateUnprefixedLabelSet(10, 3, "p"),
+				generateLabelSet(0, 10, "c"),
+				generateUnprefixedLabelSet(0, 10, "c"),
+			),
+			// Stream labels: system(6) + 8 prefixed user labels (prefixed-first
+			// ordering means label_l10,label_l11,label_l12 + label_l0..label_l4
+			// fill the 8 available slots before the cap).
+			expectedLogLabels: mergeMaps(
+				baseExpectedLogLabels,
+				generateLabelSet(10, 3, "p"), // label_l10, label_l11, label_l12
+				generateLabelSet(0, 5, "c"),  // label_l0 .. label_l4
+			),
+			// Log entry body includes all user labels in both forms (log entry is not
+			// truncated, only stream labels are capped). The entries in
+			// expectedLogEntries \ expectedLogLabels become StructuredMetadata overflow
+			// and are validated by assertStructuredMetadata.
+			expectedLogEntries: mergeMaps(
+				baseExpectedLogLabels,
+				generateLabelSet(10, 3, "p"),
+				generateLabelSet(0, 10, "c"),
+				generateUnprefixedLabelSet(10, 3, "p"),
+				generateUnprefixedLabelSet(0, 10, "c"),
+			),
+		},
+
+		// In UNPREFIXED mode a user label named "job" collides with the reserved
+		// system "job" label. buildUserLabels drops it (sm.IsSystemLabel), so the
+		// system value is retained on every surface — execution metrics,
+		// sm_check_info, and the log stream — rather than being overwritten. The
+		// non-reserved "env" label is emitted normally.
+		"unprefixed reserved label dropped": {
+			labelMode:       sm.LabelMode_LABEL_MODE_UNPREFIXED,
+			maxMetricLabels: defMaxMetricLabels,
+			maxLogLabels:    defMaxLogLabels,
+			checkLabels: []sm.Label{
+				{Name: "job", Value: "user-job"},
+				{Name: "env", Value: "prod"},
+			},
+			// "job" keeps its system value (from base); only "env" is added.
+			expectedMetricLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				map[string]string{"env": "prod"},
+			),
+			expectedInfoLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				baseExpectedInfoLabels,
+				map[string]string{"env": "prod"},
+			),
+			expectedLogLabels: mergeMaps(
+				baseExpectedLogLabels,
+				map[string]string{"env": "prod"},
+			),
+			expectedLogEntries: mergeMaps(
+				baseExpectedLogLabels,
+				map[string]string{"env": "prod"},
+			),
+		},
+
+		// This tests simulates the default label mode falling back to UNPREFIXED, but note
+		// the scraper would actually abort if there was no tenant in cache due to
+		// the label limits being unavailable.
+		"label mode fetch error degrades to unprefixed": {
+			labelMode:            sm.LabelMode_LABEL_MODE_UNPREFIXED,
+			labelModeErr:         errors.New("simulated tenant label-mode fetch failure"),
+			maxMetricLabels:      defMaxMetricLabels,
+			maxLogLabels:         defMaxLogLabels,
+			checkLabels:          generateLabels(1, 3, "c"),
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels, generateUnprefixedLabelSet(1, 3, "c")),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateUnprefixedLabelSet(1, 3, "c")),
+			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateUnprefixedLabelSet(1, 3, "c")),
+			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateUnprefixedLabelSet(1, 3, "c")),
 		},
 	}
 
@@ -1606,6 +1878,16 @@ func TestScraperCollectData(t *testing.T) {
 		require.NotNil(t, ts)
 
 		metricName := getMetricName(t, ts)
+
+		// Ensure no label name appears more than once. Duplicate label keys are
+		// rejected by Mimir and indicate a bug in label assembly (e.g. user labels
+		// reaching a metric via both ConstLabels and sharedLabels).
+		seenLabelNames := make(map[string]bool, len(ts.GetLabels()))
+		for _, l := range ts.GetLabels() {
+			require.Falsef(t, seenLabelNames[l.GetName()],
+				"duplicate label %q in metric %s", l.GetName(), metricName)
+			seenLabelNames[l.GetName()] = true
+		}
 
 		actualLabels := make(map[string]string)
 		actualLabelsCount := 0
@@ -1653,6 +1935,38 @@ func TestScraperCollectData(t *testing.T) {
 		}
 	}
 
+	// assertStructuredMetadata verifies that each log entry's StructuredMetadata
+	// contains a valid execution_id UUID plus any overflow labels (those present in
+	// expectedLogEntries but absent from expectedLogLabels — they fit in the log
+	// entry body but were truncated from the stream label set).
+	assertStructuredMetadata := func(t *testing.T, entry logproto.Entry, tc testcase) {
+		t.Helper()
+		executionIDFound := false
+		overflowFound := 0
+		for _, meta := range entry.StructuredMetadata {
+			if meta.Name == "execution_id" {
+				executionIDFound = true
+				_, err := uuid.Parse(meta.Value)
+				require.NoError(t, err, "execution_id should be a valid UUID")
+			} else {
+				expectedVal, inEntries := tc.expectedLogEntries[meta.Name]
+				_, inLabels := tc.expectedLogLabels[meta.Name]
+				require.Truef(t, inEntries && !inLabels,
+					"unexpected structured metadata entry: %s=%s", meta.Name, meta.Value)
+				require.Equal(t, expectedVal, meta.Value, "overflow label value mismatch: %s", meta.Name)
+				overflowFound++
+			}
+		}
+		require.True(t, executionIDFound, "execution_id not found in structured metadata")
+		expectedOverflow := 0
+		for name := range tc.expectedLogEntries {
+			if _, inLabels := tc.expectedLogLabels[name]; !inLabels {
+				expectedOverflow++
+			}
+		}
+		require.Equal(t, expectedOverflow, overflowFound, "overflow label count in structured metadata")
+	}
+
 	validateStreams := func(t *testing.T, s Scraper, stream logproto.Stream, tc testcase) {
 		sLabels, err := metricParser.ParseMetric(stream.Labels)
 		require.NoError(t, err)
@@ -1694,11 +2008,7 @@ func TestScraperCollectData(t *testing.T) {
 			}
 			require.NoError(t, dec.Err())
 
-			// Verify that the execution_id is present in the structured metadata.
-			require.Len(t, entry.StructuredMetadata, 1)
-			require.Equal(t, "execution_id", entry.StructuredMetadata[0].Name)
-			_, err := uuid.Parse(entry.StructuredMetadata[0].Value)
-			require.NoError(t, err, "execution_id should be a valid UUID")
+			assertStructuredMetadata(t, entry, tc)
 		}
 	}
 
@@ -1713,8 +2023,9 @@ func TestScraperCollectData(t *testing.T) {
 					maxMetricLabels: tc.maxMetricLabels,
 					maxLogLabels:    tc.maxLogLabels,
 				},
-				summaries:  make(map[uint64]prometheus.Summary),
-				histograms: make(map[uint64]prometheus.Histogram),
+				labellingMode: testLabellingMode{mode: tc.labelMode, err: tc.labelModeErr},
+				summaries:     make(map[uint64]prometheus.Summary),
+				histograms:    make(map[uint64]prometheus.Histogram),
 				check: model.Check{
 					Check: sm.Check{
 						Id:               1,
@@ -1760,6 +2071,227 @@ func TestScraperCollectData(t *testing.T) {
 			}
 		})
 	}
+}
+
+func findPromPbLabel(t *testing.T, labels []prompb.Label, name string) string {
+	idx := slices.IndexFunc(labels, func(v prompb.Label) bool { return v.GetName() == name })
+	require.GreaterOrEqualf(t, idx, int(0), "label %q must be present", name)
+
+	return labels[idx].GetValue()
+}
+
+// histogramProber emits a single histogram (test_duration_seconds) with several
+// buckets, so the gathered metric families contain multiple *_bucket series that
+// differ only by their intrinsic `le` label. This is the shape that makes a
+// reserved-name collision destructive: unlike sm_check_info's single-valued
+// identity labels, `le` is per-series.
+type histogramProber struct{}
+
+func (histogramProber) Name() string { return "histogram prober" }
+
+func (histogramProber) Probe(_ context.Context, _ string, registry *prometheus.Registry, _ logger.Logger, _ string) (bool, float64) {
+	h := prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "test_duration_seconds",
+		Buckets: []float64{0.1, 0.5, 1},
+	})
+	registry.MustRegister(h)
+
+	// Observations spread across buckets so every bucket series is distinct.
+	h.Observe(0.05)
+	h.Observe(0.3)
+	h.Observe(0.8)
+
+	return true, 1
+}
+
+// TestScraperCollectDataReservedLabelCollision pins the agent's behaviour when
+// a tenant carries a user label whose name collides with a *per-series
+// intrinsic* reserved label (`le`) while in UNPREFIXED mode.
+//
+// Per checks_extra.go, the API is supposed to make this unreachable: reserved
+// names are rejected at check create/update and at the LabelMode transition.
+// This test is the agent-side backstop for the case where such a label reaches
+// the scraper anyway. It asserts the safe contract: the histogram's real
+// bucket boundaries survive as distinct series ({0.1, 0.5, 1, +Inf}) and are
+// NOT collapsed onto the user's value.
+//
+// TODO(mem): Remove this note. This test FAILS against the current
+// implementation. customMetricLabels seeds the user `le` into
+// executionMetricLabels, appendDtoToTimeseries appends the real bucket `le`
+// last, and makeTimeseries de-dupes keeping the first occurrence, so every
+// bucket collapses to le=user-value. It will pass once per-series
+// reserved-name filtering is added to customMetricLabels. The same collapse
+// also corrupts the agent's own probe_all_duration_seconds histogram, so this
+// is not limited to custom prober metrics.
+func TestScraperCollectDataReservedLabelCollision(t *testing.T) {
+	s := Scraper{
+		checkName:     "check name",
+		target:        "test target",
+		logger:        testhelper.Logger(t),
+		prober:        histogramProber{},
+		labelsLimiter: testLabelsLimiter{maxMetricLabels: 22, maxLogLabels: 15},
+		labellingMode: testLabellingMode{mode: sm.LabelMode_LABEL_MODE_UNPREFIXED},
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		check: model.Check{
+			Check: sm.Check{
+				Id:               1,
+				TenantId:         2,
+				Frequency:        2000,
+				Timeout:          2000,
+				Enabled:          true,
+				Target:           "target name",
+				Job:              "job name",
+				BasicMetricsOnly: false,
+				Created:          42,
+				Modified:         42,
+				// User label collides with the reserved, per-series `le`.
+				Labels:   []sm.Label{{Name: "le", Value: "user-value"}},
+				Settings: sm.CheckSettings{Http: &sm.HttpSettings{}},
+			},
+		},
+		probe: sm.Probe{
+			Id:       100,
+			TenantId: 200,
+			Name:     "probe name",
+			Region:   "REGION",
+		},
+	}
+
+	data, _, err := s.collectData(context.Background(), time.Unix(3141, 0))
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	// Collect the `le` value from every test_duration_seconds_bucket
+	// series. Scoped to this histogram so the count is deterministic; note
+	// that the agent's own probe_all_duration_seconds_bucket series
+	// collapse identically.
+	bucketLEs := make(map[string]int)
+	bucketSeries := 0
+
+	for _, ts := range data.Metrics() {
+		name := findPromPbLabel(t, ts.GetLabels(), prom.MetricNameLabel)
+		if name != "test_duration_seconds_bucket" {
+			continue
+		}
+
+		le := findPromPbLabel(t, ts.GetLabels(), labels.BucketLabel)
+
+		bucketSeries++
+		bucketLEs[le]++
+	}
+
+	// A 3-boundary histogram yields 4 bucket series: 0.1, 0.5, 1, +Inf.
+	require.Equal(t, 4, bucketSeries, "expected one series per bucket boundary")
+
+	// The intended contract: real bucket boundaries survive, distinct and
+	// un-clobbered by the user's `le=user-value`.
+	require.Equal(t,
+		map[string]int{"0.1": 1, "0.5": 1, "1": 1, "+Inf": 1},
+		bucketLEs,
+		"histogram bucket `le` labels were overwritten/collapsed by the user label")
+}
+
+// phaseProber emits probe_http_duration_seconds as a gauge with a `phase`
+// label, mirroring the real HTTP prober's per-phase timing breakdown. `phase`
+// is a reserved, per-series label (checks_extra.go) but, unlike `le` above, it
+// is a name a tenant might plausibly define themselves, which makes this the
+// more realistic collision vehicle.
+type phaseProber struct{}
+
+func (phaseProber) Name() string { return "phase prober" }
+
+func (phaseProber) Probe(_ context.Context, _ string, registry *prometheus.Registry, _ logger.Logger, _ string) (bool, float64) {
+	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "probe_http_duration_seconds",
+	}, []string{"phase"})
+	registry.MustRegister(g)
+
+	// One series per HTTP phase, each with a distinct value.
+	for i, phase := range []string{"resolve", "connect", "tls", "processing", "transfer"} {
+		g.WithLabelValues(phase).Set(float64(i+1) * 0.01)
+	}
+
+	return true, 1
+}
+
+// TestScraperCollectDataReservedPhaseCollision is the realistic sibling of
+// TestScraperCollectDataReservedLabelCollision: it collides a user label with
+// the reserved per-series label `phase` on the multi-series
+// probe_http_duration_seconds gauge instead of `le` on a histogram.
+//
+// It feeds a check label phase=user-value in UNPREFIXED mode and asserts the
+// five per-phase series retain their distinct phase values.
+//
+// TODO(mem): remove this note. Like the `le` test above it FAILS against the
+// current implementation: customMetricLabels seeds the user `phase` into
+// executionMetricLabels ahead of each metric's own `phase` label
+// (appendDtoToTimeseries appends the metric's labels after sharedLabels), and
+// makeTimeseries' keep-first dedup drops the real phase, so all five series
+// collapse to phase=user-value. It will pass once per-series reserved-name
+// filtering is added to customMetricLabels.
+func TestScraperCollectDataReservedPhaseCollision(t *testing.T) {
+	s := Scraper{
+		checkName:     "check name",
+		target:        "test target",
+		logger:        testhelper.Logger(t),
+		prober:        phaseProber{},
+		labelsLimiter: testLabelsLimiter{maxMetricLabels: 22, maxLogLabels: 15},
+		labellingMode: testLabellingMode{mode: sm.LabelMode_LABEL_MODE_UNPREFIXED},
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		check: model.Check{
+			Check: sm.Check{
+				Id:               1,
+				TenantId:         2,
+				Frequency:        2000,
+				Timeout:          2000,
+				Enabled:          true,
+				Target:           "target name",
+				Job:              "job name",
+				BasicMetricsOnly: false,
+				Created:          42,
+				Modified:         42,
+				// User label collides with the reserved, per-series `phase`.
+				Labels:   []sm.Label{{Name: "phase", Value: "user-value"}},
+				Settings: sm.CheckSettings{Http: &sm.HttpSettings{}},
+			},
+		},
+		probe: sm.Probe{
+			Id:       100,
+			TenantId: 200,
+			Name:     "probe name",
+			Region:   "REGION",
+		},
+	}
+
+	data, _, err := s.collectData(context.Background(), time.Unix(3141, 0))
+	require.NoError(t, err)
+	require.NotNil(t, data)
+
+	// Collect the `phase` value from every probe_http_duration_seconds series.
+	phases := make(map[string]int)
+	phaseSeries := 0
+	for _, ts := range data.Metrics() {
+		name := findPromPbLabel(t, ts.GetLabels(), prom.MetricNameLabel)
+		if name != "probe_http_duration_seconds" {
+			continue
+		}
+
+		phase := findPromPbLabel(t, ts.GetLabels(), "phase")
+
+		phaseSeries++
+		phases[phase]++
+	}
+
+	// Five phases emitted, so five distinct series.
+	require.Equal(t, 5, phaseSeries, "expected one series per HTTP phase")
+
+	// The intended contract: each phase survives as its own series, un-clobbered
+	// by the user's phase=user-value.
+	require.Equal(t, map[string]int{
+		"resolve": 1, "connect": 1, "tls": 1, "processing": 1, "transfer": 1,
+	}, phases, "per-phase series were overwritten/collapsed by the user label")
 }
 
 // these are generated using
@@ -2019,7 +2551,8 @@ func TestScraperRun(t *testing.T) {
 			maxMetricLabels: 20,
 			maxLogLabels:    15,
 		},
-		Telemeter: testTelemeter,
+		LabellingMode: testLabellingMode{},
+		Telemeter:     testTelemeter,
 		CostAttributionLabels: testCalTenants{
 			costAttributionLabels: []string{"testing", "you"},
 		},
@@ -2330,7 +2863,7 @@ func TestExtractLogsK6TimeOverridesDefaultTimestamp(t *testing.T) {
 				logger: testhelper.Logger(t),
 			}
 
-			streams := s.extractLogs(time.Now(), []byte(tc.logs), tc.sharedLabels, "test-execution-id")
+			streams := s.extractLogs(time.Now(), []byte(tc.logs), tc.sharedLabels, nil)
 			tc.expected(t, streams)
 		})
 	}
@@ -2351,9 +2884,10 @@ func TestHTTPCheckLogTimestampsAreNonDecreasing(t *testing.T) {
 			maxMetricLabels: 20,
 			maxLogLabels:    15,
 		},
-		summaries:  make(map[uint64]prometheus.Summary),
-		histograms: make(map[uint64]prometheus.Histogram),
-		check:      check,
+		labellingMode: testLabellingMode{},
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		check:         check,
 		probe: sm.Probe{
 			Name:   "test-probe",
 			Region: "test-region",

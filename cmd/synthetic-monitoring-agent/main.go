@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6version"
+	"github.com/grafana/synthetic-monitoring-agent/internal/labelmode"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -369,6 +370,7 @@ func run(args []string, stdout io.Writer) error {
 		Telemeter:               telemetry,
 		UsageReporter:           usageReporter,
 		CostAttributionLabels:   cals,
+		LabellingMode:           labelmode.New(tm),
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
 	})
 	if err != nil {
