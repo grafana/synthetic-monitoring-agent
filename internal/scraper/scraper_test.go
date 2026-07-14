@@ -1837,18 +1837,19 @@ func TestScraperCollectData(t *testing.T) {
 			),
 		},
 
-		// This tests the default label mode falls back to PREFIXED, but note
+		// This tests simulates the default label mode falling back to UNPREFIXED, but note
 		// the scraper would actually abort if there was no tenant in cache due to
 		// the label limits being unavailable.
-		"label mode fetch error degrades to prefixed": {
+		"label mode fetch error degrades to unprefixed": {
+			labelMode:            sm.LabelMode_LABEL_MODE_UNPREFIXED,
 			labelModeErr:         errors.New("simulated tenant label-mode fetch failure"),
 			maxMetricLabels:      defMaxMetricLabels,
 			maxLogLabels:         defMaxLogLabels,
 			checkLabels:          generateLabels(1, 3, "c"),
-			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels),
-			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateLabelSet(1, 3, "c")),
-			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c")),
-			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateLabelSet(1, 3, "c")),
+			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels, generateUnprefixedLabelSet(1, 3, "c")),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateUnprefixedLabelSet(1, 3, "c")),
+			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateUnprefixedLabelSet(1, 3, "c")),
+			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateUnprefixedLabelSet(1, 3, "c")),
 		},
 	}
 

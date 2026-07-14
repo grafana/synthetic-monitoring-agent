@@ -27,7 +27,7 @@ func New(provider TenantProvider) *LabelMode {
 }
 
 // ForTenant returns the label mode for the given tenant, defaulting to
-// LABEL_MODE_PREFIXED if the tenant cannot be fetched.
+// LABEL_MODE_UNPREFIXED if the tenant cannot be fetched.
 //
 // The default value is never actually used - the LabelMode is fetched
 // during the scraper's `collectData` operation, which aborts overall
@@ -37,7 +37,7 @@ func New(provider TenantProvider) *LabelMode {
 func (lm *LabelMode) ForTenant(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error) {
 	tenant, err := lm.provider.GetTenant(ctx, &sm.TenantInfo{Id: int64(tenantID)})
 	if err != nil {
-		return sm.LabelMode_LABEL_MODE_PREFIXED, fmt.Errorf("fetching tenant label mode: %w", err)
+		return sm.LabelMode_LABEL_MODE_UNPREFIXED, fmt.Errorf("fetching tenant label mode: %w", err)
 	}
 	return tenant.LabelMode, nil
 }

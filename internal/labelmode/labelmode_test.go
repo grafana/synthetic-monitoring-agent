@@ -32,12 +32,12 @@ func TestForTenantReturnsTenantMode(t *testing.T) {
 	require.Equal(t, sm.LabelMode_LABEL_MODE_DUAL_WRITE, mode)
 }
 
-// TestForTenantFallsBackToPrefixedOnError verifies that a lookup failure returns
-// PREFIXED alongside the error, so callers can degrade gracefully.
-func TestForTenantFallsBackToPrefixedOnError(t *testing.T) {
+// TestForTenantFallsBackToUnprefixedOnError verifies that a lookup failure
+// returns UNPREFIXED alongside the error, so callers can degrade gracefully.
+func TestForTenantFallsBackToUnprefixedOnError(t *testing.T) {
 	lm := New(fakeTenantProvider{err: errors.New("boom")})
 
 	mode, err := lm.ForTenant(context.Background(), model.GlobalID(1))
 	require.Error(t, err)
-	require.Equal(t, sm.LabelMode_LABEL_MODE_PREFIXED, mode)
+	require.Equal(t, sm.LabelMode_LABEL_MODE_UNPREFIXED, mode)
 }
