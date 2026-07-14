@@ -33,6 +33,10 @@ type Manager struct {
 	cache         cache.Cache
 	fetchMutexes  *xsync.Map[int64, *sync.Mutex] // for fetch deduplication.
 	logger        zerolog.Logger
+
+	firstTenantID int64
+	firstTenantCh chan struct{} // closed when the first tenant is observed
+	firstOnce     sync.Once
 }
 
 var _ pusher.TenantProvider = &Manager{}
@@ -71,6 +75,7 @@ func NewManager(ctx context.Context, tenantsClient sm.TenantsClient, tenantCh <-
 		cache:         cache,
 		logger:        logger,
 		fetchMutexes:  xsync.NewMap[int64, *sync.Mutex](),
+		firstTenantCh: make(chan struct{}),
 	}
 
 	go tm.run(ctx)
@@ -178,7 +183,25 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 	return validUntil
 }
 
+// WaitForTenant blocks until the first tenant is observed on the tenant
+// channel or the context is cancelled. It returns the ID of the first
+// tenant received. This is useful for single-tenant deployments where
+// the tenant identity is not known until the API streams it.
+func (tm *Manager) WaitForTenant(ctx context.Context) (int64, error) {
+	select {
+	case <-tm.firstTenantCh:
+		return tm.firstTenantID, nil
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+}
+
 func (tm *Manager) updateTenant(tenant sm.Tenant) {
+	tm.firstOnce.Do(func() {
+		tm.firstTenantID = tenant.Id
+		close(tm.firstTenantCh)
+	})
+
 	// Use per-tenant mutex to serialize updates for the same tenant ID
 	mutex := tm.getFetchMutex(tenant.Id)
 	mutex.Lock()
@@ -332,6 +355,11 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 			Msg("failed to store tenant in cache")
 		// Don't fail the request if cache storage fails
 	}
+
+	tm.firstOnce.Do(func() {
+		tm.firstTenantID = req.Id
+		close(tm.firstTenantCh)
+	})
 
 	tm.logger.Debug().
 		Int64("tenantId", req.Id).

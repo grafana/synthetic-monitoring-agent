@@ -27,6 +27,7 @@ type HandlerOpts struct {
 	TenantID  model.GlobalID
 	Interval  time.Duration
 	ProbeCh   chan *synthetic_monitoring.Probe
+	LogBuffer LogBuffer
 }
 
 type metricsHandler struct {
@@ -37,6 +38,7 @@ type metricsHandler struct {
 	probeName string
 	interval  time.Duration
 	probeCh   chan *synthetic_monitoring.Probe
+	logBuffer LogBuffer
 }
 type Handler interface {
 	Run(ctx context.Context) error
@@ -55,6 +57,7 @@ func NewHandler(opts HandlerOpts) Handler {
 		interval:  interval,
 		probeCh:   opts.ProbeCh,
 		tenantID:  opts.TenantID,
+		logBuffer: opts.LogBuffer,
 	}
 }
 
@@ -101,13 +104,20 @@ func (m *metricsHandler) reportUsage() error {
 
 	now := time.Now()
 	ts := mfsToTimeseries(now, mfs, m.probeName)
-	if len(ts) == 0 {
+
+	var streams []logproto.Stream
+	if m.logBuffer != nil {
+		streams = m.logBuffer.Drain()
+	}
+
+	if len(ts) == 0 && len(streams) == 0 {
 		return nil
 	}
 
 	m.publisher.Publish(&payload{
 		tenantID: m.tenantID,
 		metrics:  ts,
+		streams:  streams,
 	})
 
 	return nil
@@ -165,8 +175,9 @@ func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily, probeName string) []p
 type payload struct {
 	tenantID model.GlobalID
 	metrics  []prompb.TimeSeries
+	streams  []logproto.Stream
 }
 
 func (p *payload) Tenant() model.GlobalID       { return p.tenantID }
 func (p *payload) Metrics() []prompb.TimeSeries { return p.metrics }
-func (p *payload) Streams() []logproto.Stream   { return nil }
+func (p *payload) Streams() []logproto.Stream   { return p.streams }
