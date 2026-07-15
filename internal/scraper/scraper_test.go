@@ -127,6 +127,7 @@ func verifyProberMetrics(
 		logger,
 		basicMetricsOnly,
 		"test-execution-id",
+		time.Now(),
 	)
 
 	require.NoError(t, err, "probe failed")

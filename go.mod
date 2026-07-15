@@ -87,3 +87,9 @@ require (
 )
 
 replace github.com/tonobo/mtr => github.com/grafana/mtr v0.1.1-0.20221107202107-a9806fdda166
+
+exclude (
+	google.golang.org/genproto v0.0.0-20180518175338-11a468237815
+	google.golang.org/genproto v0.0.0-20210917145530-b395a37504d4
+	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1
+)

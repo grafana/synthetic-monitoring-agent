@@ -74,21 +74,23 @@ type Telemeter interface {
 }
 
 type Scraper struct {
-	publisher     pusher.Publisher
-	cancel        context.CancelFunc
-	checkName     string
-	target        string
-	logger        zerolog.Logger
-	check         model.Check
-	probe         sm.Probe
-	prober        prober.Prober
-	labelsLimiter LabelsLimiter
-	stop          chan struct{}
-	metrics       Metrics
-	summaries     map[uint64]prometheus.Summary
-	histograms    map[uint64]prometheus.Histogram
-	telemeter     Telemeter
-	cals          TenantCals
+	publisher           pusher.Publisher
+	cancel              context.CancelFunc
+	checkName           string
+	target              string
+	logger              zerolog.Logger
+	check               model.Check
+	probe               sm.Probe
+	prober              prober.Prober
+	labelsLimiter       LabelsLimiter
+	stop                chan struct{}
+	metrics             Metrics
+	summaries           map[uint64]prometheus.Summary
+	histograms          map[uint64]prometheus.Histogram
+	telemeter           Telemeter
+	cals                TenantCals
+	newExecutionID      func() string
+	overrideExecutionID string
 }
 
 type Factory func(
@@ -160,6 +162,9 @@ type ScraperOpts struct {
 	LabelsLimiter         LabelsLimiter
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
+	// NewExecutionID overrides the default uuid-based execution ID generator.
+	// Used by synthetic backfill for deterministic output.
+	NewExecutionID func() string
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
@@ -182,27 +187,33 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		return nil, err
 	}
 
+	newExecutionID := opts.NewExecutionID
+	if newExecutionID == nil {
+		newExecutionID = func() string { return uuid.New().String() }
+	}
+
 	return &Scraper{
-		publisher:     opts.Publisher,
-		cancel:        cancel,
-		checkName:     checkName,
-		target:        target,
-		logger:        logger,
-		check:         check,
-		probe:         opts.Probe,
-		prober:        smProber,
-		labelsLimiter: opts.LabelsLimiter,
-		stop:          make(chan struct{}),
-		metrics:       opts.Metrics,
-		summaries:     make(map[uint64]prometheus.Summary),
-		histograms:    make(map[uint64]prometheus.Histogram),
-		telemeter:     opts.Telemeter,
-		cals:          opts.CostAttributionLabels,
+		publisher:      opts.Publisher,
+		cancel:         cancel,
+		checkName:      checkName,
+		target:         target,
+		logger:         logger,
+		check:          check,
+		probe:          opts.Probe,
+		prober:         smProber,
+		labelsLimiter:  opts.LabelsLimiter,
+		stop:           make(chan struct{}),
+		metrics:        opts.Metrics,
+		summaries:      make(map[uint64]prometheus.Summary),
+		histograms:     make(map[uint64]prometheus.Histogram),
+		telemeter:      opts.Telemeter,
+		cals:           opts.CostAttributionLabels,
+		newExecutionID: newExecutionID,
 	}, nil
 }
 
 var (
-	errCheckFailed       = errors.New("probe failed")
+	ErrCheckFailed       = errors.New("probe failed")
 	errUnsupportedMetric = errors.New("unsupported metric type")
 )
 
@@ -289,7 +300,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	h.payload, duration, err = h.scraper.collectData(ctx, t)
 
 	switch {
-	case errors.Is(err, errCheckFailed):
+	case errors.Is(err, ErrCheckFailed):
 		h.scraper.metrics.AddCheckError()
 		h.sm.fail(func() {
 			h.scraper.logger.Info().Err(err).Msg("check entered FAIL state")
@@ -502,6 +513,31 @@ func tickWithOffset(
 	}
 }
 
+func (s Scraper) executionIDForCollect() string {
+	if s.overrideExecutionID != "" {
+		return s.overrideExecutionID
+	}
+	if s.newExecutionID != nil {
+		return s.newExecutionID()
+	}
+	return uuid.New().String()
+}
+
+// CollectData runs the configured prober once at time t and returns transformed
+// metrics and logs without publishing. executionID may be empty to use the
+// scraper's default generator. ErrCheckFailed is returned when the probe failed
+// but metrics and logs are still populated.
+func (s *Scraper) CollectData(ctx context.Context, t time.Time, executionID string) (TimeSeries, Streams, model.GlobalID, time.Duration, error) {
+	s.overrideExecutionID = executionID
+	defer func() { s.overrideExecutionID = "" }()
+
+	pd, d, err := s.collectData(ctx, t)
+	if err != nil && !errors.Is(err, ErrCheckFailed) {
+		return nil, nil, 0, 0, err
+	}
+	return pd.Metrics(), pd.Streams(), pd.Tenant(), d, err
+}
+
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
 	var (
 		target = s.target
@@ -510,7 +546,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		// These labels are applied to the sm_check_info metric.
 		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
 		// This is the execution ID for the check run.
-		executionID = uuid.New().String()
+		executionID = s.executionIDForCollect()
 	)
 
 	maxMetricLabels, err := s.labelsLimiter.MetricLabels(ctx, s.check.GlobalTenantID())
@@ -572,6 +608,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		sl,
 		s.check.BasicMetricsOnly,
 		executionID,
+		t,
 	)
 	if err != nil {
 		return nil, 0, err
@@ -599,7 +636,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	successValue := "1"
 	if !success {
-		err = errCheckFailed
+		err = ErrCheckFailed
 		successValue = "0"
 	}
 
@@ -692,10 +729,11 @@ func getProbeMetrics(
 	logger kitlog.Logger,
 	basicMetricsOnly bool,
 	executionID string,
+	collectTime time.Time,
 ) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
-	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger, executionID)
+	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger, executionID, collectTime)
 
 	mfs, err := registry.Gather()
 	if err != nil {
@@ -727,10 +765,16 @@ func runProber(
 	checkInfoLabels map[string]string,
 	logger kitlog.Logger,
 	executionID string,
+	collectTime time.Time,
 ) bool {
-	start := time.Now()
+	start := collectTime
 
-	_ = level.Info(logger).Log("msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
+	_ = level.Info(logger).Log(
+		"msg", "Beginning check",
+		"type", prober.Name(),
+		"timeout_seconds", timeout.Seconds(),
+		"time", start.UTC().Format(time.RFC3339Nano),
+	)
 
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -738,11 +782,17 @@ func runProber(
 	success, duration := prober.Probe(checkCtx, target, registry, logger, executionID)
 
 	wallDuration := time.Since(start).Seconds()
-
+	if start.Before(time.Now().Add(-2 * timeout)) {
+		// Synthetic/backfill runs use historical collect times; wall clock elapsed since
+		// start is not meaningful for the check log line.
+		wallDuration = duration
+	}
 	if duration == 0 {
 		// If the prober did not provide their own duration, fallback to the wall time the scraper took to run.
 		duration = wallDuration
 	}
+
+	endTime := start.Add(time.Duration(duration * float64(time.Second)))
 
 	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: ProbeSuccessMetricName,
@@ -766,10 +816,20 @@ func runProber(
 
 	if success {
 		probeSuccessGauge.Set(1)
-		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", duration, "walltime_seconds", wallDuration)
+		_ = level.Info(logger).Log(
+			"msg", "Check succeeded",
+			"time", endTime.UTC().Format(time.RFC3339Nano),
+			"duration_seconds", duration,
+			"walltime_seconds", wallDuration,
+		)
 	} else {
 		probeSuccessGauge.Set(0)
-		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", duration, "walltime_seconds", wallDuration)
+		_ = level.Error(logger).Log(
+			"msg", "Check failed",
+			"time", endTime.UTC().Format(time.RFC3339Nano),
+			"duration_seconds", duration,
+			"walltime_seconds", wallDuration,
+		)
 	}
 
 	smCheckInfo.Set(1)
