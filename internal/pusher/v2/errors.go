@@ -43,6 +43,7 @@ func (k errKind) String() string {
 	case errKindLimit:
 		return "limit error"
 	}
+
 	return "unknown error"
 }
 

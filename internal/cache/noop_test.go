@@ -23,6 +23,7 @@ func TestNoopCache(t *testing.T) {
 
 	t.Run("get always returns ErrCacheMiss", func(t *testing.T) {
 		var result string
+
 		err := cache.Get(ctx, "any-key", &result)
 		require.ErrorIs(t, err, ErrCacheMiss)
 		require.Empty(t, result)
@@ -34,6 +35,7 @@ func TestNoopCache(t *testing.T) {
 
 		// Verify it wasn't actually cached
 		var result string
+
 		err = cache.Get(ctx, "test-key", &result)
 		require.ErrorIs(t, err, ErrCacheMiss)
 		require.Empty(t, result)
@@ -123,6 +125,7 @@ func TestNoopCacheWithVariousTypes(t *testing.T) {
 
 			// Get should always return ErrCacheMiss
 			var result any
+
 			err = cache.Get(ctx, tc.key, &result)
 			require.ErrorIs(t, err, ErrCacheMiss)
 		})
@@ -140,6 +143,7 @@ func TestNoopCacheZeroExpiration(t *testing.T) {
 
 	// But Get should still return ErrCacheMiss
 	var result string
+
 	err = cache.Get(ctx, "key", &result)
 	require.ErrorIs(t, err, ErrCacheMiss)
 }

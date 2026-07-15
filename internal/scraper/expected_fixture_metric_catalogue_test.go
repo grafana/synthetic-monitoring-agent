@@ -12,12 +12,14 @@ func TestExpectedMetricCatalogueMatchesFixtureOutputs(t *testing.T) {
 
 	for class, spec := range fixtureCatalogueSpecs() {
 		seen[class] = struct{}{}
+
 		expected, ok := expectedCatalogues[class]
 		if !ok {
 			t.Fatalf("missing expected catalogue for accounting class %s", class)
 		}
 
 		observed := collectFixtureCatalogue(t, class, spec)
+
 		result := CompareMetricCatalogue(expected, observed)
 		if !result.Success() {
 			t.Fatalf("catalogue mismatch for %s: %s", class, result.Summary())
@@ -28,6 +30,7 @@ func TestExpectedMetricCatalogueMatchesFixtureOutputs(t *testing.T) {
 		if _, ok := seen[class]; ok {
 			continue
 		}
+
 		t.Fatalf("expected catalogue contains class without fixture coverage: %s", class)
 	}
 }

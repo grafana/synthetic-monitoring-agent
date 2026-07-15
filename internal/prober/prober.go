@@ -80,6 +80,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		} else {
 			p, err = dns.NewProber(check)
 		}
+
 		target = check.Settings.Dns.Server
 
 	case sm.CheckTypeTcp:
@@ -132,6 +133,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 // Build reserved HTTP request headers for applicable checks.
 func (f proberFactory) getReservedHeaders(check *model.Check) http.Header {
 	reservedHeaders := http.Header{}
+
 	if f.probeId != 0 {
 		checkProbeIdentifier := fmt.Sprintf("%d-%d", check.GlobalID(), f.probeId)
 		reservedHeaders.Add("x-sm-id", checkProbeIdentifier)

@@ -33,10 +33,12 @@ func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
 	if err != nil {
 		return err
 	}
+
 	client, err := prom.NewClient(remote.Name, cfg, unusedRetryCounterFn)
 	if err != nil {
 		q.options.logger.Error().Err(err).Msg("get client failed")
 		q.options.metrics.FailedCounter.WithLabelValues(pusher.LabelValueClient).Inc()
+
 		return pushError{
 			kind:  errKindFatal,
 			inner: fmt.Errorf("creating client: %w", err),
@@ -66,6 +68,7 @@ func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
 				retries.reset()
 				backoff.reset()
 			}
+
 			retrying = false
 
 			concatReader := newConcatReader(records)
@@ -80,6 +83,7 @@ func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
 
 			if pushErr.IsRetriable() {
 				q.options.metrics.ErrorCounter.WithLabelValues(statusCodeStr).Add(numRecords)
+
 				if retrying = retries.retry(); retrying {
 					q.options.metrics.RetriesCounter.WithLabelValues().Add(numRecords)
 					// This causes each retry to use all pending records (up to maxPushBytes).
@@ -87,9 +91,11 @@ func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
 					// Conceptually it can make more sense to always retry with the same packet?
 					// In the case where something in the packet is causing the 500
 					q.requeue(records)
+
 					if err := backoff.wait(ctx); err != nil {
 						return err // ctx was cancelled
 					}
+
 					continue
 				}
 			}
@@ -111,6 +117,7 @@ func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
 			case errKindNoError:
 				q.options.metrics.PushCounter.WithLabelValues().Add(numRecords)
 				q.options.metrics.BytesOut.WithLabelValues().Add(float64(size))
+
 				continue
 
 			case errKindNetwork:
@@ -146,6 +153,7 @@ func (q *queue) push(ctx context.Context, remote *sm.RemoteInfo) error {
 func (q *queue) insert(data *[]byte) {
 	q.dataMutex.Lock()
 	defer q.dataMutex.Unlock()
+
 	q.data = append(q.data, queueEntry{
 		data: data,
 		ts:   time.Now(),
@@ -163,16 +171,20 @@ func (q *queue) applyLimits() {
 
 func (q *queue) limitBytes(max uint64) (numRemoved int) {
 	n := len(q.data)
+
 	if max <= 0 {
 		return 0
 	}
+
 	for i, numBytes := n-1, uint64(0); i >= 0; i-- {
 		if numBytes += uint64(len(*q.data[i].data)); numBytes > max {
 			q.options.pool.returnAll(q.data[:i+1])
 			q.data = q.data[i+1:]
+
 			return i + 1
 		}
 	}
+
 	return 0
 }
 
@@ -181,6 +193,7 @@ func (q *queue) limitAge(maxAge time.Duration) (numRemoved int) {
 	if n == 0 || maxAge <= 0 {
 		return 0
 	}
+
 	limit := time.Now().Add(-maxAge)
 	if !q.data[0].ts.Before(limit) {
 		return 0
@@ -195,6 +208,7 @@ func (q *queue) limitAge(maxAge time.Duration) (numRemoved int) {
 		q.options.pool.returnAll(q.data[:idx])
 		q.data = q.data[idx:]
 	}
+
 	return n - idx
 }
 
@@ -217,6 +231,7 @@ func (q *queue) get() []queueEntry {
 		if numBytes+thisSize > q.options.maxPushBytes {
 			break
 		}
+
 		numBytes += thisSize
 		limit++
 	}
@@ -240,8 +255,10 @@ func (q *queue) requeue(data []queueEntry) {
 	if len(data) == 0 {
 		return
 	}
+
 	q.dataMutex.Lock()
 	defer q.dataMutex.Unlock()
+
 	q.data = append(data, q.data...)
 	q.applyLimits()
 	q.pending.Signal()
@@ -257,6 +274,7 @@ func newConcatReader(records []queueEntry) SnappyConcatReader {
 	for idx, rec := range records {
 		streams[idx] = *rec.data
 	}
+
 	return SnappyConcatReader{
 		Streams: streams,
 	}

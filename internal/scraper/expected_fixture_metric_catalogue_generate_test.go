@@ -21,6 +21,7 @@ func TestPrintExpectedFixtureMetricCatalogueJSON(t *testing.T) {
 	for class := range fixtureCatalogueSpecs() {
 		classes = append(classes, class)
 	}
+
 	sort.Strings(classes)
 
 	catalogues := make(map[string]MetricLabelCatalogue, len(classes))

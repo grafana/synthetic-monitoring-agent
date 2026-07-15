@@ -22,6 +22,7 @@ func TestNewLocal(t *testing.T) {
 			Logger:          logger,
 		})
 		require.NoError(t, err)
+
 		require.NotNil(t, cache)
 		defer cache.Close()
 
@@ -34,6 +35,7 @@ func TestNewLocal(t *testing.T) {
 			Logger:      logger,
 		})
 		require.NoError(t, err)
+
 		require.NotNil(t, cache)
 		defer cache.Close()
 
@@ -47,6 +49,7 @@ func TestNewLocal(t *testing.T) {
 			Logger:      logger,
 		})
 		require.NoError(t, err)
+
 		require.NotNil(t, cache)
 		defer cache.Close()
 	})
@@ -84,6 +87,7 @@ func TestLocalCacheSetGet(t *testing.T) {
 		Logger:      logger,
 	})
 	require.NoError(t, err)
+
 	defer cache.Close()
 
 	ctx := t.Context()
@@ -96,6 +100,7 @@ func TestLocalCacheSetGet(t *testing.T) {
 		require.NoError(t, err)
 
 		var result string
+
 		err = cache.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, value, result)
@@ -109,6 +114,7 @@ func TestLocalCacheSetGet(t *testing.T) {
 		require.NoError(t, err)
 
 		var result int
+
 		err = cache.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, value, result)
@@ -126,6 +132,7 @@ func TestLocalCacheSetGet(t *testing.T) {
 		require.NoError(t, err)
 
 		var result TestStruct
+
 		err = cache.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, value, result)
@@ -139,6 +146,7 @@ func TestLocalCacheSetGet(t *testing.T) {
 		require.NoError(t, err)
 
 		var result []string
+
 		err = cache.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, value, result)
@@ -152,6 +160,7 @@ func TestLocalCacheSetGet(t *testing.T) {
 		require.NoError(t, err)
 
 		var result map[string]int
+
 		err = cache.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, value, result)
@@ -159,6 +168,7 @@ func TestLocalCacheSetGet(t *testing.T) {
 
 	t.Run("get non-existent key", func(t *testing.T) {
 		var result string
+
 		err := cache.Get(ctx, "nonexistent:key", &result)
 		require.ErrorIs(t, err, ErrCacheMiss)
 		require.Empty(t, result)
@@ -174,6 +184,7 @@ func TestLocalCacheSetGet(t *testing.T) {
 		require.NoError(t, err)
 
 		var result string
+
 		err = cache.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, "second value", result)
@@ -188,6 +199,7 @@ func TestLocalCacheExpiration(t *testing.T) {
 		Logger:      logger,
 	})
 	require.NoError(t, err)
+
 	defer cache.Close()
 
 	ctx := t.Context()
@@ -202,6 +214,7 @@ func TestLocalCacheExpiration(t *testing.T) {
 
 		// Should be available immediately
 		var result string
+
 		err = cache.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, value, result)
@@ -227,6 +240,7 @@ func TestLocalCacheExpiration(t *testing.T) {
 
 		// Should be available immediately
 		var result string
+
 		err = cache.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, value, result)
@@ -250,6 +264,7 @@ func TestLocalCacheDelete(t *testing.T) {
 		Logger:      logger,
 	})
 	require.NoError(t, err)
+
 	defer cache.Close()
 
 	ctx := t.Context()
@@ -263,6 +278,7 @@ func TestLocalCacheDelete(t *testing.T) {
 
 		// Verify it's there
 		var result string
+
 		err = cache.Get(ctx, key, &result)
 		require.NoError(t, err)
 
@@ -288,6 +304,7 @@ func TestLocalCacheFlush(t *testing.T) {
 		Logger:      logger,
 	})
 	require.NoError(t, err)
+
 	defer cache.Close()
 
 	ctx := t.Context()
@@ -311,6 +328,7 @@ func TestLocalCacheFlush(t *testing.T) {
 
 	// Verify individual items are gone
 	var result int
+
 	err = cache.Get(ctx, "test:flush:0", &result)
 	require.ErrorIs(t, err, ErrCacheMiss)
 }
@@ -324,6 +342,7 @@ func TestLocalCacheCapacity(t *testing.T) {
 		Logger:      logger,
 	})
 	require.NoError(t, err)
+
 	defer cache.Close()
 
 	ctx := t.Context()
@@ -351,19 +370,23 @@ func TestLocalCacheConcurrency(t *testing.T) {
 		Logger:      logger,
 	})
 	require.NoError(t, err)
+
 	defer cache.Close()
 
 	ctx := t.Context()
 
 	t.Run("concurrent writes", func(t *testing.T) {
 		var wg sync.WaitGroup
+
 		numGoroutines := 100
 		itemsPerGoroutine := 10
 
 		wg.Add(numGoroutines)
+
 		for i := range numGoroutines {
 			go func(id int) {
 				defer wg.Done()
+
 				for j := range itemsPerGoroutine {
 					key := fmt.Sprintf("concurrent:write:%d:%d", id, j)
 					err := cache.Set(ctx, key, id*itemsPerGoroutine+j, 5*time.Minute)
@@ -384,17 +407,22 @@ func TestLocalCacheConcurrency(t *testing.T) {
 		}
 
 		var wg sync.WaitGroup
+
 		numReaders := 50
 		numWriters := 50
 
 		// Start readers
 		wg.Add(numReaders)
+
 		for i := range numReaders {
 			go func(id int) {
 				defer wg.Done()
+
 				for j := range 100 {
 					key := fmt.Sprintf("concurrent:rw:%d", j)
+
 					var result int
+
 					_ = cache.Get(ctx, key, &result)
 				}
 			}(i)
@@ -402,9 +430,11 @@ func TestLocalCacheConcurrency(t *testing.T) {
 
 		// Start writers
 		wg.Add(numWriters)
+
 		for i := range numWriters {
 			go func(id int) {
 				defer wg.Done()
+
 				for j := range 100 {
 					key := fmt.Sprintf("concurrent:rw:%d", j)
 					_ = cache.Set(ctx, key, id*100+j, 5*time.Minute)
@@ -423,6 +453,7 @@ func TestLocalCacheEncodeErrors(t *testing.T) {
 		Logger:      logger,
 	})
 	require.NoError(t, err)
+
 	defer cache.Close()
 
 	ctx := t.Context()
@@ -447,6 +478,7 @@ func TestLocalCacheDecodeErrors(t *testing.T) {
 		Logger:      logger,
 	})
 	require.NoError(t, err)
+
 	defer cache.Close()
 
 	ctx := t.Context()
@@ -457,6 +489,7 @@ func TestLocalCacheDecodeErrors(t *testing.T) {
 
 	// Try to retrieve as int
 	var result int
+
 	err = cache.Get(ctx, "test:mismatch", &result)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to decode value")
@@ -502,6 +535,7 @@ func TestLocalCacheClose(t *testing.T) {
 
 		if false { // This won't work for now.
 			var result string
+
 			err = cache.Get(ctx, "test:key", &result)
 			require.Error(t, err, ErrCacheMiss)
 		}
@@ -512,6 +546,7 @@ func TestLocalCacheClose(t *testing.T) {
 
 func BenchmarkLocalCacheSet(b *testing.B) {
 	logger := zerolog.New(io.Discard)
+
 	cache, _ := NewLocal(LocalConfig{
 		MaxCapacity: 100000,
 		Logger:      logger,
@@ -531,6 +566,7 @@ func BenchmarkLocalCacheSet(b *testing.B) {
 
 func BenchmarkLocalCacheGet(b *testing.B) {
 	logger := zerolog.New(io.Discard)
+
 	cache, _ := NewLocal(LocalConfig{
 		MaxCapacity: 100000,
 		Logger:      logger,
@@ -557,6 +593,7 @@ func BenchmarkLocalCacheGet(b *testing.B) {
 
 func BenchmarkLocalCacheConcurrent(b *testing.B) {
 	logger := zerolog.New(io.Discard)
+
 	cache, _ := NewLocal(LocalConfig{
 		MaxCapacity: 100000,
 		Logger:      logger,
@@ -575,7 +612,9 @@ func BenchmarkLocalCacheConcurrent(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
+
 		var result int
+
 		for pb.Next() {
 			key := fmt.Sprintf("bench:concurrent:%d", i%1000)
 			if i%2 == 0 {
@@ -583,6 +622,7 @@ func BenchmarkLocalCacheConcurrent(b *testing.B) {
 			} else {
 				_ = cache.Set(ctx, key, i, 5*time.Minute)
 			}
+
 			i++
 		}
 	})

@@ -20,6 +20,7 @@ func (tp *testTenantProvider) GetTenant(ctx context.Context, ti *sm.TenantInfo) 
 	if t, ok := tp.tenants[ti.Id]; ok {
 		return t, nil
 	}
+
 	return nil, errTestTenantNotFound
 }
 
@@ -78,6 +79,7 @@ func TestMetricLabels(t *testing.T) {
 			if err != nil {
 				require.Equal(t, tc.expErr, err)
 			}
+
 			require.Equal(t, tc.expLabels, ll)
 		})
 	}
@@ -120,6 +122,7 @@ func TestLogLabels(t *testing.T) {
 			if err != nil {
 				require.Equal(t, tc.expErr, err)
 			}
+
 			require.Equal(t, tc.expLabels, ll)
 		})
 	}

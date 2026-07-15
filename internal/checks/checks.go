@@ -333,6 +333,7 @@ func handleError(ctx context.Context, logger zerolog.Logger, backoff Backoffer, 
 		logger.Error().
 			Err(err).
 			Msg("context cancelled, closing updater")
+
 		return true, nil
 
 	default:
@@ -426,6 +427,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 
 	// true indicates that probe is connected to API
 	connected = true
+
 	c.IsConnected(true)
 	defer c.IsConnected(false)
 
@@ -488,6 +490,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	g.Go(func() error {
 		err := ping(sigCtx, client)
 		logger.Warn().Err(err).Msg("health check ping stopped")
+
 		return err
 	})
 
@@ -500,6 +503,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		// continue running in case the agent is _not_ killed.
 		err := c.processChanges(ctx, cc)
 		logger.Warn().Err(err).Msg("processing changes stopped")
+
 		return err
 	})
 
@@ -511,7 +515,6 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		//
 		// Add a 30 second timeout to guarantee that this goroutine will finish.
 		// The internal timeout in the usage reporter should take care of that.
-
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 
@@ -546,6 +549,7 @@ func (c *Updater) notifyProbeTenant() {
 	c.probeTenantOnce.Do(func() {
 		if c.probeCh != nil {
 			c.probeCh <- c.probe
+
 			close(c.probeCh)
 		}
 	})
@@ -629,6 +633,7 @@ func installSignalHandler(ctx context.Context) (context.Context, *int32) {
 			cancel()
 		case <-ctx.Done():
 		}
+
 		signal.Stop(sigCh)
 	}()
 
@@ -681,7 +686,6 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 		// once during the initial connection and another right
 		// after that. The window for that is small, but it
 		// exists.
-
 		return fmt.Errorf("check with id %d already exists (version %s)", check.GlobalID(), running.ConfigVersion())
 	}
 
@@ -717,6 +721,7 @@ func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check model.Che
 
 	scraper.Stop()
 	checkType := scraper.CheckType().String()
+
 	delete(c.scrapers, cid)
 
 	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
@@ -785,6 +790,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
 				c.logger.Error().Err(err).Int64("check_id", check.Id).Int("region_id", check.RegionId).
 					Msg("adding check failed, dropping check")
+
 				continue
 			}
 
@@ -799,6 +805,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 				Interface("check", checkChange.Check).
 				Str("operation", checkChange.Operation.String()).
 				Msg("unexpected operation, dropping check change")
+
 			continue
 		}
 	}
@@ -844,6 +851,7 @@ func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check mode
 
 		// transform this request into an update
 		c.logger.Debug().Str("old_check_version", oldVersion).Str("new_check_version", newVersion).Msg("transforming add into update")
+
 		return c.handleCheckUpdateWithLock(ctx, check)
 	}
 
@@ -912,7 +920,6 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 	// If we need to accept checks based on whether a feature flag
 	// is enabled or not, we can "accept" the check from the point
 	// of view of the API, and skip running it here, e.g.
-
 	switch check.Type() {
 	case sm.CheckTypeScripted:
 		if !c.features.IsSet(feature.K6) {

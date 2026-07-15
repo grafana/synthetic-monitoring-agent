@@ -189,6 +189,7 @@ func (h *Handler) Run(ctx context.Context) error {
 				Err(err).
 				Str("connection_state", h.api.conn.GetState().String()).
 				Msg("cannot connect, bailing out")
+
 			return err
 
 		case errors.Is(err, errIncompatibleApi):
@@ -197,6 +198,7 @@ func (h *Handler) Run(ctx context.Context) error {
 				Err(err).
 				Str("connection_state", h.api.conn.GetState().String()).
 				Msg("cannot connect, bailing out")
+
 			return err
 
 		case errors.Is(err, errTransportClosing):
@@ -234,6 +236,7 @@ func (h *Handler) Run(ctx context.Context) error {
 				Err(err).
 				Str("connection_state", h.api.conn.GetState().String()).
 				Msg("context cancelled, closing updater")
+
 			return nil
 
 		case errors.Is(err, errProbeUnregistered):
@@ -501,15 +504,19 @@ type jsonLogger struct {
 // Log takes key-value pairs and logs them.
 func (l *jsonLogger) Log(keyvals ...any) error {
 	m := make(map[string]string)
+
 	if len(keyvals)%2 != 0 {
 		return fmt.Errorf("expected even number of keyvals, got %d", len(keyvals))
 	}
+
 	for i := 0; i < len(keyvals); i += 2 {
 		k := fmt.Sprintf("%v", keyvals[i])
 		v := fmt.Sprintf("%v", keyvals[i+1])
 		m[k] = v
 	}
+
 	l.entries = append(l.entries, m)
+
 	return nil
 }
 

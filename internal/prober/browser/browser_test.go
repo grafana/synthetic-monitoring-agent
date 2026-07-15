@@ -57,8 +57,11 @@ func TestNewProber(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			var runner noopRunner
-			var store testhelper.NoopSecretStore
+			var (
+				runner noopRunner
+				store  testhelper.NoopSecretStore
+			)
+
 			p, err := NewProber(ctx, tc.check, logger, runner, store)
 			if tc.expectFailure {
 				require.Error(t, err)

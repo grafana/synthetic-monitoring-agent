@@ -73,6 +73,7 @@ func TestNewProber(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			actual, err := NewProber(testcase.input)
 			require.Equal(t, &testcase.expected, &actual)
+
 			if testcase.ExpectError {
 				require.Error(t, err, "unsupported check")
 			} else {
@@ -166,6 +167,7 @@ func TestSettingsToModule(t *testing.T) {
 
 	for name, testcase := range testcases {
 		target := "www.grafana.com"
+
 		t.Run(name, func(t *testing.T) {
 			actual := settingsToModule(&testcase.input, target)
 			require.Equal(t, &testcase.expected, &actual)
@@ -179,7 +181,9 @@ func TestProberRetries(t *testing.T) {
 	}
 
 	mux := dns.NewServeMux()
+
 	var counter atomic.Int32
+
 	mux.Handle(".", dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
 		answer := dns.Msg{
 			MsgHdr: dns.MsgHdr{
@@ -203,20 +207,25 @@ func TestProberRetries(t *testing.T) {
 
 		counter.Add(1)
 		t.Logf("Received request %d: %v", counter.Load(), r)
+
 		delay := 10 * time.Second
 		if counter.Load()%3 == 0 {
 			delay = 0
 		}
+
 		t.Log("Answer...")
 		time.Sleep(delay)
+
 		_ = w.WriteMsg(&answer)
 	}))
+
 	addr, err := net.ResolveUDPAddr("udp4", "127.0.0.1:0")
 	require.NoError(t, err)
 	l, err := net.ListenUDP("udp4", addr)
 	require.NoError(t, err)
 	t.Log(l.LocalAddr().String())
 	server := &dns.Server{Addr: ":0", PacketConn: l, Net: "udp", Handler: mux}
+
 	go func() {
 		err := server.ActivateAndServe()
 		if err != nil {
@@ -254,6 +263,7 @@ func TestProberRetries(t *testing.T) {
 	registry := prometheus.NewPedanticRegistry()
 
 	var buf bytes.Buffer
+
 	logger := log.NewLogfmtLogger(&buf)
 
 	t0 := time.Now()
@@ -264,6 +274,7 @@ func TestProberRetries(t *testing.T) {
 
 	mfs, err := registry.Gather()
 	require.NoError(t, err)
+
 	enc := expfmt.NewEncoder(&buf, expfmt.NewFormat(expfmt.TypeTextPlain))
 	for _, mf := range mfs {
 		require.NoError(t, enc.Encode(mf))

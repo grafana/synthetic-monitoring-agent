@@ -108,6 +108,7 @@ func getTypeFromClass(class string) synthetic_monitoring.CheckType {
 	// variations to the base check type so strip that to get back
 	// the check type.
 	str := strings.SplitN(class, "_", 2)[0]
+
 	checkType, found := synthetic_monitoring.CheckTypeFromString(str)
 	if !found {
 		panic("unhandled check type string")

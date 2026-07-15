@@ -64,9 +64,11 @@ func TestNewProber(t *testing.T) {
 
 	for name, testcase := range testcases {
 		logger := zerolog.New(io.Discard)
+
 		t.Run(name, func(t *testing.T) {
 			actual, err := NewProber(ctx, testcase.input, logger)
 			require.Equal(t, &testcase.expected, &actual)
+
 			if testcase.ExpectError {
 				require.Error(t, err, "unsupported check")
 			} else {
@@ -117,6 +119,7 @@ func TestSettingsToModule(t *testing.T) {
 
 	for name, testcase := range testcases {
 		logger := zerolog.New(io.Discard)
+
 		t.Run(name, func(t *testing.T) {
 			actual, err := settingsToModule(ctx, &testcase.input, logger)
 			require.NoError(t, err)
@@ -129,6 +132,7 @@ func testCtx(ctx context.Context, t *testing.T) context.Context {
 	if deadline, ok := t.Deadline(); ok {
 		ctx, cancel := context.WithDeadline(ctx, deadline)
 		t.Cleanup(cancel)
+
 		return ctx
 	}
 

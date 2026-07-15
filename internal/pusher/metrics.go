@@ -140,6 +140,7 @@ func (m Metrics) WithTenant(localID int64, regionID int) Metrics {
 		"regionID": strconv.FormatInt(int64(regionID), 10),
 		"tenantID": strconv.FormatInt(localID, 10),
 	}
+
 	return Metrics{
 		PushCounter:       m.PushCounter.MustCurryWith(labels),
 		ErrorCounter:      m.ErrorCounter.MustCurryWith(labels),

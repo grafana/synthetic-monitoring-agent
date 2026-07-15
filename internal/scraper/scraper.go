@@ -189,6 +189,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		Logger()
 
 	sctx, cancel := context.WithCancel(ctx)
+
 	smProber, target, err := opts.ProbeFactory.New(sctx, logger, check)
 	if err != nil {
 		cancel()
@@ -313,6 +314,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	case err != nil:
 		h.scraper.metrics.AddCollectorError()
 		h.scraper.logger.Error().Err(err).Msg("error collecting data")
+
 		return
 
 	default:
@@ -358,6 +360,7 @@ func (h *scrapeHandler) republish(ctx context.Context, t time.Time) {
 
 	// Update the timestamps of all collected samples to now.
 	now := t.UnixMilli()
+
 	for i := range h.payload.ts {
 		ts := &h.payload.ts[i]
 		for j := range ts.Samples {
@@ -493,6 +496,7 @@ func tickWithOffset(
 			if !lastTick.IsZero() {
 				cleanup(ctx, lastTick)
 			}
+
 			return
 
 		case t := <-inactivityTicker.C:
@@ -552,6 +556,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	if err != nil {
 		return nil, 0, fmt.Errorf("retrieving tenant metric labels limit: %w", err)
 	}
+
 	maxLogLabels, err := s.labelsLimiter.LogLabels(ctx, s.check.GlobalTenantID())
 	if err != nil {
 		return nil, 0, fmt.Errorf("retrieving tenant log labels limit: %w", err)
@@ -565,6 +570,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	if labelMode != sm.LabelMode_LABEL_MODE_DUAL_WRITE {
 		checkInfoLimit = maxMetricLabels
 	}
+
 	if len(checkInfoLabels) > checkInfoLimit {
 		// This should never happen.
 		return nil, 0, fmt.Errorf("%w: %d", errTooManyLabels, len(checkInfoLabels))
@@ -586,6 +592,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// set up logger to capture all the labels as part of the log entry
 	loggerLabels := make([]any, 0, 2*(2+len(logLabels)))
+
 	loggerLabels = append(loggerLabels, "ts", kitlog.DefaultTimestampUTC, "target", target)
 	for _, l := range logLabels {
 		loggerLabels = append(loggerLabels, l.name, l.value)
@@ -594,6 +601,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	sl := kitlog.With(bl, loggerLabels...)
 
 	var timeout time.Duration
+
 	switch s.CheckType() {
 	case sm.CheckTypeMultiHttp, sm.CheckTypeScripted, sm.CheckTypeBrowser:
 		// k6-backed checks have a more sophisticated handling of timeouts, where the k6 runner receives the check
@@ -636,6 +644,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	ts := s.extractTimeseries(t, mfs, executionMetricLabels)
 
 	successValue := "1"
+
 	if !success {
 		err = errCheckFailed
 		successValue = "0"
@@ -643,8 +652,11 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// Split logLabels into stream labels and structured metadata overflow.
 	// maxLogLabels - 1 reserves one slot for probe_success which is always appended.
-	var streamLogLabels []labelPair
-	var overflowMetadata []logproto.LabelAdapter
+	var (
+		streamLogLabels  []labelPair
+		overflowMetadata []logproto.LabelAdapter
+	)
+
 	maxUserLogLabels := maxLogLabels - 1
 	if len(logLabels) > maxUserLogLabels {
 		streamLogLabels = logLabels[:maxUserLogLabels]
@@ -654,6 +666,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	} else {
 		streamLogLabels = logLabels
 	}
+
 	streamLogLabels = append(streamLogLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
 
 	// full set of structured metadata consists of any overflow labels and the execution_id
@@ -679,17 +692,20 @@ func (s *Scraper) getCostAttributionLabels(ctx context.Context, tenantID model.G
 	for _, cal := range cals {
 		// Make the assumption there are no labels that match the CAL and set the default value to __MISSING__
 		value := telemetry.CalNilStringTerminator
+
 		idx := slices.IndexFunc(s.check.Labels, func(l sm.Label) bool {
 			return l.Name == cal
 		})
 		if idx >= 0 {
 			value = s.check.Labels[idx].Value
 		}
+
 		vals = append(vals, sm.CostAttributionLabel{
 			Name:  cal,
 			Value: value,
 		})
 	}
+
 	return vals, nil
 }
 
@@ -708,6 +724,7 @@ func patchDuration(mfs []*dto.MetricFamily) (time.Duration, bool) {
 				return g
 			}
 		}
+
 		return nil
 	}
 
@@ -818,9 +835,11 @@ func runProber(
 
 	if success {
 		probeSuccessGauge.Set(1)
+
 		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", duration, "walltime_seconds", wallDuration)
 	} else {
 		probeSuccessGauge.Set(0)
+
 		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", duration, "walltime_seconds", wallDuration)
 	}
 
@@ -883,7 +902,9 @@ func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair,
 	dec := logfmt.NewDecoder(bytes.NewReader(logs))
 
 	labels := make([]labelPair, 0, len(sharedLabels))
+
 	var entries []logproto.Entry
+
 RECORD:
 	for dec.ScanRecord() {
 		var t time.Time
@@ -905,6 +926,7 @@ RECORD:
 				}
 
 				var err error
+
 				t, err = time.Parse(time.RFC3339Nano, string(value))
 				if err != nil {
 					// We should never hit this as the timestamp string in the log should be valid.
@@ -919,6 +941,7 @@ RECORD:
 			// RFC3339Nano is a strict superset of RFC3339; use it to parse either 'time' value.`
 			case "time":
 				var err error
+
 				t, err = time.Parse(time.RFC3339Nano, string(value))
 				if err != nil {
 					s.logger.Warn().Err(err).Bytes("value", value).Msg("invalid timestamp scanning logs")
@@ -937,6 +960,7 @@ RECORD:
 		if err := enc.EndRecord(); err != nil {
 			s.logger.Warn().Err(err).Msg("encoding logs")
 		}
+
 		entries = append(entries, logproto.Entry{
 			Timestamp:          t,
 			Line:               line.String(),
@@ -970,12 +994,14 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels
 		for _, label := range pairs {
 			out = append(out, prompb.Label{Name: label.name, Value: truncateLabelValue(label.value)})
 		}
+
 		return out
 	}
 
 	executionPrompb := toPrompb(executionLabels)
 
 	var ts []prompb.TimeSeries
+
 	for _, mf := range metrics {
 		mName := mf.GetName()
 		mType := mf.GetType()
@@ -1046,13 +1072,16 @@ func buildUserLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []l
 		for _, e := range userLabels {
 			labels = append(labels, labelPair{name: "label_" + e.name, value: e.value})
 		}
+
 		for _, e := range userLabels {
 			// reserved labels should be dropped from the user's custom set
 			if sm.IsSystemLabel(e.name) {
 				continue
 			}
+
 			labels = append(labels, labelPair{name: e.name, value: e.value})
 		}
+
 		return labels
 	case sm.LabelMode_LABEL_MODE_UNPREFIXED:
 		filtered := make([]labelPair, 0, len(userLabels))
@@ -1061,13 +1090,16 @@ func buildUserLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []l
 			if sm.IsSystemLabel(e.name) {
 				continue
 			}
+
 			filtered = append(filtered, e)
 		}
+
 		return filtered
 	default: // LABEL_MODE_PREFIXED - prefix custom label names with label_
 		for i := range userLabels {
 			userLabels[i].name = "label_" + userLabels[i].name
 		}
+
 		return userLabels
 	}
 }
@@ -1081,6 +1113,7 @@ func customMetricLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) 
 	if mode == sm.LabelMode_LABEL_MODE_PREFIXED {
 		return nil
 	}
+
 	return buildUserLabels(probeLabels, checkLabels, sm.LabelMode_LABEL_MODE_UNPREFIXED)
 }
 
@@ -1135,6 +1168,7 @@ func mergeUserLabels(probeLabels, checkLabels []sm.Label) []labelPair {
 			labels[where].value = l.Value
 			continue
 		}
+
 		idx[l.Name] = len(labels)
 		labels = append(labels, labelPair{name: l.Name, value: l.Value})
 	}
@@ -1164,6 +1198,7 @@ func mergeLogLabels(systemLabels, userLabels []labelPair) []labelPair {
 			merged[where].value = l.value
 			continue
 		}
+
 		idx[l.name] = len(merged)
 		merged = append(merged, l)
 	}
@@ -1202,6 +1237,7 @@ func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sh
 
 	labels := make([]prompb.Label, 0, 1+len(sharedLabels)+len(ml))
 	labels = append(labels, prompb.Label{Name: prom.MetricNameLabel, Value: mName})
+
 	labels = append(labels, sharedLabels...)
 	for _, l := range ml {
 		labels = append(labels, prompb.Label{Name: *(l.Name), Value: truncateLabelValue(*(l.Value))})
@@ -1303,6 +1339,7 @@ func fmtLabels(labels []labelPair) string {
 		if i > 0 {
 			_, _ = s.WriteRune(',')
 		}
+
 		_, _ = s.WriteString(pair.name)
 		_, _ = s.WriteRune('=')
 		_, _ = s.WriteRune('"')
@@ -1420,6 +1457,7 @@ func truncateLabelValue(str string) string {
 		for i := maxLabelValueLength - 3; i < maxLabelValueLength; i++ {
 			b[i] = '.'
 		}
+
 		str = string(b)
 	}
 

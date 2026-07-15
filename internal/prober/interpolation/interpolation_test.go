@@ -17,6 +17,7 @@ func (m *mockVariableProvider) GetVariable(name string) (string, error) {
 	if value, exists := m.variables[name]; exists {
 		return value, nil
 	}
+
 	return "", fmt.Errorf("variable '%s' not found", name)
 }
 

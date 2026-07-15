@@ -21,6 +21,7 @@ func SMtoProm(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfi
 		if err != nil {
 			return promconfig.TLSConfig{}, err
 		}
+
 		c.CAFile = fn
 	}
 
@@ -29,6 +30,7 @@ func SMtoProm(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfi
 		if err != nil {
 			return promconfig.TLSConfig{}, err
 		}
+
 		c.CertFile = fn
 	}
 
@@ -37,6 +39,7 @@ func SMtoProm(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfi
 		if err != nil {
 			return promconfig.TLSConfig{}, err
 		}
+
 		c.KeyFile = fn
 	}
 
@@ -57,6 +60,7 @@ func newDataProvider(ctx context.Context, logger zerolog.Logger, basename string
 		logger.Error().Err(err).Str("basename", basename).Msg("creating temporary file")
 		return "", fmt.Errorf("creating temporary file: %w", err)
 	}
+
 	defer func() {
 		if err := fh.Close(); err != nil {
 			// close errors should never happen, but if they
@@ -78,6 +82,7 @@ func newDataProvider(ctx context.Context, logger zerolog.Logger, basename string
 	// shutting down or when the scraper stops.
 	go func() {
 		<-ctx.Done()
+
 		if err := os.Remove(fn); err != nil {
 			logger.Error().Err(err).Str("filename", fn).Msg("removing temporary file")
 		}

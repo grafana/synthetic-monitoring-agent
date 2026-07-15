@@ -38,15 +38,18 @@ func TestTenantPusher(t *testing.T) {
 	p := newTenantPusher(1, tenantProvider, pusherOptions{
 		metrics: metrics,
 	})
+
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(50*time.Millisecond))
 	defer cancel()
 
 	var wg sync.WaitGroup
 	wg.Add(1)
+
 	go func() {
 		p.run(ctx)
 		wg.Done()
 	}()
+
 	wg.Wait()
 }
 
@@ -100,6 +103,7 @@ func makeRecords(blocks [][]byte) []queueEntry {
 		copy(data, b)
 		out[idx].data = &data
 	}
+
 	return out
 }
 
@@ -112,6 +116,7 @@ func (t testTenantProvider) GetTenant(ctx context.Context, info *sm.TenantInfo) 
 	if !found {
 		return nil, errTestNoTenant
 	}
+
 	return tenant, nil
 }
 
@@ -125,21 +130,28 @@ type testServer struct {
 func (s *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	if len(s.responses) == 0 {
 		panic(len(s.responses))
 	}
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		panic(err)
 	}
+
 	content, err := snappy.Decode(nil, body)
 	if err != nil {
 		panic(err)
 	}
+
 	s.receivedBody = content
+
 	defer r.Body.Close()
+
 	act := s.responses[0]
 	s.responses = s.responses[1:]
+
 	act(w, r)
 }
 
@@ -154,5 +166,6 @@ func (s *testServer) stop() {
 func (s *testServer) done() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	return len(s.responses) == 0
 }

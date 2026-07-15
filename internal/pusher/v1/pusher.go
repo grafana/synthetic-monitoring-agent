@@ -84,12 +84,15 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 		client, err := p.getClient(ctx, tenantID, newClient)
 		if err != nil {
 			logger.Error().Err(err).Msg("get client failed")
+
 			if len(streams) > 0 {
 				p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs, pusher.LabelValueClient).Inc()
 			}
+
 			if len(metrics) > 0 {
 				p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics, pusher.LabelValueClient).Inc()
 			}
+
 			return
 		}
 
@@ -98,6 +101,7 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Int("status", httpStatusCode).Msg("publish events")
 				p.metrics.ErrorCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs, strconv.Itoa(httpStatusCode)).Inc()
+
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
 					newClient = true
@@ -106,6 +110,7 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 			} else {
 				p.metrics.PushCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs).Inc()
 				p.metrics.BytesOut.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs).Add(float64(n))
+
 				streams = nil
 			}
 		}
@@ -115,6 +120,7 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 				httpStatusCode, hasStatusCode := prom.GetHttpStatusCode(err)
 				logger.Error().Err(err).Int("status", httpStatusCode).Msg("publish metrics")
 				p.metrics.ErrorCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics, strconv.Itoa(httpStatusCode)).Inc()
+
 				if hasStatusCode && httpStatusCode == http.StatusUnauthorized {
 					// Retry to get a new client, credentials might be stale.
 					newClient = true
@@ -137,9 +143,11 @@ func (p *publisherImpl) publish(ctx context.Context, payload pusher.Payload) {
 	if len(streams) > 0 {
 		p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueLogs, pusher.LabelValueRetryExhausted).Inc()
 	}
+
 	if len(metrics) > 0 {
 		p.metrics.FailedCounter.WithLabelValues(regionStr, tenantStr, pusher.LabelValueMetrics, pusher.LabelValueRetryExhausted).Inc()
 	}
+
 	logger.Warn().Msg("failed to push payload")
 }
 
@@ -197,6 +205,7 @@ func (p *publisherImpl) getClient(ctx context.Context, tenantId model.GlobalID, 
 	req := sm.TenantInfo{
 		Id: int64(tenantId),
 	}
+
 	tenant, err := p.tenantManager.GetTenant(ctx, &req)
 	if err != nil {
 		return nil, err

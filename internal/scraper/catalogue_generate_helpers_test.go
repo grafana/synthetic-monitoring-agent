@@ -11,7 +11,9 @@ func sortedCatalogueClasses(catalogues map[string]fixtureSpec) []string {
 	for class := range catalogues {
 		classes = append(classes, class)
 	}
+
 	sort.Strings(classes)
+
 	return classes
 }
 
@@ -19,10 +21,12 @@ func renderMetricCatalogueJSON(catalogues map[string]MetricLabelCatalogue) strin
 	var b strings.Builder
 
 	b.WriteString("{\n")
+
 	for classIndex, class := range sortedMetricCatalogueClasses(catalogues) {
 		if classIndex > 0 {
 			b.WriteString(",\n")
 		}
+
 		b.WriteString("\t")
 		b.WriteString(strconv.Quote(class))
 		b.WriteString(": {\n")
@@ -32,6 +36,7 @@ func renderMetricCatalogueJSON(catalogues map[string]MetricLabelCatalogue) strin
 			if metricIndex > 0 {
 				b.WriteString(",\n")
 			}
+
 			b.WriteString("\t\t")
 			b.WriteString(strconv.Quote(metric))
 			b.WriteString(": ")
@@ -40,6 +45,7 @@ func renderMetricCatalogueJSON(catalogues map[string]MetricLabelCatalogue) strin
 
 		b.WriteString("\n\t}")
 	}
+
 	b.WriteString("\n}\n")
 
 	return b.String()
@@ -50,7 +56,9 @@ func sortedMetricCatalogueClasses(catalogues map[string]MetricLabelCatalogue) []
 	for class := range catalogues {
 		classes = append(classes, class)
 	}
+
 	sort.Strings(classes)
+
 	return classes
 }
 
@@ -59,19 +67,25 @@ func sortedMetricCatalogueMetrics(catalogue MetricLabelCatalogue) []string {
 	for metric := range catalogue {
 		metrics = append(metrics, metric)
 	}
+
 	sort.Strings(metrics)
+
 	return metrics
 }
 
 func renderStringArrayJSON(values []string) string {
 	var b strings.Builder
 	b.WriteString("[")
+
 	for i, value := range values {
 		if i > 0 {
 			b.WriteString(", ")
 		}
+
 		b.WriteString(strconv.Quote(value))
 	}
+
 	b.WriteString("]")
+
 	return b.String()
 }

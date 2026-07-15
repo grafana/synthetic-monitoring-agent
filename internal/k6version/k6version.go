@@ -40,6 +40,7 @@ func (h *Handler) Handle(ctx context.Context) error {
 	versionsCh := h.K6Runner.Versions(ctx)
 
 	var sendCtx context.Context
+
 	cancel := func() {}
 
 	h.Logger.Debug().Msg("Starting k6 version reporter")
@@ -56,7 +57,9 @@ func (h *Handler) Handle(ctx context.Context) error {
 				// Versions channel closed, there won't be further updates. Nil the channel so we can continue the loop
 				// waiting only for context cancellation.
 				h.Logger.Debug().Msg("k6 runner done reporting versions")
+
 				versionsCh = nil
+
 				continue
 			}
 

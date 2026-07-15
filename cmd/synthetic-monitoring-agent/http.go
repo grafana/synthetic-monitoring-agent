@@ -55,6 +55,7 @@ func NewMux(opts MuxOpts) *Mux {
 	)
 
 	router.Handle("/metrics", promHandler)
+
 	isReady := &atomic.Value{}
 	isReady.Store(false)
 	router.Handle("/ready", opts.isReady)
@@ -143,6 +144,7 @@ func (mux *Mux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}).Observe(float64(m.Written))
 
 	var level zerolog.Level
+
 	switch m.Code / 100 {
 	case 1, 2, 3:
 		level = zerolog.InfoLevel
@@ -215,11 +217,11 @@ func disconnectHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO(mem): this is a hack to trigger a disconnection from the
 	// API, it would be cleaner to do this through a channel that
 	// communicates the request to the checks updater.
-
 	p, err := os.FindProcess(os.Getpid())
 	if err != nil {
 		msg := fmt.Sprintf("%s: %s", http.StatusText(http.StatusInternalServerError), err.Error())
 		http.Error(w, msg, http.StatusInternalServerError)
+
 		return
 	}
 
@@ -228,6 +230,7 @@ func disconnectHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := fmt.Sprintf("%s: %s", http.StatusText(http.StatusInternalServerError), err.Error())
 		http.Error(w, msg, http.StatusInternalServerError)
+
 		return
 	}
 

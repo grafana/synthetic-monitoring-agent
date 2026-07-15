@@ -119,5 +119,6 @@ func write(checkType checkType) {
 	if err != nil {
 		fmt.Println(err)
 	}
+
 	fmt.Println(string(out))
 }

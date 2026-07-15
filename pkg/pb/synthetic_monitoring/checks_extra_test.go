@@ -859,9 +859,11 @@ func TestCheckFQHN(t *testing.T) {
 	genstr := func(n int) string {
 		var sb strings.Builder
 		sb.Grow(n)
+
 		for i := 1; i <= n; i++ {
 			_ = sb.WriteByte(byte('a' + (i % ('z' - 'a' + 1))))
 		}
+
 		return sb.String()
 	}
 
@@ -1121,9 +1123,11 @@ func TestValidateLabel(t *testing.T) {
 	genString := func(n int) string {
 		var s strings.Builder
 		s.Grow(n)
+
 		for range n {
 			_ = s.WriteByte('x')
 		}
+
 		return s.String()
 	}
 
@@ -1362,6 +1366,7 @@ func TestCompressionAlgorithmUnmarshal(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			var actual testStruct
+
 			err := json.Unmarshal(tc.serialized, &actual)
 			require.NoError(t, err)
 			require.Equal(t, tc.unserialized, actual)
@@ -2047,6 +2052,7 @@ func TestRemoteInfoMarshalZerologObject(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
+
 	logger := zerolog.New(&buf)
 
 	logger.Info().Interface("remote_info", remoteInfo).Send()
@@ -2070,6 +2076,7 @@ func TestRemoteInfoMarshalJSON(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
+
 	err := json.NewEncoder(&buf).Encode(&remoteInfo)
 	require.NoError(t, err)
 
@@ -2096,6 +2103,7 @@ func BenchmarkIsSystemLabel(b *testing.B) {
 	// misses: generated label names that are not reserved (~80% of the workload).
 	missCount := 4 * len(hits)
 	misses := make([]string, 0, missCount)
+
 	prefixes := []string{"alpha", "delta", "kilo", "november", "sierra", "zulu"}
 	for i := range missCount {
 		misses = append(misses, prefixes[i%len(prefixes)]+"_label_"+strconv.Itoa(i))

@@ -45,10 +45,12 @@ func TestTenantCostAttributionLabels_GetCostAttributionLabels(t *testing.T) {
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
 			tcal := NewCostAttributionLabels(testcase.tenantProvider)
+
 			cals, err := tcal.CostAttributionLabels(context.Background(), 1)
 			if testcase.expectError {
 				require.ErrorIs(t, err, ErrTenantProvider)
 			}
+
 			require.ElementsMatch(t, cals, testcase.expectedCostAttributionLabels)
 		})
 	}

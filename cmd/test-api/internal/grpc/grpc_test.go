@@ -18,6 +18,7 @@ func TestNewServer(t *testing.T) {
 	if deadline, ok := t.Deadline(); ok {
 		ctx, cancel := context.WithDeadline(context.Background(), deadline)
 		t.Cleanup(cancel)
+
 		testCtx = ctx
 	}
 
@@ -37,6 +38,7 @@ func TestNewServer(t *testing.T) {
 	require.NotNil(t, s)
 
 	res := make(chan error)
+
 	go func() {
 		res <- s.Run(testCtx)
 	}()

@@ -12,26 +12,32 @@ func makeLabels(pairs ...string) []sm.Label {
 	if len(pairs)%2 != 0 {
 		panic("labels: pairs must be even")
 	}
+
 	out := make([]sm.Label, 0, len(pairs)/2)
 	for i := 0; i < len(pairs); i += 2 {
 		out = append(out, sm.Label{Name: pairs[i], Value: pairs[i+1]})
 	}
+
 	return out
 }
 
 func findLabel(t *testing.T, lps []labelPair, name string) labelPair {
 	t.Helper()
+
 	for _, lp := range lps {
 		if lp.name == name {
 			return lp
 		}
 	}
+
 	t.Fatalf("label %q not found in %v", name, lps)
+
 	return labelPair{}
 }
 
 func assertNoLabel(t *testing.T, lps []labelPair, name string) {
 	t.Helper()
+
 	for _, lp := range lps {
 		if lp.name == name {
 			t.Errorf("unexpected label %q found in %v", name, lps)

@@ -114,6 +114,7 @@ func newCredentialsRetriever(provider secrets.SecretProvider, tenantID model.Glo
 				Err(err).
 				Int64("tenantId", int64(tenantID)).
 				Msg("credentials retriever: failed to get secret credentials")
+
 			return store, err
 		}
 

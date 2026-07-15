@@ -39,5 +39,6 @@ func (lm *LabelMode) ForTenant(ctx context.Context, tenantID model.GlobalID) (sm
 	if err != nil {
 		return sm.LabelMode_LABEL_MODE_UNPREFIXED, fmt.Errorf("fetching tenant label mode: %w", err)
 	}
+
 	return tenant.LabelMode, nil
 }

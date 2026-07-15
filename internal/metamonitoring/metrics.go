@@ -65,11 +65,13 @@ func (m *metricsHandler) Run(ctx context.Context) error {
 			return err
 		}
 	}
+
 	ticker := time.NewTicker(m.interval)
 	defer ticker.Stop()
 
 	m.logger = m.logger.With().Int64("tenantID", int64(m.tenantID)).Logger()
 	m.logger.Info().Msg("starting to report metrics")
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -87,6 +89,7 @@ func (m *metricsHandler) waitForTenantID(ctx context.Context) error {
 	case probe := <-m.probeCh:
 		m.tenantID = model.GlobalID(probe.TenantId)
 		m.probeName = probe.Name
+
 		return nil
 	case <-ctx.Done():
 		return fmt.Errorf("%w %w", errTenantTimeout, ctx.Err())
@@ -100,6 +103,7 @@ func (m *metricsHandler) reportUsage() error {
 	}
 
 	now := time.Now()
+
 	ts := mfsToTimeseries(now, mfs, m.probeName)
 	if len(ts) == 0 {
 		return nil
@@ -115,6 +119,7 @@ func (m *metricsHandler) reportUsage() error {
 
 func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily, probeName string) []prompb.TimeSeries {
 	stamp := t.UnixNano() / 1e6
+
 	var ts []prompb.TimeSeries
 
 	for _, mf := range mfs {
@@ -125,6 +130,7 @@ func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily, probeName string) []p
 			ml := metric.GetLabel()
 			labels := make([]prompb.Label, 0, 1+len(ml))
 			labels = append(labels, prompb.Label{Name: "__name__", Value: name})
+
 			labels = append(labels, prompb.Label{Name: "probe", Value: probeName})
 			for _, l := range ml {
 				labels = append(labels, prompb.Label{Name: l.GetName(), Value: l.GetValue()})
@@ -135,6 +141,7 @@ func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily, probeName string) []p
 			// handling. Only scalar metric types (counter, gauge, untyped) are
 			// forwarded as-is.
 			var value *float64
+
 			switch mType {
 			case dto.MetricType_COUNTER:
 				if v := metric.GetCounter(); v != nil {

@@ -51,6 +51,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 
 	if script.K6ChannelManifest == "" {
 		script.K6ChannelManifest = "*"
+
 		logger.Warn().Msg("Script does not have a k6 channel assigned. Latest available version will be used.")
 	}
 
@@ -99,10 +100,12 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 	}
 
 	var cancel context.CancelFunc
+
 	ctx, cancel = context.WithTimeout(ctx, checkTimeout)
 	defer cancel()
 
 	var configFile string
+
 	logger.Debug().
 		Bool("secretStoreIsConfigured", secretStore.IsConfigured()).
 		Str("secretStoreUrl", secretStore.Url).
@@ -111,6 +114,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 
 	if secretStore.IsConfigured() {
 		var cleanup func()
+
 		configFile, cleanup, err = createSecretConfigFile(secretStore.Url, secretStore.Token)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create secret config file: %w", err)
@@ -145,6 +149,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 	cmd.Env = k6Env(os.Environ())
 
 	start := time.Now()
+
 	logger.Info().Str("command", cmd.String()).Msg("running k6 script")
 	err = cmd.Run()
 
@@ -193,6 +198,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 	if logsErr != nil {
 		return nil, fmt.Errorf("reading k6 logs: %w", err)
 	}
+
 	if truncated {
 		logger.Warn().
 			Str("filename", logsFn).
@@ -207,6 +213,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 	if metricsErr != nil {
 		return nil, fmt.Errorf("reading k6 metrics: %w", err)
 	}
+
 	if truncated {
 		logger.Warn().
 			Str("filename", metricsFn).
@@ -330,6 +337,7 @@ func buildK6RefID(executionID string) (string, error) {
 	if executionID == "" {
 		return "", fmt.Errorf("executionID is empty")
 	}
+
 	return "sm:" + executionID, nil
 }
 
@@ -338,9 +346,11 @@ func mktemp(fs afero.Fs, dir, pattern string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot create temporary file: %w", err)
 	}
+
 	if err := f.Close(); err != nil {
 		return "", fmt.Errorf("cannot close temporary file: %w", err)
 	}
+
 	return f.Name(), nil
 }
 
@@ -379,6 +389,7 @@ func readFileLimit(f afero.Fs, name string, limit int64, existing *bytes.Buffer)
 	}
 
 	peek := make([]byte, 1)
+
 	_, err = file.Read(peek)
 	if errors.Is(err, io.EOF) {
 		// Jackpot, file fit exactly within the limit.

@@ -85,6 +85,7 @@ func CheckInfoFromSM(smc smmodel.Check) CheckInfo {
 // MarshalZerologObject implements zerolog.LogObjectMarshaler so it can be logged in a friendly way.
 func (ci *CheckInfo) MarshalZerologObject(e *zerolog.Event) {
 	e.Str("type", ci.Type)
+
 	for k, v := range ci.Metadata {
 		e.Any(k, v)
 	}
@@ -114,7 +115,9 @@ type RunnerOpts struct {
 
 func New(opts RunnerOpts) (Runner, error) {
 	var r Runner
+
 	logger := zerolog.Nop()
+
 	var registerer prometheus.Registerer = prometheus.NewRegistry() // NOOP registry.
 	if opts.Registerer != nil {
 		registerer = opts.Registerer
@@ -179,6 +182,7 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		internalLogger.Debug().
 			Err(err).
 			Msg("k6 script exited with error code")
+
 		return false, 0, err
 	}
 
@@ -217,6 +221,7 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		internalLogger.Debug().
 			Err(err).
 			Msg("cannot load logs to logger")
+
 		return false, 0, err
 	}
 
@@ -230,6 +235,7 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		internalLogger.Debug().
 			Err(err).
 			Msg("cannot extract metric samples")
+
 		return false, 0, err
 	}
 
@@ -237,6 +243,7 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 		internalLogger.Error().
 			Err(err).
 			Msg("cannot register collector")
+
 		return false, 0, err
 	}
 
@@ -343,6 +350,7 @@ func (dc *probeDurationCollector) process(_ *dto.MetricFamily, sample *model.Sam
 func extractMetricSamples(metrics []byte, logger zerolog.Logger, processors ...sampleProcessorFunc) error {
 	promDecoder := expfmt.NewDecoder(bytes.NewBuffer(metrics), expfmt.NewFormat(expfmt.TypeTextPlain))
 	decoderOpts := expfmt.DecodeOptions{Timestamp: model.Now()}
+
 	for {
 		var mf dto.MetricFamily
 		switch err := promDecoder.Decode(&mf); err {
@@ -378,13 +386,16 @@ func extractMetricSamples(metrics []byte, logger zerolog.Logger, processors ...s
 func metricToLabels(metrics model.Metric) prometheus.Labels {
 	// Ugh.
 	labels := make(prometheus.Labels)
+
 	for name, value := range metrics {
 		name := string(name)
 		if name == model.MetricNameLabel {
 			continue
 		}
+
 		labels[name] = string(value)
 	}
+
 	return labels
 }
 
@@ -400,22 +411,29 @@ func k6LogsToLogger(logs []byte, logger logger.Logger) error {
 
 NEXT_RECORD:
 	for dec.ScanRecord() {
-		var line []any
-		var source, level string
+		var (
+			line          []any
+			source, level string
+		)
+
 		for dec.ScanKeyval() {
 			key := string(dec.Key())
 			value := string(dec.Value())
+
 			switch key {
 			case "source":
 				source = value
 			case "level":
 				level = value
 			}
+
 			line = append(line, key, value)
 		}
+
 		if level == "debug" && source == "" { // if there's no source, it's probably coming from k6
 			continue NEXT_RECORD
 		}
+
 		_ = logger.Log(line...)
 	}
 

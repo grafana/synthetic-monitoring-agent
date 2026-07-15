@@ -34,7 +34,6 @@ func (tcal CostAttributionLabels) CostAttributionLabels(ctx context.Context, ten
 	tenant, err := tcal.provider.GetTenant(ctx, &sm.TenantInfo{
 		Id: int64(tenantID),
 	})
-
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrTenantProvider, err)
 	}

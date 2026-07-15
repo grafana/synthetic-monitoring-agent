@@ -59,18 +59,22 @@ func validateMetricSetups() map[string]fixtureSetup {
 
 func fixtureCatalogueSpecs() map[string]fixtureSpec {
 	specs := make(map[string]fixtureSpec)
+
 	for name, setup := range validateMetricSetups() {
 		if name == "traceroute" {
 			continue
 		}
+
 		specs[name] = fixtureSpec{setup: setup, basicMetricsOnly: false}
 		specs[name+"_basic"] = fixtureSpec{setup: setup, basicMetricsOnly: true}
 	}
+
 	return specs
 }
 
 func runtimeCatalogueSpecs() map[string]fixtureSpec {
 	specs := fixtureCatalogueSpecs()
+
 	return map[string]fixtureSpec{
 		"scripted":        specs["scripted"],
 		"scripted_basic":  specs["scripted_basic"],
@@ -107,6 +111,7 @@ func CatalogueFromMetricFamilies(mfs []*dto.MetricFamily) MetricLabelCatalogue {
 		}
 
 		labels := make([]string, 0)
+
 		for _, metric := range mf.GetMetric() {
 			for _, label := range metric.GetLabel() {
 				labels = append(labels, label.GetName())
@@ -121,21 +126,27 @@ func CatalogueFromMetricFamilies(mfs []*dto.MetricFamily) MetricLabelCatalogue {
 
 func CatalogueFromTimeseries(tss TimeSeries) MetricLabelCatalogue {
 	catalogue := make(MetricLabelCatalogue)
+
 	for _, ts := range tss {
 		metricName := ""
+
 		labels := make([]string, 0, len(ts.Labels))
 		for _, label := range ts.Labels {
 			if label.Name == "__name__" {
 				metricName = label.Value
 				continue
 			}
+
 			labels = append(labels, label.Name)
 		}
+
 		if metricName == "" {
 			continue
 		}
+
 		catalogue[metricName] = uniqueSorted(append(catalogue[metricName], labels...))
 	}
+
 	return catalogue
 }
 
@@ -145,10 +156,12 @@ func CatalogueFromReader(r io.Reader) (MetricLabelCatalogue, error) {
 
 	for {
 		mf := new(dto.MetricFamily)
+
 		err := dec.Decode(mf)
 		if errors.Is(err, io.EOF) {
 			return CatalogueFromMetricFamilies(mfs), nil
 		}
+
 		if err != nil {
 			return nil, fmt.Errorf("decode Prometheus exposition: %w", err)
 		}
@@ -172,6 +185,7 @@ func CompareMetricCatalogue(expected, observed MetricLabelCatalogue) CatalogueCo
 		}
 
 		missingLabels := difference(expectedLabels, observedLabels)
+
 		unexpectedLabels := difference(observedLabels, expectedLabels)
 		if len(missingLabels) == 0 && len(unexpectedLabels) == 0 {
 			continue
@@ -187,6 +201,7 @@ func CompareMetricCatalogue(expected, observed MetricLabelCatalogue) CatalogueCo
 		if _, ok := expected[metric]; ok {
 			continue
 		}
+
 		result.UnexpectedMetrics = append(result.UnexpectedMetrics, metric)
 	}
 
@@ -209,14 +224,17 @@ func (r CatalogueComparison) Summary() string {
 	if len(r.MissingMetrics) > 0 {
 		parts = append(parts, fmt.Sprintf("missing metrics: %s", strings.Join(r.MissingMetrics, ", ")))
 	}
+
 	if len(r.UnexpectedMetrics) > 0 {
 		parts = append(parts, fmt.Sprintf("unexpected metrics: %s", strings.Join(r.UnexpectedMetrics, ", ")))
 	}
+
 	if len(r.LabelMismatches) > 0 {
 		metrics := make([]string, 0, len(r.LabelMismatches))
 		for metric := range r.LabelMismatches {
 			metrics = append(metrics, metric)
 		}
+
 		sort.Strings(metrics)
 
 		mismatches := make([]string, 0, len(metrics))
@@ -224,6 +242,7 @@ func (r CatalogueComparison) Summary() string {
 			diff := r.LabelMismatches[metric]
 			mismatches = append(mismatches, fmt.Sprintf("%s missing=[%s] unexpected=[%s]", metric, strings.Join(diff.MissingLabels, ", "), strings.Join(diff.UnexpectedLabels, ", ")))
 		}
+
 		parts = append(parts, fmt.Sprintf("label mismatches: %s", strings.Join(mismatches, "; ")))
 	}
 
@@ -232,12 +251,15 @@ func (r CatalogueComparison) Summary() string {
 
 func difference(left, right []string) []string {
 	result := make([]string, 0)
+
 	for _, item := range uniqueSorted(left) {
 		if slices.Contains(right, item) {
 			continue
 		}
+
 		result = append(result, item)
 	}
+
 	return result
 }
 
@@ -254,6 +276,7 @@ func uniqueSorted(items []string) []string {
 		if item == out[len(out)-1] {
 			continue
 		}
+
 		out = append(out, item)
 	}
 

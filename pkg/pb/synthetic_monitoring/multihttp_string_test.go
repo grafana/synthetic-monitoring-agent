@@ -61,6 +61,7 @@ func TestMultiHttpEntryAssertionType_IsAMultiHttpEntryAssertionType(t *testing.T
 
 func testEnumToString[E enum](t *testing.T, m map[int32]string) {
 	t.Helper()
+
 	for v, str := range m {
 		v := E(v)
 		require.Equal(t, str, v.String())
@@ -69,6 +70,7 @@ func testEnumToString[E enum](t *testing.T, m map[int32]string) {
 
 func testStringToEnum[E enum](t *testing.T, f func(string) (E, error), m map[int32]string) {
 	t.Helper()
+
 	for v, str := range m {
 		expected := E(v)
 		actual, err := f(str)
@@ -82,7 +84,9 @@ func getValues[E cmp.Ordered](m map[int32]string) []E {
 	for v := range m {
 		values = append(values, E(v))
 	}
+
 	slices.Sort(values)
+
 	return values
 }
 
@@ -93,6 +97,7 @@ func testAllValuesIncluded[E enum](t *testing.T, values []E, m map[int32]string)
 
 func testAllValuesAreValid[E enum](t *testing.T, f func(E) bool, m map[int32]string) {
 	t.Helper()
+
 	values := getValues[E](m)
 
 	for _, v := range values {

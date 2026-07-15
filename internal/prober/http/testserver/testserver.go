@@ -121,6 +121,7 @@ func (h *httpHandler) generator(w http.ResponseWriter, req *http.Request) {
 			w.WriteHeader(res.StatusCode)
 
 			enc := json.NewEncoder(w)
+
 			err := enc.Encode(&res)
 			if err != nil {
 				log.Printf("E: encoding response: %s", err)
@@ -235,6 +236,7 @@ func processStatus(status []string) int {
 		if err != nil {
 			return http.StatusBadRequest
 		}
+
 		return int(code)
 	}
 
@@ -243,7 +245,9 @@ func processStatus(status []string) int {
 
 func splitHeader(header string) (string, string) {
 	values := strings.SplitN(header, ":", 2)
+
 	var key, val string
+
 	switch len(values) {
 	case 2:
 		val = strings.TrimSpace(values[1])
@@ -267,6 +271,7 @@ func sanitizeLocation(loc string, allowedDomains set) error {
 	}
 
 	found := false
+
 	for domain := range allowedDomains {
 		host := strings.ToLower(target.Host)
 

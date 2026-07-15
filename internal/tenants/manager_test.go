@@ -81,6 +81,7 @@ func TestTenantManagerGetTenant(t *testing.T) {
 		Logger:          logger,
 	})
 	require.NoError(t, err)
+
 	defer localCache.Close()
 
 	tm := NewManager(ctx, &tc, tenantCh, cacheExpirationTime, localCache, logger)

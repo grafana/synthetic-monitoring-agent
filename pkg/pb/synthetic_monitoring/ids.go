@@ -98,9 +98,11 @@ func LocalIDToGlobalID(localID int64, regionID int) (int64, error) {
 	if !IsLocalIDValid(localID) {
 		return BadID, BadLocalIDError(localID)
 	}
+
 	if !IsRegionIDValid(regionID) {
 		return BadID, BadRegionIDError(regionID)
 	}
+
 	return -(localID*MaxRegions + int64(regionID)), nil
 }
 
@@ -109,11 +111,14 @@ func GlobalIDToLocalID(globalID int64) (localID int64, regionID int, err error) 
 	if !IsGlobalIDValid(globalID) {
 		return BadID, BadID, BadGlobalIDError(globalID)
 	}
+
 	localID = -globalID / MaxRegions
+
 	regionID = int(-globalID % MaxRegions)
 	if !IsRegionIDValid(regionID) {
 		return BadID, BadID, BadGlobalIDError(globalID)
 	}
+
 	return localID, regionID, nil
 }
 

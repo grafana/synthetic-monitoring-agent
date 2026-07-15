@@ -21,6 +21,7 @@ func TestHTTPUsageReporter_Report(t *testing.T) {
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
+
 		if err := json.NewDecoder(r.Body).Decode(&gotReport); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -29,6 +30,7 @@ func TestHTTPUsageReporter_Report(t *testing.T) {
 		gotReport.UsageStatsId = ""
 		gotReport.CreatedAt = ""
 		gotReport.Report = ""
+
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -98,10 +100,12 @@ func TestHTTPUsageReporter_Report(t *testing.T) {
 			for _, f := range tt.features {
 				_ = features.Set(f)
 			}
+
 			r := NewHTTPReporter(tt.endpoint)
 			if err := r.ReportProbe(t.Context(), tt.probe, features); (err != nil) != tt.wantErr {
 				t.Errorf("Report() error = %v, wantErr %v", err, tt.wantErr)
 			}
+
 			assert.Equal(t, tt.expectedReport, gotReport)
 		})
 	}
@@ -160,6 +164,7 @@ func Test_hashOfProbe(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Errorf("hashOfProbe() error = %v, wantErr %v", err, tt.wantErr)
 			}
+
 			assert.Equalf(t, tt.want, got, "want=%v, got=%v", tt.want, got)
 		})
 	}

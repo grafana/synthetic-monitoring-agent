@@ -60,6 +60,7 @@ func TestHandlerSupportsProtocolSecrets(t *testing.T) {
 	require.NoError(t, features.Set("adhoc"))
 
 	var capturedProbeInfo *sm.ProbeInfo
+
 	testClient := &testClient{
 		logger: zerolog.New(io.Discard),
 		registerProbeHook: func(info *sm.ProbeInfo) {
@@ -105,6 +106,7 @@ func TestHandlerRun(t *testing.T) {
 	}
 
 	publishCh := make(chan pusher.Payload)
+
 	zerolog.SetGlobalLevel(zerolog.WarnLevel) // default log level.
 
 	opts := HandlerOpts{
@@ -136,6 +138,7 @@ func TestHandlerRun(t *testing.T) {
 
 	runErr := h.Run(ctx)
 	require.NoError(t, runErr)
+
 	payload := <-publishCh
 	require.Len(t, payload.Metrics(), 0)
 	require.Len(t, payload.Streams(), 1)
@@ -412,12 +415,15 @@ func (p *testProber) Name() string {
 
 func (p *testProber) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, _ string) (bool, float64) {
 	p.logger.Info().Str("func", "Probe").Caller(0).Send()
+
 	g := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "test",
 	})
 	g.Set(1)
 	registry.MustRegister(g)
+
 	_ = logger.Log("msg", "test")
+
 	return true, 1
 }
 
@@ -666,16 +672,20 @@ func TestDefaultRunnerFactory(t *testing.T) {
 				require.Panics(t, func() {
 					_, _ = h.defaultRunnerFactory(ctx, tc.request)
 				})
+
 				return
 			}
 
 			runner, err := h.defaultRunnerFactory(ctx, tc.request)
 			if tc.expectError {
 				require.Error(t, err)
+
 				if tc.errCheck != nil {
 					require.True(t, tc.errCheck(err), "unexpected error: %v", err)
 				}
+
 				require.Nil(t, runner)
+
 				return
 			}
 

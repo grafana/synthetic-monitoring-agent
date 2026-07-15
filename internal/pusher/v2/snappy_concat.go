@@ -24,9 +24,11 @@ func (s *SnappyConcatReader) Read(out []byte) (n int, err error) {
 				return 0, io.ErrShortBuffer
 			}
 		}
+
 		n = encoding_binary.PutUvarint(out, decodedLen)
 		out = out[n:]
 	}
+
 	if n == 0 && len(s.Streams) == 0 {
 		return 0, io.EOF
 	}
@@ -48,15 +50,18 @@ func (s *SnappyConcatReader) Read(out []byte) (n int, err error) {
 		s.Streams[0] = s.Streams[0][fit:]
 		n += fit
 	}
+
 	return n, nil
 }
 
 func (s *SnappyConcatReader) stripHeaders() uint64 {
 	var totalLength uint64
+
 	for idx := range s.Streams {
 		streamLen, skip := encoding_binary.Uvarint(s.Streams[idx])
 		totalLength += streamLen
 		s.Streams[idx] = s.Streams[idx][skip:]
 	}
+
 	return totalLength
 }

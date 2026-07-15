@@ -13,9 +13,11 @@ func TestNewMetrics(t *testing.T) {
 	t.Run("non-nil fields", func(t *testing.T) {
 		reg := prometheus.NewRegistry()
 		m := NewMetrics(reg)
+
 		rVal := reflect.ValueOf(m)
 		for i := 0; i < rVal.NumField(); i++ {
 			fType := rVal.Type().Field(i)
+
 			fVal := rVal.Field(i)
 			if fVal.Kind() == reflect.Pointer {
 				require.NotZero(t, fVal.Pointer(), fType.Name)
@@ -38,6 +40,7 @@ func TestNewMetrics(t *testing.T) {
 
 		fam, err := reg.Gather()
 		require.NoError(t, err)
+
 		var (
 			expected = []string{
 				"sm_agent_publisher_drop_total",
