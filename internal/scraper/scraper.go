@@ -743,13 +743,14 @@ func runProber(
 	executionID string,
 	collectTime time.Time,
 ) bool {
-	start := collectTime
+	eventStart := collectTime
+	wallStart := time.Now()
 
 	_ = level.Info(logger).Log(
 		"msg", "Beginning check",
 		"type", prober.Name(),
 		"timeout_seconds", timeout.Seconds(),
-		"time", start.UTC().Format(time.RFC3339Nano),
+		"time", eventStart.UTC().Format(time.RFC3339Nano),
 	)
 
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -757,18 +758,13 @@ func runProber(
 
 	success, duration := prober.Probe(checkCtx, target, registry, logger, executionID)
 
-	wallDuration := time.Since(start).Seconds()
-	if start.Before(time.Now().Add(-2 * timeout)) {
-		// Synthetic/backfill runs use historical collect times; wall clock elapsed since
-		// start is not meaningful for the check log line.
-		wallDuration = duration
-	}
+	wallDuration := time.Since(wallStart).Seconds()
 	if duration == 0 {
 		// If the prober did not provide their own duration, fallback to the wall time the scraper took to run.
 		duration = wallDuration
 	}
 
-	endTime := start.Add(time.Duration(duration * float64(time.Second)))
+	eventEnd := eventStart.Add(time.Duration(duration * float64(time.Second)))
 
 	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: ProbeSuccessMetricName,
@@ -794,7 +790,7 @@ func runProber(
 		probeSuccessGauge.Set(1)
 		_ = level.Info(logger).Log(
 			"msg", "Check succeeded",
-			"time", endTime.UTC().Format(time.RFC3339Nano),
+			"time", eventEnd.UTC().Format(time.RFC3339Nano),
 			"duration_seconds", duration,
 			"walltime_seconds", wallDuration,
 		)
@@ -802,7 +798,7 @@ func runProber(
 		probeSuccessGauge.Set(0)
 		_ = level.Error(logger).Log(
 			"msg", "Check failed",
-			"time", endTime.UTC().Format(time.RFC3339Nano),
+			"time", eventEnd.UTC().Format(time.RFC3339Nano),
 			"duration_seconds", duration,
 			"walltime_seconds", wallDuration,
 		)
