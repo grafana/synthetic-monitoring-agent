@@ -74,23 +74,21 @@ type Telemeter interface {
 }
 
 type Scraper struct {
-	publisher           pusher.Publisher
-	cancel              context.CancelFunc
-	checkName           string
-	target              string
-	logger              zerolog.Logger
-	check               model.Check
-	probe               sm.Probe
-	prober              prober.Prober
-	labelsLimiter       LabelsLimiter
-	stop                chan struct{}
-	metrics             Metrics
-	summaries           map[uint64]prometheus.Summary
-	histograms          map[uint64]prometheus.Histogram
-	telemeter           Telemeter
-	cals                TenantCals
-	newExecutionID      func() string
-	overrideExecutionID string
+	publisher     pusher.Publisher
+	cancel        context.CancelFunc
+	checkName     string
+	target        string
+	logger        zerolog.Logger
+	check         model.Check
+	probe         sm.Probe
+	prober        prober.Prober
+	labelsLimiter LabelsLimiter
+	stop          chan struct{}
+	metrics       Metrics
+	summaries     map[uint64]prometheus.Summary
+	histograms    map[uint64]prometheus.Histogram
+	telemeter     Telemeter
+	cals          TenantCals
 }
 
 type Factory func(
@@ -162,9 +160,6 @@ type ScraperOpts struct {
 	LabelsLimiter         LabelsLimiter
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
-	// NewExecutionID overrides the default uuid-based execution ID generator.
-	// Used by synthetic backfill for deterministic output.
-	NewExecutionID func() string
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
@@ -187,33 +182,27 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		return nil, err
 	}
 
-	newExecutionID := opts.NewExecutionID
-	if newExecutionID == nil {
-		newExecutionID = func() string { return uuid.New().String() }
-	}
-
 	return &Scraper{
-		publisher:      opts.Publisher,
-		cancel:         cancel,
-		checkName:      checkName,
-		target:         target,
-		logger:         logger,
-		check:          check,
-		probe:          opts.Probe,
-		prober:         smProber,
-		labelsLimiter:  opts.LabelsLimiter,
-		stop:           make(chan struct{}),
-		metrics:        opts.Metrics,
-		summaries:      make(map[uint64]prometheus.Summary),
-		histograms:     make(map[uint64]prometheus.Histogram),
-		telemeter:      opts.Telemeter,
-		cals:           opts.CostAttributionLabels,
-		newExecutionID: newExecutionID,
+		publisher:     opts.Publisher,
+		cancel:        cancel,
+		checkName:     checkName,
+		target:        target,
+		logger:        logger,
+		check:         check,
+		probe:         opts.Probe,
+		prober:        smProber,
+		labelsLimiter: opts.LabelsLimiter,
+		stop:          make(chan struct{}),
+		metrics:       opts.Metrics,
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		telemeter:     opts.Telemeter,
+		cals:          opts.CostAttributionLabels,
 	}, nil
 }
 
 var (
-	ErrCheckFailed       = errors.New("probe failed")
+	errCheckFailed       = errors.New("probe failed")
 	errUnsupportedMetric = errors.New("unsupported metric type")
 )
 
@@ -300,7 +289,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	h.payload, duration, err = h.scraper.collectData(ctx, t)
 
 	switch {
-	case errors.Is(err, ErrCheckFailed):
+	case errors.Is(err, errCheckFailed):
 		h.scraper.metrics.AddCheckError()
 		h.sm.fail(func() {
 			h.scraper.logger.Info().Err(err).Msg("check entered FAIL state")
@@ -513,26 +502,13 @@ func tickWithOffset(
 	}
 }
 
-func (s Scraper) executionIDForCollect() string {
-	if s.overrideExecutionID != "" {
-		return s.overrideExecutionID
-	}
-	if s.newExecutionID != nil {
-		return s.newExecutionID()
-	}
-	return uuid.New().String()
-}
-
 // CollectData runs the configured prober once at time t and returns transformed
-// metrics and logs without publishing. executionID may be empty to use the
-// scraper's default generator. ErrCheckFailed is returned when the probe failed
-// but metrics and logs are still populated.
-func (s *Scraper) CollectData(ctx context.Context, t time.Time, executionID string) (TimeSeries, Streams, model.GlobalID, time.Duration, error) {
-	s.overrideExecutionID = executionID
-	defer func() { s.overrideExecutionID = "" }()
-
+// metrics and logs without publishing. A failed probe returns populated
+// metrics and logs alongside a non-nil error; fatal collection errors return
+// no data.
+func (s *Scraper) CollectData(ctx context.Context, t time.Time) (TimeSeries, Streams, model.GlobalID, time.Duration, error) {
 	pd, d, err := s.collectData(ctx, t)
-	if err != nil && !errors.Is(err, ErrCheckFailed) {
+	if err != nil && !errors.Is(err, errCheckFailed) {
 		return nil, nil, 0, 0, err
 	}
 	return pd.Metrics(), pd.Streams(), pd.Tenant(), d, err
@@ -546,7 +522,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		// These labels are applied to the sm_check_info metric.
 		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
 		// This is the execution ID for the check run.
-		executionID = s.executionIDForCollect()
+		executionID = uuid.New().String()
 	)
 
 	maxMetricLabels, err := s.labelsLimiter.MetricLabels(ctx, s.check.GlobalTenantID())
@@ -636,7 +612,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	successValue := "1"
 	if !success {
-		err = ErrCheckFailed
+		err = errCheckFailed
 		successValue = "0"
 	}
 

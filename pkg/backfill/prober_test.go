@@ -31,7 +31,7 @@ func TestSyntheticHTTPProberFixtureSuperset(t *testing.T) {
 	at := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	sample := backfill.NewTypedHTTPSample(testSample(at))
 
-	ts, streams, err := gen.CollectTyped(ctx, at, sample, "exec-http-1")
+	ts, streams, err := gen.CollectTyped(ctx, at, sample)
 	require.NoError(t, err)
 	require.NotEmpty(t, ts)
 	require.NotEmpty(t, streams)
@@ -68,7 +68,7 @@ func TestSyntheticHTTPProberFixtureSupersetSSL(t *testing.T) {
 	sample.TLSVersion = "TLS 1.3"
 	sample.TLSCipher = "TLS_AES_128_GCM_SHA256"
 
-	ts, streams, err := gen.CollectTyped(ctx, at, backfill.NewTypedHTTPSample(sample), "exec-http-ssl-1")
+	ts, streams, err := gen.CollectTyped(ctx, at, backfill.NewTypedHTTPSample(sample))
 	require.NoError(t, err)
 	require.NotEmpty(t, ts)
 	require.NotEmpty(t, streams)

@@ -82,7 +82,7 @@ func TestGeneratorCollectGoldenParity(t *testing.T) {
 	require.NoError(t, err)
 
 	at := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
-	ts, streams, err := gen.Collect(ctx, at, testSample(at), "exec-golden-1")
+	ts, streams, err := gen.Collect(ctx, at, testSample(at))
 	require.NoError(t, err)
 	require.NotEmpty(t, ts)
 	require.NotEmpty(t, streams)
@@ -94,13 +94,19 @@ func TestGeneratorCollectGoldenParity(t *testing.T) {
 	require.Contains(t, names, "probe_all_duration_seconds_sum")
 	require.Contains(t, names, "probe_all_success_sum")
 
+	var executionID string
 	for _, stream := range streams {
 		require.NotEmpty(t, stream.Labels)
 		require.NotEmpty(t, stream.Entries)
 		for _, entry := range stream.Entries {
-			require.Equal(t, "exec-golden-1", entry.StructuredMetadata[0].Value)
+			require.NotEmpty(t, entry.StructuredMetadata)
+			if executionID == "" {
+				executionID = entry.StructuredMetadata[0].Value
+			}
+			require.Equal(t, executionID, entry.StructuredMetadata[0].Value)
 		}
 	}
+	require.NotEmpty(t, executionID)
 }
 
 func seriesSignatures(ts backfill.TimeSeries) []string {
@@ -127,31 +133,37 @@ func formatFloat(v float64) string {
 	return strconv.FormatFloat(v, 'g', -1, 64)
 }
 
-func TestGeneratorCollectDeterministic(t *testing.T) {
+func TestGeneratorCollectMetricsDeterministicWithUniqueExecutionIDs(t *testing.T) {
 	ctx := context.Background()
 	check := testCheck()
 	probe := testProbe()
 	at := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 	sample := testSample(at)
-	execID := "exec-deterministic-1"
 
-	run := func() []string {
+	run := func() ([]string, string) {
 		gen, err := backfill.NewGenerator(ctx, check, probe)
 		require.NoError(t, err)
-		ts, streams, err := gen.Collect(ctx, at, sample, execID)
+		ts, streams, err := gen.Collect(ctx, at, sample)
 		require.NoError(t, err)
 		require.NotEmpty(t, streams)
+		executionID := ""
 		for _, stream := range streams {
 			for _, entry := range stream.Entries {
-				require.Equal(t, execID, entry.StructuredMetadata[0].Value)
+				require.NotEmpty(t, entry.StructuredMetadata)
+				if executionID == "" {
+					executionID = entry.StructuredMetadata[0].Value
+				}
+				require.Equal(t, executionID, entry.StructuredMetadata[0].Value)
 			}
 		}
-		return seriesSignatures(ts)
+		require.NotEmpty(t, executionID)
+		return seriesSignatures(ts), executionID
 	}
 
-	first := run()
-	second := run()
+	first, firstExecutionID := run()
+	second, secondExecutionID := run()
 	require.Equal(t, first, second)
+	require.NotEqual(t, firstExecutionID, secondExecutionID)
 }
 
 func TestEndLogUsesCollectTimestamp(t *testing.T) {
@@ -161,7 +173,7 @@ func TestEndLogUsesCollectTimestamp(t *testing.T) {
 
 	at := time.Date(2026, 7, 7, 14, 47, 0, 0, time.UTC)
 	sample := testSample(at)
-	_, streams, err := gen.Collect(ctx, at, sample, "exec-ts-1")
+	_, streams, err := gen.Collect(ctx, at, sample)
 	require.NoError(t, err)
 	require.NotEmpty(t, streams)
 
@@ -183,7 +195,7 @@ func TestGeneratorResponseTimingsLogHasBBETimestampLabels(t *testing.T) {
 	require.NoError(t, err)
 
 	at := time.Date(2026, 7, 8, 8, 1, 37, 0, time.UTC)
-	_, streams, err := gen.Collect(ctx, at, testSample(at), "exec-timings-1")
+	_, streams, err := gen.Collect(ctx, at, testSample(at))
 	require.NoError(t, err)
 
 	var timingsLine string

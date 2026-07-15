@@ -40,7 +40,7 @@ func TestSyntheticTCPProberFixtureSuperset(t *testing.T) {
 		DurationSeconds:  0.000449208,
 	})
 
-	ts, streams, err := gen.CollectTyped(ctx, at, sample, "exec-tcp-1")
+	ts, streams, err := gen.CollectTyped(ctx, at, sample)
 	require.NoError(t, err)
 	require.NotEmpty(t, ts)
 	require.NotEmpty(t, streams)
@@ -76,7 +76,7 @@ func TestSyntheticTCPProberFixtureSupersetSSL(t *testing.T) {
 		TLSVersion:                         "TLS 1.3",
 	})
 
-	ts, streams, err := gen.CollectTyped(ctx, at, sample, "exec-tcp-ssl-1")
+	ts, streams, err := gen.CollectTyped(ctx, at, sample)
 	require.NoError(t, err)
 	require.NotEmpty(t, ts)
 	require.NotEmpty(t, streams)

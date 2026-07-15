@@ -18,16 +18,14 @@ func TestNewGeneratorForCheckHTTPByteMatchesNewGeneratorFromSM(t *testing.T) {
 	check := testCheck().Check // sm.Check
 	probe := testProbe()
 	at := time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
-	execID := "exec-parity-1"
-
 	legacyGen, err := backfill.NewGeneratorFromSM(ctx, check, probe)
 	require.NoError(t, err)
-	legacyTS, legacyStreams, err := legacyGen.Collect(ctx, at, testSample(at), execID)
+	legacyTS, legacyStreams, err := legacyGen.Collect(ctx, at, testSample(at))
 	require.NoError(t, err)
 
 	typedGen, err := backfill.NewGeneratorForCheck(ctx, check, probe)
 	require.NoError(t, err)
-	typedTS, typedStreams, err := typedGen.CollectTyped(ctx, at, backfill.NewTypedHTTPSample(testSample(at)), execID)
+	typedTS, typedStreams, err := typedGen.CollectTyped(ctx, at, backfill.NewTypedHTTPSample(testSample(at)))
 	require.NoError(t, err)
 
 	require.Equal(t, seriesSignatures(legacyTS), seriesSignatures(typedTS))

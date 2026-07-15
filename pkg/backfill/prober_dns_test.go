@@ -43,7 +43,7 @@ func TestSyntheticDNSProberFixtureSuperset(t *testing.T) {
 		RequestSeconds: 0.003278084,
 	})
 
-	ts, streams, err := gen.CollectTyped(ctx, at, sample, "exec-dns-1")
+	ts, streams, err := gen.CollectTyped(ctx, at, sample)
 	require.NoError(t, err)
 	require.NotEmpty(t, ts)
 	require.NotEmpty(t, streams)

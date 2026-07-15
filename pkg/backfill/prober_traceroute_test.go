@@ -44,7 +44,7 @@ func TestSyntheticTracerouteProberFixtureSuperset(t *testing.T) {
 		},
 	})
 
-	ts, streams, err := gen.CollectTyped(ctx, at, sample, "exec-traceroute-1")
+	ts, streams, err := gen.CollectTyped(ctx, at, sample)
 	require.NoError(t, err)
 	require.NotEmpty(t, ts)
 	require.NotEmpty(t, streams)

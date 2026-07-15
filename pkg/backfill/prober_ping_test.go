@@ -45,7 +45,7 @@ func TestSyntheticPingProberFixtureSuperset(t *testing.T) {
 		ReplyHopLimit:    64,
 	})
 
-	ts, streams, err := gen.CollectTyped(ctx, at, sample, "exec-ping-1")
+	ts, streams, err := gen.CollectTyped(ctx, at, sample)
 	require.NoError(t, err)
 	require.NotEmpty(t, ts)
 	require.NotEmpty(t, streams)

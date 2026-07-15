@@ -42,7 +42,7 @@ func TestSyntheticGRPCProberFixtureSuperset(t *testing.T) {
 		HealthCheckResponse: 1, // SERVING
 	})
 
-	ts, streams, err := gen.CollectTyped(ctx, at, sample, "exec-grpc-1")
+	ts, streams, err := gen.CollectTyped(ctx, at, sample)
 	require.NoError(t, err)
 	require.NotEmpty(t, ts)
 	require.NotEmpty(t, streams)
@@ -79,7 +79,7 @@ func TestSyntheticGRPCProberFixtureSupersetSSL(t *testing.T) {
 		TLSVersion:                     "TLS 1.3",
 	})
 
-	ts, streams, err := gen.CollectTyped(ctx, at, sample, "exec-grpc-ssl-1")
+	ts, streams, err := gen.CollectTyped(ctx, at, sample)
 	require.NoError(t, err)
 	require.NotEmpty(t, ts)
 	require.NotEmpty(t, streams)

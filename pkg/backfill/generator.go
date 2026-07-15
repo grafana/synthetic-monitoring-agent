@@ -62,15 +62,12 @@ func NewGenerator(ctx context.Context, check model.Check, probe sm.Probe) (*Gene
 }
 
 // Collect runs one synthetic execution at timestamp t.
-func (g *Generator) Collect(ctx context.Context, t time.Time, sample Sample, executionID string) (TimeSeries, Streams, error) {
+func (g *Generator) Collect(ctx context.Context, t time.Time, sample Sample) (TimeSeries, Streams, error) {
 	sample.At = t.UTC()
 	sample.Normalize()
 	g.prober.SetSample(sample)
 
-	ts, streams, _, _, err := g.scraper.CollectData(ctx, t.UTC(), executionID)
-	if err != nil && !errors.Is(err, scraper.ErrCheckFailed) {
-		return nil, nil, err
-	}
+	ts, streams, _, _, err := g.scraper.CollectData(ctx, t.UTC())
 	return ts, streams, err
 }
 
@@ -150,14 +147,11 @@ func NewGeneratorForCheck(ctx context.Context, check sm.Check, probe sm.Probe) (
 // CollectTyped runs one synthetic execution at timestamp t using the
 // check-type-agnostic TypedSample/SyntheticProber path built by
 // NewGeneratorForCheck.
-func (g *Generator) CollectTyped(ctx context.Context, t time.Time, s TypedSample, executionID string) (TimeSeries, Streams, error) {
+func (g *Generator) CollectTyped(ctx context.Context, t time.Time, s TypedSample) (TimeSeries, Streams, error) {
 	s = s.WithTimestamp(t.UTC()).Normalize()
 	g.typed.SetTyped(s)
 
-	ts, streams, _, _, err := g.scraper.CollectData(ctx, t.UTC(), executionID)
-	if err != nil && !errors.Is(err, scraper.ErrCheckFailed) {
-		return nil, nil, err
-	}
+	ts, streams, _, _, err := g.scraper.CollectData(ctx, t.UTC())
 	return ts, streams, err
 }
 
