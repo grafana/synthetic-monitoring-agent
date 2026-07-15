@@ -96,6 +96,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 			duration += setupDuration
 			setupDone = true
 		}
+
 		_ = level.Info(logger).Log("msg", "Using source address", "srcIP", pinger.Source)
 	}
 
@@ -129,6 +130,7 @@ func probeICMP(ctx context.Context, target string, module Module, registry *prom
 	}
 
 	pinger.SetDoNotFragment(module.ICMP.DontFragment)
+
 	if module.ICMP.PayloadSize != 0 {
 		pinger.Size = module.ICMP.PayloadSize
 	}

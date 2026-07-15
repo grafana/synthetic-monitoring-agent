@@ -16,8 +16,10 @@ func TestTelemeterAddExecution(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		verifyTelemeter := func(t *testing.T, tele *Telemeter, nRegionPushers int) {
 			t.Helper()
+
 			tele.pushersMu.RLock()
 			defer tele.pushersMu.RUnlock()
+
 			require.Equal(t, len(tele.pushers), nRegionPushers)
 		}
 
@@ -36,12 +38,15 @@ func TestTelemeterAddExecution(t *testing.T) {
 					tenantTele = make(map[sm.CheckClass]map[string]*sm.CheckClassTelemetry)
 					regionTele[e.LocalTenantID] = tenantTele
 				}
+
 				clTele, ok := tenantTele[e.CheckClass]
 				if !ok {
 					clTele = make(map[string]*sm.CheckClassTelemetry)
 					tenantTele[e.CheckClass] = clTele
 				}
+
 				calKey := serializeCALs(e.CostAttributionLabels)
+
 				calTele, ok := clTele[calKey]
 				if !ok {
 					calTele = &sm.CheckClassTelemetry{
@@ -50,6 +55,7 @@ func TestTelemeterAddExecution(t *testing.T) {
 					}
 					clTele[calKey] = calTele
 				}
+
 				calTele.Executions++
 				calTele.Duration += float32(e.Duration.Seconds())
 			}
@@ -62,9 +68,11 @@ func TestTelemeterAddExecution(t *testing.T) {
 			for tenantID, expTTele := range regionTele {
 				gotTTele, ok := p.telemetry[tenantID]
 				require.True(t, ok, "telemetry not found for tenant %d", tenantID)
+
 				for checkClass, expCLTele := range expTTele {
 					gotCLTele, ok := gotTTele[checkClass]
 					require.True(t, ok, "telemetry not found for check class %v", checkClass)
+
 					for calKey, expCalTele := range expCLTele {
 						gotCalTele, ok := gotCLTele[calKey]
 						require.True(t, ok, "telemetry not found for cal key %s", calKey)
@@ -92,6 +100,7 @@ func TestTelemeterAddExecution(t *testing.T) {
 		//
 		// Do not use t.Context() here because that's derived from the main context created outside the bubble.
 		ctx, cancel := context.WithCancel(context.Background())
+
 		defer func() {
 			// Cancel context and wait for all goroutines to exit before test returns.
 			// This prevents race conditions between goroutine logging and test cleanup.

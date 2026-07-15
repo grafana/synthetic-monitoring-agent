@@ -73,6 +73,7 @@ func (p Prober) Name() string {
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger, _ string) (bool, float64) {
 	slogger := logger.ToSlog(l)
+
 	if p.cacheBustingQueryParamName != "" {
 		// FIXME(mem): the second target argument should be the probe's name
 		target = addCacheBustParam(target, p.cacheBustingQueryParamName, target)
@@ -118,6 +119,7 @@ func (p Prober) buildProbeConfig(ctx context.Context) (config.Module, error) {
 		if err != nil {
 			return cfg, fmt.Errorf("parsing OAuth2 settings: %w", err)
 		}
+
 		cfg.HTTP.HTTPClientConfig.OAuth2 = oauth2Config
 	}
 
@@ -219,6 +221,7 @@ func resolveSecretValue(ctx context.Context, value string, secretStore secrets.S
 
 	// Create a resolver that only handles secrets (no variables)
 	resolver := interpolation.NewResolver(nil, secretStore, tenantID, logger, secretManagerEnabled)
+
 	return resolver.Resolve(ctx, value)
 }
 
@@ -249,6 +252,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 
 	if settings.TlsConfig != nil {
 		var err error
+
 		cfg.TLSConfig, err = buildTLSConfig(ctx, settings.TlsConfig, secretStore, tenantID, logger, settings.SecretManagerEnabled)
 		if err != nil {
 			return cfg, err
@@ -260,6 +264,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 	if err != nil {
 		return cfg, fmt.Errorf("failed to resolve bearer token: %w", err)
 	}
+
 	cfg.BearerToken = promconfig.Secret(bearerToken)
 
 	if settings.BasicAuth != nil {
@@ -277,6 +282,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 
 	if settings.ProxyURL != "" {
 		var err error
+
 		cfg.ProxyURL.URL, err = url.Parse(settings.ProxyURL)
 		if err != nil {
 			return cfg, fmt.Errorf("parsing proxy URL: %w", err)
@@ -284,10 +290,12 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 
 		if len(settings.ProxyConnectHeaders) > 0 {
 			headers := make(promconfig.ProxyHeader)
+
 			for _, h := range settings.ProxyConnectHeaders {
 				name, value := strToHeaderNameValue(h)
 				headers[name] = []promconfig.Secret{promconfig.Secret(value)}
 			}
+
 			cfg.ProxyConnectHeader = headers
 		}
 	}
@@ -311,6 +319,7 @@ func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore se
 			if err != nil {
 				return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve CA cert: %w", err)
 			}
+
 			resolvedTLSConfig.CACert = []byte(caCertStr)
 		} else {
 			resolvedTLSConfig.CACert = tlsConfig.CACert
@@ -325,6 +334,7 @@ func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore se
 			if err != nil {
 				return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client cert: %w", err)
 			}
+
 			resolvedTLSConfig.ClientCert = []byte(clientCertStr)
 		} else {
 			resolvedTLSConfig.ClientCert = tlsConfig.ClientCert
@@ -339,6 +349,7 @@ func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore se
 			if err != nil {
 				return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client key: %w", err)
 			}
+
 			resolvedTLSConfig.ClientKey = []byte(clientKeyStr)
 		} else {
 			resolvedTLSConfig.ClientKey = tlsConfig.ClientKey
@@ -356,10 +367,12 @@ func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerol
 	r.TokenURL = cfg.TokenURL
 	r.Scopes = make([]string, len(cfg.Scopes))
 	copy(r.Scopes, cfg.Scopes)
+
 	r.EndpointParams = make(map[string]string, len(cfg.EndpointParams))
 	for _, pair := range cfg.EndpointParams {
 		r.EndpointParams[pair.Name] = pair.Value
 	}
+
 	var err error
 	if cfg.ProxyURL != "" {
 		r.ProxyURL.URL, err = url.Parse(cfg.ProxyURL)
@@ -367,12 +380,14 @@ func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerol
 			return nil, fmt.Errorf("parsing proxy URL: %w", err)
 		}
 	}
+
 	if cfg.TlsConfig != nil {
 		r.TLSConfig, err = tls.SMtoProm(ctx, logger, cfg.TlsConfig)
 		if err != nil {
 			return nil, fmt.Errorf("parsing TLS config: %w", err)
 		}
 	}
+
 	return r, nil
 }
 
@@ -380,6 +395,7 @@ func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerol
 // for reserved headers.
 func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 	headers := []string{}
+
 	for _, header := range check.Settings.Http.Headers {
 		name, _ := strToHeaderNameValue(header)
 
@@ -448,6 +464,7 @@ func addCacheBustParam(target, paramName, salt string) string {
 	value := hashString(salt, strconv.FormatInt(time.Now().UnixNano(), 10))
 	q.Set(paramName, value)
 	u.RawQuery = q.Encode()
+
 	return u.String()
 }
 
@@ -455,5 +472,6 @@ func hashString(salt, str string) string {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(salt))
 	_, _ = h.Write([]byte(str))
+
 	return strconv.FormatUint(h.Sum64(), 16)
 }

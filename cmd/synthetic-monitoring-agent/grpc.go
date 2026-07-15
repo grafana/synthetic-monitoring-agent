@@ -40,6 +40,7 @@ func newAPIServerClient(addr string, allowInsecure bool, apiToken string) (*grpc
 	if !allowInsecure {
 		transportCreds = credentials.NewTLS(&tls.Config{ServerName: grpcApiHost(addr)})
 	}
+
 	opts = append(opts, grpc.WithTransportCredentials(transportCreds))
 
 	return grpc.NewClient(addr, opts...)
@@ -50,7 +51,9 @@ func grpcApiHost(addr string) string {
 	if colonPos == -1 {
 		colonPos = len(addr)
 	}
+
 	hostname := addr[:colonPos]
+
 	return hostname
 }
 

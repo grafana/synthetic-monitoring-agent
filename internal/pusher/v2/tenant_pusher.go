@@ -40,6 +40,7 @@ func newTenantPusher(tenantID model.GlobalID, tenantProvider pusher.TenantProvid
 		logs:           newQueue(&eOptions),
 		metrics:        newQueue(&mOptions),
 	}
+
 	return tp
 }
 
@@ -63,6 +64,7 @@ func (p *tenantPusher) run(ctx context.Context) payloadHandler {
 	case errKindWait:
 		// Some failure forces us to stop pushing for a while, but keep accumulating metrics meanwhile.
 		p.options.logger.Info().Dur("delay", p.options.waitPeriod).Msg("delaying metrics publishing")
+
 		return &delayPusher{
 			next:  p,
 			delay: p.options.waitPeriod,
@@ -80,6 +82,7 @@ func (p *tenantPusher) run(ctx context.Context) payloadHandler {
 		// Possibly a situation where we can't push metrics and won't be able to push them
 		// in the future. Discard metrics for this tenant for an extended period of time.
 		p.options.logger.Warn().Dur("duration", p.options.discardPeriod).Msg("discarding metrics")
+
 		return &discardPusher{
 			duration: p.options.discardPeriod,
 			options:  p.options,
@@ -99,6 +102,7 @@ func (p *tenantPusher) runPushers(ctx context.Context) error {
 	if err != nil {
 		p.options.metrics.FailedCounter.With(prometheus.Labels{"type": pusher.LabelValueMetrics, "reason": pusher.LabelValueTenant}).Inc()
 		p.options.metrics.FailedCounter.With(prometheus.Labels{"type": pusher.LabelValueLogs, "reason": pusher.LabelValueTenant}).Inc()
+
 		return pushError{
 			kind:  errKindFatal,
 			inner: err,
@@ -144,7 +148,9 @@ func idleChecker(ctx context.Context, interval time.Duration, ptr *uint64) func(
 	return func() error {
 		t := time.NewTicker(interval)
 		defer t.Stop()
+
 		lastValue := atomic.LoadUint64(ptr)
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -155,6 +161,7 @@ func idleChecker(ctx context.Context, interval time.Duration, ptr *uint64) func(
 				if curValue == lastValue {
 					return errTenantIdle
 				}
+
 				lastValue = curValue
 			}
 		}
@@ -191,9 +198,11 @@ func toRequest(m proto.Marshaler, p bufferPool) *[]byte {
 	if err != nil {
 		panic(err)
 	}
+
 	bufPtr := p.get()
 	*bufPtr = (*bufPtr)[0:cap(*bufPtr)]
 	encoded := snappy.Encode(*bufPtr, data)
+
 	return &encoded
 }
 
@@ -236,6 +245,7 @@ func (p discardPusher) publish(payloads pusher.Payload) {
 	if len(payloads.Metrics()) > 0 {
 		p.options.metrics.DroppedCounter.WithLabelValues(pusher.LabelValueMetrics).Inc()
 	}
+
 	if len(payloads.Streams()) > 0 {
 		p.options.metrics.DroppedCounter.WithLabelValues(pusher.LabelValueLogs).Inc()
 	}

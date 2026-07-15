@@ -98,6 +98,7 @@ func getLogger(name string, verbose, debug bool, w io.Writer) zerolog.Logger {
 	switch {
 	case debug:
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
 		zl = zl.With().Caller().Logger()
 
 	case verbose:
@@ -144,6 +145,7 @@ func loadData(fn string, db *db.Db) error {
 		if !found {
 			return fmt.Errorf("token not found for probe %d", probe.Id)
 		}
+
 		if err := db.AddProbe(ctx, &probe, []byte(token)); err != nil {
 			return err
 		}

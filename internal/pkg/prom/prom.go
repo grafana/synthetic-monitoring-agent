@@ -82,6 +82,7 @@ func withBackoff(ctx context.Context, client PrometheusClient, store func(ctx co
 		if a > maxBackoff {
 			return maxBackoff
 		}
+
 		return a
 	}
 
@@ -90,10 +91,12 @@ func withBackoff(ctx context.Context, client PrometheusClient, store func(ctx co
 	backoff := minBackoff
 
 	retries := maxRetries
+
 	defer func() {
 		// Performing the retries performed calculation inside a go-routine to evaluate at defer-time
 		client.CountRetries(float64(maxRetries - retries))
 	}()
+
 	for retries > 0 {
 		select {
 		case <-ctx.Done():
@@ -102,7 +105,6 @@ func withBackoff(ctx context.Context, client PrometheusClient, store func(ctx co
 		}
 
 		err = store(ctx, client)
-
 		if err == nil {
 			return nil
 		}
@@ -126,6 +128,7 @@ func withBackoff(ctx context.Context, client PrometheusClient, store func(ctx co
 func SendSamplesWithBackoff(ctx context.Context, client *Client, samples []prompb.TimeSeries, buf *[]byte) error {
 	req, _, err := buildTimeSeriesWriteRequest(samples, *buf)
 	*buf = req
+
 	if err != nil {
 		// Failing to build the write request is non-recoverable, since it will
 		// only error if marshaling the proto to bytes fails.
@@ -143,6 +146,7 @@ func buildTimeSeriesWriteRequest(samples []prompb.TimeSeries, buf []byte) ([]byt
 			highest = ts.Samples[0].Timestamp
 		}
 	}
+
 	req := &prompb.WriteRequest{
 		Timeseries: samples,
 	}
@@ -157,7 +161,9 @@ func buildTimeSeriesWriteRequest(samples []prompb.TimeSeries, buf []byte) ([]byt
 	if buf != nil {
 		buf = buf[0:cap(buf)]
 	}
+
 	compressed := snappy.Encode(buf, data)
+
 	return compressed, highest, nil
 }
 
@@ -249,6 +255,7 @@ func NewClientFromConfig(cfg HTTPClientConfig, name string, disableKeepAlives bo
 	if err != nil {
 		return nil, err
 	}
+
 	return newClient(rt), nil
 }
 
@@ -311,6 +318,7 @@ func NewTLSConfig(cfg *TLSConfig) (*tls.Config, error) {
 		if err != nil {
 			return nil, err
 		}
+
 		if !updateRootCA(tlsConfig, b) {
 			return nil, fmt.Errorf("unable to use specified CA cert %s", cfg.CAFile)
 		}
@@ -330,6 +338,7 @@ func NewTLSConfig(cfg *TLSConfig) (*tls.Config, error) {
 		if _, err := cfg.getClientCertificate(nil); err != nil {
 			return nil, err
 		}
+
 		tlsConfig.GetClientCertificate = cfg.getClientCertificate
 	}
 
@@ -342,6 +351,7 @@ func (c *TLSConfig) getClientCertificate(*tls.CertificateRequestInfo) (*tls.Cert
 	if err != nil {
 		return nil, fmt.Errorf("unable to use specified client cert (%s) & key (%s): %s", c.CertFile, c.KeyFile, err)
 	}
+
 	return &cert, nil
 }
 
@@ -361,8 +371,10 @@ func (rt *basicAuthRoundTripper) RoundTrip(req *http.Request) (*http.Response, e
 	if len(req.Header.Get("Authorization")) != 0 {
 		return rt.rt.RoundTrip(req)
 	}
+
 	req = cloneRequest(req)
 	req.SetBasicAuth(rt.username, strings.TrimSpace(rt.password))
+
 	return rt.rt.RoundTrip(req)
 }
 
@@ -388,6 +400,7 @@ func (c *Client) StoreStream(ctx context.Context, req io.Reader) error {
 		// recoverable.
 		return err
 	}
+
 	httpReq.Header.Add("Content-Encoding", "snappy")
 	httpReq.Header.Set("Content-Type", "application/x-protobuf")
 
@@ -406,6 +419,7 @@ func (c *Client) StoreStream(ctx context.Context, req io.Reader) error {
 		// recoverable.
 		return NewRecoverableError(err)
 	}
+
 	defer func() {
 		// we are draining the body, so it's OK to ignore the
 		// return value from io.Copy.
@@ -418,19 +432,23 @@ func (c *Client) StoreStream(ctx context.Context, req io.Reader) error {
 
 	if httpResp.StatusCode/100 != 2 {
 		scanner := bufio.NewScanner(io.LimitReader(httpResp.Body, maxErrMsgLen))
+
 		line := ""
 		if scanner.Scan() {
 			line = scanner.Text()
 		}
+
 		err = &HttpError{
 			Status:     httpResp.Status,
 			StatusCode: httpResp.StatusCode,
 			Err:        errors.Errorf("server returned HTTP status %s: %s", httpResp.Status, line),
 		}
 	}
+
 	if httpResp.StatusCode/100 == 5 {
 		return NewRecoverableError(err)
 	}
+
 	return err
 }
 
@@ -462,6 +480,7 @@ func newTLSRoundTripper(
 	if err != nil {
 		return nil, err
 	}
+
 	t.rt = rt
 
 	_, t.hashCAFile, err = t.getCAWithHash()
@@ -477,7 +496,9 @@ func (t *tlsRoundTripper) getCAWithHash() ([]byte, []byte, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+
 	h := sha256.Sum256(b)
+
 	return b, h[:], nil
 }
 
@@ -492,6 +513,7 @@ func (t *tlsRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	equal := bytes.Equal(h, t.hashCAFile)
 	rt := t.rt
 	t.mtx.RUnlock()
+
 	if equal {
 		// The CA cert hasn't changed, use the existing RoundTripper.
 		return rt.RoundTrip(req)
@@ -502,10 +524,12 @@ func (t *tlsRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	if !updateRootCA(tlsConfig, b) {
 		return nil, fmt.Errorf("unable to use specified CA cert %s", t.caFile)
 	}
+
 	rt, err = t.newRT(tlsConfig)
 	if err != nil {
 		return nil, err
 	}
+
 	t.CloseIdleConnections()
 
 	t.mtx.Lock()
@@ -519,6 +543,7 @@ func (t *tlsRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 func (t *tlsRoundTripper) CloseIdleConnections() {
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
+
 	if ci, ok := t.rt.(closeIdler); ok {
 		ci.CloseIdleConnections()
 	}
@@ -533,6 +558,7 @@ func readCAFile(f string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unable to load specified CA cert %s: %s", f, err)
 	}
+
 	return data, nil
 }
 
@@ -542,7 +568,9 @@ func updateRootCA(cfg *tls.Config, b []byte) bool {
 	if !caCertPool.AppendCertsFromPEM(b) {
 		return false
 	}
+
 	cfg.RootCAs = caCertPool
+
 	return true
 }
 
@@ -555,5 +583,6 @@ func cloneRequest(r *http.Request) *http.Request {
 	// Deep copy of the Header.
 	r2.Header = make(http.Header)
 	maps.Copy(r2.Header, r.Header)
+
 	return r2
 }

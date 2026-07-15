@@ -43,6 +43,7 @@ type RegionMetrics struct {
 func (m *RegionMetrics) start() (start time.Time) {
 	m.pushRequestsActive.Inc()
 	m.pushRequestsTotal.Inc()
+
 	return time.Now()
 }
 
@@ -50,6 +51,7 @@ func (m *RegionMetrics) start() (start time.Time) {
 func (m *RegionMetrics) end(err error, start time.Time) {
 	m.pushRequestsActive.Dec()
 	m.pushRequestsDuration.Observe(time.Since(start).Seconds())
+
 	if err != nil {
 		m.pushRequestsError.Inc()
 	}
@@ -85,6 +87,7 @@ func NewRegionPusher(
 
 	go func() {
 		defer opts.wg.Done()
+
 		tp.run(ctx, opts.ticker, opts.wg)
 	}()
 
@@ -137,10 +140,12 @@ LOOP:
 			p.logger.Info().Msg("pushing telemetry")
 
 			m := p.next()
+
 			wg.Add(1)
 			// Avoid blocking
 			go func() {
 				defer wg.Done()
+
 				p.push(m)
 			}()
 
@@ -159,6 +164,7 @@ LOOP:
 // AddExecution adds a new execution to the tenant telemetry.
 func (p *RegionPusher) AddExecution(e Execution) {
 	start := time.Now()
+
 	p.telemetryMu.Lock()
 	defer p.telemetryMu.Unlock()
 
@@ -223,6 +229,7 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 				})
 			}
 		}
+
 		m.Telemetry = append(m.Telemetry, tenantTele)
 	}
 
@@ -252,7 +259,9 @@ func deserializeCals(calKey string) []sm.CostAttributionLabel {
 	if calKey == CalNilStringTerminator {
 		return []sm.CostAttributionLabel{}
 	}
+
 	split := strings.Split(calKey, ",")
+
 	cals := make([]sm.CostAttributionLabel, len(split))
 	for i, cal := range split {
 		c := strings.Split(cal, "=")
@@ -272,16 +281,19 @@ func (p *RegionPusher) push(m sm.RegionTelemetry) {
 	)
 
 	start := p.metrics.start()
+
 	defer func() { p.metrics.end(err, start) }()
 
 	// We don't want to cancel a possibly ongoing request even if the agent
 	// context is done, therefore use background context
 	ctx := context.Background()
+
 	r, err = p.client.PushTelemetry(ctx, &m)
 	if err != nil {
 		p.logger.Err(err).Msg("error pushing telemetry")
 		return
 	}
+
 	if r.Status.Code != sm.StatusCode_OK {
 		// create an error so it's handled by metrics.end() on defer
 		err = fmt.Errorf("unexpected status code")

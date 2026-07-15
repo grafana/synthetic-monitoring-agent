@@ -93,12 +93,14 @@ func (o pusherOptions) withTenant(id model.GlobalID) pusherOptions {
 	localID, regionID := model.GetLocalAndRegionIDs(id)
 	o.logger = o.logger.With().Int("region", regionID).Int64("tenant", localID).Logger()
 	o.metrics = o.metrics.WithTenant(localID, regionID)
+
 	return o
 }
 
 func (o pusherOptions) withType(t string) pusherOptions {
 	o.logger = o.logger.With().Str("type", t).Logger()
 	o.metrics = o.metrics.WithType(t)
+
 	return o
 }
 
@@ -124,6 +126,7 @@ func (p *bufferPool) get() *[]byte {
 	if p == nil || p.inner == nil {
 		return nil
 	}
+
 	return p.inner.Get().(*[]byte)
 }
 
@@ -131,6 +134,7 @@ func (p *bufferPool) put(buf *[]byte) {
 	if p == nil || p.inner == nil {
 		return
 	}
+
 	p.inner.Put(buf)
 }
 
@@ -140,6 +144,7 @@ func (p *bufferPool) returnAll(records []queueEntry) (size uint64) {
 		p.put(rec.data)
 		rec.data = nil // Ensure it can't be re-used after return.
 	}
+
 	return size
 }
 
@@ -151,7 +156,9 @@ func (c *retriesCounter) retry() bool {
 	if c.left <= 0 {
 		return false
 	}
+
 	c.left--
+
 	return true
 }
 
@@ -169,6 +176,7 @@ func (b *backoffer) wait(ctx context.Context) error {
 	} else {
 		b.last = min(2*b.last, b.max)
 	}
+
 	return sleepCtx(ctx, b.last)
 }
 

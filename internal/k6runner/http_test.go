@@ -52,6 +52,7 @@ func TestHttpRunnerRun(t *testing.T) {
 			t.Logf("decoding body: %v", err)
 			t.Fail()
 			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
+
 			return
 		}
 
@@ -59,6 +60,7 @@ func TestHttpRunnerRun(t *testing.T) {
 			t.Log("unexpected value for NotAfter too far from the present")
 			t.Fail()
 			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
+
 			return
 		}
 
@@ -66,6 +68,7 @@ func TestHttpRunnerRun(t *testing.T) {
 			t.Log("Unexpected empty channel manifest")
 			t.Fail()
 			w.WriteHeader(400) // Use 400 as the client won't retry this failure.
+
 			return
 		}
 
@@ -73,11 +76,13 @@ func TestHttpRunnerRun(t *testing.T) {
 			t.Logf("unexpected executionID: got %q, want %q", req.ExecutionID, "test-execution-id")
 			t.Fail()
 			w.WriteHeader(400)
+
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
+
 		rr := &RunResponse{
 			Metrics: testhelper.MustReadFile(t, "testdata/test.out"),
 			Logs:    testhelper.MustReadFile(t, "testdata/test.log"),
@@ -344,6 +349,7 @@ func TestScriptHTTPRun(t *testing.T) {
 			success, _, err := script.Run(ctx, registry, logger, zlogger, SecretStore{}, "test-execution-id")
 			require.Equal(t, tc.expectSuccess, success)
 			require.Equal(t, tc.expectLogs, logger.buf.String())
+
 			if tc.expectErrorAs == nil {
 				require.ErrorIs(t, err, tc.expectError)
 			} else {
@@ -474,6 +480,7 @@ func TestHTTPProcessorRetries(t *testing.T) {
 					logger   testLogger
 					zlogger  = zerolog.New(io.Discard)
 				)
+
 				success, _, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{}, "test-execution-id")
 				require.ErrorIs(t, err, tc.expectError)
 				require.Equal(t, tc.expectError == nil, success)
@@ -520,6 +527,7 @@ func TestHTTPProcessorRetries(t *testing.T) {
 			logger   testLogger
 			zlogger  = zerolog.New(io.Discard)
 		)
+
 		success, _, err := processor.Run(ctx, registry, &logger, zlogger, SecretStore{}, "test-execution-id")
 		require.NoError(t, err)
 		require.True(t, success)
@@ -659,6 +667,7 @@ func emptyJSON(status int) http.Handler {
 // afterAttempts(a, 1, b) always invokes a for the first request, then b for the subsequent ones.
 func afterAttempts(a http.Handler, afterAttempts int, b http.Handler) http.Handler {
 	pastAttempts := 0
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if pastAttempts >= afterAttempts {
 			b.ServeHTTP(w, r)
@@ -666,6 +675,7 @@ func afterAttempts(a http.Handler, afterAttempts int, b http.Handler) http.Handl
 		}
 
 		a.ServeHTTP(w, r)
+
 		pastAttempts++
 	})
 }

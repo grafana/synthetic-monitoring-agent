@@ -49,6 +49,7 @@ func TestRefreshServers_PeriodicRefresh(t *testing.T) {
 
 		// Verify server list was updated with new IPs
 		var addrs []string
+
 		err = client.serverList.Each(func(addr net.Addr) error {
 			addrs = append(addrs, addr.String())
 			return nil
@@ -110,6 +111,7 @@ func TestRefreshServers_MultipleHosts(t *testing.T) {
 
 		// Verify initial server list
 		var addrs []string
+
 		err = client.serverList.Each(func(addr net.Addr) error {
 			addrs = append(addrs, addr.String())
 			return nil
@@ -176,6 +178,7 @@ func TestRefreshServers_DNSFailure(t *testing.T) {
 
 		// Verify initial servers
 		var addrs []string
+
 		err = client.serverList.Each(func(addr net.Addr) error {
 			addrs = append(addrs, addr.String())
 			return nil
@@ -321,6 +324,7 @@ func TestResolveServers_DirectIPAddresses(t *testing.T) {
 func TestResolveServers_MixedHostnamesAndIPs(t *testing.T) {
 	resolver := newMockResolver()
 	resolver.setResponse("cache.example.com", "10.1.1.1", "10.1.1.2")
+
 	logger := testLogger()
 
 	servers := []string{

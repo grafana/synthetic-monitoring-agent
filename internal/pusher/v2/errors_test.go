@@ -195,6 +195,7 @@ func TestParsePushError(t *testing.T) {
 	} {
 		t.Run(title, func(t *testing.T) {
 			code, err := parsePublishError(tc.input)
+
 			var (
 				expectedErr = tc.expected
 				pErr        pushError
@@ -203,6 +204,7 @@ func TestParsePushError(t *testing.T) {
 				pErr.inner = tc.input
 				expectedErr = pErr
 			}
+
 			require.Equal(t, expectedErr, err)
 			require.Equal(t, tc.code, code)
 		})

@@ -166,6 +166,7 @@ func TestSetGetDelete(t *testing.T) {
 		require.NoError(t, err)
 
 		var result string
+
 		err = client.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, value, result)
@@ -187,6 +188,7 @@ func TestSetGetDelete(t *testing.T) {
 		require.NoError(t, err)
 
 		var result TestStruct
+
 		err = client.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, value, result)
@@ -200,6 +202,7 @@ func TestSetGetDelete(t *testing.T) {
 		key := "test:nonexistent"
 
 		var result string
+
 		err := client.Get(ctx, key, &result)
 		require.ErrorIs(t, err, ErrCacheMiss)
 		require.Empty(t, result)
@@ -220,6 +223,7 @@ func TestSetGetDelete(t *testing.T) {
 		require.NoError(t, err)
 
 		var result string
+
 		err = client.Get(ctx, key, &result)
 		require.NoError(t, err)
 		require.Equal(t, value, result)
@@ -270,6 +274,7 @@ func TestGetErrors(t *testing.T) {
 
 	t.Run("empty key", func(t *testing.T) {
 		var result string
+
 		err := client.Get(ctx, "", &result)
 		require.Error(t, err)
 		require.NotErrorIs(t, err, ErrCacheMiss)
@@ -278,7 +283,9 @@ func TestGetErrors(t *testing.T) {
 
 	t.Run("key too long", func(t *testing.T) {
 		longKey := string(make([]byte, MaxKeyLength+1))
+
 		var result string
+
 		err := client.Get(ctx, longKey, &result)
 		require.Error(t, err)
 		require.NotErrorIs(t, err, ErrCacheMiss)

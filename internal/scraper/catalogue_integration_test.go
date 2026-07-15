@@ -20,6 +20,7 @@ func TestValidateMetricCatalogueIntegration(t *testing.T) {
 	if k6Path == "" {
 		t.Fatalf("K6_PATH must be set when %s is enabled", runtimeCatalogueIntegrationEnv)
 	}
+
 	if _, err := os.Stat(k6Path); err != nil {
 		t.Fatalf("K6_PATH %q is not usable: %v", k6Path, err)
 	}
@@ -29,12 +30,14 @@ func TestValidateMetricCatalogueIntegration(t *testing.T) {
 	for class, spec := range runtimeCatalogueSpecs() {
 		t.Run(class, func(t *testing.T) {
 			t.Setenv("K6_PATH", k6Path)
+
 			expected, ok := expectedCatalogues[class]
 			if !ok {
 				t.Fatalf("missing expected catalogue for %s", class)
 			}
 
 			observed := collectFixtureCatalogue(t, class, spec)
+
 			result := CompareMetricCatalogue(expected, observed)
 			if !result.Success() {
 				t.Fatalf("catalogue mismatch for %s: %s", class, result.Summary())

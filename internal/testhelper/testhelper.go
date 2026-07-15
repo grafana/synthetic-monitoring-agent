@@ -59,9 +59,11 @@ func ModuleDir(t *testing.T) string {
 		// uh?
 		return ""
 	}
+
 	dir := filepath.Dir(filename)
 	for dir != "/" {
 		gomod := filepath.Join(dir, "go.mod")
+
 		_, err := os.Stat(gomod)
 		switch {
 		case err == nil:
@@ -85,14 +87,17 @@ func K6Paths(t *testing.T) []string {
 	require.NoErrorf(t, err, "reading k6 binaries directory %s", dir)
 
 	var paths []string
+
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.Contains(entry.Name(), "k6") {
 			continue
 		}
+
 		info, err := entry.Info()
 		if err != nil || info.Mode().Perm()&0o111 == 0 {
 			continue
 		}
+
 		paths = append(paths, filepath.Join(dir, entry.Name()))
 	}
 

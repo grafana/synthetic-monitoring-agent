@@ -9,6 +9,7 @@ import (
 
 func TestInvalidCollection(t *testing.T) {
 	var c Collection
+
 	err := c.Set("flag")
 	require.Error(t, err)
 }

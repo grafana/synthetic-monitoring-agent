@@ -124,6 +124,7 @@ func TestNewProber(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			actual, err := NewProber(testcase.input)
 			require.Equal(t, &testcase.expected, &actual)
+
 			if testcase.ExpectError {
 				require.Error(t, err, "unsupported check")
 			} else {

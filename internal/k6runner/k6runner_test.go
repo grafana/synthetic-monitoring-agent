@@ -42,6 +42,7 @@ func TestNew(t *testing.T) {
 	r3, err := New(RunnerOpts{Uri: "http://localhost:6565"})
 	require.NoError(t, err)
 	require.IsType(t, &HttpRunner{}, r3)
+
 	r4, err := New(RunnerOpts{Uri: "https://localhost:6565"})
 	require.NoError(t, err)
 	require.IsType(t, &HttpRunner{}, r4)
@@ -159,6 +160,7 @@ func TestTextToRegistry(t *testing.T) {
 	expectedMetrics := map[string]struct{}{}
 
 	promDecoder := expfmt.NewDecoder(bytes.NewBuffer(data), expfmt.NewFormat(expfmt.TypeTextPlain))
+
 DEC_LOOP:
 	for {
 		var mf dto.MetricFamily
@@ -190,6 +192,7 @@ DEC_LOOP:
 	require.NoError(t, err)
 
 	actualMetrics := map[string]struct{}{}
+
 	for _, mf := range mfs {
 		for _, m := range mf.GetMetric() {
 			actualMetrics[buildId(mf.GetName(), m)] = struct{}{}
@@ -214,6 +217,7 @@ func buildId(name string, m *dto.Metric) string {
 
 	var s strings.Builder
 	s.WriteString(name)
+
 	for _, l := range labels {
 		s.WriteString(",")
 		s.WriteString(l.GetName())
@@ -241,6 +245,7 @@ func (l *testLogger) Log(keyvals ...any) error {
 	if len(keyvals) == 0 {
 		return errors.New("empty log message")
 	}
+
 	return nil
 }
 
@@ -268,5 +273,6 @@ func (l recordingLogger) Log(keyvals ...any) error {
 	}
 
 	_, err := fmt.Fprintln(l.buf, strings.Join(line, " "))
+
 	return err
 }

@@ -17,6 +17,7 @@ func TestEnv(t *testing.T) {
 		if !slices.Contains(modified, "K6_BROWSER_LOG=info") {
 			t.Fatalf("Expected env to contain browser log info")
 		}
+
 		if !slices.Contains(modified, "K6_AUTO_EXTENSION_RESOLUTION=false") {
 			t.Fatalf("Expected env to contain K6_AUTO_EXTENSION_RESOLUTION")
 		}

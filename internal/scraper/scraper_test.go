@@ -103,6 +103,7 @@ func verifyProberMetrics(
 	basicMetricsOnly bool,
 ) {
 	timeout := 10 * time.Second
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -177,6 +178,7 @@ func addMetricToIndex(mf *dto.MetricFamily, index map[string]struct{}) {
 		for _, label := range metric.GetLabel() {
 			labels = append(labels, fmt.Sprintf(`%q=%q`, label.GetName(), label.GetValue()))
 		}
+
 		sort.Strings(labels)
 		index[mf.GetName()+"{"+strings.Join(labels, ",")+"}"] = struct{}{}
 	}
@@ -248,6 +250,7 @@ func setupHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Che
 	}
 
 	var store testhelper.NoopSecretStore
+
 	prober, err := httpProber.NewProber(
 		ctx,
 		check,
@@ -288,6 +291,7 @@ func setupHTTPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 	}
 
 	var store testhelper.NoopSecretStore
+
 	prober, err := httpProber.NewProber(
 		ctx,
 		check,
@@ -318,11 +322,13 @@ func setupDNSProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Chec
 			},
 		},
 	}
+
 	prober, err := dnsProber.NewProber(check)
 	if err != nil {
 		clean()
 		t.Fatalf("cannot create DNS prober: %s", err)
 	}
+
 	return prober, check, clean
 }
 
@@ -339,6 +345,7 @@ func setupTCPProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Chec
 			},
 		},
 	}
+
 	prober, err := tcp.NewProber(
 		ctx,
 		check,
@@ -347,6 +354,7 @@ func setupTCPProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Chec
 		clean()
 		t.Fatalf("cannot create TCP prober: %s", err)
 	}
+
 	return prober, check, clean
 }
 
@@ -367,6 +375,7 @@ func setupTCPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.C
 			},
 		},
 	}
+
 	prober, err := tcp.NewProber(
 		ctx,
 		check,
@@ -375,6 +384,7 @@ func setupTCPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.C
 		clean()
 		t.Fatalf("cannot create TCP prober: %s", err)
 	}
+
 	return prober, check, clean
 }
 
@@ -440,8 +450,11 @@ export default function() {
 		},
 	}
 
-	var runner k6runner.Runner
-	var err error
+	var (
+		runner k6runner.Runner
+		err    error
+	)
+
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
 		runner, err = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
 	} else {
@@ -511,11 +524,14 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 		},
 	}
 
-	var runner k6runner.Runner
-	var err error
+	var (
+		runner k6runner.Runner
+		err    error
+	)
 
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
 		t.Setenv("K6_INSECURE_SKIP_TLS_VERIFY", "true")
+
 		runner, err = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
 	} else {
 		runner = &testRunner{
@@ -651,8 +667,10 @@ export default async function () {
 		},
 	}
 
-	var runner k6runner.Runner
-	var err error
+	var (
+		runner k6runner.Runner
+		err    error
+	)
 
 	if k6Path := os.Getenv("K6_PATH"); k6Path != "" {
 		runner, err = k6runner.New(k6runner.RunnerOpts{Uri: k6Path})
@@ -694,6 +712,7 @@ func setupGRPCProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Che
 			},
 		},
 	}
+
 	prober, err := grpcProber.NewProber(
 		ctx,
 		check,
@@ -702,6 +721,7 @@ func setupGRPCProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Che
 		clean()
 		t.Fatalf("cannot create gRPC prober: %s", err)
 	}
+
 	return prober, check, clean
 }
 
@@ -722,6 +742,7 @@ func setupGRPCSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 			},
 		},
 	}
+
 	prober, err := grpcProber.NewProber(
 		ctx,
 		check,
@@ -730,6 +751,7 @@ func setupGRPCSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 		clean()
 		t.Fatalf("cannot create gRPC prober: %s", err)
 	}
+
 	return prober, check, clean
 }
 
@@ -742,9 +764,11 @@ func setupDNSServer(t *testing.T) (string, func()) {
 		dnsSrv.NotifyStartedFunc = func() {
 			close(errCh)
 		}
+
 		err := dnsSrv.ActivateAndServe()
 		if err != nil {
 			errCh <- err
+
 			close(errCh)
 		}
 	}()
@@ -775,10 +799,12 @@ func startDNSServer(addr, protocol string, handler func(dns.ResponseWriter, *dns
 		if err != nil {
 			panic(err)
 		}
+
 		l, err := net.ListenUDP(server.Net, a)
 		if err != nil {
 			panic(err)
 		}
+
 		server.Addr = l.LocalAddr().String()
 		server.PacketConn = l
 	case "tcp", "tcp4", "tcp6":
@@ -786,10 +812,12 @@ func startDNSServer(addr, protocol string, handler func(dns.ResponseWriter, *dns
 		if err != nil {
 			panic(err)
 		}
+
 		l, err := net.ListenTCP(server.Net, a)
 		if err != nil {
 			panic(err)
 		}
+
 		server.Addr = l.Addr().String()
 		server.Listener = l
 	default:
@@ -799,6 +827,7 @@ func startDNSServer(addr, protocol string, handler func(dns.ResponseWriter, *dns
 	if protocol == "tcp" {
 		return server, server.Listener.Addr()
 	}
+
 	return server, server.PacketConn.LocalAddr()
 }
 
@@ -810,10 +839,12 @@ func recursiveDNSHandler(w dns.ResponseWriter, r *dns.Msg) {
 		if err := w.WriteMsg(m); err != nil {
 			panic(err)
 		}
+
 		return
 	}
 
 	var answers []string
+
 	switch r.Question[0].Qtype {
 	case dns.TypeSOA:
 		answers = []string{
@@ -831,8 +862,10 @@ func recursiveDNSHandler(w dns.ResponseWriter, r *dns.Msg) {
 		if err != nil {
 			panic(err)
 		}
+
 		m.Answer = append(m.Answer, a)
 	}
+
 	if err := w.WriteMsg(m); err != nil {
 		panic(err)
 	}
@@ -851,6 +884,7 @@ func setupTCPServer(t *testing.T) (string, func()) {
 		if err != nil {
 			panic(fmt.Sprintf("Error accepting on socket: %s", err))
 		}
+
 		defer func() {
 			conn.Close()
 			close(done)
@@ -891,6 +925,7 @@ func setupTCPServerWithSSL(t *testing.T) (string, func()) {
 		if err != nil {
 			panic(fmt.Sprintf("Error accepting on socket: %s", err))
 		}
+
 		defer func() {
 			conn.Close()
 			close(done)
@@ -1023,6 +1058,7 @@ func TestValidateLabels(t *testing.T) {
 				return true
 			}
 		}
+
 		return false
 	}
 
@@ -1033,8 +1069,10 @@ func TestValidateLabels(t *testing.T) {
 	maxProbeMetricLabels := func(t *testing.T, tss TimeSeries) maxMetricLabels {
 		max := 0
 		maxCheckInfoMetric := 0
+
 		for _, ts := range tss {
 			labels := ts.GetLabels()
+
 			nLabels := len(labels) - 1 // Discount special __name__ label
 			if nLabels > max {
 				max = nLabels
@@ -1046,6 +1084,7 @@ func TestValidateLabels(t *testing.T) {
 				}
 			}
 		}
+
 		return maxMetricLabels{
 			AllMetrics:      max,
 			CheckInfoMetric: maxCheckInfoMetric,
@@ -1068,6 +1107,7 @@ func TestValidateLabels(t *testing.T) {
 	}
 
 	timeout := 10 * time.Second
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -1118,9 +1158,11 @@ func TestValidateLabels(t *testing.T) {
 			if metricLabels.AllMetrics > totalMaxMetricLabels {
 				totalMaxMetricLabels = metricLabels.AllMetrics
 			}
+
 			if metricLabels.CheckInfoMetric > totalMaxCheckInfoLabels {
 				totalMaxCheckInfoLabels = metricLabels.CheckInfoMetric
 			}
+
 			if logLabels > totalMaxLogLabels {
 				totalMaxLogLabels = logLabels
 			}
@@ -1555,6 +1597,7 @@ func TestScraperCollectData(t *testing.T) {
 
 	generateLabels := func(offset, count int, valuePrefix string) []sm.Label {
 		var labels []sm.Label
+
 		for i := range count {
 			n := strconv.Itoa(offset + i)
 			labels = append(labels, sm.Label{
@@ -1562,15 +1605,18 @@ func TestScraperCollectData(t *testing.T) {
 				Value: valuePrefix + n,
 			})
 		}
+
 		return labels
 	}
 
 	generateLabelSet := func(offset, count int, valuePrefix string) map[string]string {
 		labels := make(map[string]string)
+
 		for i := range count {
 			n := strconv.Itoa(offset + i)
 			labels["label_l"+n] = valuePrefix + n
 		}
+
 		return labels
 	}
 
@@ -1578,10 +1624,12 @@ func TestScraperCollectData(t *testing.T) {
 	// expected user labels on execution metrics in DUAL_WRITE and UNPREFIXED modes.
 	generateUnprefixedLabelSet := func(offset, count int, valuePrefix string) map[string]string {
 		labels := make(map[string]string)
+
 		for i := range count {
 			n := strconv.Itoa(offset + i)
 			labels["l"+n] = valuePrefix + n
 		}
+
 		return labels
 	}
 
@@ -1941,8 +1989,10 @@ func TestScraperCollectData(t *testing.T) {
 	// entry body but were truncated from the stream label set).
 	assertStructuredMetadata := func(t *testing.T, entry logproto.Entry, tc testcase) {
 		t.Helper()
+
 		executionIDFound := false
 		overflowFound := 0
+
 		for _, meta := range entry.StructuredMetadata {
 			if meta.Name == "execution_id" {
 				executionIDFound = true
@@ -1954,16 +2004,21 @@ func TestScraperCollectData(t *testing.T) {
 				require.Truef(t, inEntries && !inLabels,
 					"unexpected structured metadata entry: %s=%s", meta.Name, meta.Value)
 				require.Equal(t, expectedVal, meta.Value, "overflow label value mismatch: %s", meta.Name)
+
 				overflowFound++
 			}
 		}
+
 		require.True(t, executionIDFound, "execution_id not found in structured metadata")
+
 		expectedOverflow := 0
+
 		for name := range tc.expectedLogEntries {
 			if _, inLabels := tc.expectedLogLabels[name]; !inLabels {
 				expectedOverflow++
 			}
 		}
+
 		require.Equal(t, expectedOverflow, overflowFound, "overflow label count in structured metadata")
 	}
 
@@ -1978,6 +2033,7 @@ func TestScraperCollectData(t *testing.T) {
 			expected, ok := tc.expectedLogLabels[label.Name]
 			require.Truef(t, ok, "key=%s value=%s labels=%s", label.Name, label.Value, stream.Labels)
 			require.Equalf(t, expected, label.Value, "key=%s", label.Name)
+
 			found++
 		})
 
@@ -1988,9 +2044,11 @@ func TestScraperCollectData(t *testing.T) {
 			dec := logfmt.NewDecoder(strings.NewReader(entry.Line))
 			for dec.ScanRecord() {
 				labelsFound := 1 // probe_success is NOT included in the log entry
+
 				for dec.ScanKeyval() {
 					key := string(dec.Key())
 					val := string(dec.Value())
+
 					switch key {
 					case "level", "msg", "timeout_seconds", "duration_seconds", "walltime_seconds":
 					case "target":
@@ -2001,11 +2059,14 @@ func TestScraperCollectData(t *testing.T) {
 						expected, found := tc.expectedLogEntries[key]
 						require.Truef(t, found, "key=%s value=%s", key, val)
 						require.Equalf(t, expected, val, "key=%s", key)
+
 						labelsFound++
 					}
 				}
+
 				require.Equal(t, len(tc.expectedLogEntries), labelsFound)
 			}
+
 			require.NoError(t, dec.Err())
 
 			assertStructuredMetadata(t, entry, tc)
@@ -2272,6 +2333,7 @@ func TestScraperCollectDataReservedPhaseCollision(t *testing.T) {
 	// Collect the `phase` value from every probe_http_duration_seconds series.
 	phases := make(map[string]int)
 	phaseSeries := 0
+
 	for _, ts := range data.Metrics() {
 		name := findPromPbLabel(t, ts.GetLabels(), prom.MetricNameLabel)
 		if name != "probe_http_duration_seconds" {
@@ -2347,6 +2409,7 @@ func (l *testLogger) Log(kv ...any) error {
 		switch v := v.(type) {
 		case string:
 			buf.WriteString(v)
+
 			if i%2 == 0 {
 				buf.WriteRune(':')
 			}
@@ -2372,6 +2435,7 @@ func mergeMaps(mmaps ...map[string]string) map[string]string {
 	for _, m := range mmaps {
 		maps.Copy(out, m)
 	}
+
 	return out
 }
 
@@ -2416,6 +2480,7 @@ func TestTruncateLabelValue(t *testing.T) {
 			expected := strings.Repeat("a", tc.expectedLength)
 			actual := truncateLabelValue(input)
 			require.Equal(t, len(expected), len(actual))
+
 			if tc.expectedLength < tc.length {
 				require.Equal(t, expected[:len(expected)-3], actual[:len(actual)-3])
 				require.Equal(t, "...", actual[len(actual)-3:])
@@ -2520,6 +2585,7 @@ func TestScraperRun(t *testing.T) {
 	t.Cleanup(cancel)
 
 	var check model.Check
+
 	err := check.FromSM(sm.Check{
 		Id:        1,
 		TenantId:  1000,
@@ -2535,6 +2601,7 @@ func TestScraperRun(t *testing.T) {
 	require.NoError(t, err)
 
 	var counter testCounter
+
 	errCounter := testCounterVec{counters: make(map[string]Incrementer), t: t}
 
 	testProber := &testProberB{wantedFailures: 2}
@@ -2571,6 +2638,7 @@ func TestScraperRun(t *testing.T) {
 
 	// Verify telemetry
 	require.Equal(t, counter.count.Load(), testTelemeter.execCount)
+
 	for _, e := range testTelemeter.ee {
 		require.Equal(t, 1000, e.LocalTenantID)
 		require.Equal(t, check.Class(), e.CheckClass)

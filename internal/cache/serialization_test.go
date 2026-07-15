@@ -21,6 +21,7 @@ func TestEncodeDecode(t *testing.T) {
 		require.NotEmpty(t, encoded)
 
 		var decoded string
+
 		err = decode(encoded, &decoded)
 		require.NoError(t, err)
 		require.Equal(t, original, decoded)
@@ -33,6 +34,7 @@ func TestEncodeDecode(t *testing.T) {
 		require.NotEmpty(t, encoded)
 
 		var decoded int
+
 		err = decode(encoded, &decoded)
 		require.NoError(t, err)
 		require.Equal(t, original, decoded)
@@ -49,6 +51,7 @@ func TestEncodeDecode(t *testing.T) {
 		require.NotEmpty(t, encoded)
 
 		var decoded TestStruct
+
 		err = decode(encoded, &decoded)
 		require.NoError(t, err)
 		require.Equal(t, original, decoded)
@@ -61,6 +64,7 @@ func TestEncodeDecode(t *testing.T) {
 		require.NotEmpty(t, encoded)
 
 		var decoded []string
+
 		err = decode(encoded, &decoded)
 		require.NoError(t, err)
 		require.Equal(t, original, decoded)
@@ -73,6 +77,7 @@ func TestEncodeDecode(t *testing.T) {
 		require.NotEmpty(t, encoded)
 
 		var decoded map[string]int
+
 		err = decode(encoded, &decoded)
 		require.NoError(t, err)
 		require.Equal(t, original, decoded)
@@ -89,6 +94,7 @@ func TestEncodeDecode(t *testing.T) {
 		require.NotEmpty(t, encoded)
 
 		var decoded *TestStruct
+
 		err = decode(encoded, &decoded)
 		require.NoError(t, err)
 		require.Equal(t, original, decoded)
@@ -118,6 +124,7 @@ func TestEncodeErrors(t *testing.T) {
 func TestDecodeErrors(t *testing.T) {
 	t.Run("invalid data", func(t *testing.T) {
 		var dest string
+
 		err := decode([]byte("invalid gob data"), &dest)
 		require.Error(t, err)
 	})
@@ -129,6 +136,7 @@ func TestDecodeErrors(t *testing.T) {
 
 		// Try to decode as int
 		var dest int
+
 		err = decode(encoded, &dest)
 		require.Error(t, err)
 	})
@@ -149,11 +157,13 @@ func TestDecodeErrors(t *testing.T) {
 func TestEncodeDecodeNil(t *testing.T) {
 	t.Run("nil slice", func(t *testing.T) {
 		var original []string
+
 		encoded, err := encode(original)
 		require.NoError(t, err)
 		require.NotEmpty(t, encoded)
 
 		var decoded []string
+
 		err = decode(encoded, &decoded)
 		require.NoError(t, err)
 		require.Nil(t, decoded)
@@ -161,11 +171,13 @@ func TestEncodeDecodeNil(t *testing.T) {
 
 	t.Run("nil map", func(t *testing.T) {
 		var original map[string]int
+
 		encoded, err := encode(original)
 		require.NoError(t, err)
 		require.NotEmpty(t, encoded)
 
 		var decoded map[string]int
+
 		err = decode(encoded, &decoded)
 		require.NoError(t, err)
 		// Note: gob decodes nil maps as empty maps, this is expected behavior
@@ -195,6 +207,7 @@ func TestEncodeDecodeComplexStruct(t *testing.T) {
 	require.NoError(t, err)
 
 	var decoded NestedStruct
+
 	err = decode(encoded, &decoded)
 	require.NoError(t, err)
 	require.Equal(t, original, decoded)

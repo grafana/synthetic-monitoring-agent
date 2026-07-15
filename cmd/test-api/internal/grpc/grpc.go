@@ -131,12 +131,14 @@ func (s *Server) validateToken(ctx context.Context) (int64, error) {
 	if !found {
 		msg := "missing authorization token"
 		err := status.Error(codes.InvalidArgument, msg)
+
 		return -1, err
 	}
 
 	if len(auth) != 1 {
 		msg := "invalid authorization metadata"
 		err := status.Error(codes.InvalidArgument, msg)
+
 		return -1, err
 	}
 
@@ -145,6 +147,7 @@ func (s *Server) validateToken(ctx context.Context) (int64, error) {
 	if !strings.HasPrefix(auth[0], prefix) {
 		msg := "invalid authorization metadata format"
 		err := status.Error(codes.InvalidArgument, msg)
+
 		return -1, err
 	}
 
@@ -152,6 +155,7 @@ func (s *Server) validateToken(ctx context.Context) (int64, error) {
 	if _, err := base64.StdEncoding.DecodeString(b64token); err != nil {
 		msg := "invalid authorization encoding"
 		err := status.Error(codes.InvalidArgument, msg)
+
 		return -1, err
 	}
 

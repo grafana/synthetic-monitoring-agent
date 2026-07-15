@@ -65,9 +65,11 @@ func TestNewProber(t *testing.T) {
 
 	for name, testcase := range testcases {
 		logger := zerolog.New(io.Discard)
+
 		t.Run(name, func(t *testing.T) {
 			actual, err := NewProber(testcase.input, logger)
 			require.Equal(t, &testcase.expected, &actual)
+
 			if testcase.ExpectError {
 				require.Error(t, err, "unsupported check")
 			} else {

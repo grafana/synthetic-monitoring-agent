@@ -98,9 +98,9 @@ func TestInstallSignalHandler(t *testing.T) {
 			// verify that the signal context is done after
 			// receiving the signal, and that the signal is
 			// correctly reported as having fired.
-
 			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 			defer cancel()
+
 			sigCtx, signalFired := installSignalHandler(ctx)
 			require.NotNil(t, sigCtx)
 			require.NotNil(t, signalFired)
@@ -119,7 +119,6 @@ func TestInstallSignalHandler(t *testing.T) {
 			// the parrent context is done, and that the
 			// signal is correctly reported as not having
 			// fired.
-
 			ctx, cancel := context.WithCancel(context.Background())
 			sigCtx, signalFired := installSignalHandler(ctx)
 			require.NotNil(t, sigCtx)
@@ -128,6 +127,7 @@ func TestInstallSignalHandler(t *testing.T) {
 			cancel()
 
 			timeout := 100 * time.Millisecond
+
 			timer := time.NewTimer(timeout)
 			defer timer.Stop()
 
@@ -159,6 +159,7 @@ func TestSleepCtx(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
+
 	err = sleepCtx(ctx, long)
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.Canceled)
@@ -171,6 +172,7 @@ func TestSleepCtx(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), long)
 	cancel()
+
 	err = sleepCtx(ctx, long)
 	require.Error(t, err)
 	require.ErrorIs(t, err, context.Canceled)
@@ -215,6 +217,7 @@ func testHandleCheckOpImpl(t *testing.T) {
 	defer cancel()
 
 	var check model.Check
+
 	err = check.FromSM(sm.Check{
 		Id:        5000,
 		TenantId:  1,
@@ -234,7 +237,9 @@ func testHandleCheckOpImpl(t *testing.T) {
 	scraperExists := func() bool {
 		u.scrapersMutex.Lock()
 		defer u.scrapersMutex.Unlock()
+
 		_, found := u.scrapers[check.GlobalID()]
+
 		return found
 	}
 
@@ -664,8 +669,10 @@ func TestProbeTenantCh(t *testing.T) {
 		})
 
 		require.NoError(t, err)
+
 		u.probe = &sm.Probe{Id: 1, TenantId: 42}
 		u.notifyProbeTenant()
+
 		got := <-probeTenantCh
 		require.Equal(t, u.probe.TenantId, got.TenantId)
 	})
@@ -682,6 +689,7 @@ func TestProbeTenantCh(t *testing.T) {
 		})
 
 		require.NoError(t, err)
+
 		u.probe = &sm.Probe{Id: 1, TenantId: 42}
 		u.notifyProbeTenant()
 
@@ -707,7 +715,9 @@ func TestProbeTenantCh(t *testing.T) {
 		})
 
 		require.NoError(t, err)
+
 		u.probe = &sm.Probe{Id: 1, TenantId: 42}
+
 		require.NotPanics(t, func() {
 			u.notifyProbeTenant()
 		})

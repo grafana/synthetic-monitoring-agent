@@ -30,6 +30,7 @@ func expectedHeaders(extra map[string]string) map[string]string {
 	for k, v := range extra {
 		headers[k] = v
 	}
+
 	return headers
 }
 
@@ -90,6 +91,7 @@ func TestNewProber(t *testing.T) {
 	for name, testcase := range testcases {
 		ctx := context.Background()
 		logger := testhelper.NewTestLogger()
+
 		t.Run(name, func(t *testing.T) {
 			// origin identifier for http requests is checkId-probeId; testing with checkId twice in the absence of probeId
 			checkId := testcase.input.Id
@@ -245,23 +247,30 @@ func TestProbe(t *testing.T) {
 			mfs, err := registry.Gather()
 			require.NoError(t, err)
 			require.NotEmpty(t, mfs)
+
 			foundMetrics := 0
+
 			for _, mf := range mfs {
 				require.NotNil(t, mf)
+
 				switch name := mf.GetName(); name {
 				case "probe_http_status_code":
 					require.Equal(t, float64(tc.srvSettings.Status), getGaugeValue(t, mf))
+
 					foundMetrics++
 
 				case "probe_http_redirects":
 					require.Equal(t, float64(tc.expectedRedirects), getGaugeValue(t, mf))
+
 					foundMetrics++
 
 				case "probe_http_version":
 					require.Equal(t, 1.1, getGaugeValue(t, mf))
+
 					foundMetrics++
 				}
 			}
+
 			require.Equal(t, 3, foundMetrics)
 		})
 	}
@@ -272,6 +281,7 @@ func getGaugeValue(t *testing.T, mf *dto.MetricFamily) float64 {
 	require.Len(t, metric, 1)
 	g := metric[0].GetGauge()
 	require.NotNil(t, g)
+
 	return g.GetValue()
 }
 
@@ -416,6 +426,7 @@ func TestAddCacheBustParam(t *testing.T) {
 	require.Nil(t, err)
 	queryString, err := url.ParseQuery(newUrlQuery.RawQuery)
 	require.Nil(t, err)
+
 	hash := queryString.Get("test")
 	require.NotNil(t, hash)
 
@@ -514,6 +525,7 @@ func TestResolveSecretValue(t *testing.T) {
 				if secretKey == "my-secret-key" {
 					return "secret-value-from-gsm", nil
 				}
+
 				return "", fmt.Errorf("secret not found")
 			},
 			expectedOutput: "secret-value-from-gsm",
@@ -543,6 +555,7 @@ func TestResolveSecretValue(t *testing.T) {
 				if secretKey == "my-token" {
 					return "actual-token-value", nil
 				}
+
 				return "", fmt.Errorf("secret not found")
 			},
 			expectedOutput: "Bearer actual-token-value",
@@ -661,6 +674,7 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 			require.NoError(t, err)
 
 			require.Equal(t, tc.expectedBearer, string(cfg.BearerToken))
+
 			if tc.settings.BasicAuth != nil {
 				require.NotNil(t, cfg.BasicAuth)
 				require.Equal(t, tc.expectedPasswd, string(cfg.BasicAuth.Password))
@@ -1001,9 +1015,11 @@ func TestBuildTLSConfig_WithSecrets(t *testing.T) {
 			if len(tc.tlsConfig.CACert) > 0 {
 				require.NotEmpty(t, cfg.CAFile)
 			}
+
 			if len(tc.tlsConfig.ClientCert) > 0 {
 				require.NotEmpty(t, cfg.CertFile)
 			}
+
 			if len(tc.tlsConfig.ClientKey) > 0 {
 				require.NotEmpty(t, cfg.KeyFile)
 			}

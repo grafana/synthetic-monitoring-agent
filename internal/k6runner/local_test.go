@@ -73,6 +73,7 @@ func TestCreateSecretConfigFile(t *testing.T) {
 
 			// Test cleanup function
 			cleanup()
+
 			if _, err := os.Stat(filename); !os.IsNotExist(err) {
 				t.Error("cleanup function did not remove the file")
 			}
@@ -82,6 +83,7 @@ func TestCreateSecretConfigFile(t *testing.T) {
 
 func TestBuildK6Args(t *testing.T) {
 	secretUrl := "http://secrets.example.com"
+
 	configFilename, cleanup, err := createSecretConfigFile(secretUrl, "secret-token")
 	if err != nil {
 		t.Fatalf("failed to create config file: %v", err)
@@ -161,6 +163,7 @@ func TestBuildK6Args(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := Local{blacklistedIP: tt.blacklistedIP}
+
 			args, err := r.buildK6Args(tt.script, tt.metricsFn, tt.logsFn, tt.scriptFn, tt.configFile, tt.executionID)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
@@ -172,6 +175,7 @@ func TestBuildK6Args(t *testing.T) {
 					t.Errorf("buildK6Args() missing expected argument got \n%v\nwant \n%v", args, want)
 				}
 			}
+
 			for _, absent := range tt.wantAbsent {
 				if slices.Contains(args, absent) {
 					t.Errorf("buildK6Args() should not contain %q, got \n%v", absent, args)
@@ -189,6 +193,7 @@ func TestBuildK6RefID(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
+
 		if got != "sm:abc-123-def" {
 			t.Errorf("buildK6RefID() = %q, want %q", got, "sm:abc-123-def")
 		}

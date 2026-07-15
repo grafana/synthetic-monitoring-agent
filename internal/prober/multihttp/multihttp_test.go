@@ -122,8 +122,11 @@ func TestNewProber(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			var runner noopRunner
-			var store testhelper.NoopSecretStore
+			var (
+				runner noopRunner
+				store  testhelper.NoopSecretStore
+			)
+
 			checkId := tc.check.Id
 			reservedHeaders := http.Header{}
 			reservedHeaders.Add("x-sm-id", fmt.Sprintf("%d-%d", checkId, checkId))

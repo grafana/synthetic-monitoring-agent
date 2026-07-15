@@ -42,6 +42,7 @@ func (c Collection) Set(s string) error {
 		if feature == "" {
 			continue
 		}
+
 		c[feature] = struct{}{}
 	}
 

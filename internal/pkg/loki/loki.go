@@ -13,6 +13,7 @@ import (
 func SendStreamsWithBackoff(ctx context.Context, client *prom.Client, streams []logproto.Stream, buf *[]byte) error {
 	req, err := buildStreamsPushRequest(streams, *buf)
 	*buf = req
+
 	if err != nil {
 		// Failing to build the write request is non-recoverable, since it will
 		// only error if marshaling the proto to bytes fails.
@@ -37,6 +38,8 @@ func buildStreamsPushRequest(streams []logproto.Stream, buf []byte) ([]byte, err
 	if buf != nil {
 		buf = buf[0:cap(buf)]
 	}
+
 	compressed := snappy.Encode(buf, data)
+
 	return compressed, nil
 }

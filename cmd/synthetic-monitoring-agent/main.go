@@ -145,6 +145,7 @@ func run(args []string, stdout io.Writer) error {
 			version.Buildstamp(),
 			version.Commit(),
 		)
+
 		return nil
 	}
 
@@ -202,9 +203,11 @@ func run(args []string, stdout io.Writer) error {
 	switch {
 	case config.Debug:
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
 		zlGrpc := zl.With().Str("component", "grpc-go").Logger()
 		zl = zl.With().Caller().Logger()
 		config.Verbose = true
+
 		grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(zlGrpc, zlGrpc, zlGrpc, 99))
 
 	case config.Verbose:
@@ -229,11 +232,13 @@ func run(args []string, stdout io.Writer) error {
 	notifyAboutDeprecatedFeatureFlags(features, zl)
 
 	var usageReporter usage.Reporter
+
 	switch {
 	case config.DisableUsageReports:
 		usageReporter = usage.NewNoOPReporter()
 	default:
 		usageReporter = usage.NewHTTPReporter(usage.ProdStatsEndpoint)
+
 		zl.Info().Msg("enabled collecting anonymous usage reports. You can disable collection by setting -disable-usage-reports.")
 	}
 
@@ -284,6 +289,7 @@ func run(args []string, stdout io.Writer) error {
 
 	g.Go(func() error {
 		<-ctx.Done()
+
 		timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer timeoutCancel()
 
@@ -305,6 +311,7 @@ func run(args []string, stdout io.Writer) error {
 	defer conn.Close()
 
 	var k6Runner k6runner.Runner
+
 	if features.IsSet(feature.K6) {
 		if err := validateCIDR(config.K6BlacklistedIP); err != nil {
 			return err
@@ -376,6 +383,7 @@ func run(args []string, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
 	}
+
 	g.Go(func() error {
 		return checksUpdater.Run(ctx)
 	})
@@ -413,8 +421,10 @@ func run(args []string, stdout io.Writer) error {
 			return metricsHandler.Run(ctx)
 		})
 	}
+
 	if k6Runner != nil {
 		k6VersionsLogger := zl.With().Str("subsystem", "k6versions").Logger()
+
 		k6VersionsHandler, err := k6version.NewHandler(
 			k6version.HandlerOpts{
 				Logger:   &k6VersionsLogger,
@@ -581,6 +591,7 @@ func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) ca
 			Int("capacity", capacity).
 			Dur("ttl", ttl).
 			Msg("failed to initialize local cache, using noop cache")
+
 		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger())
 	}
 
@@ -588,5 +599,6 @@ func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) ca
 		Int("capacity", capacity).
 		Dur("ttl", ttl).
 		Msg("local cache initialized")
+
 	return localCache
 }

@@ -127,7 +127,9 @@ func TestCheckFromSM(t *testing.T) {
 
 func localToGlobal(t *testing.T, localID int64, regionID int) GlobalID {
 	t.Helper()
+
 	globalID, err := sm.LocalIDToGlobalID(localID, regionID)
 	require.NoError(t, err)
+
 	return GlobalID(globalID)
 }
