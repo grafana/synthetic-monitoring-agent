@@ -526,7 +526,12 @@ func tickWithOffset(
 // metrics and logs alongside a non-nil error; fatal collection errors return
 // no data.
 func (s *Scraper) CollectData(ctx context.Context, t time.Time) (TimeSeries, Streams, model.GlobalID, time.Duration, error) {
-	pd, d, err := s.collectData(ctx, t)
+	logicalTimestamp := kitlog.TimestampFormat(
+		t.UTC,
+		time.RFC3339Nano,
+	)
+
+	pd, d, err := s.collectDataWithLogTimestamp(ctx, t, logicalTimestamp)
 	if err != nil && !errors.Is(err, errCheckFailed) {
 		return nil, nil, 0, 0, err
 	}
@@ -535,6 +540,10 @@ func (s *Scraper) CollectData(ctx context.Context, t time.Time) (TimeSeries, Str
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
+	return s.collectDataWithLogTimestamp(ctx, t, kitlog.DefaultTimestampUTC)
+}
+
+func (s Scraper) collectDataWithLogTimestamp(ctx context.Context, t time.Time, defaultLogTimestamp kitlog.Valuer) (*probeData, time.Duration, error) {
 	target := s.target
 
 	labelMode, err := s.labellingMode.ForTenant(ctx, s.check.GlobalTenantID())
@@ -606,7 +615,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	// set up logger to capture all the labels as part of the log entry
 	loggerLabels := make([]any, 0, 2*(2+len(logLabels)))
 
-	loggerLabels = append(loggerLabels, "ts", kitlog.DefaultTimestampUTC, "target", target)
+	loggerLabels = append(loggerLabels, "ts", defaultLogTimestamp, "target", target)
 	for _, l := range logLabels {
 		loggerLabels = append(loggerLabels, l.name, l.value)
 	}

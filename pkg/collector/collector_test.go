@@ -36,6 +36,16 @@ func (p suppliedProbe) Probe(_ context.Context, _ string, registry *prometheus.R
 	return p.success, 0.25
 }
 
+type untimedProbe struct{}
+
+func (untimedProbe) Name() string { return "untimed" }
+
+func (untimedProbe) Probe(_ context.Context, _ string, _ *prometheus.Registry, logger collector.Logger) (bool, float64) {
+	_ = logger.Log("level", "INFO", "msg", "untimed-probe-detail")
+
+	return true, 0.25
+}
+
 func TestCollectUsesLogicalEventTimeAndAgentExecutionMetadata(t *testing.T) {
 	eventTime := time.Date(2020, 3, 1, 12, 0, 0, 0, time.UTC)
 	c, err := collector.New(context.Background(), testCheck(), testProbe(), suppliedProbe{
@@ -107,6 +117,28 @@ func TestCollectReturnsFailedProbeTelemetry(t *testing.T) {
 	require.Error(t, err)
 	require.NotEmpty(t, series)
 	require.NotEmpty(t, streams)
+}
+
+func TestCollectUsesLogicalEventTimeForUntimedProbeLogs(t *testing.T) {
+	eventTime := time.Date(2020, 3, 1, 12, 0, 0, 0, time.UTC)
+	c, err := collector.New(context.Background(), testCheck(), testProbe(), untimedProbe{})
+	require.NoError(t, err)
+
+	_, streams, err := c.Collect(context.Background(), eventTime)
+	require.NoError(t, err)
+	require.Len(t, streams, 1)
+
+	foundUntimedLog := false
+
+	for _, entry := range streams[0].Entries {
+		if strings.Contains(entry.Line, "msg=untimed-probe-detail") {
+			foundUntimedLog = true
+
+			require.Equal(t, eventTime, entry.Timestamp, "probe logs without an explicit time must use the logical event time")
+		}
+	}
+
+	require.True(t, foundUntimedLog, "expected the injected probe log in collected streams")
 }
 
 func logfmtFloat(t *testing.T, line, wanted string) float64 {
