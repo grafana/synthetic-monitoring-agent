@@ -81,6 +81,10 @@ type probeAdapter struct {
 
 func (p probeAdapter) Name() string { return p.probe.Name() }
 
+// Probe adapts the internal prober contract to the public Probe. The internal
+// logger is passed straight through: internallogger.Logger satisfies the public
+// collector.Logger (both expose Log(...any) error), and the internal execution
+// ID is dropped because the public Probe does not surface it.
 func (p probeAdapter) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger internallogger.Logger, _ string) (bool, float64) {
 	return p.probe.Probe(ctx, target, registry, logger)
 }
@@ -90,7 +94,7 @@ type probeFactory struct {
 }
 
 func (f probeFactory) New(_ context.Context, _ zerolog.Logger, check model.Check) (internalprober.Prober, string, error) {
-	return probeAdapter(f), check.Target, nil
+	return probeAdapter{probe: f.probe}, check.Target, nil
 }
 
 type noopPublisher struct{}
@@ -104,6 +108,9 @@ func (noopMetrics) AddCheckError()     {}
 func (noopMetrics) AddCollectorError() {}
 
 type noopLabelsLimiter struct{}
+
+// The unscheduled collector does not enforce tenant label budgets; 128 is a
+// permissive constant chosen to clear the scraper's guard, not a real limit.
 
 func (noopLabelsLimiter) MetricLabels(context.Context, model.GlobalID) (int, error) {
 	return 128, nil

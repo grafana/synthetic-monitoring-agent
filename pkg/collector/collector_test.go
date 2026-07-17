@@ -84,6 +84,10 @@ func TestCollectUsesLogicalEventTimeAndAgentExecutionMetadata(t *testing.T) {
 			walltime = logfmtFloat(t, entry.Line, "walltime_seconds")
 			require.Equal(t, eventTime.Add(250*time.Millisecond), entry.Timestamp)
 		}
+
+		if strings.Contains(entry.Line, "msg=\"Beginning check\"") {
+			require.Equal(t, eventTime, entry.Timestamp, "beginning-check log must carry the logical event start time")
+		}
 	}
 
 	require.NoError(t, uuid.Validate(executionID))

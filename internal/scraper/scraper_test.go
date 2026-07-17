@@ -1278,6 +1278,51 @@ func TestScraperCollectDataTooManyMetricLabels(t *testing.T) {
 	require.ErrorIs(t, err, errTooManyLabels)
 }
 
+// TestScraperCollectDataFatalError verifies that the exported CollectData
+// surfaces a fatal collection error (one that is not errCheckFailed) with no
+// telemetry, matching its documented contract.
+func TestScraperCollectDataFatalError(t *testing.T) {
+	s := Scraper{
+		checkName:     "check name",
+		target:        "test target",
+		logger:        testhelper.Logger(t),
+		prober:        testProber{},
+		labelsLimiter: testLabelsLimiter{maxMetricLabels: 1, maxLogLabels: 15},
+		labellingMode: testLabellingMode{},
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		check: model.Check{
+			Check: sm.Check{
+				Id:               1,
+				TenantId:         2,
+				Frequency:        2000,
+				Timeout:          2000,
+				Enabled:          true,
+				Target:           "target name",
+				Job:              "job name",
+				BasicMetricsOnly: true,
+				Created:          42,
+				Modified:         42,
+				Labels: []sm.Label{
+					{Name: "a", Value: "1"},
+					{Name: "b", Value: "2"},
+					{Name: "c", Value: "3"},
+				},
+				Settings: sm.CheckSettings{Http: &sm.HttpSettings{}},
+			},
+		},
+		probe: sm.Probe{Id: 100, TenantId: 200, Name: "probe name", Region: "REGION"},
+	}
+
+	ts, streams, tenant, d, err := s.CollectData(context.Background(), time.Unix(3141, 0))
+	require.ErrorIs(t, err, errTooManyLabels)
+	require.NotErrorIs(t, err, errCheckFailed)
+	require.Nil(t, ts)
+	require.Nil(t, streams)
+	require.Zero(t, tenant)
+	require.Zero(t, d)
+}
+
 func TestAppendDtoToTimeseries(t *testing.T) {
 	makeUint64Ptr := func(n uint64) *uint64 {
 		return &n

@@ -626,6 +626,8 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		timeout = time.Duration(s.check.Timeout) * time.Millisecond
 	}
 
+	wallStart := time.Now()
+
 	success, mfs, err := getProbeMetrics(
 		ctx,
 		s.prober,
@@ -644,7 +646,11 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	duration, found := patchDuration(mfs)
 	if !found {
-		duration = time.Since(t)
+		// The prober did not report probe_duration_seconds; fall back to the
+		// wall-clock execution time. Do NOT use time.Since(t): t is a logical
+		// event time that may be far in the past (e.g. backfill), which would
+		// yield a nonsensical duration.
+		duration = time.Since(wallStart)
 	}
 
 	// At this point we know the check has been executed, regardless of
