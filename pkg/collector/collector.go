@@ -94,7 +94,9 @@ type probeFactory struct {
 }
 
 func (f probeFactory) New(_ context.Context, _ zerolog.Logger, check model.Check) (internalprober.Prober, string, error) {
-	return probeAdapter{probe: f.probe}, check.Target, nil
+	// probeFactory and probeAdapter share the same shape; staticcheck (S1016)
+	// prefers the direct conversion over a field-by-field struct literal.
+	return probeAdapter(f), check.Target, nil
 }
 
 type noopPublisher struct{}
