@@ -49,6 +49,10 @@ const (
 	configVersionLabelName = "config_version"
 )
 
+// mimirMaxLabelsIngest protects us and Mimir from hitting an error due to
+// ingest limit; is short of the true ingest limit to retain room for growth.
+const mimirMaxLabelsIngest = 40
+
 var (
 	staleNaN    uint64  = 0x7ff0000000000002
 	staleMarker float64 = math.Float64frombits(staleNaN)
@@ -69,6 +73,10 @@ type TenantCals interface {
 	CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error)
 }
 
+type TenantLabelMode interface {
+	ForTenant(ctx context.Context, tenantID model.GlobalID) (sm.LabelMode, error)
+}
+
 type Telemeter interface {
 	AddExecution(e telemetry.Execution)
 }
@@ -83,6 +91,7 @@ type Scraper struct {
 	probe         sm.Probe
 	prober        prober.Prober
 	labelsLimiter LabelsLimiter
+	labellingMode TenantLabelMode
 	stop          chan struct{}
 	metrics       Metrics
 	summaries     map[uint64]prometheus.Summary
@@ -101,6 +110,7 @@ type Factory func(
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
+	labellingMode TenantLabelMode,
 ) (*Scraper, error)
 
 type (
@@ -136,6 +146,7 @@ func New(
 	telemeter *telemetry.Telemeter,
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
+	labellingMode TenantLabelMode,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
@@ -146,6 +157,7 @@ func New(
 		LabelsLimiter:         labelsLimiter,
 		Telemeter:             telemeter,
 		CostAttributionLabels: cals,
+		LabellingMode:         labellingMode,
 	})
 }
 
@@ -158,6 +170,7 @@ type ScraperOpts struct {
 	Metrics               Metrics
 	ProbeFactory          prober.ProberFactory
 	LabelsLimiter         LabelsLimiter
+	LabellingMode         TenantLabelMode
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
 }
@@ -176,6 +189,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		Logger()
 
 	sctx, cancel := context.WithCancel(ctx)
+
 	smProber, target, err := opts.ProbeFactory.New(sctx, logger, check)
 	if err != nil {
 		cancel()
@@ -192,6 +206,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		probe:         opts.Probe,
 		prober:        smProber,
 		labelsLimiter: opts.LabelsLimiter,
+		labellingMode: opts.LabellingMode,
 		stop:          make(chan struct{}),
 		metrics:       opts.Metrics,
 		summaries:     make(map[uint64]prometheus.Summary),
@@ -204,6 +219,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 var (
 	errCheckFailed       = errors.New("probe failed")
 	errUnsupportedMetric = errors.New("unsupported metric type")
+	errTooManyLabels     = errors.New("invalid configuration, too many labels")
 )
 
 type checkStateMachine struct {
@@ -298,6 +314,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	case err != nil:
 		h.scraper.metrics.AddCollectorError()
 		h.scraper.logger.Error().Err(err).Msg("error collecting data")
+
 		return
 
 	default:
@@ -343,6 +360,7 @@ func (h *scrapeHandler) republish(ctx context.Context, t time.Time) {
 
 	// Update the timestamps of all collected samples to now.
 	now := t.UnixMilli()
+
 	for i := range h.payload.ts {
 		ts := &h.payload.ts[i]
 		for j := range ts.Samples {
@@ -478,6 +496,7 @@ func tickWithOffset(
 			if !lastTick.IsZero() {
 				cleanup(ctx, lastTick)
 			}
+
 			return
 
 		case t := <-inactivityTicker.C:
@@ -511,16 +530,37 @@ func (s *Scraper) CollectData(ctx context.Context, t time.Time) (TimeSeries, Str
 	if err != nil && !errors.Is(err, errCheckFailed) {
 		return nil, nil, 0, 0, err
 	}
+
 	return pd.Metrics(), pd.Streams(), pd.Tenant(), d, err
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
+	target := s.target
+
+	labelMode, err := s.labellingMode.ForTenant(ctx, s.check.GlobalTenantID())
+	if err != nil {
+		// ForTenant falls back to UNPREFIXED on transient errors so that a temporary tenant
+		// cache miss does not abort the scrape.
+		s.logger.Warn().Err(err).Msg("could not retrieve tenant label mode, falling back to UNPREFIXED")
+	}
+
+	// TODO(mem): this is constant for the scraper, move this
+	// outside this function?
+	// sysMetricLabels are the common labels present on ALL metrics
+	// emitted by the system.
+	sysMetricLabels := []labelPair{
+		{name: probeLabelName, value: s.probe.Name},
+		{name: configVersionLabelName, value: s.check.ConfigVersion()},
+		{name: "instance", value: s.check.Target},
+		{name: "job", value: s.check.Job},
+		// {name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
+	}
+
 	var (
-		target = s.target
 		// These are the labels defined by the user.
-		userLabels = s.buildUserLabels()
+		userLabels = buildUserLabels(s.probe.Labels, s.check.Labels, labelMode)
 		// These labels are applied to the sm_check_info metric.
-		checkInfoLabels = s.buildCheckInfoLabels(userLabels)
+		checkInfoLabels = s.buildCheckInfoLabels(userLabels, sysMetricLabels)
 		// This is the execution ID for the check run.
 		executionID = uuid.New().String()
 	)
@@ -529,14 +569,24 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	if err != nil {
 		return nil, 0, fmt.Errorf("retrieving tenant metric labels limit: %w", err)
 	}
+
 	maxLogLabels, err := s.labelsLimiter.LogLabels(ctx, s.check.GlobalTenantID())
 	if err != nil {
 		return nil, 0, fmt.Errorf("retrieving tenant log labels limit: %w", err)
 	}
 
-	if len(checkInfoLabels) > maxMetricLabels {
+	// In DUAL_WRITE mode, buildUserLabels emits both prefixed and un-prefixed
+	// forms, so the user portion can be up to 2× the user label entries.
+	// Cap at mimirMaxLabelsIngest to avoid false-firing while still guarding
+	// against genuinely invalid sizes.
+	checkInfoLimit := min(maxMetricLabels*2, mimirMaxLabelsIngest)
+	if labelMode != sm.LabelMode_LABEL_MODE_DUAL_WRITE {
+		checkInfoLimit = maxMetricLabels
+	}
+
+	if len(checkInfoLabels) > checkInfoLimit {
 		// This should never happen.
-		return nil, 0, fmt.Errorf("invalid configuration, too many labels: %d", len(checkInfoLabels))
+		return nil, 0, fmt.Errorf("%w: %d", errTooManyLabels, len(checkInfoLabels))
 	}
 
 	logLabels := []labelPair{
@@ -547,7 +597,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		{name: "check_name", value: s.checkName},
 		{name: "source", value: CheckInfoSource}, // identify log lines that belong to synthetic-monitoring-agent
 	}
-	logLabels = append(logLabels, userLabels...)
+	logLabels = mergeLogLabels(logLabels, userLabels)
 
 	// set up logger to capture check logs
 	logs := bytes.Buffer{}
@@ -555,6 +605,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	// set up logger to capture all the labels as part of the log entry
 	loggerLabels := make([]any, 0, 2*(2+len(logLabels)))
+
 	loggerLabels = append(loggerLabels, "ts", kitlog.DefaultTimestampUTC, "target", target)
 	for _, l := range logLabels {
 		loggerLabels = append(loggerLabels, l.name, l.value)
@@ -563,6 +614,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	sl := kitlog.With(bl, loggerLabels...)
 
 	var timeout time.Duration
+
 	switch s.CheckType() {
 	case sm.CheckTypeMultiHttp, sm.CheckTypeScripted, sm.CheckTypeBrowser:
 		// k6-backed checks have a more sophisticated handling of timeouts, where the k6 runner receives the check
@@ -598,31 +650,45 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	// At this point we know the check has been executed, regardless of
 	// whether it succeeded or not.
 
-	// TODO(mem): this is constant for the scraper, move this
-	// outside this function?
-	metricLabels := []labelPair{
-		{name: probeLabelName, value: s.probe.Name},
-		{name: configVersionLabelName, value: s.check.ConfigVersion()},
-		{name: "instance", value: s.check.Target},
-		{name: "job", value: s.check.Job},
-		// {name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
-	}
+	// In DUAL_WRITE and UNPREFIXED modes, un-prefixed user labels are appended to
+	// execution metrics (probe_success, probe_duration_seconds, probe_http_*, etc.).
+	// user-defined label values are retained over system-defined values.
+	executionMetricLabels := appendUniqueLabels(customMetricLabels(s.probe.Labels, s.check.Labels, labelMode), sysMetricLabels)
 
-	ts := s.extractTimeseries(t, mfs, metricLabels)
+	ts := s.extractTimeseries(t, mfs, executionMetricLabels)
 
 	successValue := "1"
+
 	if !success {
 		err = errCheckFailed
 		successValue = "0"
 	}
 
-	if len(logLabels) >= maxLogLabels {
-		logLabels = logLabels[:maxLogLabels-1]
+	// Split logLabels into stream labels and structured metadata overflow.
+	// maxLogLabels - 1 reserves one slot for probe_success which is always appended.
+	var (
+		streamLogLabels  []labelPair
+		overflowMetadata []logproto.LabelAdapter
+	)
+
+	maxUserLogLabels := maxLogLabels - 1
+	if len(logLabels) > maxUserLogLabels {
+		streamLogLabels = logLabels[:maxUserLogLabels]
+		for _, lp := range logLabels[maxUserLogLabels:] {
+			overflowMetadata = append(overflowMetadata, logproto.LabelAdapter{Name: lp.name, Value: lp.value})
+		}
+	} else {
+		streamLogLabels = logLabels
 	}
-	logLabels = append(logLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
+
+	streamLogLabels = append(streamLogLabels, labelPair{name: ProbeSuccessMetricName, value: successValue}) // identify log lines that are failures
+
+	// full set of structured metadata consists of any overflow labels and the execution_id
+	overflowMetadata = append(overflowMetadata, logproto.LabelAdapter{Name: "execution_id", Value: executionID})
+	structuredMetadata := overflowMetadata
 
 	// streams need to have all the labels applied to them because loki does not support joins
-	streams := s.extractLogs(t, logs.Bytes(), logLabels, executionID)
+	streams := s.extractLogs(t, logs.Bytes(), streamLogLabels, structuredMetadata)
 
 	return &probeData{ts: ts, streams: streams, tenantId: s.check.GlobalTenantID()}, duration, err
 }
@@ -640,17 +706,20 @@ func (s *Scraper) getCostAttributionLabels(ctx context.Context, tenantID model.G
 	for _, cal := range cals {
 		// Make the assumption there are no labels that match the CAL and set the default value to __MISSING__
 		value := telemetry.CalNilStringTerminator
+
 		idx := slices.IndexFunc(s.check.Labels, func(l sm.Label) bool {
 			return l.Name == cal
 		})
 		if idx >= 0 {
 			value = s.check.Labels[idx].Value
 		}
+
 		vals = append(vals, sm.CostAttributionLabel{
 			Name:  cal,
 			Value: value,
 		})
 	}
+
 	return vals, nil
 }
 
@@ -669,6 +738,7 @@ func patchDuration(mfs []*dto.MetricFamily) (time.Duration, bool) {
 				return g
 			}
 		}
+
 		return nil
 	}
 
@@ -788,6 +858,7 @@ func runProber(
 
 	if success {
 		probeSuccessGauge.Set(1)
+
 		_ = level.Info(logger).Log(
 			"msg", "Check succeeded",
 			"time", eventEnd.UTC().Format(time.RFC3339Nano),
@@ -796,6 +867,7 @@ func runProber(
 		)
 	} else {
 		probeSuccessGauge.Set(0)
+
 		_ = level.Error(logger).Log(
 			"msg", "Check failed",
 			"time", eventEnd.UTC().Format(time.RFC3339Nano),
@@ -854,13 +926,18 @@ func getDerivedMetrics(mfs []*dto.MetricFamily, summaries map[uint64]prometheus.
 	return nil
 }
 
-func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair, executionID string) Streams {
+// extractLogs parses logfmt-encoded log bytes and returns Loki streams using sharedLabels
+// as stream labels. Any labels in structuredMetadata are attached to each log entry as
+// Loki structured metadata.
+func (s Scraper) extractLogs(t time.Time, logs []byte, sharedLabels []labelPair, structuredMetadata []logproto.LabelAdapter) Streams {
 	var line strings.Builder
 
 	dec := logfmt.NewDecoder(bytes.NewReader(logs))
 
 	labels := make([]labelPair, 0, len(sharedLabels))
+
 	var entries []logproto.Entry
+
 RECORD:
 	for dec.ScanRecord() {
 		var t time.Time
@@ -882,6 +959,7 @@ RECORD:
 				}
 
 				var err error
+
 				t, err = time.Parse(time.RFC3339Nano, string(value))
 				if err != nil {
 					// We should never hit this as the timestamp string in the log should be valid.
@@ -896,6 +974,7 @@ RECORD:
 			// RFC3339Nano is a strict superset of RFC3339; use it to parse either 'time' value.`
 			case "time":
 				var err error
+
 				t, err = time.Parse(time.RFC3339Nano, string(value))
 				if err != nil {
 					s.logger.Warn().Err(err).Bytes("value", value).Msg("invalid timestamp scanning logs")
@@ -914,12 +993,11 @@ RECORD:
 		if err := enc.EndRecord(); err != nil {
 			s.logger.Warn().Err(err).Msg("encoding logs")
 		}
+
 		entries = append(entries, logproto.Entry{
-			Timestamp: t,
-			Line:      line.String(),
-			StructuredMetadata: logproto.LabelsAdapter{
-				{Name: "execution_id", Value: executionID},
-			},
+			Timestamp:          t,
+			Line:               line.String(),
+			StructuredMetadata: structuredMetadata,
 		})
 	}
 
@@ -935,79 +1013,167 @@ RECORD:
 	}
 }
 
-func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair) TimeSeries {
-	return extractTimeseries(t, metrics, sharedLabels, s.summaries, s.histograms, s.logger)
+func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair) TimeSeries {
+	return extractTimeseries(t, metrics, executionLabels, s.summaries, s.histograms, s.logger)
 }
 
-func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, sharedLabels []labelPair, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
-	metricLabels := make([]prompb.Label, 0, len(sharedLabels))
-	for _, label := range sharedLabels {
-		metricLabels = append(metricLabels, prompb.Label{Name: label.name, Value: truncateLabelValue(label.value)})
+// extractTimeseries converts gathered Prometheus metrics into remote-write time series.
+//
+//	executionLabels: system labels + un-prefixed user labels; applied to all check execution
+//		metrics (probe_success, etc.).
+func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
+	toPrompb := func(pairs []labelPair) []prompb.Label {
+		out := make([]prompb.Label, 0, len(pairs))
+		for _, label := range pairs {
+			out = append(out, prompb.Label{Name: label.name, Value: truncateLabelValue(label.value)})
+		}
+
+		return out
 	}
 
+	executionPrompb := toPrompb(executionLabels)
+
 	var ts []prompb.TimeSeries
+
 	for _, mf := range metrics {
 		mName := mf.GetName()
 		mType := mf.GetType()
 
+		shared := executionPrompb
+		if mName == CheckInfoMetricName {
+			// sm_check_info is already constructed with the user labels
+			// added to it under the correct LabeLMode paradigm.
+			shared = nil
+		}
+
 		for _, m := range mf.GetMetric() {
-			ts = appendDtoToTimeseries(ts, t, mName, metricLabels, mType, m)
+			ts = appendDtoToTimeseries(ts, t, mName, shared, mType, m)
 		}
 	}
 
 	return ts
 }
 
-func (s Scraper) buildCheckInfoLabels(userLabels []labelPair) map[string]string {
-	labels := map[string]string{
-		"check_name":    s.checkName,
-		regionLabelName: s.probe.Region,
-		"frequency":     strconv.FormatInt(s.check.Frequency, 10),
-		"geohash":       geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude)),
+func (s Scraper) buildCheckInfoLabels(userLabels []labelPair, commonLabels []labelPair) map[string]string {
+	baseLabels := []labelPair{
+		{name: "check_name", value: s.checkName},
+		{name: regionLabelName, value: s.probe.Region},
+		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
+		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
 	}
+	baseLabels = append(baseLabels, commonLabels...)
+
 	if s.check.AlertSensitivity != "" && s.check.AlertSensitivity != "none" {
-		labels["alert_sensitivity"] = s.check.AlertSensitivity
+		baseLabels = append(baseLabels, labelPair{name: "alert_sensitivity", value: s.check.AlertSensitivity})
 	}
-	for _, label := range userLabels {
-		labels[label.name] = label.value
+
+	checkInfoLabels := appendUniqueLabels(userLabels, baseLabels)
+
+	labelMap := make(map[string]string, len(checkInfoLabels))
+	for _, l := range checkInfoLabels {
+		labelMap[l.name] = l.value
 	}
-	return labels
+
+	return labelMap
 }
 
-func (s Scraper) buildUserLabels() []labelPair {
-	labels := []labelPair{}
-	idx := make(map[string]int)
+// buildUserLabels builds the user-defined label pairs from probe and check labels
+// according to the tenant's LabelMode.
+//
+// In DUAL_WRITE and UNPREFIXED modes, un-prefixed user labels whose names are
+// reserved system labels (sm.IsSystemLabel) are dropped. This asserts the API's
+// guarantee that a migrated tenant carries no such label, and prevents a stray
+// reserved name from overwriting an intrinsic per-series metric label such as
+// `le` or `phase`. Prefixed forms (`label_*`) are never dropped, since no reserved
+// name begins with "label_", and PREFIXED mode is left untouched.
+//
+// In DUAL_WRITE mode, all prefixed forms are emitted first, followed by all
+// surviving un-prefixed forms: [label_foo, label_bar, foo, bar]. This ordering
+// ensures that in the event of log stream label overflow, the prefixed forms —
+// which existing policies depend on — are preserved as stream labels, while the
+// un-prefixed forms spill into StructuredMetadata.
+func buildUserLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []labelPair {
+	// Probe labels first, then any non-colliding check labels. On a name
+	// collision the check value overwrites in place, so check values win while
+	// probe ordering is preserved.
+	userLabels := mergeUserLabels(probeLabels, checkLabels)
 
-	// add probe labels
-	for _, l := range s.probe.Labels {
-		idx[l.Name] = len(labels)
-
-		labels = append(labels,
-			labelPair{name: "label_" + l.Name, value: l.Value})
-	}
-
-	// add check labels
-	for _, l := range s.check.Labels {
-		if where, found := idx[l.Name]; found {
-			// already there, update value
-			labels[where].value = l.Value
-			continue
+	switch mode {
+	case sm.LabelMode_LABEL_MODE_DUAL_WRITE:
+		// All prefixed forms first, then all un-prefixed forms.
+		labels := make([]labelPair, 0, 2*len(userLabels))
+		for _, e := range userLabels {
+			labels = append(labels, labelPair{name: "label_" + e.name, value: e.value})
 		}
 
-		idx[l.Name] = len(labels)
+		for _, e := range userLabels {
+			// reserved labels should be dropped from the user's custom set
+			if sm.IsSystemLabel(e.name) {
+				continue
+			}
 
-		labels = append(labels,
-			labelPair{name: "label_" + l.Name, value: l.Value})
+			labels = append(labels, labelPair{name: e.name, value: e.value})
+		}
+
+		return labels
+	case sm.LabelMode_LABEL_MODE_UNPREFIXED:
+		filtered := make([]labelPair, 0, len(userLabels))
+		for _, e := range userLabels {
+			// reserved labels should be dropped from the user's custom set
+			if sm.IsSystemLabel(e.name) {
+				continue
+			}
+
+			filtered = append(filtered, e)
+		}
+
+		return filtered
+	default: // LABEL_MODE_PREFIXED - prefix custom label names with label_
+		for i := range userLabels {
+			userLabels[i].name = "label_" + userLabels[i].name
+		}
+
+		return userLabels
+	}
+}
+
+// customMetricLabels returns the un-prefixed user-defined labels to be added to
+// check execution metrics (probe_success, probe_duration_seconds, probe_http_*, etc.)
+// in DUAL_WRITE and UNPREFIXED modes.
+//
+// In PREFIXED mode this returns nil — execution metrics carry no custom labels.
+func customMetricLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) []labelPair {
+	if mode == sm.LabelMode_LABEL_MODE_PREFIXED {
+		return nil
 	}
 
-	return labels
+	return buildUserLabels(probeLabels, checkLabels, sm.LabelMode_LABEL_MODE_UNPREFIXED)
 }
 
 func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.TimeSeries {
 	var ts prompb.TimeSeries
 
-	ts.Labels = make([]prompb.Label, len(labels))
-	copy(ts.Labels, labels)
+	// duplicate labels on timeseries are rejected by Mimir.
+	// this is also a common point to enforce conflict resolution
+	// for LabelMode - user-defined labels should appear first in the list
+	// of labels associated with each timeseries so that de-duplication favours retaining them
+	// over system-defined values.
+	ts.Labels = make([]prompb.Label, 0, len(labels))
+
+	for _, l := range labels {
+		dup := false
+
+		for i := range ts.Labels {
+			if ts.Labels[i].Name == l.Name {
+				dup = true
+				break
+			}
+		}
+
+		if !dup {
+			ts.Labels = append(ts.Labels, l)
+		}
+	}
 
 	ts.Samples = []prompb.Sample{
 		{Timestamp: t.UnixNano() / 1e6, Value: value},
@@ -1016,11 +1182,95 @@ func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.T
 	return ts
 }
 
+// mergeUserLabels combines probe- and check-level labels into a single ordered
+// slice. Probe labels come first (in order), followed by any check labels whose
+// names do not appear among the probe labels. When a check label's name collides
+// with a probe label, the check value overwrites the probe value in place,
+// preserving the label's original position.
+func mergeUserLabels(probeLabels, checkLabels []sm.Label) []labelPair {
+	labels := make([]labelPair, 0, len(probeLabels)+len(checkLabels))
+	idx := make(map[string]int, len(probeLabels))
+
+	for _, l := range probeLabels {
+		idx[l.Name] = len(labels)
+		labels = append(labels, labelPair{name: l.Name, value: l.Value})
+	}
+
+	for _, l := range checkLabels {
+		if where, found := idx[l.Name]; found {
+			labels[where].value = l.Value
+			continue
+		}
+
+		idx[l.Name] = len(labels)
+		labels = append(labels, labelPair{name: l.Name, value: l.Value})
+	}
+
+	return labels
+}
+
+// mergeLogLabels merges user-defined labels into the system log labels. On a
+// name collision the user value wins in place, preserving the ordering of the
+// system labels; user labels whose names do not collide are appended after them.
+//
+// Ordering matters: the system labels keep their leading positions so they are
+// retained as stream labels when the label set exceeds the stream cap and the
+// tail spills into structured metadata. User values still win on collision,
+// which protects a tenant whose existing label name later becomes reserved.
+func mergeLogLabels(systemLabels, userLabels []labelPair) []labelPair {
+	merged := make([]labelPair, len(systemLabels), len(systemLabels)+len(userLabels))
+	copy(merged, systemLabels)
+
+	idx := make(map[string]int, len(systemLabels))
+	for i, l := range merged {
+		idx[l.name] = i
+	}
+
+	for _, l := range userLabels {
+		if where, found := idx[l.name]; found {
+			merged[where].value = l.value
+			continue
+		}
+
+		idx[l.name] = len(merged)
+		merged = append(merged, l)
+	}
+
+	return merged
+}
+
+// appendUniqueLabels returns a slice of key-value labels which
+// are unique by key. Duplicates are discarded, meaning values
+// from prior slices are favoured over latter ones.
+func appendUniqueLabels(slice1, slice2 []labelPair) []labelPair {
+	if slice1 == nil && slice2 == nil {
+		return nil
+	}
+
+	result := make([]labelPair, 0, len(slice1)+len(slice2))
+	seen := make(map[string]bool)
+
+	addUnique := func(slice []labelPair) {
+		for _, val := range slice {
+			if !seen[val.name] {
+				seen[val.name] = true
+				result = append(result, val)
+			}
+		}
+	}
+
+	addUnique(slice1)
+	addUnique(slice2)
+
+	return slices.Clip(result)
+}
+
 func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sharedLabels []prompb.Label, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
 	ml := metric.GetLabel()
 
 	labels := make([]prompb.Label, 0, 1+len(sharedLabels)+len(ml))
 	labels = append(labels, prompb.Label{Name: prom.MetricNameLabel, Value: mName})
+
 	labels = append(labels, sharedLabels...)
 	for _, l := range ml {
 		labels = append(labels, prompb.Label{Name: *(l.Name), Value: truncateLabelValue(*(l.Value))})
@@ -1122,6 +1372,7 @@ func fmtLabels(labels []labelPair) string {
 		if i > 0 {
 			_, _ = s.WriteRune(',')
 		}
+
 		_, _ = s.WriteString(pair.name)
 		_, _ = s.WriteRune('=')
 		_, _ = s.WriteRune('"')
@@ -1239,6 +1490,7 @@ func truncateLabelValue(str string) string {
 		for i := maxLabelValueLength - 3; i < maxLabelValueLength; i++ {
 			b[i] = '.'
 		}
+
 		str = string(b)
 	}
 

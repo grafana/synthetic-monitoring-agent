@@ -75,6 +75,7 @@ func (db *Db) AddTenant(ctx context.Context, tenant *sm.Tenant) error {
 	}
 
 	now := nsNow()
+
 	newTenant := sm.Tenant{
 		Id:       int64(len(db.tenants) + 1),
 		OrgId:    tenant.OrgId,
@@ -92,6 +93,7 @@ func (db *Db) AddTenant(ctx context.Context, tenant *sm.Tenant) error {
 			Password: tenant.MetricsRemote.Password,
 		}
 	}
+
 	if tenant.EventsRemote != nil {
 		newTenant.EventsRemote = &sm.RemoteInfo{
 			Name:     tenant.EventsRemote.Name,
@@ -100,6 +102,7 @@ func (db *Db) AddTenant(ctx context.Context, tenant *sm.Tenant) error {
 			Password: tenant.EventsRemote.Password,
 		}
 	}
+
 	db.tenants[newTenant.Id] = newTenant
 
 	*tenant = newTenant

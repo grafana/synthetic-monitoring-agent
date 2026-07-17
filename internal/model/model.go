@@ -16,7 +16,6 @@ type Check struct {
 func (c *Check) FromSM(check sm.Check) error {
 	// This implementation is a bit wasteful, but it ensures that it
 	// remains in sync with the protobuf definition.
-
 	data, err := check.Marshal()
 	if err != nil {
 		return fmt.Errorf("failed to marshal check %d tenant %d: %w", check.Id, check.TenantId, err)
@@ -43,6 +42,7 @@ func (c *Check) GlobalID() GlobalID {
 	if err != nil {
 		return GlobalID(c.Id)
 	}
+
 	return GlobalID(id)
 }
 
@@ -51,6 +51,7 @@ func (c *Check) GlobalTenantID() GlobalID {
 	if err != nil {
 		return GlobalID(c.TenantId)
 	}
+
 	return GlobalID(id)
 }
 
@@ -64,5 +65,6 @@ func GetLocalAndRegionIDs(id GlobalID) (localID int64, regionID int) {
 		// Id is already local, use region 0.
 		return int64(id), 0
 	}
+
 	return localID, regionID
 }

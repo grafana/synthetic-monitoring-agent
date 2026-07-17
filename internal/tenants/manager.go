@@ -104,6 +104,7 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 			if tenant.SecretStore != nil {
 				return tenant.SecretStore.Expiry
 			}
+
 			return 0
 		}()).
 		Dur("configuredTimeout", tm.timeout).
@@ -114,6 +115,7 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 		tm.logger.Warn().
 			Int64("tenantId", tenant.Id).
 			Msg("secret store not properly configured, considering cache invalid")
+
 		return now
 	}
 
@@ -138,6 +140,7 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 				Int64("tenantId", tenant.Id).
 				Time("secretStoreExpirationTime", expirationTime).
 				Msg("secret store token already expired")
+
 			return now
 
 		case delta < sm.MaxScriptedTimeout:
@@ -146,6 +149,7 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 				Int64("tenantId", tenant.Id).
 				Time("validUntil", expirationTime).
 				Msg("using secret store expiration time (less than MaxScriptedTimeout)")
+
 			return expirationTime
 
 		default:
@@ -161,6 +165,7 @@ func (tm *Manager) calculateValidUntil(tenant *sm.Tenant) time.Time {
 				Time("validUntil", validUntil).
 				Dur("calculatedDelta", delta).
 				Msg("using calculated validity period")
+
 			return validUntil
 		}
 	}
@@ -189,6 +194,7 @@ func (tm *Manager) updateTenant(tenant sm.Tenant) {
 
 	// Check if there's already a cached tenant
 	var existing cachedTenant
+
 	err := tm.cache.Get(ctx, key, &existing)
 
 	// Only update if this tenant is newer than what's in the cache
@@ -198,6 +204,7 @@ func (tm *Manager) updateTenant(tenant sm.Tenant) {
 			Float64("existingModified", existing.Tenant.Modified).
 			Float64("newModified", tenant.Modified).
 			Msg("skipping tenant update, existing version is newer or equal")
+
 		return
 	}
 
@@ -229,6 +236,7 @@ func (tm *Manager) updateTenant(tenant sm.Tenant) {
 			Err(err).
 			Int64("tenantId", tenant.Id).
 			Msg("failed to update tenant in cache")
+
 		return
 	}
 
@@ -248,6 +256,7 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 
 	// Try to get tenant from cache
 	var cached cachedTenant
+
 	err := tm.cache.Get(ctx, key, &cached)
 
 	// If found and still valid, return it
@@ -257,6 +266,7 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 			Time("validUntil", cached.ValidUntil).
 			Dur("validFor", cached.ValidUntil.Sub(now)).
 			Msg("returning tenant from cache")
+
 		return cached.Tenant, nil
 	}
 
@@ -272,6 +282,7 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 		tm.logger.Debug().
 			Int64("tenantId", req.Id).
 			Msg("tenant was fetched by another goroutine")
+
 		return cached.Tenant, nil
 	}
 
@@ -291,6 +302,7 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 				Int64("tenantId", req.Id).
 				Time("cachedValidUntil", cached.ValidUntil).
 				Msg("API fetch failed, returning stale cached data")
+
 			return cached.Tenant, nil
 		}
 
@@ -299,6 +311,7 @@ func (tm *Manager) GetTenant(ctx context.Context, req *sm.TenantInfo) (*sm.Tenan
 			Err(fetchErr).
 			Int64("tenantId", req.Id).
 			Msg("failed to retrieve remote tenant information and no cached data available")
+
 		return nil, fetchErr
 	}
 

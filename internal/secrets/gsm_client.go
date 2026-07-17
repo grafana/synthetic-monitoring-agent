@@ -21,9 +21,11 @@ func (f *GSMClientFactory) CreateClient(url, token string) (gsmClient.ClientWith
 	if url == "" {
 		return nil, fmt.Errorf("GSM URL cannot be empty")
 	}
+
 	if token == "" {
 		return nil, fmt.Errorf("GSM token cannot be empty")
 	}
+
 	return gsmClient.NewClientWithResponses(url, withAuth(token), withAcceptJSON())
 }
 

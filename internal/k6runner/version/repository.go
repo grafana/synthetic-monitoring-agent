@@ -282,6 +282,7 @@ func runK6Version(k6Path string) (*k6Version, error) {
 	}
 
 	k6v := k6Version{}
+
 	err = json.Unmarshal(stdout.Bytes(), &k6v)
 	if err != nil {
 		return nil, fmt.Errorf("parsing json: %w", err)

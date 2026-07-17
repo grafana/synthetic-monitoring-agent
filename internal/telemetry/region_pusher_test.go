@@ -557,6 +557,7 @@ func TestTenantPusher(t *testing.T) {
 
 			// Set KO mock response for client and tick once.
 			tc.rr = testPushRespKO
+
 			td.tickAndWait()
 
 			// Send more executions.
@@ -564,6 +565,7 @@ func TestTenantPusher(t *testing.T) {
 
 			// Set OK mock response for client and tick again.
 			tc.rr = testPushRespOK
+
 			td.tickAndWait()
 
 			// Verify sent data.
@@ -724,6 +726,7 @@ type testDriver struct {
 // tickAndWait will tick the ticker once, so the push process starts, and wait for all goroutines to be durably blocked.
 func (td *testDriver) tickAndWait() {
 	td.ticker.c <- time.Now()
+
 	synctest.Wait() // Wait for all goroutines to be durably blocked or complete.
 }
 
@@ -783,10 +786,13 @@ LOOP:
 		for j, gotTenantTele := range got.Telemetry {
 			if expTenantTele.TenantId == gotTenantTele.TenantId {
 				assertTenantTelemetryData(t, expTenantTele, gotTenantTele)
+
 				got.Telemetry = append(got.Telemetry[:j], got.Telemetry[j+1:]...)
+
 				continue LOOP
 			}
 		}
+
 		t.Fatalf("region telemetry not found: %v", expTenantTele)
 	}
 }
@@ -803,6 +809,7 @@ LOOP:
 				continue LOOP
 			}
 		}
+
 		t.Fatalf("tenant telemetry not found: %v", expTele)
 	}
 }
@@ -812,7 +819,9 @@ func getMetricFromCollector(t *testing.T, c prom.Collector) *prommodel.Metric {
 
 	metricCh := make(chan prom.Metric)
 	defer close(metricCh)
+
 	go c.Collect(metricCh)
+
 	metric := <-metricCh
 
 	m := &prommodel.Metric{}

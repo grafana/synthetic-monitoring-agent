@@ -29,6 +29,7 @@ type mockPublisher struct {
 func (m *mockPublisher) Publish(p pusher.Payload) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	m.payloads = append(m.payloads, capturedPayload{
 		tenantID: p.Tenant(),
 		metrics:  p.Metrics(),
@@ -38,13 +39,16 @@ func (m *mockPublisher) Publish(p pusher.Payload) {
 func (m *mockPublisher) getPayloads() []capturedPayload {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	cp := make([]capturedPayload, len(m.payloads))
 	copy(cp, m.payloads)
+
 	return cp
 }
 
 func newTestHandler(t *testing.T, registry *prometheus.Registry, tenantID model.GlobalID) (Handler, *mockPublisher) {
 	t.Helper()
+
 	pub := &mockPublisher{}
 	handler := NewHandler(HandlerOpts{
 		Logger:    zerolog.New(zerolog.NewTestWriter(t)),
@@ -53,6 +57,7 @@ func newTestHandler(t *testing.T, registry *prometheus.Registry, tenantID model.
 		TenantID:  tenantID,
 	})
 	require.NotNil(t, handler)
+
 	return handler, pub
 }
 
@@ -69,6 +74,7 @@ func TestReportUsage(t *testing.T) {
 
 			handler, pub := newTestHandler(t, registry, 42)
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -79,6 +85,7 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -100,6 +107,7 @@ func TestReportUsage(t *testing.T) {
 
 			handler, pub := newTestHandler(t, registry, 1)
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -110,6 +118,7 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -136,6 +145,7 @@ func TestReportUsage(t *testing.T) {
 
 			handler, pub := newTestHandler(t, registry, 1)
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -146,6 +156,7 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -171,6 +182,7 @@ func TestReportUsage(t *testing.T) {
 
 			handler, pub := newTestHandler(t, registry, 1)
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -181,6 +193,7 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -200,6 +213,7 @@ func TestReportUsage(t *testing.T) {
 			registry := prometheus.NewRegistry()
 			handler, pub := newTestHandler(t, registry, 1)
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -210,6 +224,7 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -231,6 +246,7 @@ func TestReportUsage(t *testing.T) {
 
 			handler, pub := newTestHandler(t, registry, 1)
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -241,6 +257,7 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -261,6 +278,7 @@ func TestReportUsage(t *testing.T) {
 
 			handler, pub := newTestHandler(t, registry, 1)
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -271,6 +289,7 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -296,6 +315,7 @@ func TestReportUsage(t *testing.T) {
 
 			handler, pub := newTestHandler(t, registry, 1)
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -306,6 +326,7 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -326,7 +347,9 @@ func TestReportUsage(t *testing.T) {
 			counter.Add(1)
 
 			pub := &mockPublisher{}
+
 			var rawPayload pusher.Payload
+
 			wrapper := &payloadCapture{inner: pub, captured: &rawPayload}
 
 			handler := NewHandler(HandlerOpts{
@@ -337,6 +360,7 @@ func TestReportUsage(t *testing.T) {
 			})
 
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -347,6 +371,7 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -370,6 +395,7 @@ func TestReportUsage(t *testing.T) {
 			before := time.Now().UnixNano() / 1e6
 
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -380,6 +406,7 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -414,6 +441,7 @@ func TestReportUsage(t *testing.T) {
 			})
 
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -424,12 +452,14 @@ func TestReportUsage(t *testing.T) {
 					t.Errorf("handler.Run: %v", err)
 				}
 			}()
+
 			synctest.Wait()
 
 			probeCh <- &synthetic_monitoring.Probe{
 				TenantId: 42,
 				Name:     "shark-taco",
 			}
+
 			time.Sleep(defaultInterval)
 			synctest.Wait()
 
@@ -470,6 +500,7 @@ func TestRun(t *testing.T) {
 				ProbeCh:   probeTenantCh,
 			})
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -480,7 +511,9 @@ func TestRun(t *testing.T) {
 					t.Errorf("handler.Run: %v", err)
 				}
 			}()
+
 			synctest.Wait()
+
 			probeTenantCh <- &synthetic_monitoring.Probe{
 				TenantId: int64(1),
 			}
@@ -506,6 +539,7 @@ func TestRun(t *testing.T) {
 			})
 
 			ctx, cancel := context.WithCancel(context.Background())
+
 			defer func() {
 				cancel()
 				synctest.Wait()
@@ -550,6 +584,7 @@ func TestRun(t *testing.T) {
 					t.Errorf("hander.Run: %v", err)
 				}
 			}()
+
 			synctest.Wait()
 
 			payloads := pub.getPayloads()

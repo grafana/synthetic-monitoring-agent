@@ -75,11 +75,14 @@ func NewTelemeter(
 // AddExecution adds a new execution to the agent's telemetry.
 func (t *Telemeter) AddExecution(e Execution) {
 	t.pushersMu.RLock()
+
 	if p, ok := t.pushers[e.RegionID]; ok {
 		p.AddExecution(e)
 		t.pushersMu.RUnlock()
+
 		return
 	}
+
 	t.pushersMu.RUnlock()
 
 	// There is a minimal time window here on which a concurrent request could
@@ -89,6 +92,7 @@ func (t *Telemeter) AddExecution(e Execution) {
 	// This section will only be executed "N regions" times.
 	t.pushersMu.Lock()
 	defer t.pushersMu.Unlock()
+
 	if p, ok := t.pushers[e.RegionID]; ok {
 		p.AddExecution(e)
 		return

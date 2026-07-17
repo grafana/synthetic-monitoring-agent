@@ -9,6 +9,7 @@ import (
 
 func TestInvalidCollection(t *testing.T) {
 	var c Collection
+
 	err := c.Set("flag")
 	require.Error(t, err)
 }
@@ -64,6 +65,22 @@ func TestCollection(t *testing.T) {
 				require.True(t, c.IsSet(flag))
 			}
 		})
+	}
+}
+
+func TestNamedFeatureConstants(t *testing.T) {
+	// Guard the exported feature-name constants against typos: parsing the
+	// literal name must make IsSet(<constant>) true.
+	for name, want := range map[string]string{
+		"traceroute":       Traceroute,
+		"k6":               K6,
+		"protocol-secrets": ProtocolSecrets,
+	} {
+		require.Equal(t, name, want)
+
+		c := NewCollection()
+		require.NoError(t, c.Set(name))
+		require.True(t, c.IsSet(want))
 	}
 }
 

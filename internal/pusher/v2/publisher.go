@@ -48,25 +48,31 @@ var _ pusher.Publisher = &publisherImpl{}
 
 func (p *publisherImpl) Publish(payload pusher.Payload) {
 	tenantID := payload.Tenant()
+
 	handler, found := p.getHandler(tenantID)
 	if !found {
 		var swapped bool
+
 		newHandler := newTenantPusher(tenantID, p.tenantProvider, p.options.withTenant(tenantID))
+
 		handler, swapped = p.replaceHandler(tenantID, nil, newHandler)
 		if swapped {
 			go p.runHandler(tenantID, handler)
 		}
 	}
+
 	handler.publish(payload)
 }
 
 func (p *publisherImpl) runHandler(tenantID model.GlobalID, h payloadHandler) {
 	tid, rid := model.GetLocalAndRegionIDs(tenantID)
+
 	p.options.logger.Info().Int64("tenant_id", tid).Int("region_id", rid).Msg("started push handler")
 	defer p.options.logger.Info().Int64("tenant_id", tid).Int("region_id", rid).Msg("stopped push handler")
 
 	for ok := true; ok && h != nil; {
 		next := h.run(p.ctx)
+
 		h, ok = p.replaceHandler(tenantID, h, next)
 		if !ok {
 			p.options.logger.Error().Int64("tenant_id", tid).Int("region_id", rid).Msg("unable to swap handler, tenant hijacked")
@@ -132,5 +138,6 @@ func (p *publisherImpl) getHandler(tenantID model.GlobalID) (payloadHandler, boo
 	defer p.handlerMutex.Unlock()
 
 	handler, found := p.handlers[tenantID]
+
 	return handler, found
 }

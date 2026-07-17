@@ -182,6 +182,7 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Int64("tenantId", int64(tenantID)).
 			Str("secretKey", secretKey).
 			Msg("secret cache hit")
+
 		return cachedValue.(string), nil
 	}
 
@@ -220,6 +221,7 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Int64("tenantId", int64(tenantID)).
 			Str("secretKey", secretKey).
 			Msg("network error fetching secret, leaving cache unchanged")
+
 		return "", fmt.Errorf("failed to contact GSM for secret '%s': %w", secretKey, err)
 	}
 

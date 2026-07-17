@@ -53,6 +53,7 @@ func TestLocalIDToGlobalID(t *testing.T) {
 			result, err := LocalIDToGlobalID(test.localID, test.regionID)
 			require.Equal(t, test.err, err)
 			require.Equal(t, test.expected, result)
+
 			if test.err == nil {
 				require.True(t, IsLocalIDValid(test.localID))
 				require.True(t, IsRegionIDValid(test.regionID))
@@ -101,10 +102,12 @@ func TestGlobalIDToLocalID(t *testing.T) {
 			require.Equal(t, test.err, err)
 			require.Equal(t, test.localID, local)
 			require.Equal(t, test.regionID, region)
+
 			if test.err == nil {
 				require.True(t, IsGlobalIDValid(test.globalID))
 				require.True(t, IsLocalIDValid(test.localID))
 				require.True(t, IsRegionIDValid(test.regionID))
+
 				gID, err2 := LocalIDToGlobalID(local, region)
 				require.NoError(t, err2)
 				require.Equal(t, test.globalID, gID)

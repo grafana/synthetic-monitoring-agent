@@ -74,6 +74,7 @@ func settingsToModule(ctx context.Context, settings *sm.TcpSettings, logger zero
 
 	if settings.TlsConfig != nil {
 		var err error
+
 		m.TCP.TLSConfig, err = tls.SMtoProm(ctx, logger.With().Str("prober", m.Prober).Logger(), settings.TlsConfig)
 		if err != nil {
 			return m, err

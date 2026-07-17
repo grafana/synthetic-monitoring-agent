@@ -74,6 +74,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 			p.logger.Error().Err(logErr).Msg("logging error")
 			return false, 0
 		}
+
 		return false, 0
 	}
 
@@ -85,15 +86,19 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 			}
 		}
 	}(ch)
+
 	success := true
+
 	err = m.RunWithContext(ctx, p.config.count)
 	if err != nil {
 		err = logger.Log("Level", "error", "msg", err.Error())
 		if err != nil {
 			p.logger.Err(err).Msg("logging error")
 		}
+
 		success = false
 	}
+
 	tracerouteID := uuid.New()
 	totalPacketsLost := float64(0)
 	totalPacketsSent := float64(0)
@@ -109,13 +114,17 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		totalPacketsSent += float64(hop.Sent)
 		avgElapsedTime := time.Duration(hop.Avg()) * time.Millisecond
 		sort.Strings(hop.Targets)
+
 		targets := make([]string, 0)
+
 		for target := range hop.Targets {
 			host := hop.LookupAddr(p.config.ptrLookup, target)
 			targets = append(targets, host)
 		}
+
 		t := strings.Join(targets, ",")
 		hosts[ttl] = t
+
 		err := logger.Log("Level", "info", "Destination", m.Address, "Hosts", t, "TTL", hop.TTL, "ElapsedTime", avgElapsedTime, "LossPercent", hop.Loss(), "Sent", hop.Sent, "TracerouteID", tracerouteID)
 		if err != nil {
 			p.logger.Error().Err(err).Msg("logging error")
@@ -127,13 +136,16 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	for ttl := range hosts {
 		hostsKeys = append(hostsKeys, ttl)
 	}
+
 	sort.Ints(hostsKeys)
+
 	hostsString := ""
 	for _, ttl := range hostsKeys {
 		hostsString += hosts[ttl]
 	}
 
 	traceHash := fnv.New32()
+
 	_, err = traceHash.Write([]byte(hostsString))
 	if err != nil {
 		p.logger.Error().Err(err).Msg("computing trace hash")
@@ -162,6 +174,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 
 	traceHashGauge.Set(float64(traceHash.Sum32()))
 	totalHopsGauge.Set(float64((len(m.Statistic))))
+
 	overallPacketLoss := totalPacketsLost / totalPacketsSent
 	overallPacketLossGauge.Set(overallPacketLoss)
 

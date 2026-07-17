@@ -11,6 +11,7 @@ import (
 // no channels, functions, etc.).
 func encode(value any) ([]byte, error) {
 	var buf bytes.Buffer
+
 	enc := gob.NewEncoder(&buf)
 
 	if err := enc.Encode(value); err != nil {

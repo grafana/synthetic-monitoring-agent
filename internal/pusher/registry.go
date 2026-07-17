@@ -16,17 +16,22 @@ type registry[T any] struct {
 
 func NewRegistry[T any]() *registry[T] {
 	var r registry[T]
+
 	r.entries = make(map[string]T)
+
 	return &r
 }
 
 func (r *registry[T]) Register(name string, handler T) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	if _, found := r.entries[name]; found {
 		return AlreadyRegisteredError(name)
 	}
+
 	r.entries[name] = handler
+
 	return nil
 }
 
@@ -39,6 +44,7 @@ func (r *registry[T]) MustRegister(name string, handler T) {
 func (r *registry[T]) Lookup(name string) (T, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	entry, found := r.entries[name]
 	if !found {
 		var (
@@ -48,12 +54,15 @@ func (r *registry[T]) Lookup(name string) (T, error) {
 		for key := range r.entries {
 			keys = append(keys, key)
 		}
+
 		sort.Strings(keys)
+
 		return zero, NotFoundError{
 			Requested: name,
 			Accepted:  keys,
 		}
 	}
+
 	return entry, nil
 }
 

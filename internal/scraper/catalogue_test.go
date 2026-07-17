@@ -26,6 +26,7 @@ func TestCatalogueFromReaderDNSGoldenIncludesSerial(t *testing.T) {
 	if !ok {
 		t.Fatalf("probe_dns_serial missing from DNS catalogue")
 	}
+
 	if len(labels) != 0 {
 		t.Fatalf("probe_dns_serial should not carry raw MetricFamily labels in scraper golden output, got %v", labels)
 	}
@@ -40,10 +41,12 @@ func TestCatalogueFromTimeseries(t *testing.T) {
 	})
 
 	expected := []string{configVersionLabelName, "job", "probe"}
+
 	got := catalogue["probe_success"]
 	if len(got) != len(expected) {
 		t.Fatalf("unexpected labels: %v", got)
 	}
+
 	for i, label := range expected {
 		if got[i] != label {
 			t.Fatalf("unexpected labels: %v", got)
@@ -68,9 +71,11 @@ func TestCompareMetricCatalogue(t *testing.T) {
 	if result.Success() {
 		t.Fatalf("expected mismatch")
 	}
+
 	if len(result.MissingMetrics) != 0 {
 		t.Fatalf("expected no missing metrics, got %v", result.MissingMetrics)
 	}
+
 	if len(result.UnexpectedMetrics) != 1 || result.UnexpectedMetrics[0] != "probe_other" {
 		t.Fatalf("unexpected metrics mismatch: %v", result.UnexpectedMetrics)
 	}
@@ -79,9 +84,11 @@ func TestCompareMetricCatalogue(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected probe_success label mismatch")
 	}
+
 	if len(mismatch.MissingLabels) != 0 {
 		t.Fatalf("expected no missing labels, got %v", mismatch.MissingLabels)
 	}
+
 	if len(mismatch.UnexpectedLabels) != 1 || mismatch.UnexpectedLabels[0] != "unexpected_label" {
 		t.Fatalf("unexpected labels mismatch: %v", mismatch.UnexpectedLabels)
 	}

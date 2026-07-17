@@ -39,5 +39,6 @@ func ClientFromRemoteInfo(remote *sm.RemoteInfo) (*prom.ClientConfig, error) {
 	}
 
 	clientCfg.Headers["X-Prometheus-Remote-Write-Version"] = "0.1.0"
+
 	return &clientCfg, nil
 }

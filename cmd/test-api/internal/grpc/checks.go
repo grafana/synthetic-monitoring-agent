@@ -227,10 +227,12 @@ func (s *ChecksServer) activateProbe(id int64) (chan sm.Changes, chan restartSig
 // deactivateProbe searches for an active probe and _removes_ it from the active list.
 func (s *ChecksServer) deactivateProbe(id int64) {
 	s.acquireProbesMutex(id)
+
 	updates, found := s.probes[id]
 	if found {
 		delete(s.probes, id)
 	}
+
 	s.releaseProbesMutex(id)
 
 	if !found {
@@ -337,7 +339,6 @@ func filterUpdate(probeID int64, up sm.CheckChange, existingChecks checksSet) *s
 	// 22 | true   | true     | true    | ADD       | ADD?
 	// 23 | true   | true     | true    | DELETE    | DELETE
 	// 24 | true   | true     | true    | UPDATE    | UPDATE
-
 	for _, newProbeID := range up.Check.Probes {
 		if newProbeID != probeID {
 			continue
@@ -345,7 +346,6 @@ func filterUpdate(probeID int64, up sm.CheckChange, existingChecks checksSet) *s
 
 		if _, found := existingChecks[up.Check.Id]; found {
 			// the probe did already know about this check
-
 			if up.Check.Enabled {
 				// pass-thru and let the probe handle the operation
 				return &up
@@ -436,6 +436,7 @@ func (s *ChecksServer) sendInitialChanges(currentState *sm.ProbeState, stream sm
 	}
 
 	var changes []sm.CheckChange
+
 	for _, check := range checks {
 		if !check.Enabled {
 			continue
@@ -454,6 +455,7 @@ func (s *ChecksServer) sendInitialChanges(currentState *sm.ProbeState, stream sm
 			// Update already existing check
 			op = sm.CheckOperation_CHECK_UPDATE
 		}
+
 		changes = append(changes, sm.CheckChange{
 			Operation: op,
 			Check:     check,

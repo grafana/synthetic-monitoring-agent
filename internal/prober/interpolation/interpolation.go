@@ -67,6 +67,7 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 	}
 
 	var secretMatches []secretMatch
+
 	matches := SecretRegex.FindAllStringSubmatchIndex(value, -1)
 	for _, match := range matches {
 		if len(match) < 4 {
@@ -91,6 +92,7 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 
 	// Step 2: Split string into parts and process each part
 	var result strings.Builder
+
 	lastPos := 0
 
 	for _, secretMatch := range secretMatches {
@@ -110,6 +112,7 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 		}
 
 		result.WriteString(secretValue)
+
 		lastPos = secretMatch.end
 	}
 
@@ -130,6 +133,7 @@ func (r *Resolver) processVariables(value string) string {
 	}
 
 	result := value
+
 	variableMatches := VariableRegex.FindAllStringSubmatch(result, -1)
 	for _, match := range variableMatches {
 		if len(match) < 2 {
@@ -176,10 +180,12 @@ func ToJavaScript(value string) string {
 	}
 
 	var s strings.Builder
+
 	buf := []byte(value)
 	locs := VariableRegex.FindAllSubmatchIndex(buf, -1)
 
 	p := 0
+
 	for _, loc := range locs {
 		if len(loc) < 4 { // put the bounds checker at ease
 			panic("unexpected result while building JavaScript")

@@ -58,10 +58,12 @@ func New(ctx context.Context, check sm.Check, probe sm.Probe, supplied Probe) (*
 		LabelsLimiter:         noopLabelsLimiter{},
 		Telemeter:             noopTelemeter{},
 		CostAttributionLabels: noopTenantCals{},
+		LabellingMode:         noopLabellingMode{},
 	})
 	if err != nil {
 		return nil, err
 	}
+
 	return &Collector{scraper: s}, nil
 }
 
@@ -119,4 +121,10 @@ type noopTenantCals struct{}
 
 func (noopTenantCals) CostAttributionLabels(context.Context, model.GlobalID) ([]string, error) {
 	return nil, nil
+}
+
+type noopLabellingMode struct{}
+
+func (noopLabellingMode) ForTenant(context.Context, model.GlobalID) (sm.LabelMode, error) {
+	return sm.LabelMode_LABEL_MODE_UNPREFIXED, nil
 }

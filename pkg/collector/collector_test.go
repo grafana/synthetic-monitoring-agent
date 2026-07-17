@@ -26,11 +26,13 @@ func (p suppliedProbe) Probe(_ context.Context, _ string, registry *prometheus.R
 	gauge := prometheus.NewGauge(prometheus.GaugeOpts{Name: "probe_supplied_value"})
 	registry.MustRegister(gauge)
 	gauge.Set(7)
+
 	_ = logger.Log(
 		"level", "INFO",
 		"msg", "supplied probe detail",
 		"time", p.eventTime.Format(time.RFC3339Nano),
 	)
+
 	return p.success, 0.25
 }
 
@@ -48,26 +50,34 @@ func TestCollectUsesLogicalEventTimeAndAgentExecutionMetadata(t *testing.T) {
 	require.Len(t, streams, 1)
 
 	foundMetric := false
+
 	for _, ts := range series {
 		for _, label := range ts.Labels {
 			if label.Name == "__name__" && label.Value == "probe_supplied_value" {
 				foundMetric = true
+
 				require.Len(t, ts.Samples, 1)
 				require.Equal(t, eventTime.UnixMilli(), ts.Samples[0].Timestamp)
 			}
 		}
 	}
+
 	require.True(t, foundMetric)
 
-	var executionID string
-	var walltime float64
+	var (
+		executionID string
+		walltime    float64
+	)
+
 	for _, entry := range streams[0].Entries {
 		require.Len(t, entry.StructuredMetadata, 1)
 		metadata := entry.StructuredMetadata[0]
 		require.Equal(t, "execution_id", metadata.Name)
+
 		if executionID == "" {
 			executionID = metadata.Value
 		}
+
 		require.Equal(t, executionID, metadata.Value)
 
 		if strings.Contains(entry.Line, "msg=\"Check succeeded\"") {
@@ -75,6 +85,7 @@ func TestCollectUsesLogicalEventTimeAndAgentExecutionMetadata(t *testing.T) {
 			require.Equal(t, eventTime.Add(250*time.Millisecond), entry.Timestamp)
 		}
 	}
+
 	require.NoError(t, uuid.Validate(executionID))
 	require.Positive(t, walltime)
 	require.NotEqual(t, 0.25, walltime, "walltime must measure execution, not logical event duration")
@@ -96,18 +107,22 @@ func TestCollectReturnsFailedProbeTelemetry(t *testing.T) {
 
 func logfmtFloat(t *testing.T, line, wanted string) float64 {
 	t.Helper()
+
 	decoder := logfmt.NewDecoder(strings.NewReader(line))
 	for decoder.ScanRecord() {
 		for decoder.ScanKeyval() {
 			if string(decoder.Key()) == wanted {
 				value, err := strconv.ParseFloat(string(decoder.Value()), 64)
 				require.NoError(t, err)
+
 				return value
 			}
 		}
 	}
+
 	require.NoError(t, decoder.Err())
 	t.Fatalf("log field %q not found in %q", wanted, line)
+
 	return 0
 }
 

@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -30,6 +29,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6version"
+	"github.com/grafana/synthetic-monitoring-agent/internal/labelmode"
 	"github.com/grafana/synthetic-monitoring-agent/internal/limits"
 	"github.com/grafana/synthetic-monitoring-agent/internal/metamonitoring"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -145,6 +145,7 @@ func run(args []string, stdout io.Writer) error {
 			version.Buildstamp(),
 			version.Commit(),
 		)
+
 		return nil
 	}
 
@@ -182,9 +183,9 @@ func run(args []string, stdout io.Writer) error {
 	// Using API_TOKEN should be deprecated after March 1st, 2023.
 	config.ApiToken = Secret(stringFromEnv("API_TOKEN", stringFromEnv("SM_AGENT_API_TOKEN", string(config.ApiToken))))
 
-	// Enable protocol secrets support via environment variable.
-	// This is a feature flag to allow testing before enabling by default.
-	config.EnableProtocolSecrets = boolFromEnv("SM_AGENT_ENABLE_PROTOCOL_SECRETS", config.EnableProtocolSecrets)
+	// Enable protocol secrets support via the "protocol-secrets" feature flag.
+	// This allows testing before enabling by default.
+	config.EnableProtocolSecrets = features.IsSet(feature.ProtocolSecrets)
 
 	if config.ApiToken == "" {
 		return fmt.Errorf("invalid API token")
@@ -202,9 +203,11 @@ func run(args []string, stdout io.Writer) error {
 	switch {
 	case config.Debug:
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
 		zlGrpc := zl.With().Str("component", "grpc-go").Logger()
 		zl = zl.With().Caller().Logger()
 		config.Verbose = true
+
 		grpclog.SetLoggerV2(grpclog.NewLoggerV2WithVerbosity(zlGrpc, zlGrpc, zlGrpc, 99))
 
 	case config.Verbose:
@@ -229,11 +232,13 @@ func run(args []string, stdout io.Writer) error {
 	notifyAboutDeprecatedFeatureFlags(features, zl)
 
 	var usageReporter usage.Reporter
+
 	switch {
 	case config.DisableUsageReports:
 		usageReporter = usage.NewNoOPReporter()
 	default:
 		usageReporter = usage.NewHTTPReporter(usage.ProdStatsEndpoint)
+
 		zl.Info().Msg("enabled collecting anonymous usage reports. You can disable collection by setting -disable-usage-reports.")
 	}
 
@@ -284,6 +289,7 @@ func run(args []string, stdout io.Writer) error {
 
 	g.Go(func() error {
 		<-ctx.Done()
+
 		timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer timeoutCancel()
 
@@ -305,6 +311,7 @@ func run(args []string, stdout io.Writer) error {
 	defer conn.Close()
 
 	var k6Runner k6runner.Runner
+
 	if features.IsSet(feature.K6) {
 		if err := validateCIDR(config.K6BlacklistedIP); err != nil {
 			return err
@@ -370,11 +377,13 @@ func run(args []string, stdout io.Writer) error {
 		Telemeter:               telemetry,
 		UsageReporter:           usageReporter,
 		CostAttributionLabels:   cals,
+		LabellingMode:           labelmode.New(tm),
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
 	}
+
 	g.Go(func() error {
 		return checksUpdater.Run(ctx)
 	})
@@ -412,8 +421,10 @@ func run(args []string, stdout io.Writer) error {
 			return metricsHandler.Run(ctx)
 		})
 	}
+
 	if k6Runner != nil {
 		k6VersionsLogger := zl.With().Str("subsystem", "k6versions").Logger()
+
 		k6VersionsHandler, err := k6version.NewHandler(
 			k6version.HandlerOpts{
 				Logger:   &k6VersionsLogger,
@@ -480,21 +491,6 @@ func stringFromEnv(name string, override string) string {
 	}
 
 	return os.Getenv(name)
-}
-
-func boolFromEnv(name string, defaultValue bool) bool {
-	value := os.Getenv(name)
-	if value == "" {
-		return defaultValue
-	}
-
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		// If parsing fails, return the default value
-		return defaultValue
-	}
-
-	return parsed
 }
 
 func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {
@@ -595,6 +591,7 @@ func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) ca
 			Int("capacity", capacity).
 			Dur("ttl", ttl).
 			Msg("failed to initialize local cache, using noop cache")
+
 		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger())
 	}
 
@@ -602,5 +599,6 @@ func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) ca
 		Int("capacity", capacity).
 		Dur("ttl", ttl).
 		Msg("local cache initialized")
+
 	return localCache
 }

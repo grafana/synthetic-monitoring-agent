@@ -8,8 +8,10 @@ import (
 )
 
 func TestCondition(t *testing.T) {
-	const fastTimeout = 50 * time.Millisecond
-	const slowTimeout = 1000 * time.Millisecond
+	const (
+		fastTimeout = 50 * time.Millisecond
+		slowTimeout = 1000 * time.Millisecond
+	)
 
 	var timeout = slowTimeout
 	if testing.Short() {
@@ -41,20 +43,25 @@ func TestCondition(t *testing.T) {
 	})
 	t.Run("goroutine", func(t *testing.T) {
 		c := newCondition()
+
 		go func() {
 			c.Signal()
 		}()
+
 		wait(t, &c, true, timeout)
 	})
 	t.Run("loop", func(t *testing.T) {
 		const iterations = 100
+
 		a, b := newCondition(), newCondition()
+
 		go func() {
 			for range iterations {
 				a.Signal()
 				wait(t, &b, true, timeout)
 			}
 		}()
+
 		for range iterations {
 			wait(t, &a, true, timeout)
 			b.Signal()
@@ -65,11 +72,14 @@ func TestCondition(t *testing.T) {
 func wait(t *testing.T, c *condition, fire bool, timeout time.Duration) {
 	tm := time.NewTimer(timeout)
 	defer tm.Stop()
+
 	fired := false
+
 	select {
 	case <-tm.C:
 	case <-c.C():
 		fired = true
 	}
+
 	require.Equal(t, fire, fired)
 }

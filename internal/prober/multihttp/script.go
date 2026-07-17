@@ -25,10 +25,12 @@ func performVariableExpansion(in string) string {
 	}
 
 	var s strings.Builder
+
 	buf := []byte(in)
 	locs := userVariables.FindAllSubmatchIndex(buf, -1)
 
 	p := 0
+
 	for _, loc := range locs {
 		if len(loc) < 4 { // put the bounds checker at ease
 			panic("unexpected result while building URL")
@@ -72,6 +74,7 @@ func performVariableExpansion(in string) string {
 // urlVarName is the variable name to reference when appending params.
 func buildQueryParams(urlVarName string, req *sm.MultiHttpEntryRequest) []string {
 	var buf strings.Builder
+
 	out := make([]string, 0, len(req.QueryFields))
 	for _, field := range req.QueryFields {
 		buf.Reset()
@@ -83,6 +86,7 @@ func buildQueryParams(urlVarName string, req *sm.MultiHttpEntryRequest) []string
 		buf.WriteString(")")
 		out = append(out, buf.String())
 	}
+
 	return out
 }
 
@@ -135,6 +139,7 @@ func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []st
 			for i := 2; i < len(m)-1; i++ {
 				buf.WriteByte(m[i])
 			}
+
 			buf.WriteString("'])")
 			out = append(out, buf.String())
 
@@ -161,6 +166,7 @@ func buildHeaders(headers []*sm.HttpHeader, body *sm.HttpRequestBody) string {
 			buf.WriteString(`'Content-Type':"`)
 			buf.WriteString(template.JSEscapeString(body.ContentType))
 			buf.WriteRune('"')
+
 			comma = ","
 		}
 
@@ -170,6 +176,7 @@ func buildHeaders(headers []*sm.HttpHeader, body *sm.HttpRequestBody) string {
 			buf.WriteString(`'Content-Encoding':"`)
 			buf.WriteString(template.JSEscapeString(body.ContentEncoding))
 			buf.WriteRune('"')
+
 			comma = ","
 		}
 	}
@@ -255,8 +262,11 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 // This function is a mess because a single assertion represents multiple types
 // of checks.
 func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertion) string {
-	var b strings.Builder
-	var assertionDescriptor strings.Builder
+	var (
+		b                   strings.Builder
+		assertionDescriptor strings.Builder
+	)
+
 	b.WriteString(`currentCheck = check(response, { "`)
 
 	switch assertion.Type {
@@ -273,6 +283,7 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
 			cond.Name(&b, "header", assertion.Value)
 			b.WriteString(`": response => { `)
+
 			if len(assertion.Expression) == 0 {
 				// No expression provided, match the entire value against all headers.
 				b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
@@ -290,6 +301,7 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 				cond.Render(&assertionDescriptor, "value", assertion.Value)
 				b.WriteString(`);`)
 			}
+
 			b.WriteString(` }`)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:
@@ -408,6 +420,7 @@ func buildVars(variable *sm.MultiHttpEntryVariable) string {
 		b.WriteString(`response.html('`)
 		b.WriteString(template.JSEscapeString(variable.Expression))
 		b.WriteString(`')`)
+
 		if variable.Attribute == "" {
 			b.WriteString(`.html()`)
 		} else {

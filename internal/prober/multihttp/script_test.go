@@ -375,6 +375,7 @@ func TestInterpolateBodyVariables(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
 			actual := interpolateBodyVariables("body", tc.input.body)
 			require.Equal(t, tc.expected, actual)
 		})
@@ -423,6 +424,7 @@ func TestAssertionConditionName(t *testing.T) {
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
 			var b strings.Builder
+
 			cond := assertionCondition(testcase.condition)
 			cond.Name(&b, testcase.subject, testcase.value)
 			require.Equal(t, testcase.expected, b.String())
@@ -472,6 +474,7 @@ func TestAssertionConditionRender(t *testing.T) {
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
 			var b strings.Builder
+
 			cond := assertionCondition(testcase.condition)
 			cond.Render(&b, testcase.subject, testcase.value)
 			require.Equal(t, testcase.expected, b.String())
@@ -865,6 +868,7 @@ func TestSettingsToScript(t *testing.T) {
 			require.NotNil(t, reg)
 
 			var buf bytes.Buffer
+
 			userLogger := level.NewFilter(kitlog.NewLogfmtLogger(&buf), level.AllowInfo(), level.SquelchNoLevel(false))
 			require.NotNil(t, userLogger)
 

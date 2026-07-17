@@ -15,6 +15,7 @@ func TestPrintExpectedRuntimeMetricCatalogueJSON(t *testing.T) {
 	if os.Getenv(generateRuntimeCatalogueEnv) == "" {
 		t.Skipf("set %s=1 to print the runtime metric catalogue JSON", generateRuntimeCatalogueEnv)
 	}
+
 	if k6Path := os.Getenv("K6_PATH"); k6Path == "" {
 		t.Fatalf("K6_PATH must be set to print the runtime metric catalogue JSON")
 	} else if _, err := os.Stat(k6Path); err != nil {
@@ -27,6 +28,7 @@ func TestPrintExpectedRuntimeMetricCatalogueJSON(t *testing.T) {
 		if !ok {
 			t.Fatalf("missing runtime fixture spec for %s", class)
 		}
+
 		catalogues[class] = collectFixtureCatalogueSilently(t, class, spec)
 	}
 

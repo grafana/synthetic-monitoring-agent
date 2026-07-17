@@ -23,7 +23,9 @@ func (f *FailNTimesPrometheusClient) StoreStream(ctx context.Context, req io.Rea
 	if f.FailuresLeft == 0 {
 		return nil
 	}
+
 	f.FailuresLeft--
+
 	return prom.NewRecoverableError(errors.New("client failed"))
 }
 
@@ -50,6 +52,7 @@ func TestSendBytesWithBackoffRetriesCounter(t *testing.T) {
 		timesToFail int64
 		req         []byte
 	}
+
 	tests := []struct {
 		name                 string
 		args                 args
@@ -101,6 +104,7 @@ func TestSendBytesWithBackoffRetriesCounter(t *testing.T) {
 				t.Errorf("SendBytesWithBackoff() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+
 			if client.CountedRetries != tt.expectedRetriesCount {
 				t.Errorf("Not expected retries count registered. Expected: %f, Got: %f", tt.expectedRetriesCount, client.CountedRetries)
 			}

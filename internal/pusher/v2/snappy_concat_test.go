@@ -11,7 +11,9 @@ import (
 
 func TestSnappyConcatReader(t *testing.T) {
 	const bigRandSize = 4096 * 4
+
 	var bigRand [bigRandSize]byte
+
 	_, err := rand.Read(bigRand[:])
 	require.NoError(t, err)
 
@@ -79,6 +81,7 @@ func TestSnappyConcatReader(t *testing.T) {
 			if tc.readFn == nil {
 				tc.readFn = io.ReadAll
 			}
+
 			all, err := tc.readFn(r)
 			require.NoError(t, err)
 
@@ -96,16 +99,20 @@ func snap(data string) []byte {
 
 func readerWithBufSize(n int) func(io.Reader) ([]byte, error) {
 	buf := make([]byte, n)
+
 	return func(r io.Reader) ([]byte, error) {
 		var result []byte
+
 		for {
 			n, err := r.Read(buf)
 			if err != nil {
 				if err == io.EOF {
 					return result, nil
 				}
+
 				return nil, err
 			}
+
 			result = append(result, buf[:n]...)
 			if n != len(buf) {
 				return result, nil

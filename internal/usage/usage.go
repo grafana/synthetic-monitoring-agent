@@ -64,20 +64,26 @@ func (hr *HTTPReporter) submitReport(ctx context.Context, report *report) error 
 	if err != nil {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
+
 	endpoint := fmt.Sprintf("%s/%s", hr.endpoint, UsageStatsApplication)
+
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
+
 	resp, err := hr.client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to do request: %w", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
+
 	return nil
 }
 
@@ -87,6 +93,7 @@ func (hr *HTTPReporter) ReportProbe(ctx context.Context, probe sm.Probe, feature
 	if err != nil {
 		return err
 	}
+
 	r := &report{
 		Report:       probe.String(),
 		CreatedAt:    time.Now().Format(time.RFC3339),
@@ -99,6 +106,7 @@ func (hr *HTTPReporter) ReportProbe(ctx context.Context, probe sm.Probe, feature
 		TenantID:     probe.TenantId,
 		ProbeID:      probe.Id,
 	}
+
 	return hr.submitReport(ctx, r)
 }
 
@@ -118,10 +126,13 @@ func (r *NoOPReporter) ReportProbe(_ context.Context, _ sm.Probe, _ feature.Coll
 func hashOfProbe(p sm.Probe) (string, error) {
 	s := p.Name + strconv.FormatInt(p.Id, 10) + p.Region + strconv.FormatBool(p.Public) + strconv.FormatInt(p.TenantId, 10)
 	h := fnv.New64a()
+
 	_, err := h.Write([]byte(s))
 	if err != nil {
 		return "", err
 	}
+
 	sum := h.Sum64()
+
 	return strconv.FormatUint(sum, 10), nil
 }

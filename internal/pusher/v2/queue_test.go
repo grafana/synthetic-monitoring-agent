@@ -19,6 +19,7 @@ import (
 
 func TestQueue(t *testing.T) {
 	const timeout = time.Second * 5
+
 	defaultOptions := pusherOptions{
 		maxPushBytes:   1024 * 1024,
 		maxQueuedBytes: 0,
@@ -154,17 +155,22 @@ func TestQueue(t *testing.T) {
 			dropped := prometheus.NewCounterVec(prometheus.CounterOpts{
 				Name: "dropped",
 			}, nil)
+
 			if tc.options == nil {
 				tc.options = new(pusherOptions)
 				*tc.options = defaultOptions
 			}
+
 			tc.options.metrics.DroppedCounter = dropped
+
 			var st testSavedState
+
 			q := newQueue(tc.options)
 
 			for _, action := range tc.actions {
 				action(t, &q, &st)
 			}
+
 			m := dto.Metric{}
 			require.NoError(t, dropped.WithLabelValues().Write(&m))
 			require.NotNil(t, m.Counter)
@@ -247,6 +253,7 @@ func TestQueuePush(t *testing.T) {
 			options: func() *pusherOptions {
 				opt := testOptions
 				opt.maxRetries = 3
+
 				return &opt
 			}(),
 			responses: []http.HandlerFunc{
@@ -289,12 +296,15 @@ func TestQueuePush(t *testing.T) {
 			srv := testServer{
 				responses: tc.responses,
 			}
+
 			srv.start()
 			defer srv.stop()
+
 			url, err := url.Parse(srv.server.URL)
 			require.NoError(t, err)
 
 			registry := prometheus.NewRegistry()
+
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
 			defer cancel()
 
@@ -302,6 +312,7 @@ func TestQueuePush(t *testing.T) {
 			if tc.options != nil {
 				opt = *tc.options
 			}
+
 			opt.metrics = pusher.NewMetrics(registry)
 			opt = opt.withTenant(1).withType("test")
 
@@ -319,10 +330,12 @@ func TestQueuePush(t *testing.T) {
 			})
 			errGroup.Go(func() error {
 				defer cancel()
+
 				for {
 					if err := sleepCtx(gCtx, time.Second); err != nil {
 						return nil
 					}
+
 					if srv.done() {
 						return nil
 					}
@@ -339,6 +352,7 @@ func TestQueuePush(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+
 			require.True(t, srv.done())
 			require.Equal(t, []byte(body), srv.receivedBody)
 			require.Empty(t, q.get())
@@ -354,6 +368,7 @@ type testAction func(*testing.T, *queue, *testSavedState)
 
 func insert(numBytes int) testAction {
 	data := make([]byte, numBytes)
+
 	return func(t *testing.T, q *queue, _ *testSavedState) {
 		q.insert(&data)
 	}
@@ -363,17 +378,21 @@ func expect(timeout time.Duration, expectedBlocks []int) testAction {
 	return func(t *testing.T, q *queue, st *testSavedState) {
 		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
+
 		select {
 		case <-ctx.Done():
 			t.Fatal(ctx.Err())
 		case <-q.WaitC():
 		}
+
 		data := q.get()
 		st.lastGet = data
+
 		blocks := make([]int, len(data))
 		for idx, d := range data {
 			blocks[idx] = len(*d.data)
 		}
+
 		require.Equal(t, expectedBlocks, blocks)
 	}
 }
@@ -385,7 +404,9 @@ func expectEmpty() testAction {
 			t.Fatal("pending")
 		default:
 		}
+
 		require.Nil(t, q.get())
+
 		select {
 		case <-q.WaitC():
 			t.Fatal("pending")
@@ -399,6 +420,7 @@ func returnLast() testAction {
 		if st.lastGet == nil {
 			t.Fatal(st.lastGet)
 		}
+
 		q.requeue(st.lastGet)
 	}
 }

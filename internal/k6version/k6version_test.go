@@ -44,12 +44,15 @@ func (c *fakeK6Client) RegisterK6Version(ctx context.Context, req *sm.RegisterK6
 		default:
 		}
 	}
+
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if c.err != nil {
 		return nil, c.err
 	}
+
 	return &sm.RegisterK6VersionResponse{
 		Status: sm.Status{Code: c.code},
 	}, nil
@@ -133,6 +136,7 @@ func TestHandle(t *testing.T) {
 		t.Cleanup(cancel)
 
 		handleDone := make(chan error, 1)
+
 		go func() {
 			handleDone <- handler.Handle(ctx)
 		}()
@@ -191,6 +195,7 @@ func TestHandle(t *testing.T) {
 		t.Cleanup(cancel)
 
 		handleDone := make(chan error, 1)
+
 		go func() {
 			handleDone <- handler.Handle(ctx)
 		}()
@@ -237,6 +242,7 @@ func TestHandle(t *testing.T) {
 		if len(req1.Versions) != 1 || req1.Versions[0].Version != "1.0.0" {
 			t.Fatalf("unexpected first request versions: %v", req1.Versions)
 		}
+
 		if len(req2.Versions) != 1 || req2.Versions[0].Version != "2.0.0" {
 			t.Fatalf("unexpected second request versions: %v", req2.Versions)
 		}

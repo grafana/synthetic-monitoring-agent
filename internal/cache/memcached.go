@@ -84,6 +84,7 @@ func NewMemcachedClient(ctx context.Context, config MemcachedConfig) (*Memcached
 		if _, _, err := net.SplitHostPort(server); err != nil {
 			return nil, fmt.Errorf("invalid server address %q: %w", server, err)
 		}
+
 		config.Servers[i] = server
 	}
 
@@ -223,6 +224,7 @@ func (c *MemcachedClient) Get(ctx context.Context, key string, dest any) error {
 		c.logger.Debug().Str("key", key).Msg("cache miss")
 		return ErrCacheMiss
 	}
+
 	if err != nil {
 		c.logger.Error().Err(err).Str("key", key).Msg("cache get failed")
 		return fmt.Errorf("cache get: %w", err)
@@ -307,9 +309,11 @@ func validateKey(key string) error {
 	if key == "" {
 		return fmt.Errorf("key cannot be empty")
 	}
+
 	if len(key) > MaxKeyLength {
 		return fmt.Errorf("key length %d exceeds maximum %d", len(key), MaxKeyLength)
 	}
+
 	return nil
 }
 
@@ -383,6 +387,7 @@ func (c *MemcachedClient) refreshServers(ctx context.Context, interval time.Dura
 			// Create a timeout context for DNS resolution to prevent hanging
 			resolveCtx, cancel := context.WithTimeout(ctx, DNSResolveTimeout)
 			resolved := resolveServers(resolveCtx, c.originalServers, c.resolver, c.logger)
+
 			cancel()
 
 			if len(resolved) == 0 {

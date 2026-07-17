@@ -65,6 +65,7 @@ func TestNewProber(t *testing.T) {
 			actual, err := NewProber(ctx, tc.input, logger)
 
 			require.Equal(t, &tc.expected, &actual)
+
 			if tc.ExpectError {
 				require.Error(t, err, "unsupported check")
 			} else {

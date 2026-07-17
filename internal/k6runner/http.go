@@ -74,6 +74,7 @@ func (v VersionsResponse) Versions() []string {
 	for _, v := range v.List {
 		versions = append(versions, v.Version)
 	}
+
 	return versions
 }
 
@@ -102,6 +103,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 			Msg("k6 runner does not have a deadline for all retries. This is a bug. Defaulting to twice the timeout to avoid retrying forever")
 
 		var cancel context.CancelFunc
+
 		ctx, cancel = context.WithTimeout(ctx, defaultAllRetriesTimeout)
 		defer cancel()
 	} else if tud := time.Until(deadline); tud < time.Duration(script.Settings.Timeout)*time.Millisecond*2 {
@@ -113,18 +115,25 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 
 	// Retry logic is purely context (time) based, but we keep track of the number of attempts for reporting telemetry.
 	wait := r.backoff
-	var attempts float64
-	var response *RunResponse
+
+	var (
+		attempts float64
+		response *RunResponse
+	)
+
 	for {
 		start := time.Now()
 
 		attempts += 1
+
 		var err error
+
 		response, err = r.request(ctx, script, secretStore, executionID)
 		if err == nil {
 			r.logger.Debug().Bytes("metrics", response.Metrics).Bytes("logs", response.Logs).Msg("script result")
 			r.metrics.Requests.With(map[string]string{metricLabelSuccess: "1", metricLabelRetriable: ""}).Inc()
 			r.metrics.RequestsPerRun.WithLabelValues("1").Observe(attempts)
+
 			return response, nil
 		}
 
@@ -133,6 +142,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 			r.logger.Error().Err(err).Msg("non-retryable error running k6")
 			r.metrics.Requests.With(map[string]string{metricLabelSuccess: "0", metricLabelRetriable: "0"}).Inc()
 			r.metrics.RequestsPerRun.WithLabelValues("0").Observe(attempts)
+
 			return nil, err
 		}
 
@@ -152,6 +162,7 @@ func (r HttpRunner) Run(ctx context.Context, script Script, secretStore SecretSt
 			// TODO: Log the returned error in the Processor instead.
 			r.logger.Error().Err(err).Object("checkInfo", &script.CheckInfo).Msg("retries exhausted")
 			r.metrics.RequestsPerRun.WithLabelValues("0").Observe(attempts)
+
 			return nil, fmt.Errorf("cannot retry further: %w", errors.Join(err, ctx.Err()))
 		case <-waitTimer.C:
 		}
@@ -245,6 +256,7 @@ func (r HttpRunner) request(ctx context.Context, script Script, secretStore Secr
 	}
 
 	var response RunResponse
+
 	err = json.NewDecoder(resp.Body).Decode(&response)
 	if err != nil {
 		r.logger.Error().Err(err).Msg("decoding script result")
@@ -272,6 +284,7 @@ func (r HttpRunner) Versions(ctx context.Context) <-chan []string {
 			case <-ctx.Done():
 				r.logger.Err(ctx.Err()).Msg("polling for versions stopped")
 				close(ch)
+
 				return
 			case <-ticker.C:
 				err := func() error { // Wrap in function so we can use conventional defer and if-err-nil-return
@@ -302,6 +315,7 @@ func (r HttpRunner) Versions(ctx context.Context) <-chan []string {
 					}
 
 					response := VersionsResponse{}
+
 					err = json.NewDecoder(resp.Body).Decode(&response)
 					if err != nil {
 						return fmt.Errorf("decoding response: %w", err)
