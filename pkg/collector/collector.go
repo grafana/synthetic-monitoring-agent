@@ -88,7 +88,7 @@ type probeFactory struct {
 }
 
 func (f probeFactory) New(_ context.Context, _ zerolog.Logger, check model.Check) (internalprober.Prober, string, error) {
-	return probeAdapter{probe: f.probe}, check.Target, nil
+	return probeAdapter(f), check.Target, nil
 }
 
 type noopPublisher struct{}
