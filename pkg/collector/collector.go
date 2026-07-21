@@ -1,6 +1,9 @@
 // Package collector exposes the agent's normal single-execution telemetry
 // pipeline to callers that supply a prober. It contains no scheduling,
-// persistence, or scenario semantics.
+// persistence, virtual-time execution, or scenario semantics. The context
+// deadline remains a real wall-clock deadline; callers generating logical
+// history are responsible for resolving their simulated outcome before
+// collection.
 package collector
 
 import (
@@ -67,9 +70,10 @@ func New(ctx context.Context, check sm.Check, probe sm.Probe, supplied Probe) (*
 	return &Collector{scraper: s}, nil
 }
 
-// Collect runs one execution at logical event time t. A failed probe returns
-// its telemetry alongside a non-nil error; a fatal collection error returns no
-// telemetry.
+// Collect runs one execution whose metrics and logs are stamped at logical
+// event time t. It does not make the supplied Probe consume logical elapsed
+// time. A failed probe returns its telemetry alongside a non-nil error; a fatal
+// collection error returns no telemetry.
 func (c *Collector) Collect(ctx context.Context, t time.Time) (TimeSeries, Streams, error) {
 	ts, streams, _, _, err := c.scraper.CollectData(ctx, t.UTC())
 	return ts, streams, err

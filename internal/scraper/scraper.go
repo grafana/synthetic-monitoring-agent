@@ -531,7 +531,7 @@ func (s *Scraper) CollectData(ctx context.Context, t time.Time) (TimeSeries, Str
 		time.RFC3339Nano,
 	)
 
-	pd, d, err := s.collectDataWithLogTimestamp(ctx, t, logicalTimestamp)
+	pd, d, err := s.collectDataWithLogTimestamp(ctx, t, logicalTimestamp, &t)
 	if err != nil && !errors.Is(err, errCheckFailed) {
 		return nil, nil, 0, 0, err
 	}
@@ -540,10 +540,13 @@ func (s *Scraper) CollectData(ctx context.Context, t time.Time) (TimeSeries, Str
 }
 
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
-	return s.collectDataWithLogTimestamp(ctx, t, kitlog.DefaultTimestampUTC)
+	return s.collectDataWithLogTimestamp(ctx, t, kitlog.DefaultTimestampUTC, nil)
 }
 
-func (s Scraper) collectDataWithLogTimestamp(ctx context.Context, t time.Time, defaultLogTimestamp kitlog.Valuer) (*probeData, time.Duration, error) {
+// collectDataWithLogTimestamp performs one scrape. eventTime is non-nil only
+// for the unscheduled collector path: scheduled scrapes intentionally retain
+// their original wall-clock wrapper-log behavior.
+func (s Scraper) collectDataWithLogTimestamp(ctx context.Context, t time.Time, defaultLogTimestamp kitlog.Valuer, eventTime *time.Time) (*probeData, time.Duration, error) {
 	target := s.target
 
 	labelMode, err := s.labellingMode.ForTenant(ctx, s.check.GlobalTenantID())
@@ -647,7 +650,7 @@ func (s Scraper) collectDataWithLogTimestamp(ctx context.Context, t time.Time, d
 		sl,
 		s.check.BasicMetricsOnly,
 		executionID,
-		t,
+		eventTime,
 	)
 	if err != nil {
 		return nil, 0, err
@@ -655,11 +658,14 @@ func (s Scraper) collectDataWithLogTimestamp(ctx context.Context, t time.Time, d
 
 	duration, found := patchDuration(mfs)
 	if !found {
-		// The prober did not report probe_duration_seconds; fall back to the
-		// wall-clock execution time. Do NOT use time.Since(t): t is a logical
-		// event time that may be far in the past (e.g. backfill), which would
-		// yield a nonsensical duration.
-		duration = time.Since(wallStart)
+		if eventTime != nil {
+			// The collector's t is a logical event time that may be far in the
+			// past, so duration must come from the actual collection elapsed time.
+			duration = time.Since(wallStart)
+		} else {
+			// Preserve the scheduled scraper's pre-collector fallback behavior.
+			duration = time.Since(t)
+		}
 	}
 
 	// At this point we know the check has been executed, regardless of
@@ -790,11 +796,11 @@ func getProbeMetrics(
 	logger kitlog.Logger,
 	basicMetricsOnly bool,
 	executionID string,
-	collectTime time.Time,
+	eventTime *time.Time,
 ) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
-	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger, executionID, collectTime)
+	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger, executionID, eventTime)
 
 	mfs, err := registry.Gather()
 	if err != nil {
@@ -826,17 +832,20 @@ func runProber(
 	checkInfoLabels map[string]string,
 	logger kitlog.Logger,
 	executionID string,
-	collectTime time.Time,
+	eventTime *time.Time,
 ) bool {
-	eventStart := collectTime
 	wallStart := time.Now()
 
-	_ = level.Info(logger).Log(
+	beginFields := []any{
 		"msg", "Beginning check",
 		"type", prober.Name(),
 		"timeout_seconds", timeout.Seconds(),
-		"time", eventStart.UTC().Format(time.RFC3339Nano),
-	)
+	}
+	if eventTime != nil {
+		beginFields = append(beginFields, "time", eventTime.UTC().Format(time.RFC3339Nano))
+	}
+
+	_ = level.Info(logger).Log(beginFields...)
 
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -848,8 +857,6 @@ func runProber(
 		// If the prober did not provide their own duration, fallback to the wall time the scraper took to run.
 		duration = wallDuration
 	}
-
-	eventEnd := eventStart.Add(time.Duration(duration * float64(time.Second)))
 
 	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: ProbeSuccessMetricName,
@@ -874,21 +881,31 @@ func runProber(
 	if success {
 		probeSuccessGauge.Set(1)
 
-		_ = level.Info(logger).Log(
+		fields := []any{
 			"msg", "Check succeeded",
-			"time", eventEnd.UTC().Format(time.RFC3339Nano),
 			"duration_seconds", duration,
 			"walltime_seconds", wallDuration,
-		)
+		}
+		if eventTime != nil {
+			eventEnd := eventTime.Add(time.Duration(duration * float64(time.Second)))
+			fields = append(fields, "time", eventEnd.UTC().Format(time.RFC3339Nano))
+		}
+
+		_ = level.Info(logger).Log(fields...)
 	} else {
 		probeSuccessGauge.Set(0)
 
-		_ = level.Error(logger).Log(
+		fields := []any{
 			"msg", "Check failed",
-			"time", eventEnd.UTC().Format(time.RFC3339Nano),
 			"duration_seconds", duration,
 			"walltime_seconds", wallDuration,
-		)
+		}
+		if eventTime != nil {
+			eventEnd := eventTime.Add(time.Duration(duration * float64(time.Second)))
+			fields = append(fields, "time", eventEnd.UTC().Format(time.RFC3339Nano))
+		}
+
+		_ = level.Error(logger).Log(fields...)
 	}
 
 	smCheckInfo.Set(1)
