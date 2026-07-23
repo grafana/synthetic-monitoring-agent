@@ -284,3 +284,30 @@ func TestMergeLogLabels_NoUserLabels(t *testing.T) {
 
 	require.Equal(t, system, got)
 }
+
+// TestRegionLabelNameForMode pins the mode-conditional rename of the agent's
+// region label: legacy PREFIXED tenants keep "region"; tenants that have
+// started the migration receive "sm_region" (the reserved name).
+func TestRegionLabelNameForMode(t *testing.T) {
+	require.Equal(t, "region", regionLabelNameForMode(sm.LabelMode_LABEL_MODE_PREFIXED))
+	require.Equal(t, "sm_region", regionLabelNameForMode(sm.LabelMode_LABEL_MODE_DUAL_WRITE))
+	require.Equal(t, "sm_region", regionLabelNameForMode(sm.LabelMode_LABEL_MODE_UNPREFIXED))
+}
+
+// TestBuildUserLabels_SMRegionDropped pins that a user label named sm_region —
+// the reserved name the agent's own region label migrates to — is dropped in
+// enforced modes and cannot shadow the agent's value.
+func TestBuildUserLabels_SMRegionDropped(t *testing.T) {
+	labels := []sm.Label{{Name: "sm_region", Value: "spoofed"}}
+
+	// DUAL_WRITE drops the un-prefixed reserved form but keeps the prefixed
+	// form, which cannot collide with the agent's sm_region.
+	require.Equal(t,
+		[]labelPair{{name: "label_sm_region", value: "spoofed"}},
+		buildUserLabels(nil, labels, sm.LabelMode_LABEL_MODE_DUAL_WRITE))
+	require.Empty(t, buildUserLabels(nil, labels, sm.LabelMode_LABEL_MODE_UNPREFIXED))
+	// In PREFIXED mode it is emitted with the prefix, which cannot collide.
+	require.Equal(t,
+		[]labelPair{{name: "label_sm_region", value: "spoofed"}},
+		buildUserLabels(nil, labels, sm.LabelMode_LABEL_MODE_PREFIXED))
+}

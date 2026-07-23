@@ -121,7 +121,7 @@ you need to change republishing behaviour.
 
 For each probe run:
 
-1. Build **user labels** (from check configuration) and **check-info labels** (probe, region, instance, job, check_name, plus user labels with a `label_` prefix) used by the `sm_check_info` metric.
+1. Build **user labels** (from check configuration) and **check-info labels** (probe, region — emitted as `sm_region` for tenants in label mode DUAL_WRITE/UNPREFIXED — instance, job, check_name, plus user labels in their mode-appropriate form) used by the `sm_check_info` metric.
 2. Pull the per-tenant `MetricLabels` and `LogLabels` limits from `LabelsLimiter`. Fail closed if the limiter errors.
 3. Capture all check logs into an in-memory `bytes.Buffer` via a `kitlog` logfmt logger. The logger is decorated with every log label.
 4. Choose a `timeout`:
@@ -145,7 +145,7 @@ Special metric carrying check metadata for join queries. Defined by:
 
 - name = `sm_check_info`
 - value = `1`
-- labels = the `checkInfoLabels` built in `buildCheckInfoLabels` (probe, region, instance, job, check_name, frequency, geohash, alert sensitivity, plus user labels with a `label_` prefix).
+- labels = the `checkInfoLabels` built in `buildCheckInfoLabels` (probe, region — `sm_region` for tenants in label mode DUAL_WRITE/UNPREFIXED — instance, job, check_name, frequency, geohash, alert sensitivity, plus user labels in their mode-appropriate form).
 
 If you add a new piece of check metadata that operators need to join
 on, this is the metric to extend.
