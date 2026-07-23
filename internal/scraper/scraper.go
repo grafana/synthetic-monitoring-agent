@@ -521,7 +521,77 @@ func tickWithOffset(
 	}
 }
 
+// CollectData runs the configured prober once at time t and returns transformed
+// metrics and logs without publishing. A failed probe returns populated
+// metrics and logs alongside a non-nil error; fatal collection errors return
+// no data.
+func (s *Scraper) CollectData(ctx context.Context, t time.Time) (TimeSeries, Streams, model.GlobalID, time.Duration, error) {
+	pd, d, err := s.collectDataWith(ctx, t, logicalStamper{eventTime: t})
+	if err != nil && !errors.Is(err, errCheckFailed) {
+		return nil, nil, 0, 0, err
+	}
+
+	return pd.Metrics(), pd.Streams(), pd.Tenant(), d, err
+}
+
 func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time.Duration, error) {
+	return s.collectDataWith(ctx, t, wallClockStamper{})
+}
+
+// logStamper decides how a single scrape's telemetry is timestamped. It is the
+// only behavior that differs between the scheduled scraper and the unscheduled
+// collector, and it is chosen once at the entry point (collectData vs
+// CollectData). The scrape pipeline below calls it unconditionally and stays
+// unaware of which caller it is serving.
+type logStamper interface {
+	// wrapperLogTimestamp is the kitlog Valuer for the wrapper-log `ts` field.
+	// extractLogs turns that field into each Loki entry's timestamp, so it
+	// governs where logs without their own `time` field land.
+	wrapperLogTimestamp() kitlog.Valuer
+	// endLogFields returns any extra fields appended to the terminal
+	// (succeeded/failed) wrapper log, e.g. an event-end `time` that overrides
+	// `ts` for that line.
+	endLogFields(duration float64) []any
+	// fallbackDuration computes the probe duration when the prober reports
+	// none, given the scrape's nominal time and the wall-clock start.
+	fallbackDuration(scheduledAt, wallStart time.Time) time.Duration
+}
+
+// wallClockStamper is the scheduled scraper's behavior: real-time log
+// timestamps and a duration fallback measured from the scrape's nominal time.
+type wallClockStamper struct{}
+
+func (wallClockStamper) wrapperLogTimestamp() kitlog.Valuer { return kitlog.DefaultTimestampUTC }
+
+func (wallClockStamper) endLogFields(float64) []any { return nil }
+
+func (wallClockStamper) fallbackDuration(scheduledAt, _ time.Time) time.Duration {
+	return time.Since(scheduledAt)
+}
+
+// logicalStamper places a scrape's telemetry at a caller-supplied historical
+// event time: the wrapper `ts` (and thus any log without its own `time`) is
+// pinned to eventTime, the terminal log is shifted to eventTime+duration, and
+// the duration fallback measures real elapsed collection time because eventTime
+// may be far in the past.
+type logicalStamper struct {
+	eventTime time.Time
+}
+
+func (l logicalStamper) wrapperLogTimestamp() kitlog.Valuer {
+	return kitlog.TimestampFormat(l.eventTime.UTC, time.RFC3339Nano)
+}
+
+func (l logicalStamper) endLogFields(duration float64) []any {
+	eventEnd := l.eventTime.Add(time.Duration(duration * float64(time.Second)))
+	return []any{"time", eventEnd.UTC().Format(time.RFC3339Nano)}
+}
+
+func (logicalStamper) fallbackDuration(_, wallStart time.Time) time.Duration {
+	return time.Since(wallStart)
+}
+
+func (s Scraper) collectDataWith(ctx context.Context, t time.Time, stamper logStamper) (*probeData, time.Duration, error) {
 	target := s.target
 
 	labelMode, err := s.labellingMode.ForTenant(ctx, s.check.GlobalTenantID())
@@ -593,7 +663,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	// set up logger to capture all the labels as part of the log entry
 	loggerLabels := make([]any, 0, 2*(2+len(logLabels)))
 
-	loggerLabels = append(loggerLabels, "ts", kitlog.DefaultTimestampUTC, "target", target)
+	loggerLabels = append(loggerLabels, "ts", stamper.wrapperLogTimestamp(), "target", target)
 	for _, l := range logLabels {
 		loggerLabels = append(loggerLabels, l.name, l.value)
 	}
@@ -613,6 +683,8 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		timeout = time.Duration(s.check.Timeout) * time.Millisecond
 	}
 
+	wallStart := time.Now()
+
 	success, mfs, err := getProbeMetrics(
 		ctx,
 		s.prober,
@@ -623,6 +695,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		sl,
 		s.check.BasicMetricsOnly,
 		executionID,
+		stamper,
 	)
 	if err != nil {
 		return nil, 0, err
@@ -630,7 +703,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	duration, found := patchDuration(mfs)
 	if !found {
-		duration = time.Since(t)
+		duration = stamper.fallbackDuration(t, wallStart)
 	}
 
 	// At this point we know the check has been executed, regardless of
@@ -761,10 +834,11 @@ func getProbeMetrics(
 	logger kitlog.Logger,
 	basicMetricsOnly bool,
 	executionID string,
+	stamper logStamper,
 ) (bool, []*dto.MetricFamily, error) {
 	registry := prometheus.NewRegistry()
 
-	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger, executionID)
+	success := runProber(ctx, prober, target, timeout, registry, checkInfoLabels, logger, executionID, stamper)
 
 	mfs, err := registry.Gather()
 	if err != nil {
@@ -796,9 +870,13 @@ func runProber(
 	checkInfoLabels map[string]string,
 	logger kitlog.Logger,
 	executionID string,
+	stamper logStamper,
 ) bool {
-	start := time.Now()
+	wallStart := time.Now()
 
+	// The begin log needs no explicit time: the wrapper `ts` valuer already
+	// stamps it at the stamper's start time (logical event time for the
+	// collector, wall-clock now for the scheduled scraper).
 	_ = level.Info(logger).Log("msg", "Beginning check", "type", prober.Name(), "timeout_seconds", timeout.Seconds())
 
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -806,8 +884,7 @@ func runProber(
 
 	success, duration := prober.Probe(checkCtx, target, registry, logger, executionID)
 
-	wallDuration := time.Since(start).Seconds()
-
+	wallDuration := time.Since(wallStart).Seconds()
 	if duration == 0 {
 		// If the prober did not provide their own duration, fallback to the wall time the scraper took to run.
 		duration = wallDuration
@@ -836,11 +913,23 @@ func runProber(
 	if success {
 		probeSuccessGauge.Set(1)
 
-		_ = level.Info(logger).Log("msg", "Check succeeded", "duration_seconds", duration, "walltime_seconds", wallDuration)
+		fields := append([]any{
+			"msg", "Check succeeded",
+			"duration_seconds", duration,
+			"walltime_seconds", wallDuration,
+		}, stamper.endLogFields(duration)...)
+
+		_ = level.Info(logger).Log(fields...)
 	} else {
 		probeSuccessGauge.Set(0)
 
-		_ = level.Error(logger).Log("msg", "Check failed", "duration_seconds", duration, "walltime_seconds", wallDuration)
+		fields := append([]any{
+			"msg", "Check failed",
+			"duration_seconds", duration,
+			"walltime_seconds", wallDuration,
+		}, stamper.endLogFields(duration)...)
+
+		_ = level.Error(logger).Log(fields...)
 	}
 
 	smCheckInfo.Set(1)

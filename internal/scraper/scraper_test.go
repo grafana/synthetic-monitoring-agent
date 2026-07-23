@@ -129,6 +129,7 @@ func verifyProberMetrics(
 		logger,
 		basicMetricsOnly,
 		"test-execution-id",
+		wallClockStamper{},
 	)
 
 	require.NoError(t, err, "probe failed")
@@ -263,6 +264,95 @@ func setupHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Che
 	}
 
 	return prober, check, httpSrv.Close
+}
+
+// TestHTTPTimeoutTelemetryContract pins the production HTTP prober behavior
+// that deterministic history generators must reproduce. A request that does
+// not receive response headers before the deadline has no HTTP status, emits
+// the request-error log, and reports failure at approximately the timeout.
+func TestHTTPTimeoutTelemetryContract(t *testing.T) {
+	const timeout = 75 * time.Millisecond
+
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, req *http.Request) {
+		<-req.Context().Done()
+	}))
+	defer httpSrv.Close()
+
+	check := model.Check{Check: sm.Check{
+		Target:  httpSrv.URL,
+		Timeout: timeout.Milliseconds(),
+		Settings: sm.CheckSettings{Http: &sm.HttpSettings{
+			IpVersion: sm.IpVersion_V4,
+		}},
+	}}
+
+	var store testhelper.NoopSecretStore
+
+	p, err := httpProber.NewProber(context.Background(), check, zerolog.New(io.Discard), http.Header{}, store)
+	require.NoError(t, err)
+
+	var logs bytes.Buffer
+
+	success, mfs, err := getProbeMetrics(
+		context.Background(),
+		p,
+		check.Target,
+		timeout,
+		nil,
+		make(map[uint64]prometheus.Summary),
+		make(map[uint64]prometheus.Histogram),
+		&testLogger{w: &logs},
+		false,
+		"timeout-contract",
+		wallClockStamper{},
+	)
+	require.NoError(t, err)
+	require.False(t, success)
+	require.Zero(t, metricGaugeValue(t, mfs, "probe_success", nil))
+	require.Zero(t, metricGaugeValue(t, mfs, "probe_http_status_code", nil))
+	require.Zero(t, metricGaugeValue(t, mfs, "probe_http_duration_seconds", map[string]string{"phase": "processing"}))
+	require.Zero(t, metricGaugeValue(t, mfs, "probe_http_duration_seconds", map[string]string{"phase": "transfer"}))
+	require.InDelta(t, timeout.Seconds(), metricGaugeValue(t, mfs, "probe_duration_seconds", nil), 0.050)
+	require.Contains(t, logs.String(), "Error for HTTP request")
+	require.NotContains(t, logs.String(), "Received HTTP response")
+}
+
+func metricGaugeValue(t *testing.T, families []*dto.MetricFamily, name string, labels map[string]string) float64 {
+	t.Helper()
+
+	for _, family := range families {
+		if family.GetName() != name {
+			continue
+		}
+
+		for _, metric := range family.GetMetric() {
+			matched := true
+
+			for label, value := range labels {
+				found := false
+
+				for _, pair := range metric.GetLabel() {
+					if pair.GetName() == label && pair.GetValue() == value {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					matched = false
+					break
+				}
+			}
+
+			if matched && metric.GetGauge() != nil {
+				return metric.GetGauge().GetValue()
+			}
+		}
+	}
+
+	t.Fatalf("metric %q with labels %v not found", name, labels)
+
+	return 0
 }
 
 func setupHTTPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
@@ -1275,6 +1365,51 @@ func TestScraperCollectDataTooManyMetricLabels(t *testing.T) {
 
 	_, _, err := s.collectData(context.Background(), time.Unix(3141, 0))
 	require.ErrorIs(t, err, errTooManyLabels)
+}
+
+// TestScraperCollectDataFatalError verifies that the exported CollectData
+// surfaces a fatal collection error (one that is not errCheckFailed) with no
+// telemetry, matching its documented contract.
+func TestScraperCollectDataFatalError(t *testing.T) {
+	s := Scraper{
+		checkName:     "check name",
+		target:        "test target",
+		logger:        testhelper.Logger(t),
+		prober:        testProber{},
+		labelsLimiter: testLabelsLimiter{maxMetricLabels: 1, maxLogLabels: 15},
+		labellingMode: testLabellingMode{},
+		summaries:     make(map[uint64]prometheus.Summary),
+		histograms:    make(map[uint64]prometheus.Histogram),
+		check: model.Check{
+			Check: sm.Check{
+				Id:               1,
+				TenantId:         2,
+				Frequency:        2000,
+				Timeout:          2000,
+				Enabled:          true,
+				Target:           "target name",
+				Job:              "job name",
+				BasicMetricsOnly: true,
+				Created:          42,
+				Modified:         42,
+				Labels: []sm.Label{
+					{Name: "a", Value: "1"},
+					{Name: "b", Value: "2"},
+					{Name: "c", Value: "3"},
+				},
+				Settings: sm.CheckSettings{Http: &sm.HttpSettings{}},
+			},
+		},
+		probe: sm.Probe{Id: 100, TenantId: 200, Name: "probe name", Region: "REGION"},
+	}
+
+	ts, streams, tenant, d, err := s.CollectData(context.Background(), time.Unix(3141, 0))
+	require.ErrorIs(t, err, errTooManyLabels)
+	require.NotErrorIs(t, err, errCheckFailed)
+	require.Nil(t, ts)
+	require.Nil(t, streams)
+	require.Zero(t, tenant)
+	require.Zero(t, d)
 }
 
 func TestAppendDtoToTimeseries(t *testing.T) {
@@ -2962,7 +3097,11 @@ func TestHTTPCheckLogTimestampsAreNonDecreasing(t *testing.T) {
 		},
 	}
 
-	data, _, err := s.collectData(ctx, time.Now())
+	// A scheduled scrape may carry an older ticker value for metric stamping,
+	// but its wrapper logs must retain their original wall-clock behavior. The
+	// unscheduled collector has separate coverage for logical timestamps.
+	wallStart := time.Now()
+	data, _, err := s.collectData(ctx, time.Date(2020, 3, 1, 12, 0, 0, 0, time.UTC))
 	require.NoError(t, err)
 	require.NotNil(t, data)
 
@@ -2976,6 +3115,10 @@ func TestHTTPCheckLogTimestampsAreNonDecreasing(t *testing.T) {
 		// All 7 expected messages must be present.
 		msgs := make([]string, 0, len(entries))
 		for _, e := range entries {
+			if strings.Contains(e.Line, `msg="Beginning check"`) || strings.Contains(e.Line, `msg="Check succeeded"`) {
+				require.False(t, e.Timestamp.Before(wallStart), "scheduled wrapper log used the logical metric timestamp: %s", e.Timestamp)
+			}
+
 			dec := logfmt.NewDecoder(strings.NewReader(e.Line))
 			for dec.ScanRecord() {
 				for dec.ScanKeyval() {
