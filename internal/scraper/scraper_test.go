@@ -1593,6 +1593,24 @@ func TestScraperCollectData(t *testing.T) {
 			"region":               region,
 			"source":               CheckInfoSource,
 		}
+
+		// Tenants that have started the label migration (DUAL_WRITE/UNPREFIXED)
+		// receive the agent's region label as sm_region instead of region.
+		baseExpectedInfoLabelsSMRegion = map[string]string{
+			"check_name": checkName,
+			"frequency":  strconv.Itoa(frequency),
+			"geohash":    geohash.Encode(probeLatitude, probeLongitde),
+			"sm_region":  region,
+		}
+		baseExpectedLogLabelsSMRegion = map[string]string{
+			"check_name":           checkName,
+			"instance":             checkTarget,
+			"job":                  job,
+			"probe":                probeName,
+			ProbeSuccessMetricName: "1",
+			"sm_region":            region,
+			"source":               CheckInfoSource,
+		}
 	)
 
 	generateLabels := func(offset, count int, valuePrefix string) []sm.Label {
@@ -1750,7 +1768,7 @@ func TestScraperCollectData(t *testing.T) {
 			// + check-info system labels + both forms of user labels from ConstLabels.
 			expectedInfoLabels: mergeMaps(
 				baseExpectedMetricLabels,
-				baseExpectedInfoLabels,
+				baseExpectedInfoLabelsSMRegion,
 				generateLabelSet(10, 1, "p"),
 				generateUnprefixedLabelSet(10, 1, "p"),
 				generateLabelSet(0, 3, "c"),
@@ -1760,14 +1778,14 @@ func TestScraperCollectData(t *testing.T) {
 			// 4 user labels × 2 = 8 entries + 6 system labels = 14; probe_success
 			// is appended last, totalling 15 = defMaxLogLabels. No overflow.
 			expectedLogLabels: mergeMaps(
-				baseExpectedLogLabels,
+				baseExpectedLogLabelsSMRegion,
 				generateLabelSet(10, 1, "p"),
 				generateLabelSet(0, 3, "c"),
 				generateUnprefixedLabelSet(10, 1, "p"),
 				generateUnprefixedLabelSet(0, 3, "c"),
 			),
 			expectedLogEntries: mergeMaps(
-				baseExpectedLogLabels,
+				baseExpectedLogLabelsSMRegion,
 				generateLabelSet(10, 1, "p"),
 				generateLabelSet(0, 3, "c"),
 				generateUnprefixedLabelSet(10, 1, "p"),
@@ -1791,17 +1809,17 @@ func TestScraperCollectData(t *testing.T) {
 			),
 			expectedInfoLabels: mergeMaps(
 				baseExpectedMetricLabels,
-				baseExpectedInfoLabels,
+				baseExpectedInfoLabelsSMRegion,
 				generateUnprefixedLabelSet(10, 1, "p"),
 				generateUnprefixedLabelSet(0, 3, "c"),
 			),
 			expectedLogLabels: mergeMaps(
-				baseExpectedLogLabels,
+				baseExpectedLogLabelsSMRegion,
 				generateUnprefixedLabelSet(10, 1, "p"),
 				generateUnprefixedLabelSet(0, 3, "c"),
 			),
 			expectedLogEntries: mergeMaps(
-				baseExpectedLogLabels,
+				baseExpectedLogLabelsSMRegion,
 				generateUnprefixedLabelSet(10, 1, "p"),
 				generateUnprefixedLabelSet(0, 3, "c"),
 			),
@@ -1832,7 +1850,7 @@ func TestScraperCollectData(t *testing.T) {
 			// sm_check_info: system sharedLabels + both forms of user labels from ConstLabels.
 			expectedInfoLabels: mergeMaps(
 				baseExpectedMetricLabels,
-				baseExpectedInfoLabels,
+				baseExpectedInfoLabelsSMRegion,
 				generateLabelSet(10, 3, "p"),
 				generateUnprefixedLabelSet(10, 3, "p"),
 				generateLabelSet(0, 10, "c"),
@@ -1842,7 +1860,7 @@ func TestScraperCollectData(t *testing.T) {
 			// ordering means label_l10,label_l11,label_l12 + label_l0..label_l4
 			// fill the 8 available slots before the cap).
 			expectedLogLabels: mergeMaps(
-				baseExpectedLogLabels,
+				baseExpectedLogLabelsSMRegion,
 				generateLabelSet(10, 3, "p"), // label_l10, label_l11, label_l12
 				generateLabelSet(0, 5, "c"),  // label_l0 .. label_l4
 			),
@@ -1851,7 +1869,7 @@ func TestScraperCollectData(t *testing.T) {
 			// expectedLogEntries \ expectedLogLabels become StructuredMetadata overflow
 			// and are validated by assertStructuredMetadata.
 			expectedLogEntries: mergeMaps(
-				baseExpectedLogLabels,
+				baseExpectedLogLabelsSMRegion,
 				generateLabelSet(10, 3, "p"),
 				generateLabelSet(0, 10, "c"),
 				generateUnprefixedLabelSet(10, 3, "p"),
@@ -1879,16 +1897,75 @@ func TestScraperCollectData(t *testing.T) {
 			),
 			expectedInfoLabels: mergeMaps(
 				baseExpectedMetricLabels,
-				baseExpectedInfoLabels,
+				baseExpectedInfoLabelsSMRegion,
 				map[string]string{"env": "prod"},
 			),
 			expectedLogLabels: mergeMaps(
-				baseExpectedLogLabels,
+				baseExpectedLogLabelsSMRegion,
 				map[string]string{"env": "prod"},
 			),
 			expectedLogEntries: mergeMaps(
-				baseExpectedLogLabels,
+				baseExpectedLogLabelsSMRegion,
 				map[string]string{"env": "prod"},
+			),
+		},
+
+		// Renaming the agent's own region label to sm_region frees "region" for
+		// tenant use: a user label named region must reach every surface intact,
+		// alongside the agent's sm_region.
+		"unprefixed user region label freed": {
+			labelMode:       sm.LabelMode_LABEL_MODE_UNPREFIXED,
+			maxMetricLabels: defMaxMetricLabels,
+			maxLogLabels:    defMaxLogLabels,
+			checkLabels: []sm.Label{
+				{Name: "region", Value: "user-region"},
+			},
+			expectedMetricLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				map[string]string{"region": "user-region"},
+			),
+			expectedInfoLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				baseExpectedInfoLabelsSMRegion,
+				map[string]string{"region": "user-region"},
+			),
+			expectedLogLabels: mergeMaps(
+				baseExpectedLogLabelsSMRegion,
+				map[string]string{"region": "user-region"},
+			),
+			expectedLogEntries: mergeMaps(
+				baseExpectedLogLabelsSMRegion,
+				map[string]string{"region": "user-region"},
+			),
+		},
+
+		// Same as above but in DUAL_WRITE: the riskiest mode, where the user's
+		// region (as both region and label_region) coexists with the agent's
+		// sm_region — three distinct keys, no duplicates, on every surface.
+		"dual write user region label freed": {
+			labelMode:       sm.LabelMode_LABEL_MODE_DUAL_WRITE,
+			maxMetricLabels: defMaxMetricLabels,
+			maxLogLabels:    defMaxLogLabels,
+			checkLabels: []sm.Label{
+				{Name: "region", Value: "user-region"},
+			},
+			// Execution metrics carry only the un-prefixed user form.
+			expectedMetricLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				map[string]string{"region": "user-region"},
+			),
+			expectedInfoLabels: mergeMaps(
+				baseExpectedMetricLabels,
+				baseExpectedInfoLabelsSMRegion,
+				map[string]string{"label_region": "user-region", "region": "user-region"},
+			),
+			expectedLogLabels: mergeMaps(
+				baseExpectedLogLabelsSMRegion,
+				map[string]string{"label_region": "user-region", "region": "user-region"},
+			),
+			expectedLogEntries: mergeMaps(
+				baseExpectedLogLabelsSMRegion,
+				map[string]string{"label_region": "user-region", "region": "user-region"},
 			),
 		},
 
@@ -1902,9 +1979,9 @@ func TestScraperCollectData(t *testing.T) {
 			maxLogLabels:         defMaxLogLabels,
 			checkLabels:          generateLabels(1, 3, "c"),
 			expectedMetricLabels: mergeMaps(baseExpectedMetricLabels, generateUnprefixedLabelSet(1, 3, "c")),
-			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabels, generateUnprefixedLabelSet(1, 3, "c")),
-			expectedLogLabels:    mergeMaps(baseExpectedLogLabels, generateUnprefixedLabelSet(1, 3, "c")),
-			expectedLogEntries:   mergeMaps(baseExpectedLogLabels, generateUnprefixedLabelSet(1, 3, "c")),
+			expectedInfoLabels:   mergeMaps(baseExpectedMetricLabels, baseExpectedInfoLabelsSMRegion, generateUnprefixedLabelSet(1, 3, "c")),
+			expectedLogLabels:    mergeMaps(baseExpectedLogLabelsSMRegion, generateUnprefixedLabelSet(1, 3, "c")),
+			expectedLogEntries:   mergeMaps(baseExpectedLogLabelsSMRegion, generateUnprefixedLabelSet(1, 3, "c")),
 		},
 	}
 

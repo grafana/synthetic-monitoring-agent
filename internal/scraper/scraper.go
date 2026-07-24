@@ -46,6 +46,7 @@ const (
 const (
 	probeLabelName         = "probe"
 	regionLabelName        = "region"
+	smRegionLabelName      = "sm_region"
 	configVersionLabelName = "config_version"
 )
 
@@ -547,7 +548,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 		// These are the labels defined by the user.
 		userLabels = buildUserLabels(s.probe.Labels, s.check.Labels, labelMode)
 		// These labels are applied to the sm_check_info metric.
-		checkInfoLabels = s.buildCheckInfoLabels(userLabels, sysMetricLabels)
+		checkInfoLabels = s.buildCheckInfoLabels(userLabels, sysMetricLabels, labelMode)
 		// This is the execution ID for the check run.
 		executionID = uuid.New().String()
 	)
@@ -578,7 +579,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	logLabels := []labelPair{
 		{name: probeLabelName, value: s.probe.Name},
-		{name: regionLabelName, value: s.probe.Region},
+		{name: regionLabelNameForMode(labelMode), value: s.probe.Region},
 		{name: "instance", value: s.check.Target},
 		{name: "job", value: s.check.Job},
 		{name: "check_name", value: s.checkName},
@@ -1021,10 +1022,10 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels
 	return ts
 }
 
-func (s Scraper) buildCheckInfoLabels(userLabels []labelPair, commonLabels []labelPair) map[string]string {
+func (s Scraper) buildCheckInfoLabels(userLabels []labelPair, commonLabels []labelPair, mode sm.LabelMode) map[string]string {
 	baseLabels := []labelPair{
 		{name: "check_name", value: s.checkName},
-		{name: regionLabelName, value: s.probe.Region},
+		{name: regionLabelNameForMode(mode), value: s.probe.Region},
 		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
 		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
 	}
@@ -1115,6 +1116,19 @@ func customMetricLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) 
 	}
 
 	return buildUserLabels(probeLabels, checkLabels, sm.LabelMode_LABEL_MODE_UNPREFIXED)
+}
+
+// regionLabelNameForMode returns the label name under which the agent emits
+// the probe's region. Tenants that have started the label migration (any mode
+// other than PREFIXED) receive it as sm_region, which is part of the reserved
+// set, freeing "region" for use as one of their own labels. Legacy PREFIXED
+// tenants keep the historical "region" name.
+func regionLabelNameForMode(mode sm.LabelMode) string {
+	if mode == sm.LabelMode_LABEL_MODE_PREFIXED {
+		return regionLabelName
+	}
+
+	return smRegionLabelName
 }
 
 func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.TimeSeries {
