@@ -48,6 +48,8 @@ const (
 	regionLabelName        = "region"
 	smRegionLabelName      = "sm_region"
 	configVersionLabelName = "config_version"
+	instanceLabelName      = "instance"
+	checkNameLabelName     = "check_name"
 )
 
 // mimirMaxLabelsIngest protects us and Mimir from hitting an error due to
@@ -539,7 +541,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	sysMetricLabels := []labelPair{
 		{name: probeLabelName, value: s.probe.Name},
 		{name: configVersionLabelName, value: s.check.ConfigVersion()},
-		{name: "instance", value: s.check.Target},
+		{name: instanceLabelName, value: s.check.Target},
 		{name: "job", value: s.check.Job},
 		// {name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
 	}
@@ -580,9 +582,9 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 	logLabels := []labelPair{
 		{name: probeLabelName, value: s.probe.Name},
 		{name: regionLabelNameForMode(labelMode), value: s.probe.Region},
-		{name: "instance", value: s.check.Target},
+		{name: instanceLabelName, value: s.check.Target},
 		{name: "job", value: s.check.Job},
-		{name: "check_name", value: s.checkName},
+		{name: checkNameLabelName, value: s.checkName},
 		{name: "source", value: CheckInfoSource}, // identify log lines that belong to synthetic-monitoring-agent
 	}
 	logLabels = mergeLogLabels(logLabels, userLabels)
@@ -1024,7 +1026,7 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels
 
 func (s Scraper) buildCheckInfoLabels(userLabels []labelPair, commonLabels []labelPair, mode sm.LabelMode) map[string]string {
 	baseLabels := []labelPair{
-		{name: "check_name", value: s.checkName},
+		{name: checkNameLabelName, value: s.checkName},
 		{name: regionLabelNameForMode(mode), value: s.probe.Region},
 		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
 		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
