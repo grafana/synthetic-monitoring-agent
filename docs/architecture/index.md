@@ -54,6 +54,7 @@ flowchart LR
 | Understand how a single check gets executed on schedule  | [scraper.md](scraper.md) |
 | Add a new check type or modify an existing prober        | [prober.md](prober.md) |
 | Touch scripted / browser / multihttp execution           | [k6runner.md](k6runner.md) |
+| Run browser checks against an external browser pool      | [browser-pool.md](browser-pool.md) |
 | Modify how metrics and logs are shipped out              | [publisher.md](publisher.md) |
 | Work on the "test this check now" UI flow                | [adhoc.md](adhoc.md) |
 
@@ -67,6 +68,7 @@ flowchart LR
 - **[Publisher](publisher.md)** — `internal/pusher`. Per-tenant push handlers; batches and ships to Prometheus and Loki.
 - **[Adhoc handler](adhoc.md)** — `internal/adhoc`. Separate gRPC stream for on-demand "test this check now" runs.
 - **[Clustering](cluster.md)** — `internal/cluster`. Optional gossip ring (`grafana/ckit`) that splits check ownership across a fleet of agents (RF=1). Off by default. Consumed by the Updater via the `Node` interface.
+- **[Browser pool client](browser-pool.md)** — `internal/browser`. Optional client for an external fleet of crocochrome instances serving remote browser sessions for browser checks. Off by default (`-browser-pool-url`). Consumed by the local k6 runner via the `BrowserPool` interface.
 
 ## Supporting components (follow-up docs)
 
@@ -160,6 +162,7 @@ quick index from "I changed code under X" to "I should update doc Y".
 | `internal/pusher/*`, `internal/pkg/{prom,loki}/*`       | `publisher.md`         |
 | `internal/adhoc/*`                                      | `adhoc.md`             |
 | `internal/cluster/*`                                    | `cluster.md`           |
+| `internal/browser/*`                                    | `browser-pool.md`      |
 | Top-level data flow or any new cross-component pathway  | this file                           |
 | Add a new gRPC RPC                                      | the doc for the component that owns it |
 | Add a new check type                                    | `prober.md` (+ `k6runner.md` if k6-backed) |
