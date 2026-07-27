@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/discovery"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 )
 
@@ -92,7 +93,7 @@ type RingNode struct {
 	node           *ckit.Node
 	sharder        shard.Sharder
 	onChange       func()
-	discover       DiscoverFn
+	discover       discovery.DiscoverFn
 	rejoinInterval time.Duration
 
 	minClusterSize int
@@ -127,7 +128,7 @@ type RingConfig struct {
 	Logger zerolog.Logger
 	// Discover resolves the peers to join. It is called by Join at startup and
 	// re-invoked on every RejoinInterval.
-	Discover DiscoverFn
+	Discover discovery.DiscoverFn
 	// RejoinInterval is how often the node re-resolves peers and re-joins, picking up
 	// scale-ups and restarted peers. Zero uses DefaultRejoinInterval.
 	RejoinInterval time.Duration
