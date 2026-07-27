@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -506,6 +508,138 @@ func TestInstanceBaseURLs(t *testing.T) {
 			require.Equal(t, tc.expected, instanceBaseURLs(tc.scheme, tc.port, tc.ips))
 		})
 	}
+}
+
+func TestMetrics(t *testing.T) {
+	t.Parallel()
+
+	counter := func(t *testing.T, vec *prometheus.CounterVec, result string) float64 {
+		t.Helper()
+		c, err := vec.GetMetricWith(prometheus.Labels{"result": result})
+		require.NoError(t, err)
+		return testutil.ToFloat64(c)
+	}
+
+	t.Run("acquire success and release", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeInstance(t)
+		pool := newTestPool(t, fake)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		_, release, err := pool.Acquire(ctx, testCheckInfo())
+		require.NoError(t, err)
+		release(t.Context())
+
+		require.Equal(t, 1.0, counter(t, pool.metrics.acquires, "success"))
+		require.Equal(t, 1.0, counter(t, pool.metrics.probes, "acquired"))
+		require.Equal(t, 1.0, counter(t, pool.metrics.releases, "ok"))
+		require.Equal(t, uint64(1), histogramSampleCount(t, pool.metrics.acquireDuration))
+	})
+
+	t.Run("contention counts probes", func(t *testing.T) {
+		t.Parallel()
+
+		busy := newFakeInstance(t)
+		busy.setSession("held-by-someone-else")
+		draining := newFakeInstance(t)
+		draining.forceAcquireStatus = http.StatusServiceUnavailable
+		free := newFakeInstance(t)
+		pool := newTestPool(t, busy, draining, free)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		_, release, err := pool.Acquire(ctx, testCheckInfo())
+		require.NoError(t, err)
+		release(t.Context())
+
+		require.Equal(t, 1.0, counter(t, pool.metrics.acquires, "success"))
+		require.Equal(t, 1.0, counter(t, pool.metrics.probes, "busy"))
+		require.Equal(t, 1.0, counter(t, pool.metrics.probes, "draining"))
+		require.Equal(t, 1.0, counter(t, pool.metrics.probes, "acquired"))
+	})
+
+	t.Run("exhaustion", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeInstance(t)
+		fake.setSession("held")
+		pool := newTestPool(t, fake)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 700*time.Millisecond)
+		defer cancel()
+
+		_, _, err := pool.Acquire(ctx, testCheckInfo())
+		require.ErrorIs(t, err, ErrPoolExhausted)
+
+		require.Equal(t, 1.0, counter(t, pool.metrics.acquires, "exhausted"))
+		require.GreaterOrEqual(t, counter(t, pool.metrics.probes, "busy"), 1.0)
+	})
+
+	t.Run("release failure", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeInstance(t)
+		fake.failDelete = true
+		pool := newTestPool(t, fake)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		_, release, err := pool.Acquire(ctx, testCheckInfo())
+		require.NoError(t, err)
+		release(t.Context())
+
+		require.Equal(t, 1.0, counter(t, pool.metrics.releases, "error"))
+	})
+
+	t.Run("gauges track claims", func(t *testing.T) {
+		t.Parallel()
+
+		a := newFakeInstance(t)
+		b := newFakeInstance(t)
+		pool := newTestPool(t, a, b)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		_, release, err := pool.Acquire(ctx, testCheckInfo())
+		require.NoError(t, err)
+		require.Equal(t, 1.0, testutil.ToFloat64(pool.metrics.instancesBusy))
+		require.Equal(t, 1.0, testutil.ToFloat64(pool.metrics.instancesFree))
+
+		release(t.Context())
+		require.Equal(t, 0.0, testutil.ToFloat64(pool.metrics.instancesBusy))
+		require.Equal(t, 2.0, testutil.ToFloat64(pool.metrics.instancesFree))
+	})
+
+	t.Run("sync results", func(t *testing.T) {
+		t.Parallel()
+
+		pool := newTestPool(t)
+		pool.cfg.resolveFleet = staticFleet()
+		pool.syncOnce(t.Context())
+		require.Equal(t, 1.0, counter(t, pool.metrics.syncs, "ok"))
+
+		pool.cfg.resolveFleet = func() ([]string, error) {
+			return nil, errors.New("dns is down")
+		}
+		pool.syncOnce(t.Context())
+		require.Equal(t, 1.0, counter(t, pool.metrics.syncs, "error"))
+	})
+}
+
+// histogramSampleCount returns the number of observations recorded by a
+// histogram.
+func histogramSampleCount(t *testing.T, h prometheus.Histogram) uint64 {
+	t.Helper()
+
+	var m dto.Metric
+	require.NoError(t, h.Write(&m))
+	return m.GetHistogram().GetSampleCount()
 }
 
 // fakeInstance is a minimal crocochrome instance: single session,
