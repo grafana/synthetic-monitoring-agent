@@ -22,6 +22,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/adhoc"
+	"github.com/grafana/synthetic-monitoring-agent/internal/browser"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
@@ -74,6 +75,7 @@ func run(args []string, stdout io.Writer) error {
 			K6URI                 string
 			K6Repository          string
 			K6BlacklistedIP       string
+			BrowserPoolURL        string
 			SelectedPublisher     string
 			TelemetryTimeSpan     int
 			AutoMemLimit          bool
@@ -132,6 +134,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
+	flags.StringVar(&config.BrowserPoolURL, "browser-pool-url", config.BrowserPoolURL, "URL of an external browser (crocochrome) pool, e.g. http://crocochrome.pool.svc:8080; its host is DNS-expanded to the fleet. If set, browser checks use remote browser sessions instead of a local Chromium")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -317,15 +320,28 @@ func run(args []string, stdout io.Writer) error {
 			return err
 		}
 
-		k6Runner, err = k6runner.New(k6runner.RunnerOpts{
+		runnerOpts := k6runner.RunnerOpts{
 			Uri:           config.K6URI,
 			Repository:    config.K6Repository,
 			BlacklistedIP: config.K6BlacklistedIP,
 			Registerer:    promRegisterer,
-		})
+		}
+
+		if config.BrowserPoolURL != "" {
+			browserPool, err := buildBrowserPool(ctx, config.BrowserPoolURL,
+				zl.With().Str("subsystem", "browser_pool").Logger(), promRegisterer)
+			if err != nil {
+				return fmt.Errorf("building browser pool: %w", err)
+			}
+			runnerOpts.BrowserPool = browserPool
+		}
+
+		k6Runner, err = k6runner.New(runnerOpts)
 		if err != nil {
 			return fmt.Errorf("building k6 runner: %w", err)
 		}
+	} else if config.BrowserPoolURL != "" {
+		zl.Warn().Msg("browser pool configured but the k6 feature is disabled; ignoring")
 	}
 
 	tm := tenants.NewManager(
@@ -464,6 +480,23 @@ func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 		logger.Info().Msg("shutting down")
 		return nil
 	}
+}
+
+// buildBrowserPool translates the -browser-pool-url flag into a running
+// browser.Pool, whose sync loop stops when ctx is cancelled. It returns the
+// k6runner interface type so a typed-nil can never reach
+// RunnerOpts.BrowserPool.
+func buildBrowserPool(
+	ctx context.Context, poolURL string, logger zerolog.Logger, registerer prometheus.Registerer,
+) (k6runner.BrowserPool, error) {
+	pool, err := browser.New(ctx, browser.Config{
+		URL:    poolURL,
+		Logger: logger,
+	}, registerer)
+	if err != nil {
+		return nil, err
+	}
+	return pool, nil
 }
 
 func newConnectionBackoff() *backoff.Backoff {
