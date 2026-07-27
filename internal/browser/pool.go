@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -20,6 +21,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/discovery"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 )
 
@@ -30,6 +32,11 @@ var ErrPoolExhausted = errors.New("browser pool exhausted")
 const (
 	metricNamespace = "sm_agent"
 	metricSubsystem = "browser_pool"
+
+	// defaultInstancePort is applied to discovered addresses without a port
+	// (e.g. bare pod IPs from the k8s provider); it is crocochrome's default
+	// listen port.
+	defaultInstancePort = "8080"
 
 	defaultSyncInterval = 15 * time.Second
 
@@ -47,9 +54,14 @@ const (
 
 // Config configures a Pool.
 type Config struct {
-	// URL is the browser pool URL. Its host is DNS-expanded to the set of
-	// crocochrome instances by the sync loop.
-	URL string
+	// Addresses are the discovery entries resolving the crocochrome fleet:
+	// host[:port] addresses (hostnames are DNS-expanded to every A/AAAA
+	// record) and/or go-discover configs such as
+	// "provider=k8s namespace=... label_selector=...". Same grammar as the
+	// cluster's join addresses; see internal/discovery. Instances are
+	// addressed as http://host:port; addresses without a port get
+	// defaultInstancePort.
+	Addresses []string
 	// SyncInterval is the period of the sync loop. Defaults to 15s.
 	SyncInterval time.Duration
 	// HTTPClient is the client used to talk to crocochrome instances.
@@ -118,14 +130,6 @@ type sessionInfo struct {
 // starts its sync loop, which keeps the fleet membership and status up to
 // date until ctx is cancelled.
 func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Pool, error) {
-	u, err := url.Parse(cfg.URL)
-	if err != nil {
-		return nil, fmt.Errorf("parsing browser pool URL %q: %w", cfg.URL, err)
-	}
-	if u.Scheme == "" || u.Host == "" {
-		return nil, fmt.Errorf("browser pool URL %q must include scheme and host", cfg.URL)
-	}
-
 	if cfg.SyncInterval == 0 {
 		cfg.SyncInterval = defaultSyncInterval
 	}
@@ -133,7 +137,14 @@ func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Po
 		cfg.HTTPClient = &http.Client{}
 	}
 	if cfg.resolveFleet == nil {
-		cfg.resolveFleet = fleetResolver(u)
+		if len(cfg.Addresses) == 0 {
+			return nil, errors.New("browser pool requires at least one address")
+		}
+		resolveFleet, err := fleetResolver(cfg.Addresses, log.New(cfg.Logger, "", 0))
+		if err != nil {
+			return nil, err
+		}
+		cfg.resolveFleet = resolveFleet
 	}
 	if registerer == nil {
 		registerer = prometheus.NewRegistry() // Empty, unused.
@@ -154,41 +165,37 @@ func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Po
 	return p, nil
 }
 
-// fleetResolver returns the default fleet resolution for a pool URL:
-// A literal IP host is the single instance, a hostname is DNS-expanded to every
-// A/AAAA record (a headless service resolves to all of its backing pods),
-// each combined with the URL's scheme and port.
-func fleetResolver(u *url.URL) func() ([]string, error) {
-	return func() ([]string, error) {
-		host := u.Hostname()
-		if net.ParseIP(host) != nil {
-			return []string{u.Scheme + "://" + u.Host}, nil
-		}
-
-		ips, err := net.LookupHost(host)
-		if err != nil {
-			return nil, fmt.Errorf("resolving browser pool host %q: %w", host, err)
-		}
-
-		return instanceBaseURLs(u.Scheme, u.Port(), ips), nil
+// fleetResolver returns the default fleet resolution for the configured
+// discovery entries (see discovery.NewDiscoverer), turning the resolved
+// addresses into instance base URLs.
+func fleetResolver(entries []string, logger *log.Logger) (func() ([]string, error), error) {
+	discover, err := discovery.NewDiscoverer(entries, logger)
+	if err != nil {
+		return nil, fmt.Errorf("configuring browser pool discovery: %w", err)
 	}
+
+	return func() ([]string, error) {
+		addrs, err := discover()
+		if err != nil {
+			return nil, err
+		}
+		return instanceBaseURLs(addrs), nil
+	}, nil
 }
 
-// instanceBaseURLs combines resolved IPs with the pool URL's scheme and port
-// into instance base URLs.
-func instanceBaseURLs(scheme, port string, ips []string) []string {
-	urls := make([]string, 0, len(ips))
+// instanceBaseURLs turns resolved host[:port] addresses into instance base
+// URLs. The scheme is plain HTTP (the pool is LAN-local and single-tenant by
+// design); addresses without a port — e.g. bare pod IPs from the k8s
+// provider — get defaultInstancePort.
+func instanceBaseURLs(addrs []string) []string {
+	urls := make([]string, 0, len(addrs))
 
-	for _, ip := range ips {
-		host := ip
-		switch {
-		case port != "":
-			host = net.JoinHostPort(ip, port)
-		case strings.Contains(ip, ":"):
-			// IPv6 literals must be bracketed even without a port.
-			host = "[" + ip + "]"
+	for _, addr := range addrs {
+		if _, _, err := net.SplitHostPort(addr); err != nil {
+			// No port component (or a bare IPv6 literal): apply the default.
+			addr = net.JoinHostPort(strings.Trim(addr, "[]"), defaultInstancePort)
 		}
-		urls = append(urls, scheme+"://"+host)
+		urls = append(urls, "http://"+addr)
 	}
 
 	return urls
