@@ -18,12 +18,25 @@ import (
 	"github.com/spf13/afero"
 )
 
-// k6CloudPushRefIDEnvVar is the name of the k6 runtime environment variable used to
-// tag browser tests as originated from Synthetic Monitoring. It contains a reference
-// to the check's execution ID. k6 will propagate this data to the window.k6 property,
-// which is parsed by FE O11y as a means to correlate between a specific browser session
-// and a check execution.
-const k6CloudPushRefIDEnvVar = "K6_CLOUD_PUSH_REF_ID"
+const (
+	// k6CloudPushRefIDEnvVar is the name of the k6 runtime environment variable used to
+	// tag browser tests as originated from Synthetic Monitoring. It contains a reference
+	// to the check's execution ID. k6 will propagate this data to the window.k6 property,
+	// which is parsed by FE O11y as a means to correlate between a specific browser session
+	// and a check execution.
+	k6CloudPushRefIDEnvVar = "K6_CLOUD_PUSH_REF_ID"
+
+	// k6BrowserWSURLEnvVar is the k6 option, read from the process environment,
+	// that makes the browser module connect to an already-running browser over
+	// CDP instead of launching its own.
+	k6BrowserWSURLEnvVar = "K6_BROWSER_WS_URL"
+
+	// browserAcquireTimeoutCap is the maximum time to wait for a browser session
+	// from the pool. The effective budget is the smaller of this cap and half the
+	// check timeout, so waiting for a browser can never consume the entire check
+	// budget.
+	browserAcquireTimeoutCap = 30 * time.Second
+)
 
 // secretSourceConfig represents the configuration for the secrets store
 type secretSourceConfig struct {
@@ -36,6 +49,9 @@ type Local struct {
 	logger        *zerolog.Logger
 	fs            afero.Fs
 	blacklistedIP string
+	// browserPool, if non-nil, provides remote browser sessions for browser
+	// checks. When nil, k6 launches Chromium locally as usual.
+	browserPool BrowserPool
 }
 
 func (r Local) WithLogger(logger *zerolog.Logger) Runner {
@@ -130,6 +146,24 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 		return nil, fmt.Errorf("building k6 arguments: %w", err)
 	}
 
+	// For browser checks running against a browser pool, acquire a remote
+	// browser session and hand its CDP WebSocket URL to k6 through the
+	// process environment. If no session can be acquired in time, the check
+	// fails.
+	var browserWSURL string
+	if r.usesBrowserPool(script) {
+		acquireCtx, acquireCancel := context.WithTimeout(ctx, min(checkTimeout/2, browserAcquireTimeoutCap))
+		wsURL, release, err := r.browserPool.Acquire(acquireCtx, script.CheckInfo)
+		acquireCancel()
+		if err != nil {
+			return nil, fmt.Errorf("acquiring browser session: %w", err)
+		}
+		// Fresh context: the check context may already be done when k6 exits.
+		defer release(context.Background())
+
+		browserWSURL = wsURL
+	}
+
 	cmd := exec.CommandContext(
 		ctx,
 		k6Version.Path,
@@ -143,6 +177,9 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	cmd.Env = k6Env(os.Environ())
+	if browserWSURL != "" {
+		cmd.Env = append(cmd.Env, k6BrowserWSURLEnvVar+"="+browserWSURL)
+	}
 
 	start := time.Now()
 	logger.Info().Str("command", cmd.String()).Msg("running k6 script")
@@ -260,6 +297,12 @@ func (r Local) Versions(ctx context.Context) <-chan []string {
 	}()
 
 	return ch
+}
+
+// usesBrowserPool reports whether this run must acquire a remote browser
+// from the pool: a pool is configured and the check is a browser check.
+func (r Local) usesBrowserPool(script Script) bool {
+	return r.browserPool != nil && script.CheckInfo.Type == synthetic_monitoring.CheckTypeBrowser.String()
 }
 
 func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile, executionID string) ([]string, error) {

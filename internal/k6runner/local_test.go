@@ -1,10 +1,16 @@
 package k6runner
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"path/filepath"
 	"slices"
+	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateSecretConfigFile(t *testing.T) {
@@ -200,4 +206,140 @@ func TestBuildK6RefID(t *testing.T) {
 			t.Fatal("expected error for empty executionID, got nil")
 		}
 	})
+}
+
+func TestLocalBrowserPool(t *testing.T) {
+	t.Parallel()
+
+	browserScript := func() Script {
+		return Script{
+			Script:            []byte("export default function() {}"),
+			Settings:          Settings{Timeout: 5000},
+			CheckInfo:         CheckInfo{Type: "browser", Metadata: map[string]any{"id": "123"}},
+			K6ChannelManifest: "*",
+		}
+	}
+
+	newLocalRunner := func(t *testing.T, pool BrowserPool) Runner {
+		t.Helper()
+		// The k6 fake is exec'd with the runner's temporary directory as
+		// working directory, so its path must be absolute.
+		k6Fake, err := filepath.Abs("./testdata/k6-env-fake")
+		require.NoError(t, err)
+		runner, err := New(RunnerOpts{Uri: k6Fake, BrowserPool: pool})
+		require.NoError(t, err)
+		return runner
+	}
+
+	t.Run("browser check acquires, injects and releases", func(t *testing.T) {
+		t.Parallel()
+
+		pool := &fakeBrowserPool{wsURL: "ws://pool-instance:8080/proxy/abc123"}
+		runner := newLocalRunner(t, pool)
+
+		rr, err := runner.Run(t.Context(), browserScript(), SecretStore{}, "exec-id")
+		require.NoError(t, err)
+
+		acquired, releases := pool.state()
+		require.Len(t, acquired, 1)
+		require.Equal(t, "browser", acquired[0].Type)
+		require.Equal(t, 1, releases)
+		// The fake k6 dumps K6_BROWSER_WS_URL into the logs: the session URL
+		// reached the k6 process environment.
+		require.Contains(t, string(rr.Logs), pool.wsURL)
+	})
+
+	t.Run("non-browser check does not use the pool", func(t *testing.T) {
+		t.Parallel()
+
+		pool := &fakeBrowserPool{wsURL: "ws://pool-instance:8080/proxy/abc123"}
+		runner := newLocalRunner(t, pool)
+
+		script := browserScript()
+		script.CheckInfo.Type = "scripted"
+
+		rr, err := runner.Run(t.Context(), script, SecretStore{}, "exec-id")
+		require.NoError(t, err)
+
+		acquired, releases := pool.state()
+		require.Empty(t, acquired)
+		require.Zero(t, releases)
+		require.Contains(t, string(rr.Logs), "browserWsUrl=none")
+	})
+
+	t.Run("acquire error fails the check", func(t *testing.T) {
+		t.Parallel()
+
+		acquireErr := errors.New("browser pool exhausted")
+		pool := &fakeBrowserPool{err: acquireErr}
+		runner := newLocalRunner(t, pool)
+
+		_, err := runner.Run(t.Context(), browserScript(), SecretStore{}, "exec-id")
+		require.ErrorIs(t, err, acquireErr)
+
+		_, releases := pool.state()
+		require.Zero(t, releases)
+	})
+
+	t.Run("release on k6 failure", func(t *testing.T) {
+		t.Parallel()
+
+		pool := &fakeBrowserPool{wsURL: "ws://pool-instance:8080/proxy/abc123"}
+		runner := newLocalRunner(t, pool)
+
+		// The K6_FAKE_FAIL marker in the script makes the fake k6 exit 1,
+		// which the runner classifies as a user error and absorbs into the
+		// RunResponse.
+		script := browserScript()
+		script.Script = []byte("// K6_FAKE_FAIL")
+
+		rr, err := runner.Run(t.Context(), script, SecretStore{}, "exec-id")
+		require.NoError(t, err)
+		require.NotEmpty(t, rr.Error)
+
+		_, releases := pool.state()
+		require.Equal(t, 1, releases)
+	})
+
+	t.Run("nil pool preserves local behavior", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newLocalRunner(t, nil)
+
+		rr, err := runner.Run(t.Context(), browserScript(), SecretStore{}, "exec-id")
+		require.NoError(t, err)
+		require.Contains(t, string(rr.Logs), "browserWsUrl=none")
+	})
+}
+
+// fakeBrowserPool implements BrowserPool for tests.
+type fakeBrowserPool struct {
+	wsURL string
+	err   error
+
+	mtx      sync.Mutex
+	acquired []CheckInfo
+	releases int
+}
+
+func (f *fakeBrowserPool) Acquire(_ context.Context, checkInfo CheckInfo) (string, func(context.Context), error) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	if f.err != nil {
+		return "", nil, f.err
+	}
+
+	f.acquired = append(f.acquired, checkInfo)
+	return f.wsURL, func(context.Context) {
+		f.mtx.Lock()
+		defer f.mtx.Unlock()
+		f.releases++
+	}, nil
+}
+
+func (f *fakeBrowserPool) state() (acquired []CheckInfo, releases int) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	return slices.Clone(f.acquired), f.releases
 }

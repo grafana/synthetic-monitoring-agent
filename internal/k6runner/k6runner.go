@@ -105,11 +105,27 @@ type Runner interface {
 	Versions(context.Context) <-chan []string
 }
 
+// BrowserPool allocates remote browser sessions for browser checks.
+// *browser.Pool satisfies it; the interface is defined here, and satisfied
+// structurally, because internal/browser imports this package for CheckInfo.
+type BrowserPool interface {
+	// Acquire returns the CDP WebSocket URL of a browser session and a
+	// release function that must be called when the session is no longer
+	// needed. It blocks until a session is available or ctx expires.
+	Acquire(ctx context.Context, checkInfo CheckInfo) (wsURL string, release func(context.Context), err error)
+}
+
 type RunnerOpts struct {
 	Uri           string
 	Repository    string
 	BlacklistedIP string
 	Registerer    prometheus.Registerer
+	// BrowserPool, if set, makes the Local runner execute browser checks
+	// against remote browser sessions acquired from it, instead of a
+	// locally-launched Chromium. Assign only a value known to be non-nil: a
+	// typed-nil makes the runner treat the pool as configured and panic on
+	// the first browser check.
+	BrowserPool BrowserPool
 }
 
 func New(opts RunnerOpts) (Runner, error) {
@@ -144,6 +160,7 @@ func New(opts RunnerOpts) (Runner, error) {
 			logger:        &logger,
 			blacklistedIP: opts.BlacklistedIP,
 			fs:            afero.NewOsFs(),
+			browserPool:   opts.BrowserPool,
 		}
 	}
 

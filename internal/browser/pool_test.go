@@ -20,6 +20,11 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 )
 
+// The pool must satisfy the k6 runner's BrowserPool interface, which is
+// satisfied structurally: k6runner cannot import this package (this package
+// imports it for CheckInfo).
+var _ k6runner.BrowserPool = (*Pool)(nil)
+
 func TestNew(t *testing.T) {
 	t.Parallel()
 
