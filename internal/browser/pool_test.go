@@ -29,13 +29,13 @@ func TestNew(t *testing.T) {
 	t.Parallel()
 
 	testcases := map[string]struct {
-		url       string
+		addresses []string
 		expectErr bool
 	}{
-		"valid":          {url: "http://crocochrome.pool.svc:8080"},
-		"missing scheme": {url: "crocochrome.pool.svc:8080", expectErr: true},
-		"missing host":   {url: "http://", expectErr: true},
-		"empty":          {url: "", expectErr: true},
+		"dns entry":            {addresses: []string{"crocochrome.pool.svc:8080"}},
+		"k8s provider entry":   {addresses: []string{"provider=k8s namespace=sm label_selector=app=crocochrome"}},
+		"unsupported provider": {addresses: []string{"provider=aws tag_key=cluster"}, expectErr: true},
+		"empty":                {expectErr: true},
 	}
 
 	for name, tc := range testcases {
@@ -45,7 +45,7 @@ func TestNew(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())
 			cancel() // keep the sync loop inert.
 
-			_, err := New(ctx, Config{URL: tc.url}, prometheus.NewRegistry())
+			_, err := New(ctx, Config{Addresses: tc.addresses}, prometheus.NewRegistry())
 			if tc.expectErr {
 				require.Error(t, err)
 				return
@@ -433,7 +433,6 @@ func TestSync(t *testing.T) {
 		defer cancel()
 
 		pool, err := New(ctx, Config{
-			URL:          "http://pool.invalid",
 			SyncInterval: 25 * time.Millisecond,
 			resolveFleet: fleet.resolve,
 		}, prometheus.NewRegistry())
@@ -459,7 +458,6 @@ func TestSync(t *testing.T) {
 		a := newFakeInstance(t)
 
 		pool, err := New(t.Context(), Config{
-			URL:          "http://pool.invalid",
 			resolveFleet: staticFleet(a.URL()),
 		}, prometheus.NewRegistry())
 		require.NoError(t, err)
@@ -478,39 +476,35 @@ func TestInstanceBaseURLs(t *testing.T) {
 	t.Parallel()
 
 	testcases := map[string]struct {
-		scheme   string
-		port     string
-		ips      []string
+		addrs    []string
 		expected []string
 	}{
 		"with port": {
-			scheme:   "http",
-			port:     "8080",
-			ips:      []string{"10.0.0.1", "10.0.0.2"},
-			expected: []string{"http://10.0.0.1:8080", "http://10.0.0.2:8080"},
+			addrs:    []string{"10.0.0.1:9222", "10.0.0.2:9222"},
+			expected: []string{"http://10.0.0.1:9222", "http://10.0.0.2:9222"},
 		},
-		"without port": {
-			scheme:   "http",
-			ips:      []string{"10.0.0.1"},
-			expected: []string{"http://10.0.0.1"},
+		"without port gets the default": {
+			addrs:    []string{"10.0.0.1"},
+			expected: []string{"http://10.0.0.1:8080"},
 		},
-		"ipv6": {
-			scheme:   "http",
-			port:     "8080",
-			ips:      []string{"fd00::1"},
-			expected: []string{"http://[fd00::1]:8080"},
+		"hostname without port gets the default": {
+			addrs:    []string{"crocochrome.pool.svc"},
+			expected: []string{"http://crocochrome.pool.svc:8080"},
 		},
-		"ipv6 without port": {
-			scheme:   "http",
-			ips:      []string{"fd00::1"},
-			expected: []string{"http://[fd00::1]"},
+		"ipv6 with port": {
+			addrs:    []string{"[fd00::1]:9222"},
+			expected: []string{"http://[fd00::1]:9222"},
+		},
+		"ipv6 without port gets the default": {
+			addrs:    []string{"fd00::1", "[fd00::2]"},
+			expected: []string{"http://[fd00::1]:8080", "http://[fd00::2]:8080"},
 		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.expected, instanceBaseURLs(tc.scheme, tc.port, tc.ips))
+			require.Equal(t, tc.expected, instanceBaseURLs(tc.addrs))
 		})
 	}
 }
@@ -802,7 +796,7 @@ func newTestPool(t *testing.T, fakes ...*fakeInstance) *Pool {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	pool, err := New(ctx, Config{URL: "http://pool.invalid"}, prometheus.NewRegistry())
+	pool, err := New(ctx, Config{resolveFleet: staticFleet()}, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	// applyObservation inserts at the front: seed in reverse so fakes[0] ends

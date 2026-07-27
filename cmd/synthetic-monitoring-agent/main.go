@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cluster"
+	"github.com/grafana/synthetic-monitoring-agent/internal/discovery"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -93,7 +94,7 @@ func run(args []string, stdout io.Writer) error {
 			K6URI                 string
 			K6Repository          string
 			K6BlacklistedIP       string
-			BrowserPoolURL        string
+			BrowserPoolAddresses  StringList
 			SelectedPublisher     string
 			TelemetryTimeSpan     int
 			AutoMemLimit          bool
@@ -168,7 +169,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.DurationVar(&config.Cluster.RejoinInterval, "cluster-rejoin-interval", config.Cluster.RejoinInterval, "how often to re-resolve peers and re-join, picking up scale-ups")
 	flags.DurationVar(&config.Cluster.DrainTimeout, "cluster-drain-timeout", config.Cluster.DrainTimeout, "on shutdown, how long to stay in the cluster as terminating after announcing departure, giving peers time to take over before leaving")
 
-	flags.StringVar(&config.BrowserPoolURL, "browser-pool-url", config.BrowserPoolURL, "URL of an external browser (crocochrome) pool, e.g. http://crocochrome.pool.svc:8080; its host is DNS-expanded to the fleet. If set, browser checks use remote browser sessions instead of a local Chromium")
+	flags.Var(&config.BrowserPoolAddresses, "browser-pool-addresses", "external browser (crocochrome) pool instances: go-discover configs (e.g. 'provider=k8s namespace=sm label_selector=app=crocochrome') and/or host[:port] addresses; instances are addressed as http://host:port, port defaults to 8080. If set, browser checks use remote browser sessions instead of a local Chromium")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -354,8 +355,8 @@ func run(args []string, stdout io.Writer) error {
 			Registerer:    promRegisterer,
 		}
 
-		if config.BrowserPoolURL != "" {
-			browserPool, err := buildBrowserPool(ctx, config.BrowserPoolURL,
+		if len(config.BrowserPoolAddresses) > 0 {
+			browserPool, err := buildBrowserPool(ctx, config.BrowserPoolAddresses,
 				zl.With().Str("subsystem", "browser_pool").Logger(), promRegisterer)
 			if err != nil {
 				return fmt.Errorf("building browser pool: %w", err)
@@ -367,7 +368,7 @@ func run(args []string, stdout io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("building k6 runner: %w", err)
 		}
-	} else if config.BrowserPoolURL != "" {
+	} else if len(config.BrowserPoolAddresses) > 0 {
 		zl.Warn().Msg("browser pool configured but the k6 feature is disabled; ignoring")
 	}
 
@@ -562,14 +563,14 @@ func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 	}
 }
 
-// buildBrowserPool translates the -browser-pool-url flag into a running
+// buildBrowserPool translates the -browser-pool-addresses flag into a running
 // browser.Pool, whose sync loop stops when ctx is cancelled. It returns the
 // k6runner interface type so a typed-nil can never reach
 // RunnerOpts.BrowserPool.
-func buildBrowserPool(ctx context.Context, poolURL string, logger zerolog.Logger, registerer prometheus.Registerer) (k6runner.BrowserPool, error) {
+func buildBrowserPool(ctx context.Context, addresses []string, logger zerolog.Logger, registerer prometheus.Registerer) (k6runner.BrowserPool, error) {
 	pool, err := browser.New(ctx, browser.Config{
-		URL:    poolURL,
-		Logger: logger,
+		Addresses: addresses,
+		Logger:    logger,
 	}, registerer)
 	if err != nil {
 		return nil, err
@@ -591,7 +592,7 @@ func buildClusterNode(cfg clusterConfig, logger zerolog.Logger, registerer prome
 		return nil, fmt.Errorf("resolving cluster advertise address: %w", err)
 	}
 
-	discoverFn, err := cluster.NewDiscoverer(cfg.JoinAddresses, log.New(logger, "", 0))
+	discoverFn, err := discovery.NewDiscoverer(cfg.JoinAddresses, log.New(logger, "", 0))
 	if err != nil {
 		return nil, fmt.Errorf("configuring cluster peer discovery: %w", err)
 	}
