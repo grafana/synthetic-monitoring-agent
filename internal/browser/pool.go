@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,6 +35,8 @@ const (
 	acquireAttemptTimeout = 10 * time.Second
 	// releaseTimeout bounds the session delete request on release.
 	releaseTimeout = 10 * time.Second
+	// syncRequestTimeout bounds each GET /sessions request of a sync tick.
+	syncRequestTimeout = 5 * time.Second
 
 	backoffMin = 250 * time.Millisecond
 	backoffMax = 2 * time.Second
@@ -50,6 +54,11 @@ type Config struct {
 	// per-attempt.
 	HTTPClient *http.Client
 	Logger     zerolog.Logger
+
+	// resolveFleet returns the current set of instance base URLs. It defaults
+	// to DNS-expanding URL's host, and exists as a field so tests can inject
+	// a static fleet.
+	resolveFleet func() ([]string, error)
 }
 
 // Pool tracks a fleet of single-session crocochrome instances and allocates
@@ -90,7 +99,7 @@ type sessionInfo struct {
 
 // New creates a Pool from cfg. registerer will register the pool's metrics
 // when they are added; it is accepted now for signature stability.
-func New(cfg Config, registerer prometheus.Registerer) (*Pool, error) {
+func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Pool, error) {
 	u, err := url.Parse(cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("parsing browser pool URL %q: %w", cfg.URL, err)
@@ -105,14 +114,61 @@ func New(cfg Config, registerer prometheus.Registerer) (*Pool, error) {
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{}
 	}
+	if cfg.resolveFleet == nil {
+		cfg.resolveFleet = fleetResolver(u)
+	}
 
-	return &Pool{
+	p := &Pool{
 		cfg:      cfg,
 		client:   cfg.HTTPClient,
 		logger:   cfg.Logger,
 		order:    list.New(),
 		elements: make(map[string]*list.Element),
-	}, nil
+	}
+
+	go p.sync(ctx)
+
+	return p, nil
+}
+
+// fleetResolver returns the default fleet resolution for a pool URL:
+// A literal IP host is the single instance, a hostname is DNS-expanded to every
+// A/AAAA record (a headless service resolves to all of its backing pods),
+// each combined with the URL's scheme and port.
+func fleetResolver(u *url.URL) func() ([]string, error) {
+	return func() ([]string, error) {
+		host := u.Hostname()
+		if net.ParseIP(host) != nil {
+			return []string{u.Scheme + "://" + u.Host}, nil
+		}
+
+		ips, err := net.LookupHost(host)
+		if err != nil {
+			return nil, fmt.Errorf("resolving browser pool host %q: %w", host, err)
+		}
+
+		return instanceBaseURLs(u.Scheme, u.Port(), ips), nil
+	}
+}
+
+// instanceBaseURLs combines resolved IPs with the pool URL's scheme and port
+// into instance base URLs.
+func instanceBaseURLs(scheme, port string, ips []string) []string {
+	urls := make([]string, 0, len(ips))
+
+	for _, ip := range ips {
+		host := ip
+		switch {
+		case port != "":
+			host = net.JoinHostPort(ip, port)
+		case strings.Contains(ip, ":"):
+			// IPv6 literals must be bracketed even without a port.
+			host = "[" + ip + "]"
+		}
+		urls = append(urls, scheme+"://"+host)
+	}
+
+	return urls
 }
 
 // Acquire allocates a browser session from the pool, returning its CDP
@@ -316,31 +372,170 @@ func (p *Pool) deleteSession(ctx context.Context, baseURL, sessionID string) err
 	return nil
 }
 
-// upsertInstance adds an instance at the front of the list if it is not
-// already known. Used by the sync loop on membership changes.
-func (p *Pool) upsertInstance(baseURL string) {
-	p.mtx.Lock()
-	defer p.mtx.Unlock()
-
-	if _, found := p.elements[baseURL]; found {
+// sync drives the periodic sync loop until ctx is cancelled. It is started by
+// New and runs one sync immediately, so membership is populated as soon as
+// the pool is constructed rather than after the first interval.
+func (p *Pool) sync(ctx context.Context) {
+	if ctx.Err() != nil {
 		return
 	}
-	p.elements[baseURL] = p.order.PushFront(&instance{baseURL: baseURL})
+
+	p.syncOnce(ctx)
+
+	ticker := time.NewTicker(p.cfg.SyncInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			p.syncOnce(ctx)
+		}
+	}
 }
 
-// removeInstance removes an instance from the pool. Busy instances are kept
-// until released, and removed by a later sync tick. Used by the sync loop on
-// membership changes.
-func (p *Pool) removeInstance(baseURL string) {
+// syncOnce performs one sync tick: it resolves the current fleet, observes
+// every instance's busy/free state via GET /sessions, and applies the result
+// to the pool's membership and ordering. Failures are logged and repaired by
+// a later tick, never fatal: the pool state is a probing heuristic, and
+// crocochrome's create-if-free remains the allocation gate.
+func (p *Pool) syncOnce(ctx context.Context) {
+	addrs, err := p.cfg.resolveFleet()
+	if err != nil {
+		// A resolution blip must not drop known instances: reconcile the
+		// current membership instead.
+		p.logger.Warn().Err(err).Msg("resolving browser pool fleet, keeping current membership")
+		addrs = p.instanceURLs()
+	}
+
+	// Observe every instance concurrently, outside the mutex.
+	type observation struct {
+		baseURL string
+		free    bool
+	}
+
+	observations := make([]observation, len(addrs))
+
+	var wg sync.WaitGroup
+	for i, addr := range addrs {
+		wg.Go(func() {
+			free, err := p.observeInstance(ctx, addr)
+			if err != nil {
+				// Pessimistic: an unobservable instance is deprioritized, and
+				// probing corrects the guess if it is actually free.
+				p.logger.Debug().Err(err).Str("instance", addr).Msg("observing browser instance")
+				free = false
+			}
+			observations[i] = observation{baseURL: addr, free: free}
+		})
+	}
+
+	wg.Wait()
+
+	for _, o := range observations {
+		p.applyObservation(o.baseURL, o.free)
+	}
+
+	resolved := make(map[string]bool, len(addrs))
+	for _, addr := range addrs {
+		resolved[addr] = true
+	}
+	p.prune(resolved)
+}
+
+// observeInstance reports whether an instance is free, i.e. has no active
+// sessions.
+func (p *Pool) observeInstance(ctx context.Context, baseURL string) (bool, error) {
+	endpoint, err := url.JoinPath(baseURL, "/sessions")
+	if err != nil {
+		return false, fmt.Errorf("building sessions URL: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, syncRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return false, fmt.Errorf("building sessions request: %w", err)
+	}
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("requesting sessions: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("instance responded %d", resp.StatusCode)
+	}
+
+	var sessions []string
+	if err := json.NewDecoder(resp.Body).Decode(&sessions); err != nil {
+		return false, fmt.Errorf("decoding sessions: %w", err)
+	}
+
+	return len(sessions) == 0, nil
+}
+
+// applyObservation records an instance's observed busy/free state: unknown
+// instances join the pool, known ones are reordered (free floats to the
+// front, busy sinks to the back). Instances busy with a local claim are left
+// untouched: the in-flight Acquire or the pending release owns their
+// transitions, and the observation may predate the claim.
+func (p *Pool) applyObservation(baseURL string, free bool) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 
 	el, found := p.elements[baseURL]
-	if !found || el.Value.(*instance).busy {
+	if !found {
+		el = p.order.PushFront(&instance{baseURL: baseURL})
+		p.elements[baseURL] = el
+	}
+
+	// Only a pre-existing instance can be busy (a just-inserted one never is):
+	// it is claimed by this agent, and the claim holder owns its transitions.
+	// The busy flag is re-checked here, under the mutex, because the
+	// observation was taken outside it and may predate the claim.
+	if el.Value.(*instance).busy {
 		return
 	}
-	p.order.Remove(el)
-	delete(p.elements, baseURL)
+
+	if free {
+		p.order.MoveToFront(el)
+	} else {
+		p.order.MoveToBack(el)
+	}
+}
+
+// prune removes instances that are no longer part of the resolved fleet.
+// Busy instances are kept until released — a scale-down must not yank state
+// out from under a running check — and removed by a later tick.
+func (p *Pool) prune(resolved map[string]bool) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	for baseURL, el := range p.elements {
+		// Busy instances are kept in expectation of their pending release:
+		// a pod dropped from discovery may still be draining our session.
+		if resolved[baseURL] || el.Value.(*instance).busy {
+			continue
+		}
+		p.order.Remove(el)
+		delete(p.elements, baseURL)
+	}
+}
+
+// instanceURLs returns the base URLs of the current instances.
+func (p *Pool) instanceURLs() []string {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	addrs := make([]string, 0, len(p.elements))
+	for baseURL := range p.elements {
+		addrs = append(addrs, baseURL)
+	}
+	return addrs
 }
 
 // moveToBack moves inst's element to the back of the list. The caller
