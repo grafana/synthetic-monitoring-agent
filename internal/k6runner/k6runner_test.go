@@ -46,6 +46,10 @@ func TestNew(t *testing.T) {
 	r4, err := New(RunnerOpts{Uri: "https://localhost:6565"})
 	require.NoError(t, err)
 	require.IsType(t, &HttpRunner{}, r4)
+
+	// Reject browser pool with a remote k6 runner.
+	_, err = New(RunnerOpts{Uri: "https://localhost:6565", BrowserPool: &fakeBrowserPool{}})
+	require.Error(t, err)
 }
 
 func TestNewScript(t *testing.T) {

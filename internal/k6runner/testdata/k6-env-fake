@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+# Fake k6 binary for Local runner tests. Prints the version JSON expected by
+# the version repository probe, and on "run" writes K6_BROWSER_WS_URL into the
+# logs file so tests can assert the environment k6 was launched with. Exits
+# non-zero when the script file (last argument) contains K6_FAKE_FAIL.
+
+echo '{"commit":"1111111111","go_arch":"amd64","go_os":"linux","go_version":"go1.24.6","version":"v1.2.3"}'
+
+if [[ "${1:-}" != "run" ]]; then
+  exit 0
+fi
+
+logfile=""
+prev=""
+for arg in "$@"; do
+  if [[ "$prev" == "--log-output" ]]; then
+    logfile="${arg#file=}"
+  fi
+  prev="$arg"
+done
+
+if [[ -n "$logfile" ]]; then
+  echo "level=info msg=\"fake k6 run\" browserWsUrl=${K6_BROWSER_WS_URL:-none}" > "$logfile"
+fi
+
+scriptfile="${*: -1}"
+if [[ -f "$scriptfile" ]] && grep -q "K6_FAKE_FAIL" "$scriptfile"; then
+  exit 1
+fi
