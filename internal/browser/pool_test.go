@@ -2,6 +2,7 @@ package browser
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -34,7 +35,10 @@ func TestNew(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := New(Config{URL: tc.url}, prometheus.NewRegistry())
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel() // keep the sync loop inert.
+
+			_, err := New(ctx, Config{URL: tc.url}, prometheus.NewRegistry())
 			if tc.expectErr {
 				require.Error(t, err)
 				return
@@ -53,7 +57,7 @@ func TestAcquire(t *testing.T) {
 		fake := newFakeInstance(t)
 		pool := newTestPool(t, fake)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		wsURL, release, err := pool.Acquire(ctx, testCheckInfo())
@@ -61,7 +65,7 @@ func TestAcquire(t *testing.T) {
 		require.Contains(t, wsURL, "/proxy/")
 		requireInvariant(t, pool)
 
-		release(context.Background())
+		release(t.Context())
 		require.Equal(t, 1, fake.deleteCount())
 		require.Empty(t, fake.session())
 		requireInvariant(t, pool)
@@ -70,7 +74,7 @@ func TestAcquire(t *testing.T) {
 		wsURL2, release2, err := pool.Acquire(ctx, testCheckInfo())
 		require.NoError(t, err)
 		require.NotEmpty(t, wsURL2)
-		release2(context.Background())
+		release2(t.Context())
 	})
 
 	t.Run("walks past busy", func(t *testing.T) {
@@ -81,7 +85,7 @@ func TestAcquire(t *testing.T) {
 		free := newFakeInstance(t)
 		pool := newTestPool(t, busy, free)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		wsURL, release, err := pool.Acquire(ctx, testCheckInfo())
@@ -94,7 +98,7 @@ func TestAcquire(t *testing.T) {
 		require.Equal(t, []string{busy.URL(), free.URL()}, poolOrder(pool))
 		requireInvariant(t, pool)
 
-		release(context.Background())
+		release(t.Context())
 		// Released instances return to the front.
 		require.Equal(t, []string{free.URL(), busy.URL()}, poolOrder(pool))
 		requireInvariant(t, pool)
@@ -108,13 +112,13 @@ func TestAcquire(t *testing.T) {
 		free := newFakeInstance(t)
 		pool := newTestPool(t, draining, free)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		wsURL, release, err := pool.Acquire(ctx, testCheckInfo())
 		require.NoError(t, err)
 		require.Contains(t, wsURL, hostOf(free))
-		release(context.Background())
+		release(t.Context())
 	})
 
 	t.Run("waits for freed instance", func(t *testing.T) {
@@ -131,13 +135,13 @@ func TestAcquire(t *testing.T) {
 			a.setSession("") // freed elsewhere (e.g. session timeout).
 		}()
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		wsURL, release, err := pool.Acquire(ctx, testCheckInfo())
 		require.NoError(t, err)
 		require.Contains(t, wsURL, hostOf(a))
-		release(context.Background())
+		release(t.Context())
 		requireInvariant(t, pool)
 	})
 
@@ -148,7 +152,7 @@ func TestAcquire(t *testing.T) {
 		fake.setSession("held")
 		pool := newTestPool(t, fake)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 700*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 700*time.Millisecond)
 		defer cancel()
 
 		_, _, err := pool.Acquire(ctx, testCheckInfo())
@@ -162,7 +166,7 @@ func TestAcquire(t *testing.T) {
 
 		pool := newTestPool(t)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 		defer cancel()
 
 		_, _, err := pool.Acquire(ctx, testCheckInfo())
@@ -177,14 +181,14 @@ func TestAcquire(t *testing.T) {
 		good := newFakeInstance(t)
 		pool := newTestPool(t, bad, good)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		wsURL, release, err := pool.Acquire(ctx, testCheckInfo())
 		require.NoError(t, err)
 		require.Contains(t, wsURL, hostOf(good))
 		require.Equal(t, 1, bad.acquireCount())
-		release(context.Background())
+		release(t.Context())
 	})
 
 	t.Run("missing ws url deletes created session", func(t *testing.T) {
@@ -195,7 +199,7 @@ func TestAcquire(t *testing.T) {
 		good := newFakeInstance(t)
 		pool := newTestPool(t, bad, good)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		wsURL, release, err := pool.Acquire(ctx, testCheckInfo())
@@ -204,7 +208,7 @@ func TestAcquire(t *testing.T) {
 		// The unusable session on the bad instance was best-effort deleted.
 		require.Equal(t, 1, bad.deleteCount())
 		require.Empty(t, bad.session())
-		release(context.Background())
+		release(t.Context())
 	})
 }
 
@@ -217,14 +221,14 @@ func TestRelease(t *testing.T) {
 		fake := newFakeInstance(t)
 		pool := newTestPool(t, fake)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		_, release, err := pool.Acquire(ctx, testCheckInfo())
 		require.NoError(t, err)
 
-		release(context.Background())
-		release(context.Background())
+		release(t.Context())
+		release(t.Context())
 		require.Equal(t, 1, fake.deleteCount())
 	})
 
@@ -235,20 +239,20 @@ func TestRelease(t *testing.T) {
 		fake.failDelete = true
 		pool := newTestPool(t, fake)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
 
 		_, release, err := pool.Acquire(ctx, testCheckInfo())
 		require.NoError(t, err)
 
-		release(context.Background())
+		release(t.Context())
 		require.Equal(t, 1, fake.deleteCount())
 		require.NotEmpty(t, fake.session()) // the DELETE failed, session leaked...
 		requireInvariant(t, pool)
 
 		// ...so the next acquire gets the 409 correction until the instance's
 		// session timeout reaps it (simulated here), after which it succeeds.
-		shortCtx, shortCancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		shortCtx, shortCancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 		defer shortCancel()
 		_, _, err = pool.Acquire(shortCtx, testCheckInfo())
 		require.ErrorIs(t, err, ErrPoolExhausted)
@@ -257,7 +261,7 @@ func TestRelease(t *testing.T) {
 		wsURL, release2, err := pool.Acquire(ctx, testCheckInfo())
 		require.NoError(t, err)
 		require.NotEmpty(t, wsURL)
-		release2(context.Background())
+		release2(t.Context())
 	})
 }
 
@@ -283,7 +287,7 @@ func TestAcquireConcurrency(t *testing.T) {
 				// expiring mid-probe would leak a session on the instance
 				// (reaped by the session timeout in production, but a false
 				// positive for the leak assertion below).
-				ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+				ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 				_, release, err := pool.Acquire(ctx, testCheckInfo())
 				if err != nil {
 					cancel()
@@ -294,7 +298,7 @@ func TestAcquireConcurrency(t *testing.T) {
 					return
 				}
 				time.Sleep(time.Duration(10+rand.Intn(20)) * time.Millisecond)
-				release(context.Background())
+				release(t.Context())
 				cancel()
 				mtx.Lock()
 				successes++
@@ -317,34 +321,191 @@ func TestAcquireConcurrency(t *testing.T) {
 	requireInvariant(t, pool)
 }
 
-// TestMembership exercises the internal membership mutators (upsertInstance,
-// removeInstance) through which the sync loop will grow and shrink the pool:
-// upserting an existing instance must not duplicate it, and instances busy
-// with an in-flight session must survive removal until released, so that a
-// fleet scale-down never yanks state out from under a running check.
-func TestMembership(t *testing.T) {
+func TestSync(t *testing.T) {
 	t.Parallel()
 
-	fake := newFakeInstance(t)
-	pool := newTestPool(t, fake)
+	t.Run("initial population", func(t *testing.T) {
+		t.Parallel()
 
-	// Upsert is idempotent.
-	pool.upsertInstance(fake.URL())
-	require.Len(t, poolOrder(pool), 1)
+		a := newFakeInstance(t)
+		b := newFakeInstance(t)
+		pool := newTestPool(t)
+		pool.cfg.resolveFleet = staticFleet(a.URL(), b.URL())
 
-	// Busy instances are not removed.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, release, err := pool.Acquire(ctx, testCheckInfo())
-	require.NoError(t, err)
-	pool.removeInstance(fake.URL())
-	require.Len(t, poolOrder(pool), 1)
+		pool.syncOnce(t.Context())
+		require.ElementsMatch(t, []string{a.URL(), b.URL()}, poolOrder(pool))
+		requireInvariant(t, pool)
 
-	// Released instances are.
-	release(context.Background())
-	pool.removeInstance(fake.URL())
-	require.Empty(t, poolOrder(pool))
-	requireInvariant(t, pool)
+		// A second sync must not duplicate instances.
+		pool.syncOnce(t.Context())
+		require.Len(t, poolOrder(pool), 2)
+		requireInvariant(t, pool)
+	})
+
+	t.Run("reorders by observed state", func(t *testing.T) {
+		t.Parallel()
+
+		// Stale in both directions: a is believed free (front) but holds
+		// another agent's session; b is believed busy (back) but is free.
+		a := newFakeInstance(t)
+		a.setSession("held-by-someone-else")
+		b := newFakeInstance(t)
+		pool := newTestPool(t, a, b)
+		pool.cfg.resolveFleet = staticFleet(a.URL(), b.URL())
+
+		pool.syncOnce(t.Context())
+		require.Equal(t, []string{b.URL(), a.URL()}, poolOrder(pool))
+		requireInvariant(t, pool)
+	})
+
+	t.Run("skips locally busy instances", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeInstance(t)
+		pool := newTestPool(t, fake)
+		pool.cfg.resolveFleet = staticFleet() // instance gone from discovery.
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		_, release, err := pool.Acquire(ctx, testCheckInfo())
+		require.NoError(t, err)
+
+		// While we hold its session, sync must neither remove the instance
+		// nor touch its state, even though discovery dropped it.
+		pool.syncOnce(t.Context())
+		require.Equal(t, []string{fake.URL()}, poolOrder(pool))
+		requireInvariant(t, pool)
+
+		// Once released, the next sync prunes it.
+		release(t.Context())
+		pool.syncOnce(t.Context())
+		require.Empty(t, poolOrder(pool))
+		requireInvariant(t, pool)
+	})
+
+	t.Run("treats list failure as busy", func(t *testing.T) {
+		t.Parallel()
+
+		a := newFakeInstance(t)
+		a.forceListStatus = http.StatusInternalServerError
+		b := newFakeInstance(t)
+		pool := newTestPool(t, a, b)
+		pool.cfg.resolveFleet = staticFleet(a.URL(), b.URL())
+
+		pool.syncOnce(t.Context())
+		// The unobservable instance stays in the pool but sinks to the back.
+		require.Equal(t, []string{b.URL(), a.URL()}, poolOrder(pool))
+		requireInvariant(t, pool)
+	})
+
+	t.Run("keeps membership on resolution error", func(t *testing.T) {
+		t.Parallel()
+
+		a := newFakeInstance(t)
+		a.setSession("held-by-someone-else")
+		b := newFakeInstance(t)
+		pool := newTestPool(t, a, b)
+		pool.cfg.resolveFleet = func() ([]string, error) {
+			return nil, errors.New("dns is down")
+		}
+
+		pool.syncOnce(t.Context())
+		// Membership is preserved and known instances are still reconciled.
+		require.Equal(t, []string{b.URL(), a.URL()}, poolOrder(pool))
+		requireInvariant(t, pool)
+	})
+
+	t.Run("loop syncs on construction and stops on cancel", func(t *testing.T) {
+		t.Parallel()
+
+		a := newFakeInstance(t)
+		fleet := &mutableFleet{urls: []string{a.URL()}}
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		pool, err := New(ctx, Config{
+			URL:          "http://pool.invalid",
+			SyncInterval: 25 * time.Millisecond,
+			resolveFleet: fleet.resolve,
+		}, prometheus.NewRegistry())
+		require.NoError(t, err)
+
+		// The initial sync populates membership without waiting an interval.
+		require.Eventually(t, func() bool {
+			return len(poolOrder(pool)) == 1
+		}, 2*time.Second, 5*time.Millisecond)
+
+		// After cancellation, fleet changes are no longer picked up.
+		cancel()
+		time.Sleep(50 * time.Millisecond) // let a possibly in-flight tick finish.
+		fleet.set()                       // empty fleet: a sync would prune a.
+		require.Never(t, func() bool {
+			return len(poolOrder(pool)) != 1
+		}, 200*time.Millisecond, 25*time.Millisecond)
+	})
+
+	t.Run("acquire succeeds without explicit start", func(t *testing.T) {
+		t.Parallel()
+
+		a := newFakeInstance(t)
+
+		pool, err := New(t.Context(), Config{
+			URL:          "http://pool.invalid",
+			resolveFleet: staticFleet(a.URL()),
+		}, prometheus.NewRegistry())
+		require.NoError(t, err)
+
+		acquireCtx, acquireCancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer acquireCancel()
+
+		wsURL, release, err := pool.Acquire(acquireCtx, testCheckInfo())
+		require.NoError(t, err)
+		require.Contains(t, wsURL, hostOf(a))
+		release(t.Context())
+	})
+}
+
+func TestInstanceBaseURLs(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]struct {
+		scheme   string
+		port     string
+		ips      []string
+		expected []string
+	}{
+		"with port": {
+			scheme:   "http",
+			port:     "8080",
+			ips:      []string{"10.0.0.1", "10.0.0.2"},
+			expected: []string{"http://10.0.0.1:8080", "http://10.0.0.2:8080"},
+		},
+		"without port": {
+			scheme:   "http",
+			ips:      []string{"10.0.0.1"},
+			expected: []string{"http://10.0.0.1"},
+		},
+		"ipv6": {
+			scheme:   "http",
+			port:     "8080",
+			ips:      []string{"fd00::1"},
+			expected: []string{"http://[fd00::1]:8080"},
+		},
+		"ipv6 without port": {
+			scheme:   "http",
+			ips:      []string{"fd00::1"},
+			expected: []string{"http://[fd00::1]"},
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.expected, instanceBaseURLs(tc.scheme, tc.port, tc.ips))
+		})
+	}
 }
 
 // fakeInstance is a minimal crocochrome instance: single session,
@@ -354,6 +515,7 @@ type fakeInstance struct {
 
 	// Static config, set before the fake receives requests.
 	forceAcquireStatus int
+	forceListStatus    int
 	badBody            bool
 	emptyWSURL         bool
 	failDelete         bool
@@ -372,6 +534,7 @@ func newFakeInstance(t *testing.T) *fakeInstance {
 
 	f := &fakeInstance{}
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /sessions", f.handleList)
 	mux.HandleFunc("POST /sessions/acquire", f.handleAcquire)
 	mux.HandleFunc("DELETE /sessions/{id}", f.handleDelete)
 	f.srv = httptest.NewServer(mux)
@@ -428,6 +591,23 @@ func (f *fakeInstance) handleAcquire(rw http.ResponseWriter, r *http.Request) {
 	_, _ = fmt.Fprintf(rw, `{"id":%q,"chromiumVersion":{"webSocketDebuggerUrl":%q}}`, f.sessionID, wsURL)
 }
 
+func (f *fakeInstance) handleList(rw http.ResponseWriter, _ *http.Request) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	if f.forceListStatus != 0 {
+		rw.WriteHeader(f.forceListStatus)
+		return
+	}
+
+	sessions := []string{}
+	if f.sessionID != "" {
+		sessions = append(sessions, f.sessionID)
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(rw).Encode(sessions)
+}
+
 func (f *fakeInstance) handleDelete(rw http.ResponseWriter, r *http.Request) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
@@ -475,20 +655,49 @@ func (f *fakeInstance) maxInFlight() int {
 }
 
 // newTestPool creates a Pool seeded with the given fakes, front to back in
-// argument order.
+// argument order. The sync loop is kept inert (cancelled context) so tests
+// stay deterministic; sync scenarios drive syncOnce directly.
 func newTestPool(t *testing.T, fakes ...*fakeInstance) *Pool {
 	t.Helper()
 
-	pool, err := New(Config{URL: "http://pool.invalid"}, prometheus.NewRegistry())
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	pool, err := New(ctx, Config{URL: "http://pool.invalid"}, prometheus.NewRegistry())
 	require.NoError(t, err)
 
-	// upsertInstance inserts at the front: seed in reverse so fakes[0] ends up
-	// frontmost.
+	// applyObservation inserts at the front: seed in reverse so fakes[0] ends
+	// up frontmost.
 	for i := len(fakes) - 1; i >= 0; i-- {
-		pool.upsertInstance(fakes[i].URL())
+		pool.applyObservation(fakes[i].URL(), true)
 	}
 
 	return pool
+}
+
+// staticFleet returns a resolver serving a fixed set of instance base URLs.
+func staticFleet(urls ...string) func() ([]string, error) {
+	return func() ([]string, error) {
+		return urls, nil
+	}
+}
+
+// mutableFleet is a resolver whose fleet can be swapped concurrently.
+type mutableFleet struct {
+	mtx  sync.Mutex
+	urls []string
+}
+
+func (m *mutableFleet) resolve() ([]string, error) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	return m.urls, nil
+}
+
+func (m *mutableFleet) set(urls ...string) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+	m.urls = urls
 }
 
 func testCheckInfo() k6runner.CheckInfo {
