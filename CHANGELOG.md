@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.62.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.62.0...v0.62.1) (2026-07-27)
+
+
+### Miscellaneous Chores
+
+* Update actions/checkout action to v7.0.1 ([#1920](https://github.com/grafana/synthetic-monitoring-agent/issues/1920)) ([d72f6f4](https://github.com/grafana/synthetic-monitoring-agent/commit/d72f6f42fe918048d38f9f64a889a211814f3825))
+* Update actions/checkout digest to 3d3c42e ([#1915](https://github.com/grafana/synthetic-monitoring-agent/issues/1915)) ([2a5eb5a](https://github.com/grafana/synthetic-monitoring-agent/commit/2a5eb5a48ae82a878bb3966135ce0902dc29f243))
+* Update actions/setup-go action to v7 ([#1913](https://github.com/grafana/synthetic-monitoring-agent/issues/1913)) ([6799a82](https://github.com/grafana/synthetic-monitoring-agent/commit/6799a82beaceca87b3caeb1a9f6459cc574d252d))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:149.0.7827.53-r0-3.23.4 Docker digest to 216a193 ([#1917](https://github.com/grafana/synthetic-monitoring-agent/issues/1917)) ([cc338ee](https://github.com/grafana/synthetic-monitoring-agent/commit/cc338eecf7d5aec4fd6463c2389b1ecf54b95b8a))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:149.0.7827.53-r0-3.23.4 Docker digest to 23f3e68 ([#1921](https://github.com/grafana/synthetic-monitoring-agent/issues/1921)) ([145565b](https://github.com/grafana/synthetic-monitoring-agent/commit/145565be96cc49a3fb3a3214981a204036a12b72))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.44.0 ([#1927](https://github.com/grafana/synthetic-monitoring-agent/issues/1927)) ([1523405](https://github.com/grafana/synthetic-monitoring-agent/commit/1523405555316e61980d2cfaf585a44baf6a7407))
+* Update golang.org/x/exp digest to 764159d ([#1925](https://github.com/grafana/synthetic-monitoring-agent/issues/1925)) ([ddf9eee](https://github.com/grafana/synthetic-monitoring-agent/commit/ddf9eee1f0c40d32bb7305bc437f25514efdabc6))
+* Update module github.com/google/cel-go to v0.29.0 [SECURITY] ([#1923](https://github.com/grafana/synthetic-monitoring-agent/issues/1923)) ([10d9b99](https://github.com/grafana/synthetic-monitoring-agent/commit/10d9b9933eb2adb3289ba41f9cc6a3018c9e4b44))
+* Update module github.com/prometheus/client_golang to v1.24.0 ([#1919](https://github.com/grafana/synthetic-monitoring-agent/issues/1919)) ([ed07f39](https://github.com/grafana/synthetic-monitoring-agent/commit/ed07f394cfa709da205f3d681523b4d5a63bcd3d))
+* Update module github.com/quic-go/quic-go to v0.59.1 [SECURITY] ([#1914](https://github.com/grafana/synthetic-monitoring-agent/issues/1914)) ([486cc1a](https://github.com/grafana/synthetic-monitoring-agent/commit/486cc1a29ab4e9fe761267d851c0fd931eb1bea6))
+* Update prometheus-go ([#1924](https://github.com/grafana/synthetic-monitoring-agent/issues/1924)) ([0cb8468](https://github.com/grafana/synthetic-monitoring-agent/commit/0cb846807692af728c6d61bbe8b92a35531f2410))
+
 ## [0.62.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.61.0...v0.62.0) (2026-07-20)
 
 
