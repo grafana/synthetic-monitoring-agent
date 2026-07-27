@@ -28,6 +28,9 @@ import (
 var ErrPoolExhausted = errors.New("browser pool exhausted")
 
 const (
+	metricNamespace = "sm_agent"
+	metricSubsystem = "browser_pool"
+
 	defaultSyncInterval = 15 * time.Second
 
 	// acquireAttemptTimeout bounds a single acquire request to an instance,
@@ -65,9 +68,10 @@ type Config struct {
 // browser sessions from it. A single Pool is shared by all concurrent check
 // executions; all state updates are serialized under its mutex.
 type Pool struct {
-	cfg    Config
-	client *http.Client
-	logger zerolog.Logger
+	cfg     Config
+	client  *http.Client
+	logger  zerolog.Logger
+	metrics metrics
 
 	mtx sync.Mutex
 	// order is a self-organizing list of *instance: the instance at the front
@@ -88,6 +92,19 @@ type instance struct {
 	sessionID string
 }
 
+// metrics holds the pool's Prometheus metrics. The instances gauges are
+// GaugeFuncs computing from the pool state under its mutex, so they cannot
+// drift from it.
+type metrics struct {
+	acquires        *prometheus.CounterVec
+	probes          *prometheus.CounterVec
+	releases        *prometheus.CounterVec
+	syncs           *prometheus.CounterVec
+	acquireDuration prometheus.Histogram
+	instancesBusy   prometheus.GaugeFunc
+	instancesFree   prometheus.GaugeFunc
+}
+
 // sessionInfo mirrors the relevant parts of crocochrome's session creation
 // response.
 type sessionInfo struct {
@@ -97,8 +114,9 @@ type sessionInfo struct {
 	} `json:"chromiumVersion"`
 }
 
-// New creates a Pool from cfg. registerer will register the pool's metrics
-// when they are added; it is accepted now for signature stability.
+// New creates a Pool from cfg, registers its metrics with registerer, and
+// starts its sync loop, which keeps the fleet membership and status up to
+// date until ctx is cancelled.
 func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Pool, error) {
 	u, err := url.Parse(cfg.URL)
 	if err != nil {
@@ -117,6 +135,9 @@ func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Po
 	if cfg.resolveFleet == nil {
 		cfg.resolveFleet = fleetResolver(u)
 	}
+	if registerer == nil {
+		registerer = prometheus.NewRegistry() // Empty, unused.
+	}
 
 	p := &Pool{
 		cfg:      cfg,
@@ -125,6 +146,8 @@ func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Po
 		order:    list.New(),
 		elements: make(map[string]*list.Element),
 	}
+
+	p.metrics = registerMetrics(registerer, p)
 
 	go p.sync(ctx)
 
@@ -181,6 +204,20 @@ func instanceBaseURLs(scheme, port string, ips []string) []string {
 // for log correlation, the same way the remote k6 runner forwards it in the
 // public-probe path.
 func (p *Pool) Acquire(ctx context.Context, checkInfo k6runner.CheckInfo) (wsURL string, release func(context.Context), err error) {
+	start := time.Now()
+	defer func() {
+		p.metrics.acquireDuration.Observe(time.Since(start).Seconds())
+
+		switch {
+		case err == nil:
+			p.metrics.acquires.WithLabelValues("success").Inc()
+		case errors.Is(err, ErrPoolExhausted):
+			p.metrics.acquires.WithLabelValues("exhausted").Inc()
+		default:
+			p.metrics.acquires.WithLabelValues("error").Inc()
+		}
+	}()
+
 	body, err := json.Marshal(checkInfo)
 	if err != nil {
 		return "", nil, fmt.Errorf("marshaling check info: %w", err)
@@ -288,18 +325,28 @@ func (p *Pool) probe(ctx context.Context, baseURL string, checkInfo []byte) (wsU
 
 	resp, err := p.client.Do(req)
 	if err != nil {
+		p.metrics.probes.WithLabelValues("error").Inc()
 		return "", "", fmt.Errorf("requesting session: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		// 409 (busy) and 503 (draining) are expected; anything else is only a
-		// log distinction, the instance is skipped all the same.
+		// log and metric distinction, the instance is skipped all the same.
+		switch resp.StatusCode {
+		case http.StatusConflict:
+			p.metrics.probes.WithLabelValues("busy").Inc()
+		case http.StatusServiceUnavailable:
+			p.metrics.probes.WithLabelValues("draining").Inc()
+		default:
+			p.metrics.probes.WithLabelValues("error").Inc()
+		}
 		return "", "", fmt.Errorf("instance responded %d", resp.StatusCode)
 	}
 
 	var si sessionInfo
 	if err := json.NewDecoder(resp.Body).Decode(&si); err != nil {
+		p.metrics.probes.WithLabelValues("error").Inc()
 		return "", "", fmt.Errorf("decoding session: %w", err)
 	}
 	if si.ID == "" || si.ChromiumVersion.WebSocketDebuggerURL == "" {
@@ -313,8 +360,11 @@ func (p *Pool) probe(ctx context.Context, baseURL string, checkInfo []byte) (wsU
 				p.logger.Warn().Err(derr).Str("instance", baseURL).Msg("deleting unusable browser session")
 			}
 		}
+		p.metrics.probes.WithLabelValues("error").Inc()
 		return "", "", errors.New("session response missing id or webSocketDebuggerUrl")
 	}
+
+	p.metrics.probes.WithLabelValues("acquired").Inc()
 
 	return si.ChromiumVersion.WebSocketDebuggerURL, si.ID, nil
 }
@@ -333,8 +383,11 @@ func (p *Pool) releaseFunc(inst *instance, sessionID string) func(context.Contex
 			defer cancel()
 
 			if err := p.deleteSession(ctx, inst.baseURL, sessionID); err != nil {
+				p.metrics.releases.WithLabelValues("error").Inc()
 				p.logger.Warn().Err(err).Str("instance", inst.baseURL).Str("sessionID", sessionID).
 					Msg("releasing browser session")
+			} else {
+				p.metrics.releases.WithLabelValues("ok").Inc()
 			}
 
 			p.mtx.Lock()
@@ -405,8 +458,11 @@ func (p *Pool) syncOnce(ctx context.Context) {
 	if err != nil {
 		// A resolution blip must not drop known instances: reconcile the
 		// current membership instead.
+		p.metrics.syncs.WithLabelValues("error").Inc()
 		p.logger.Warn().Err(err).Msg("resolving browser pool fleet, keeping current membership")
 		addrs = p.instanceURLs()
+	} else {
+		p.metrics.syncs.WithLabelValues("ok").Inc()
 	}
 
 	// Observe every instance concurrently, outside the mutex.
@@ -526,6 +582,20 @@ func (p *Pool) prune(resolved map[string]bool) {
 	}
 }
 
+// claimedCount returns how many instances are claimed by this agent, and the
+// total number of instances. It backs the instances gauges.
+func (p *Pool) claimedCount() (busy, total int) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+
+	for el := p.order.Front(); el != nil; el = el.Next() {
+		if el.Value.(*instance).busy {
+			busy++
+		}
+	}
+	return busy, p.order.Len()
+}
+
 // instanceURLs returns the base URLs of the current instances.
 func (p *Pool) instanceURLs() []string {
 	p.mtx.Lock()
@@ -553,4 +623,77 @@ func (p *Pool) moveToFront(inst *instance) {
 	if el, found := p.elements[inst.baseURL]; found && el.Value.(*instance) == inst {
 		p.order.MoveToFront(el)
 	}
+}
+
+// registerMetrics builds and registers the pool's metrics. The instances
+// gauges report this agent's use of the pool (busy = claimed by this agent);
+// the fleet-wide busy ratio is instead derived from each crocochrome
+// instance's own sm_crocochrome_session_active metric.
+func registerMetrics(registerer prometheus.Registerer, p *Pool) metrics {
+	counterOpts := func(name, help string) prometheus.CounterOpts {
+		return prometheus.CounterOpts{
+			Namespace: metricNamespace,
+			Subsystem: metricSubsystem,
+			Name:      name,
+			Help:      help,
+		}
+	}
+	instancesOpts := func(state string) prometheus.GaugeOpts {
+		return prometheus.GaugeOpts{
+			Namespace:   metricNamespace,
+			Subsystem:   metricSubsystem,
+			Name:        "instances",
+			Help:        "Number of pool instances by state, where busy means claimed by this agent.",
+			ConstLabels: prometheus.Labels{"state": state},
+		}
+	}
+
+	m := metrics{
+		acquires: prometheus.NewCounterVec(
+			counterOpts("acquires_total", "Total browser session acquisitions by result. \"exhausted\" means no instance became free within the acquire budget: the check failed for lack of browser capacity."),
+			[]string{"result"},
+		),
+		probes: prometheus.NewCounterVec(
+			counterOpts("probes_total", "Total session acquire attempts on individual instances by result. The probes/acquires ratio reflects pool contention."),
+			[]string{"result"},
+		),
+		releases: prometheus.NewCounterVec(
+			counterOpts("releases_total", "Total browser session releases by result. Sessions whose release failed are reclaimed by the instance's session timeout."),
+			[]string{"result"},
+		),
+		syncs: prometheus.NewCounterVec(
+			counterOpts("syncs_total", "Total pool sync ticks by result. A sync errors when fleet resolution fails; it then reconciles the known instances only."),
+			[]string{"result"},
+		),
+		acquireDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: metricNamespace,
+			Subsystem: metricSubsystem,
+			Name:      "acquire_duration_seconds",
+			Help:      "Time spent acquiring a browser session, including probe retries and backoff, for both successful and failed acquisitions.",
+			// The acquire budget is capped at 30s (see browserAcquireTimeoutCap
+			// in k6runner); deadline-hit acquires observe slightly past it, so
+			// the last bucket sits above 30 to catch them.
+			Buckets: []float64{0.25, 0.5, 1, 2, 4, 8, 10, 12, 16, 20, 24, 28, 30, 32},
+		}),
+		instancesBusy: prometheus.NewGaugeFunc(instancesOpts("busy"), func() float64 {
+			busy, _ := p.claimedCount()
+			return float64(busy)
+		}),
+		instancesFree: prometheus.NewGaugeFunc(instancesOpts("free"), func() float64 {
+			busy, total := p.claimedCount()
+			return float64(total - busy)
+		}),
+	}
+
+	registerer.MustRegister(
+		m.acquires,
+		m.probes,
+		m.releases,
+		m.syncs,
+		m.acquireDuration,
+		m.instancesBusy,
+		m.instancesFree,
+	)
+
+	return m
 }
