@@ -1,6 +1,7 @@
 package browser
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,8 +16,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/discovery"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 )
 
@@ -24,36 +27,6 @@ import (
 // satisfied structurally: k6runner cannot import this package (this package
 // imports it for CheckInfo).
 var _ k6runner.BrowserPool = (*Pool)(nil)
-
-func TestNew(t *testing.T) {
-	t.Parallel()
-
-	testcases := map[string]struct {
-		url       string
-		expectErr bool
-	}{
-		"valid":          {url: "http://crocochrome.pool.svc:8080"},
-		"missing scheme": {url: "crocochrome.pool.svc:8080", expectErr: true},
-		"missing host":   {url: "http://", expectErr: true},
-		"empty":          {url: "", expectErr: true},
-	}
-
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			ctx, cancel := context.WithCancel(t.Context())
-			cancel() // keep the sync loop inert.
-
-			_, err := New(ctx, Config{URL: tc.url}, prometheus.NewRegistry())
-			if tc.expectErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-		})
-	}
-}
 
 func TestAcquire(t *testing.T) {
 	t.Parallel()
@@ -337,7 +310,7 @@ func TestSync(t *testing.T) {
 		a := newFakeInstance(t)
 		b := newFakeInstance(t)
 		pool := newTestPool(t)
-		pool.cfg.resolveFleet = staticFleet(a.URL(), b.URL())
+		pool.cfg.Discover = staticFleet(hostOf(a), hostOf(b))
 
 		pool.syncOnce(t.Context())
 		require.ElementsMatch(t, []string{a.URL(), b.URL()}, poolOrder(pool))
@@ -358,7 +331,7 @@ func TestSync(t *testing.T) {
 		a.setSession("held-by-someone-else")
 		b := newFakeInstance(t)
 		pool := newTestPool(t, a, b)
-		pool.cfg.resolveFleet = staticFleet(a.URL(), b.URL())
+		pool.cfg.Discover = staticFleet(hostOf(a), hostOf(b))
 
 		pool.syncOnce(t.Context())
 		require.Equal(t, []string{b.URL(), a.URL()}, poolOrder(pool))
@@ -370,7 +343,7 @@ func TestSync(t *testing.T) {
 
 		fake := newFakeInstance(t)
 		pool := newTestPool(t, fake)
-		pool.cfg.resolveFleet = staticFleet() // instance gone from discovery.
+		pool.cfg.Discover = staticFleet() // instance gone from discovery.
 
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()
@@ -398,7 +371,7 @@ func TestSync(t *testing.T) {
 		a.forceListStatus = http.StatusInternalServerError
 		b := newFakeInstance(t)
 		pool := newTestPool(t, a, b)
-		pool.cfg.resolveFleet = staticFleet(a.URL(), b.URL())
+		pool.cfg.Discover = staticFleet(hostOf(a), hostOf(b))
 
 		pool.syncOnce(t.Context())
 		// The unobservable instance stays in the pool but sinks to the back.
@@ -413,7 +386,7 @@ func TestSync(t *testing.T) {
 		a.setSession("held-by-someone-else")
 		b := newFakeInstance(t)
 		pool := newTestPool(t, a, b)
-		pool.cfg.resolveFleet = func() ([]string, error) {
+		pool.cfg.Discover = func() ([]string, error) {
 			return nil, errors.New("dns is down")
 		}
 
@@ -423,19 +396,30 @@ func TestSync(t *testing.T) {
 		requireInvariant(t, pool)
 	})
 
+	t.Run("warns on empty fleet", func(t *testing.T) {
+		t.Parallel()
+
+		var buf bytes.Buffer
+		pool := newTestPool(t, newFakeInstance(t))
+		pool.logger = zerolog.New(&buf)
+
+		pool.syncOnce(t.Context())
+		require.Empty(t, poolOrder(pool))
+		require.Contains(t, buf.String(), "browser pool fleet resolved to no instances")
+	})
+
 	t.Run("loop syncs on construction and stops on cancel", func(t *testing.T) {
 		t.Parallel()
 
 		a := newFakeInstance(t)
-		fleet := &mutableFleet{urls: []string{a.URL()}}
+		fleet := &mutableFleet{addrs: []string{hostOf(a)}}
 
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
 
 		pool, err := New(ctx, Config{
-			URL:          "http://pool.invalid",
 			SyncInterval: 25 * time.Millisecond,
-			resolveFleet: fleet.resolve,
+			Discover:     fleet.resolve,
 		}, prometheus.NewRegistry())
 		require.NoError(t, err)
 
@@ -459,8 +443,7 @@ func TestSync(t *testing.T) {
 		a := newFakeInstance(t)
 
 		pool, err := New(t.Context(), Config{
-			URL:          "http://pool.invalid",
-			resolveFleet: staticFleet(a.URL()),
+			Discover: staticFleet(hostOf(a)),
 		}, prometheus.NewRegistry())
 		require.NoError(t, err)
 
@@ -474,43 +457,45 @@ func TestSync(t *testing.T) {
 	})
 }
 
+func TestNewRejectsInvalidConfig(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]Config{
+		"nil discover":          {},
+		"negative syncInterval": {Discover: staticFleet(), SyncInterval: -time.Second},
+	}
+
+	for name, cfg := range testcases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := New(t.Context(), cfg, prometheus.NewRegistry())
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestInstanceBaseURLs(t *testing.T) {
 	t.Parallel()
 
 	testcases := map[string]struct {
-		scheme   string
-		port     string
-		ips      []string
+		addrs    []string
 		expected []string
 	}{
 		"with port": {
-			scheme:   "http",
-			port:     "8080",
-			ips:      []string{"10.0.0.1", "10.0.0.2"},
-			expected: []string{"http://10.0.0.1:8080", "http://10.0.0.2:8080"},
+			addrs:    []string{"10.0.0.1:9222", "10.0.0.2:9222"},
+			expected: []string{"http://10.0.0.1:9222", "http://10.0.0.2:9222"},
 		},
-		"without port": {
-			scheme:   "http",
-			ips:      []string{"10.0.0.1"},
-			expected: []string{"http://10.0.0.1"},
-		},
-		"ipv6": {
-			scheme:   "http",
-			port:     "8080",
-			ips:      []string{"fd00::1"},
-			expected: []string{"http://[fd00::1]:8080"},
-		},
-		"ipv6 without port": {
-			scheme:   "http",
-			ips:      []string{"fd00::1"},
-			expected: []string{"http://[fd00::1]"},
+		"ipv6 with port": {
+			addrs:    []string{"[fd00::1]:9222"},
+			expected: []string{"http://[fd00::1]:9222"},
 		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.expected, instanceBaseURLs(tc.scheme, tc.port, tc.ips))
+			require.Equal(t, tc.expected, instanceBaseURLs(tc.addrs))
 		})
 	}
 }
@@ -625,11 +610,11 @@ func TestMetrics(t *testing.T) {
 		t.Parallel()
 
 		pool := newTestPool(t)
-		pool.cfg.resolveFleet = staticFleet()
+		pool.cfg.Discover = staticFleet()
 		pool.syncOnce(t.Context())
 		require.Equal(t, 1.0, counter(t, pool.metrics.syncs, "ok"))
 
-		pool.cfg.resolveFleet = func() ([]string, error) {
+		pool.cfg.Discover = func() ([]string, error) {
 			return nil, errors.New("dns is down")
 		}
 		pool.syncOnce(t.Context())
@@ -802,7 +787,7 @@ func newTestPool(t *testing.T, fakes ...*fakeInstance) *Pool {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	pool, err := New(ctx, Config{URL: "http://pool.invalid"}, prometheus.NewRegistry())
+	pool, err := New(ctx, Config{Discover: staticFleet()}, prometheus.NewRegistry())
 	require.NoError(t, err)
 
 	// applyObservation inserts at the front: seed in reverse so fakes[0] ends
@@ -814,29 +799,29 @@ func newTestPool(t *testing.T, fakes ...*fakeInstance) *Pool {
 	return pool
 }
 
-// staticFleet returns a resolver serving a fixed set of instance base URLs.
-func staticFleet(urls ...string) func() ([]string, error) {
+// staticFleet returns a DiscoverFn serving a fixed set of instance addresses.
+func staticFleet(addrs ...string) discovery.DiscoverFn {
 	return func() ([]string, error) {
-		return urls, nil
+		return addrs, nil
 	}
 }
 
-// mutableFleet is a resolver whose fleet can be swapped concurrently.
+// mutableFleet is a DiscoverFn whose fleet can be swapped concurrently.
 type mutableFleet struct {
-	mtx  sync.Mutex
-	urls []string
+	mtx   sync.Mutex
+	addrs []string
 }
 
 func (m *mutableFleet) resolve() ([]string, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	return m.urls, nil
+	return m.addrs, nil
 }
 
-func (m *mutableFleet) set(urls ...string) {
+func (m *mutableFleet) set(addrs ...string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
-	m.urls = urls
+	m.addrs = addrs
 }
 
 func testCheckInfo() k6runner.CheckInfo {

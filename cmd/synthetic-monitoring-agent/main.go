@@ -29,6 +29,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cluster"
+	"github.com/grafana/synthetic-monitoring-agent/internal/discovery"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -80,7 +81,7 @@ func run(args []string, stdout io.Writer) error {
 			K6URI                     string
 			K6Repository              string
 			K6BlacklistedIP           string
-			BrowserPoolURL            string
+			BrowserPoolAddresses      StringList
 			SelectedPublisher         string
 			TelemetryTimeSpan         int
 			AutoMemLimit              bool
@@ -150,7 +151,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
-	flags.StringVar(&config.BrowserPoolURL, "browser-pool-url", config.BrowserPoolURL, "URL of an external browser (crocochrome) pool, e.g. http://crocochrome.pool.svc:8080; its host is DNS-expanded to the fleet. If set, browser checks use remote browser sessions instead of a local Chromium")
+	flags.Var(&config.BrowserPoolAddresses, "browser-pool-addresses", "[experimental] comma-separated external browser (crocochrome) pool instances as host[:port]; prefixes: dns+ (A/AAAA), dnssrv+ (SRV then A/AAAA), dnssrvnoa+ (SRV only); without a prefix A/AAAA then SRV; instances are addressed as http://host:port, port defaults to 8080. If set, browser checks use remote browser sessions instead of a local Chromium")
 
 	flags.BoolVar(&config.Cluster.Enabled, "cluster-enabled", config.Cluster.Enabled, "[experimental] form a gossip cluster so checks are split across agents (each check runs on one owning agent)")
 	flags.StringVar(&config.Cluster.NodeName, "cluster-node-name", config.Cluster.NodeName, "[experimental] unique, stable name for this node in the cluster (default: hostname)")
@@ -358,8 +359,10 @@ func run(args []string, stdout io.Writer) error {
 			Registerer:    promRegisterer,
 		}
 
-		if config.BrowserPoolURL != "" {
-			browserPool, err := buildBrowserPool(ctx, config.BrowserPoolURL,
+		if len(config.BrowserPoolAddresses) > 0 {
+			zl.Warn().Msg("browser pool is experimental: the -browser-pool-* flags and their behavior may change or be removed in future releases")
+
+			browserPool, err := buildBrowserPool(ctx, config.BrowserPoolAddresses,
 				zl.With().Str("subsystem", "browser_pool").Logger(), promRegisterer)
 			if err != nil {
 				return fmt.Errorf("building browser pool: %w", err)
@@ -371,7 +374,7 @@ func run(args []string, stdout io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("building k6 runner: %w", err)
 		}
-	} else if config.BrowserPoolURL != "" {
+	} else if len(config.BrowserPoolAddresses) > 0 {
 		zl.Warn().Msg("browser pool configured but the k6 feature is disabled; ignoring")
 	}
 
@@ -575,16 +578,21 @@ func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 	}
 }
 
-// buildBrowserPool translates the -browser-pool-url flag into a running
+// buildBrowserPool translates the -browser-pool-addresses flag into a running
 // browser.Pool, whose sync loop stops when ctx is cancelled. It returns the
 // k6runner interface type so a typed-nil can never reach
 // RunnerOpts.BrowserPool.
 func buildBrowserPool(
-	ctx context.Context, poolURL string, logger zerolog.Logger, registerer prometheus.Registerer,
+	ctx context.Context, addresses []string, logger zerolog.Logger, registerer prometheus.Registerer,
 ) (k6runner.BrowserPool, error) {
+	discoverFn, err := discovery.NewDiscoverer(addresses, browser.DefaultInstancePort, logger)
+	if err != nil {
+		return nil, fmt.Errorf("configuring browser pool discovery: %w", err)
+	}
+
 	pool, err := browser.New(ctx, browser.Config{
-		URL:    poolURL,
-		Logger: logger,
+		Discover: discoverFn,
+		Logger:   logger,
 	}, registerer)
 	if err != nil {
 		return nil, err
