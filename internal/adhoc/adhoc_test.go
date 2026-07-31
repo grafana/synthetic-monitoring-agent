@@ -56,6 +56,7 @@ func TestNewHandler(t *testing.T) {
 	require.NotNil(t, h.metrics.opsCounter)
 	require.NotNil(t, h.metrics.k6GraceTime)
 	require.Equal(t, k6AdhocGraceTime.Seconds(), testutil.ToFloat64(h.metrics.k6GraceTime))
+
 	metricCount, err := testutil.GatherAndCount(registry, "sm_adhoc_k6_grace_time_seconds")
 	require.NoError(t, err)
 	require.Equal(t, 1, metricCount)
