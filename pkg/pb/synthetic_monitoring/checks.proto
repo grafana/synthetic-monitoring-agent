@@ -83,6 +83,7 @@ message ProbeInfo {
   string Commit = 2 [(gogoproto.jsontag) = "commit"]; // commit hash used to build the probe
   string Buildstamp = 3 [(gogoproto.jsontag) = "buildstamp"]; // timestamp when the probe was built
   bool supportsProtocolSecrets = 4 [(gogoproto.jsontag) = "supportsProtocolSecrets"]; // true when protocol secrets are supported in the Agent
+  bool isClusterEnabled = 5 [(gogoproto.jsontag) = "isClusterEnabled"]; // true when cluster is enabled in the Agent
 }
 
 // PingRequest is the message sent as argument of the Ping method.
