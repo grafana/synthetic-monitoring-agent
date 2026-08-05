@@ -47,6 +47,7 @@ const (
 	probeLabelName         = "probe"
 	regionLabelName        = "region"
 	smRegionLabelName      = "sm_region"
+	unsetRegionValue       = "unset"
 	configVersionLabelName = "config_version"
 	instanceLabelName      = "instance"
 	checkNameLabelName     = "check_name"
@@ -581,7 +582,7 @@ func (s Scraper) collectData(ctx context.Context, t time.Time) (*probeData, time
 
 	logLabels := []labelPair{
 		{name: probeLabelName, value: s.probe.Name},
-		{name: regionLabelNameForMode(labelMode), value: s.probe.Region},
+		regionLabelForMode(labelMode, s.probe.Region),
 		{name: instanceLabelName, value: s.check.Target},
 		{name: "job", value: s.check.Job},
 		{name: checkNameLabelName, value: s.checkName},
@@ -1027,7 +1028,7 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels
 func (s Scraper) buildCheckInfoLabels(userLabels []labelPair, commonLabels []labelPair, mode sm.LabelMode) map[string]string {
 	baseLabels := []labelPair{
 		{name: checkNameLabelName, value: s.checkName},
-		{name: regionLabelNameForMode(mode), value: s.probe.Region},
+		regionLabelForMode(mode, s.probe.Region),
 		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
 		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
 	}
@@ -1120,17 +1121,28 @@ func customMetricLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) 
 	return buildUserLabels(probeLabels, checkLabels, sm.LabelMode_LABEL_MODE_UNPREFIXED)
 }
 
-// regionLabelNameForMode returns the label name under which the agent emits
-// the probe's region. Tenants that have started the label migration (any mode
+// regionLabelForMode returns the label under which the agent emits the
+// probe's region. Tenants that have started the label migration (any mode
 // other than PREFIXED) receive it as sm_region, which is part of the reserved
 // set, freeing "region" for use as one of their own labels. Legacy PREFIXED
 // tenants keep the historical "region" name.
-func regionLabelNameForMode(mode sm.LabelMode) string {
+//
+// sm_region always carries a non-empty value — "unset" when the probe has no
+// region — because its presence is how the API's alert expressions recognize
+// a migrated series: an empty label value is equivalent to an absent label in
+// PromQL, which would classify the series as legacy and route its alerts with
+// the wrong exclusion list. The historical region label keeps its value as-is
+// (absent when the probe has no region), preserving legacy series identity.
+func regionLabelForMode(mode sm.LabelMode, probeRegion string) labelPair {
 	if mode == sm.LabelMode_LABEL_MODE_PREFIXED {
-		return regionLabelName
+		return labelPair{name: regionLabelName, value: probeRegion}
 	}
 
-	return smRegionLabelName
+	if probeRegion == "" {
+		probeRegion = unsetRegionValue
+	}
+
+	return labelPair{name: smRegionLabelName, value: probeRegion}
 }
 
 func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.TimeSeries {
