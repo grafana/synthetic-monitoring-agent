@@ -16,6 +16,13 @@ import (
 
 const CalNilStringTerminator = "__MISSING__"
 
+// telemetryKey keys a telemetry bucket by the ad-hoc flag and serialized CALs,
+// so ad-hoc and scheduled executions are counted separately.
+type telemetryKey struct {
+	adhoc bool
+	cals  string
+}
+
 // RegionPusher periodically sends telemetry data for a specific region.
 type RegionPusher struct {
 	client sm.TelemetryClient
@@ -24,7 +31,7 @@ type RegionPusher struct {
 	instance string
 	regionID int32
 
-	telemetry   map[int64]map[sm.CheckClass]map[string]*sm.CheckClassTelemetry // Indexed by local tenant ID
+	telemetry   map[int64]map[sm.CheckClass]map[telemetryKey]*sm.CheckClassTelemetry // Indexed by local tenant ID
 	telemetryMu sync.Mutex
 
 	metrics RegionMetrics
@@ -71,7 +78,7 @@ func NewRegionPusher(
 		logger:    logger,
 		instance:  instance,
 		regionID:  regionID,
-		telemetry: make(map[int64]map[sm.CheckClass]map[string]*sm.CheckClassTelemetry),
+		telemetry: make(map[int64]map[sm.CheckClass]map[telemetryKey]*sm.CheckClassTelemetry),
 		metrics:   metrics,
 	}
 
@@ -170,26 +177,27 @@ func (p *RegionPusher) AddExecution(e Execution) {
 
 	tenantTele, ok := p.telemetry[e.LocalTenantID]
 	if !ok {
-		tenantTele = make(map[sm.CheckClass]map[string]*sm.CheckClassTelemetry)
+		tenantTele = make(map[sm.CheckClass]map[telemetryKey]*sm.CheckClassTelemetry)
 		p.telemetry[e.LocalTenantID] = tenantTele
 	}
 
 	clTele, ok := tenantTele[e.CheckClass]
 	if !ok {
-		clTele = make(map[string]*sm.CheckClassTelemetry)
+		clTele = make(map[telemetryKey]*sm.CheckClassTelemetry)
 		tenantTele[e.CheckClass] = clTele
 	}
 
-	calsKey := serializeCALs(e.CostAttributionLabels)
+	key := telemetryKey{adhoc: e.AdHoc, cals: serializeCALs(e.CostAttributionLabels)}
 
-	calTele, ok := clTele[calsKey]
+	calTele, ok := clTele[key]
 	if !ok {
 		// deserializeCals returns sorted labels and handles nil -> empty slice
 		calTele = &sm.CheckClassTelemetry{
 			CheckClass:            e.CheckClass,
-			CostAttributionLabels: deserializeCals(calsKey),
+			CostAttributionLabels: deserializeCals(key.cals),
+			Adhoc:                 e.AdHoc,
 		}
-		clTele[calsKey] = calTele
+		clTele[key] = calTele
 	}
 
 	calTele.Executions++
@@ -226,6 +234,7 @@ func (p *RegionPusher) next() sm.RegionTelemetry {
 					Duration:              calTele.Duration,
 					SampledExecutions:     calTele.SampledExecutions,
 					CostAttributionLabels: calTele.CostAttributionLabels,
+					Adhoc:                 calTele.Adhoc,
 				})
 			}
 		}
