@@ -23,7 +23,7 @@ type scrapeClock interface {
 }
 
 // wallClock is the scheduled scraper's policy: real-time log timestamps and a
-// duration fallback measured from the scrape's nominal (tick) time.
+// duration fallback measured from the scrape's nominal time.
 type wallClock struct {
 	scheduledAt time.Time
 }
@@ -34,23 +34,18 @@ func scheduledScrapeClock(scheduledAt time.Time) scrapeClock {
 
 func (wallClock) wrapperLogTimestamp() kitlog.Valuer { return kitlog.DefaultTimestampUTC }
 
-// endLogFields adds nothing, so the terminal log keeps the wall-clock `ts`
-// written by wrapperLogTimestamp and stays in emission order with the probe's
-// own log lines.
 func (wallClock) endLogFields(float64) []any { return nil }
 
-// fallbackDuration ignores the probe's wall-clock start and measures from the
-// scrape's nominal time, preserving the scheduled path's pre-existing behavior:
-// a probe that reports no duration is attributed the whole tick, scrape setup
-// included.
+// fallbackDuration deliberately ignores wallStart: measuring from the scrape's
+// nominal time is the scheduled path's pre-existing behavior.
 func (w wallClock) fallbackDuration(time.Time) time.Duration {
 	return time.Since(w.scheduledAt)
 }
 
-// logicalClock places a scrape's telemetry at a caller-supplied historical
-// event time: the wrapper `ts` (and thus any log without its own `time` field)
-// is pinned to eventTime, and the terminal log is shifted to
-// eventTime+duration.
+// logicalClock places a scrape's telemetry at a caller-supplied event time,
+// which may be arbitrarily far in the past: the wrapper `ts` is pinned to
+// eventTime and the terminal log is shifted to eventTime+duration, while the
+// duration fallback still measures real elapsed time.
 type logicalClock struct {
 	eventTime time.Time
 }
@@ -68,8 +63,6 @@ func (l logicalClock) endLogFields(duration float64) []any {
 	return []any{"time", eventEnd.UTC().Format(time.RFC3339Nano)}
 }
 
-// fallbackDuration measures real elapsed collection time rather than time since
-// eventTime, which may be arbitrarily far in the past.
 func (logicalClock) fallbackDuration(wallStart time.Time) time.Duration {
 	return time.Since(wallStart)
 }

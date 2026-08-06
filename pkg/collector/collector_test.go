@@ -48,11 +48,10 @@ func (untimedProbe) Probe(_ context.Context, _ string, _ *prometheus.Registry, l
 }
 
 // trackedContext observes whether a child context detaches from its parent.
-// context.WithCancel propagates cancellation by calling AfterFunc on a parent
-// that implements it, and calls the returned stop function when the child is
-// cancelled. That detection is an implementation detail of the standard
-// library, so if a future Go release rewires propagation this test fails even
-// though Close is still correct.
+// context.WithCancel calls AfterFunc on a parent that implements it, then calls
+// the returned stop function once the child is cancelled — an unexported detail
+// of the standard library, so a future Go release could fail this test while
+// Close is still correct.
 type trackedContext struct {
 	context.Context
 	done    chan struct{}
