@@ -46,7 +46,11 @@ const (
 const (
 	probeLabelName         = "probe"
 	regionLabelName        = "region"
+	smRegionLabelName      = "sm_region"
+	unsetRegionValue       = "unset"
 	configVersionLabelName = "config_version"
+	instanceLabelName      = "instance"
+	checkNameLabelName     = "check_name"
 )
 
 // mimirMaxLabelsIngest protects us and Mimir from hitting an error due to
@@ -555,7 +559,7 @@ func (s Scraper) collectDataWith(ctx context.Context, t time.Time, clock scrapeC
 	sysMetricLabels := []labelPair{
 		{name: probeLabelName, value: s.probe.Name},
 		{name: configVersionLabelName, value: s.check.ConfigVersion()},
-		{name: "instance", value: s.check.Target},
+		{name: instanceLabelName, value: s.check.Target},
 		{name: "job", value: s.check.Job},
 		// {name: "source", value: CheckInfoSource}, // identify metrics that belong to synthetic-monitoring-agent
 	}
@@ -564,7 +568,7 @@ func (s Scraper) collectDataWith(ctx context.Context, t time.Time, clock scrapeC
 		// These are the labels defined by the user.
 		userLabels = buildUserLabels(s.probe.Labels, s.check.Labels, labelMode)
 		// These labels are applied to the sm_check_info metric.
-		checkInfoLabels = s.buildCheckInfoLabels(userLabels, sysMetricLabels)
+		checkInfoLabels = s.buildCheckInfoLabels(userLabels, sysMetricLabels, labelMode)
 		// This is the execution ID for the check run.
 		executionID = uuid.New().String()
 	)
@@ -595,10 +599,10 @@ func (s Scraper) collectDataWith(ctx context.Context, t time.Time, clock scrapeC
 
 	logLabels := []labelPair{
 		{name: probeLabelName, value: s.probe.Name},
-		{name: regionLabelName, value: s.probe.Region},
-		{name: "instance", value: s.check.Target},
+		regionLabelForMode(labelMode, s.probe.Region),
+		{name: instanceLabelName, value: s.check.Target},
 		{name: "job", value: s.check.Job},
-		{name: "check_name", value: s.checkName},
+		{name: checkNameLabelName, value: s.checkName},
 		{name: "source", value: CheckInfoSource}, // identify log lines that belong to synthetic-monitoring-agent
 	}
 	logLabels = mergeLogLabels(logLabels, userLabels)
@@ -1057,10 +1061,10 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels
 	return ts
 }
 
-func (s Scraper) buildCheckInfoLabels(userLabels []labelPair, commonLabels []labelPair) map[string]string {
+func (s Scraper) buildCheckInfoLabels(userLabels []labelPair, commonLabels []labelPair, mode sm.LabelMode) map[string]string {
 	baseLabels := []labelPair{
-		{name: "check_name", value: s.checkName},
-		{name: regionLabelName, value: s.probe.Region},
+		{name: checkNameLabelName, value: s.checkName},
+		regionLabelForMode(mode, s.probe.Region),
 		{name: "frequency", value: strconv.FormatInt(s.check.Frequency, 10)},
 		{name: "geohash", value: geohash.Encode(float64(s.probe.Latitude), float64(s.probe.Longitude))},
 	}
@@ -1151,6 +1155,30 @@ func customMetricLabels(probeLabels, checkLabels []sm.Label, mode sm.LabelMode) 
 	}
 
 	return buildUserLabels(probeLabels, checkLabels, sm.LabelMode_LABEL_MODE_UNPREFIXED)
+}
+
+// regionLabelForMode returns the label under which the agent emits the
+// probe's region. Tenants that have started the label migration (any mode
+// other than PREFIXED) receive it as sm_region, which is part of the reserved
+// set, freeing "region" for use as one of their own labels. Legacy PREFIXED
+// tenants keep the historical "region" name.
+//
+// sm_region always carries a non-empty value — "unset" when the probe has no
+// region — because its presence is how the API's alert expressions recognize
+// a migrated series: an empty label value is equivalent to an absent label in
+// PromQL, which would classify the series as legacy and route its alerts with
+// the wrong exclusion list. The historical region label keeps its value as-is
+// (absent when the probe has no region), preserving legacy series identity.
+func regionLabelForMode(mode sm.LabelMode, probeRegion string) labelPair {
+	if mode == sm.LabelMode_LABEL_MODE_PREFIXED {
+		return labelPair{name: regionLabelName, value: probeRegion}
+	}
+
+	if probeRegion == "" {
+		probeRegion = unsetRegionValue
+	}
+
+	return labelPair{name: smRegionLabelName, value: probeRegion}
 }
 
 func makeTimeseries(t time.Time, value float64, labels ...prompb.Label) prompb.TimeSeries {
