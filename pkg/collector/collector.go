@@ -39,20 +39,44 @@ type Probe interface {
 	Probe(ctx context.Context, target string, registry *prometheus.Registry, logger Logger) (bool, float64)
 }
 
+// Option configures a Collector.
+type Option func(*options)
+
+type options struct {
+	labelMode sm.LabelMode
+}
+
+// WithLabelMode configures how user-defined check and probe labels are shaped.
+// Collectors default to LABEL_MODE_PREFIXED, matching the protobuf default used
+// by the agent.
+func WithLabelMode(mode sm.LabelMode) Option {
+	return func(opts *options) {
+		opts.labelMode = mode
+	}
+}
+
 // Collector runs an injected Probe through the same metric and log
 // transformation pipeline used by the agent scraper, without publishing.
 type Collector struct {
 	scraper *scraper.Scraper
+	cancel  context.CancelFunc
 }
 
 // New builds a Collector for one API-level check and probe.
-func New(ctx context.Context, check sm.Check, probe sm.Probe, supplied Probe) (*Collector, error) {
+func New(ctx context.Context, check sm.Check, probe sm.Probe, supplied Probe, collectorOptions ...Option) (*Collector, error) {
 	var modelCheck model.Check
 	if err := modelCheck.FromSM(check); err != nil {
 		return nil, err
 	}
 
-	s, err := scraper.NewWithOpts(ctx, modelCheck, scraper.ScraperOpts{
+	opts := options{labelMode: sm.LabelMode_LABEL_MODE_PREFIXED}
+	for _, option := range collectorOptions {
+		option(&opts)
+	}
+
+	collectorCtx, cancel := context.WithCancel(ctx)
+
+	s, err := scraper.NewWithOpts(collectorCtx, modelCheck, scraper.ScraperOpts{
 		Probe:                 probe,
 		Publisher:             noopPublisher{},
 		Logger:                zerolog.New(io.Discard),
@@ -61,13 +85,20 @@ func New(ctx context.Context, check sm.Check, probe sm.Probe, supplied Probe) (*
 		LabelsLimiter:         noopLabelsLimiter{},
 		Telemeter:             noopTelemeter{},
 		CostAttributionLabels: noopTenantCals{},
-		LabellingMode:         noopLabellingMode{},
+		LabellingMode:         staticLabellingMode{mode: opts.labelMode},
 	})
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
-	return &Collector{scraper: s}, nil
+	return &Collector{scraper: s, cancel: cancel}, nil
+}
+
+// Close releases the resources associated with the Collector. It is safe to
+// call Close more than once.
+func (c *Collector) Close() {
+	c.cancel()
 }
 
 // Collect runs one execution whose metrics and logs are stamped at logical
@@ -136,8 +167,10 @@ func (noopTenantCals) CostAttributionLabels(context.Context, model.GlobalID) ([]
 	return nil, nil
 }
 
-type noopLabellingMode struct{}
+type staticLabellingMode struct {
+	mode sm.LabelMode
+}
 
-func (noopLabellingMode) ForTenant(context.Context, model.GlobalID) (sm.LabelMode, error) {
-	return sm.LabelMode_LABEL_MODE_UNPREFIXED, nil
+func (m staticLabellingMode) ForTenant(context.Context, model.GlobalID) (sm.LabelMode, error) {
+	return m.mode, nil
 }

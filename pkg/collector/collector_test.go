@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -46,6 +47,79 @@ func (untimedProbe) Probe(_ context.Context, _ string, _ *prometheus.Registry, l
 	return true, 0.25
 }
 
+// trackedContext observes whether a child context detaches from its parent.
+// context.WithCancel propagates cancellation by calling AfterFunc on a parent
+// that implements it, and calls the returned stop function when the child is
+// cancelled. That detection is an implementation detail of the standard
+// library, so if a future Go release rewires propagation this test fails even
+// though Close is still correct.
+type trackedContext struct {
+	context.Context
+	done    chan struct{}
+	stopped atomic.Bool
+}
+
+func (c *trackedContext) Done() <-chan struct{} { return c.done }
+
+func (c *trackedContext) AfterFunc(func()) func() bool {
+	return func() bool {
+		return !c.stopped.Swap(true)
+	}
+}
+
+func TestCloseReleasesCollectorContext(t *testing.T) {
+	ctx := &trackedContext{
+		Context: context.Background(),
+		done:    make(chan struct{}),
+	}
+	c, err := collector.New(ctx, testCheck(), testProbe(), untimedProbe{})
+	require.NoError(t, err)
+	require.False(t, ctx.stopped.Load())
+
+	c.Close()
+	c.Close()
+
+	require.True(t, ctx.stopped.Load())
+}
+
+func TestCollectDefaultsToPrefixedUserLabels(t *testing.T) {
+	check := testCheck()
+	check.Labels = []sm.Label{{Name: "team", Value: "history"}}
+	c, err := collector.New(context.Background(), check, testProbe(), untimedProbe{})
+	require.NoError(t, err)
+
+	defer c.Close()
+
+	series, _, err := c.Collect(context.Background(), time.Now())
+	require.NoError(t, err)
+
+	labels := metricLabels(t, series, "sm_check_info")
+	require.Contains(t, labels, "label_team")
+	require.NotContains(t, labels, "team")
+}
+
+func TestCollectAllowsUnprefixedUserLabels(t *testing.T) {
+	check := testCheck()
+	check.Labels = []sm.Label{{Name: "team", Value: "history"}}
+	c, err := collector.New(
+		context.Background(),
+		check,
+		testProbe(),
+		untimedProbe{},
+		collector.WithLabelMode(sm.LabelMode_LABEL_MODE_UNPREFIXED),
+	)
+	require.NoError(t, err)
+
+	defer c.Close()
+
+	series, _, err := c.Collect(context.Background(), time.Now())
+	require.NoError(t, err)
+
+	labels := metricLabels(t, series, "sm_check_info")
+	require.Contains(t, labels, "team")
+	require.NotContains(t, labels, "label_team")
+}
+
 func TestCollectUsesLogicalEventTimeAndAgentExecutionMetadata(t *testing.T) {
 	eventTime := time.Date(2020, 3, 1, 12, 0, 0, 0, time.UTC)
 	c, err := collector.New(context.Background(), testCheck(), testProbe(), suppliedProbe{
@@ -53,6 +127,8 @@ func TestCollectUsesLogicalEventTimeAndAgentExecutionMetadata(t *testing.T) {
 		success:   true,
 	})
 	require.NoError(t, err)
+
+	defer c.Close()
 
 	series, streams, err := c.Collect(context.Background(), eventTime)
 	require.NoError(t, err)
@@ -113,6 +189,8 @@ func TestCollectReturnsFailedProbeTelemetry(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	defer c.Close()
+
 	series, streams, err := c.Collect(context.Background(), eventTime)
 	require.Error(t, err)
 	require.NotEmpty(t, series)
@@ -123,6 +201,8 @@ func TestCollectUsesLogicalEventTimeForUntimedProbeLogs(t *testing.T) {
 	eventTime := time.Date(2020, 3, 1, 12, 0, 0, 0, time.UTC)
 	c, err := collector.New(context.Background(), testCheck(), testProbe(), untimedProbe{})
 	require.NoError(t, err)
+
+	defer c.Close()
 
 	_, streams, err := c.Collect(context.Background(), eventTime)
 	require.NoError(t, err)
@@ -160,6 +240,25 @@ func logfmtFloat(t *testing.T, line, wanted string) float64 {
 	t.Fatalf("log field %q not found in %q", wanted, line)
 
 	return 0
+}
+
+func metricLabels(t *testing.T, series collector.TimeSeries, metricName string) map[string]string {
+	t.Helper()
+
+	for _, ts := range series {
+		labels := make(map[string]string, len(ts.Labels))
+		for _, label := range ts.Labels {
+			labels[label.Name] = label.Value
+		}
+
+		if labels["__name__"] == metricName {
+			return labels
+		}
+	}
+
+	t.Fatalf("metric %q not found", metricName)
+
+	return nil
 }
 
 func testCheck() sm.Check {
