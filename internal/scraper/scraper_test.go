@@ -129,7 +129,7 @@ func verifyProberMetrics(
 		logger,
 		basicMetricsOnly,
 		"test-execution-id",
-		wallClockStamper{},
+		scheduledScrapeClock(time.Now()),
 	)
 
 	require.NoError(t, err, "probe failed")
@@ -304,7 +304,7 @@ func TestHTTPTimeoutTelemetryContract(t *testing.T) {
 		&testLogger{w: &logs},
 		false,
 		"timeout-contract",
-		wallClockStamper{},
+		scheduledScrapeClock(time.Now()),
 	)
 	require.NoError(t, err)
 	require.False(t, success)
