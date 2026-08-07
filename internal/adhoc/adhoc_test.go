@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -31,12 +32,13 @@ func TestNewHandler(t *testing.T) {
 	features := feature.NewCollection()
 	require.NoError(t, features.Set("adhoc"))
 
+	registry := prometheus.NewPedanticRegistry()
 	opts := HandlerOpts{
 		Conn:           nil,
 		Logger:         zerolog.New(io.Discard),
 		Publisher:      channelPublisher(make(chan pusher.Payload)),
 		TenantCh:       make(chan sm.Tenant),
-		PromRegisterer: prometheus.NewPedanticRegistry(),
+		PromRegisterer: registry,
 		Features:       features,
 	}
 
@@ -52,6 +54,12 @@ func TestNewHandler(t *testing.T) {
 	require.NotNil(t, h.grpcAdhocChecksClientFactory)
 	require.Nil(t, h.probe, "probe should not be set at this point")
 	require.NotNil(t, h.metrics.opsCounter)
+	require.NotNil(t, h.metrics.k6GraceTime)
+	require.Equal(t, k6AdhocGraceTime.Seconds(), testutil.ToFloat64(h.metrics.k6GraceTime))
+
+	metricCount, err := testutil.GatherAndCount(registry, "sm_adhoc_k6_grace_time_seconds")
+	require.NoError(t, err)
+	require.Equal(t, 1, metricCount)
 	require.False(t, h.supportsProtocolSecrets, "default value should be false")
 }
 
