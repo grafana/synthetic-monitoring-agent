@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.63.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.62.1...v0.63.0) (2026-08-10)
+
+
+### Features
+
+* expose single-execution telemetry collector ([#1906](https://github.com/grafana/synthetic-monitoring-agent/issues/1906)) ([f72bff7](https://github.com/grafana/synthetic-monitoring-agent/commit/f72bff78ea4f05417a3cce0ef9290a74240f639f))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm-v2 to v2.0.6 ([#1934](https://github.com/grafana/synthetic-monitoring-agent/issues/1934)) ([c97aee2](https://github.com/grafana/synthetic-monitoring-agent/commit/c97aee23bf2178b7614dc9349e6abf5718f935f7))
+* Update docker:dind Docker digest to 084e385 ([#1936](https://github.com/grafana/synthetic-monitoring-agent/issues/1936)) ([a7b8c7b](https://github.com/grafana/synthetic-monitoring-agent/commit/a7b8c7b303d6e398099de6a7b178ad47d8cd785f))
+* Update docker:dind Docker digest to e8faad5 ([#1940](https://github.com/grafana/synthetic-monitoring-agent/issues/1940)) ([01be55c](https://github.com/grafana/synthetic-monitoring-agent/commit/01be55c647843ecf9512e56e8c2ac13a8a731eee))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:149.0.7827.53-r0-3.23.4 Docker digest to 9f1c9c4 ([#1929](https://github.com/grafana/synthetic-monitoring-agent/issues/1929)) ([16fc4aa](https://github.com/grafana/synthetic-monitoring-agent/commit/16fc4aa2d0c103a40313975b8139aaae6c754b01))
+* Update golang.org/x/exp digest to b88d891 ([#1939](https://github.com/grafana/synthetic-monitoring-agent/issues/1939)) ([37c3221](https://github.com/grafana/synthetic-monitoring-agent/commit/37c3221164be70712b8f8720983f7c7b96dad8c2))
+* Update module github.com/grafana/gsm-api-go-client to v0.3.3 ([#1935](https://github.com/grafana/synthetic-monitoring-agent/issues/1935)) ([35c78a6](https://github.com/grafana/synthetic-monitoring-agent/commit/35c78a6182b7ae067b7616867f7b7b658b4ef0eb))
+* Update module github.com/prometheus/prometheus to v0.313.2 ([#1938](https://github.com/grafana/synthetic-monitoring-agent/issues/1938)) ([4bbdd94](https://github.com/grafana/synthetic-monitoring-agent/commit/4bbdd94f5b57abae969d6bf67b379e913362ebd8))
+* Update module google.golang.org/grpc to v1.83.0 ([#1937](https://github.com/grafana/synthetic-monitoring-agent/issues/1937)) ([bb5378b](https://github.com/grafana/synthetic-monitoring-agent/commit/bb5378bc85277fd8d0b3cd30e5f84ebcd225d581))
+
 ## [0.62.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.62.0...v0.62.1) (2026-07-27)
 
 
