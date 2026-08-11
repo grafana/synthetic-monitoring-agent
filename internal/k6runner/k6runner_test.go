@@ -20,6 +20,10 @@ import (
 	"github.com/prometheus/common/expfmt"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 func TestNew(t *testing.T) {
@@ -104,6 +108,123 @@ func TestScriptRun(t *testing.T) {
 	require.Equal(t, 500*time.Millisecond, duration)
 }
 
+func TestScriptRunSpan(t *testing.T) {
+	t.Parallel()
+
+	checkInfo := CheckInfoFromSM(model.Check{
+		RegionId: 4,
+		Check: sm.Check{
+			Id:       69,
+			TenantId: 1234,
+			Settings: sm.CheckSettings{
+				Browser: &sm.BrowserSettings{}, // Make it non-nil so type is Browser.
+			},
+		},
+	})
+
+	for _, tc := range []struct {
+		name string
+		// runner is the runner backing the processor under test.
+		runner testRunner
+		// expectStatus is the status code the span is expected to be marked with.
+		expectStatus codes.Code
+		// expectEvents is the number of events (i.e. recorded errors) expected in the span.
+		expectEvents int
+		// expectAttrs are attributes expected to be present in the span, on top of the check ones.
+		expectAttrs map[attribute.Key]string
+	}{
+		{
+			name:         "successful run",
+			expectStatus: codes.Ok,
+		},
+		{
+			name:         "runner error",
+			runner:       testRunner{err: errors.New("runner is on fire")},
+			expectStatus: codes.Error,
+			expectEvents: 1,
+		},
+		{
+			name:         "user error",
+			runner:       testRunner{errorCode: "timeout", errorMsg: "check timed out"},
+			expectStatus: codes.Ok,
+			expectAttrs: map[attribute.Key]string{
+				"sm.k6.error_code": "timeout",
+				"sm.k6.error":      "check timed out",
+			},
+		},
+		{
+			name:         "unrecognized error code",
+			runner:       testRunner{errorCode: "nonsense", errorMsg: "who knows"},
+			expectStatus: codes.Error,
+			expectEvents: 1,
+			expectAttrs: map[attribute.Key]string{
+				"sm.k6.error_code": "nonsense",
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			runner := tc.runner
+			// Every case needs parsable metrics and logs, as the processor reads them before acting on the error code.
+			runner.metrics = testhelper.MustReadFile(t, "testdata/test.out")
+			runner.logs = testhelper.MustReadFile(t, "testdata/test.log")
+
+			processor, err := NewProcessor(Script{
+				Script:            testhelper.MustReadFile(t, "testdata/test.js"),
+				Settings:          Settings{Timeout: 1000},
+				CheckInfo:         checkInfo,
+				K6ChannelManifest: "^1.0.0",
+			}, &runner)
+			require.NoError(t, err)
+
+			recorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
+			t.Cleanup(func() { require.NoError(t, provider.Shutdown(context.Background())) })
+
+			processor.tracer = provider.Tracer("test")
+
+			var (
+				registry = prometheus.NewRegistry()
+				logger   testLogger
+				buf      bytes.Buffer
+				zlogger  = zerolog.New(&buf)
+			)
+
+			ctx, cancel := testhelper.Context(context.Background(), t)
+			t.Cleanup(cancel)
+
+			// The returned error is not interesting here: what each case asserts on is the resulting span.
+			_, _, _ = processor.Run(ctx, registry, &logger, zlogger, SecretStore{}, "test-execution-id")
+
+			spans := recorder.Ended()
+			require.Len(t, spans, 1, "expected exactly one span per script run")
+
+			span := spans[0]
+			require.Equal(t, spanName, span.Name())
+			require.Equal(t, tc.expectStatus, span.Status().Code)
+			require.Len(t, span.Events(), tc.expectEvents)
+
+			attrs := map[attribute.Key]string{}
+			for _, attr := range span.Attributes() {
+				attrs[attr.Key] = attr.Value.Emit()
+			}
+
+			// Check information must be present in every span, regardless of outcome.
+			require.Equal(t, sm.CheckTypeBrowser.String(), attrs["sm.check.type"])
+			require.Equal(t, "69", attrs["sm.check.id"])
+			require.Equal(t, "1234", attrs["sm.check.tenantID"])
+			require.Equal(t, "4", attrs["sm.check.regionID"])
+			require.Equal(t, "^1.0.0", attrs["sm.k6.channel_manifest"])
+
+			for key, value := range tc.expectAttrs {
+				require.Equal(t, value, attrs[key], "attribute %q", key)
+			}
+		})
+	}
+}
+
 func TestCheckInfoFromSM(t *testing.T) {
 	t.Parallel()
 
@@ -135,14 +256,27 @@ func TestCheckInfoFromSM(t *testing.T) {
 type testRunner struct {
 	metrics []byte
 	logs    []byte
+
+	// err, if non-nil, is returned by Run in place of a response.
+	err error
+	// errorCode and errorMsg, if set, are reported back in the response, emulating a runner that ran the script and
+	// found it wanting.
+	errorCode string
+	errorMsg  string
 }
 
 var _ Runner = &testRunner{}
 
 func (r *testRunner) Run(ctx context.Context, script Script, secretStore SecretStore, _ string) (*RunResponse, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+
 	return &RunResponse{
-		Metrics: r.metrics,
-		Logs:    r.logs,
+		Metrics:   r.metrics,
+		Logs:      r.logs,
+		ErrorCode: r.errorCode,
+		Error:     r.errorMsg,
 	}, nil
 }
 

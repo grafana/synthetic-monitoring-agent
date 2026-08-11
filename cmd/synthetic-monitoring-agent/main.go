@@ -39,6 +39,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tenants"
+	"github.com/grafana/synthetic-monitoring-agent/internal/tracing"
 	"github.com/grafana/synthetic-monitoring-agent/internal/usage"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -47,6 +48,9 @@ import (
 const (
 	exitFail             = 1
 	defTelemetryTimeSpan = 5 // min
+
+	// tracingShutdownTimeout bounds how long we wait for pending spans to be flushed on exit.
+	tracingShutdownTimeout = 5 * time.Second
 )
 
 // run is the main entry point for the program.
@@ -87,6 +91,8 @@ func run(args []string, stdout io.Writer) error {
 			EnableProtocolSecrets bool
 			PushTelemetry         bool
 			MetricsInterval       time.Duration
+			TracesEndpoint        string
+			TracesInsecure        bool
 		}{
 			GrpcApiServerAddr:  "localhost:4031",
 			HttpListenAddr:     "localhost:4050",
@@ -132,6 +138,9 @@ func run(args []string, stdout io.Writer) error {
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
+	flags.StringVar(&config.TracesEndpoint, "traces-endpoint", config.TracesEndpoint,
+		"OTLP/gRPC endpoint to export traces to, e.g. localhost:4319. Tracing is disabled if empty.")
+	flags.BoolVar(&config.TracesInsecure, "traces-insecure", config.TracesInsecure, "don't use TLS with connections to the traces endpoint")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -230,6 +239,26 @@ func run(args []string, stdout io.Writer) error {
 		Msg("starting")
 
 	notifyAboutDeprecatedFeatureFlags(features, zl)
+
+	tracingShutdown, err := tracing.Setup(baseCtx, tracing.Config{
+		Endpoint: config.TracesEndpoint,
+		Insecure: config.TracesInsecure,
+		Version:  version.Short(),
+	})
+	if err != nil {
+		return fmt.Errorf("setting up tracing: %w", err)
+	}
+
+	defer func() {
+		// Use a context detached from the run: by the time this runs, baseCtx has been cancelled, and we still want to
+		// flush whatever spans are pending.
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), tracingShutdownTimeout)
+		defer cancel()
+
+		if err := tracingShutdown(shutdownCtx); err != nil {
+			zl.Error().Err(err).Msg("shutting down tracing")
+		}
+	}()
 
 	var usageReporter usage.Reporter
 

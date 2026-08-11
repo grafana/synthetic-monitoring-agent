@@ -19,6 +19,10 @@ import (
 	"github.com/prometheus/common/model"
 	"github.com/rs/zerolog"
 	"github.com/spf13/afero"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Script is a k6 script that a runner is able to run, with some added instructions for that runner to act on.
@@ -153,19 +157,60 @@ func New(opts RunnerOpts) (Runner, error) {
 	return r, nil
 }
 
+const (
+	// tracerName is the instrumentation scope for the spans emitted by this package.
+	tracerName = "github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	// spanName is the name of the span covering a single execution of a k6 script.
+	spanName = "sm-k6"
+)
+
 // Processor runs a script with a runner and parses the k6 output.
 type Processor struct {
 	runner Runner
 	script Script
+	tracer trace.Tracer
 }
 
 func NewProcessor(script Script, k6runner Runner) (*Processor, error) {
 	r := Processor{
 		runner: k6runner,
 		script: script,
+		// The global provider is a no-op unless the agent has been configured to export traces. Tracers obtained from
+		// it before it is configured are swapped for real ones when it is, so it is safe to grab one here.
+		tracer: otel.Tracer(tracerName),
 	}
 
 	return &r, nil
+}
+
+// spanAttributes returns the set of span attributes describing the check this script belongs to.
+func (s Script) spanAttributes() []attribute.KeyValue {
+	attrs := make([]attribute.KeyValue, 0, len(s.CheckInfo.Metadata)+2)
+	attrs = append(attrs,
+		attribute.String("sm.check.type", s.CheckInfo.Type),
+		attribute.String("sm.k6.channel_manifest", s.K6ChannelManifest),
+	)
+
+	for k, v := range s.CheckInfo.Metadata {
+		key := "sm.check." + k
+
+		// Metadata is loosely typed, so we narrow the types we know CheckInfoFromSM puts in there, and fall back to a
+		// string representation for anything else.
+		switch v := v.(type) {
+		case int32:
+			attrs = append(attrs, attribute.Int64(key, int64(v)))
+		case int64:
+			attrs = append(attrs, attribute.Int64(key, v))
+		case float64:
+			attrs = append(attrs, attribute.Float64(key, v))
+		case string:
+			attrs = append(attrs, attribute.String(key, v))
+		default:
+			attrs = append(attrs, attribute.String(key, fmt.Sprint(v)))
+		}
+	}
+
+	return attrs
 }
 
 var (
@@ -174,6 +219,9 @@ var (
 )
 
 func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logger logger.Logger, internalLogger zerolog.Logger, secretStore SecretStore, executionID string) (bool, time.Duration, error) {
+	ctx, span := r.tracer.Start(ctx, spanName, trace.WithAttributes(r.script.spanAttributes()...))
+	defer span.End()
+
 	k6runner := r.runner.WithLogger(&internalLogger)
 
 	// TODO: This error message is okay to be Debug for local k6 execution, but should be Error for remote runners.
@@ -183,6 +231,8 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 			Err(err).
 			Msg("k6 script exited with error code")
 
+		recordSpanError(span, err)
+
 		return false, 0, err
 	}
 
@@ -191,9 +241,22 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 	case result.Error == "" && result.ErrorCode != "":
 		fallthrough
 	case result.Error != "" && result.ErrorCode == "":
-		return false, 0, fmt.Errorf(
+		err := fmt.Errorf(
 			"%w: only one of error (%q) and errorCode (%q) is non-empty",
 			ErrBuggyRunner, result.Error, result.ErrorCode,
+		)
+
+		recordSpanError(span, err)
+
+		return false, 0, err
+	}
+
+	if result.ErrorCode != "" {
+		// The script did not run successfully. This is not necessarily an error on our side, so we record it as
+		// attributes and let the switch at the end of this function decide whether the span is marked as failed.
+		span.SetAttributes(
+			attribute.String("sm.k6.error_code", result.ErrorCode),
+			attribute.String("sm.k6.error", result.Error),
 		)
 	}
 
@@ -222,6 +285,8 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 			Err(err).
 			Msg("cannot load logs to logger")
 
+		recordSpanError(span, err)
+
 		return false, 0, err
 	}
 
@@ -236,6 +301,8 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 			Err(err).
 			Msg("cannot extract metric samples")
 
+		recordSpanError(span, err)
+
 		return false, 0, err
 	}
 
@@ -244,6 +311,8 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 			Err(err).
 			Msg("cannot register collector")
 
+		recordSpanError(span, err)
+
 		return false, 0, err
 	}
 
@@ -251,15 +320,30 @@ func (r Processor) Run(ctx context.Context, registry *prometheus.Registry, logge
 	switch result.ErrorCode {
 	case "":
 		// No error, all good.
+		span.SetStatus(codes.Ok, "")
+
 		return true, durationCollector.duration, nil
 	// TODO: Remove "user" from this list, which has been renamed to "aborted".
 	case "timeout", "killed", "user", "failed", "aborted":
-		// These are user errors. The probe failed, but we don't return an error.
+		// These are user errors. The probe failed, but we don't return an error, and neither do we mark the span as
+		// failed: the agent did its job.
+		span.SetStatus(codes.Ok, "")
+
 		return false, durationCollector.duration, nil
 	default:
 		// We got an "unknown" error, or some other code we do not recognize. Return it so we log it.
-		return false, durationCollector.duration, fmt.Errorf("%w: %s: %s", ErrFromRunner, result.ErrorCode, result.Error)
+		err := fmt.Errorf("%w: %s: %s", ErrFromRunner, result.ErrorCode, result.Error)
+
+		recordSpanError(span, err)
+
+		return false, durationCollector.duration, err
 	}
+}
+
+// recordSpanError marks the given span as failed, attaching the given error to it.
+func recordSpanError(span trace.Span, err error) {
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 }
 
 type customCollector struct {
