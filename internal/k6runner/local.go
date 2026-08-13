@@ -146,7 +146,9 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 	cmd.Stdin = nil
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Env = k6Env(os.Environ())
+	// Appended last on purpose: os/exec keeps the last occurrence of a duplicated variable, so this takes precedence
+	// over anything inherited from the agent's environment.
+	cmd.Env = append(k6Env(os.Environ()), browserTracesEnv(ctx)...)
 
 	start := time.Now()
 

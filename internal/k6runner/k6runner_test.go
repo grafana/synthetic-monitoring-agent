@@ -208,7 +208,7 @@ func TestScriptRunSpan(t *testing.T) {
 
 			attrs := map[attribute.Key]string{}
 			for _, attr := range span.Attributes() {
-				attrs[attr.Key] = attr.Value.Emit()
+				attrs[attr.Key] = attr.Value.String()
 			}
 
 			// Check information must be present in every span, regardless of outcome.

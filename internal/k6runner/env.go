@@ -1,8 +1,11 @@
 package k6runner
 
 import (
+	"context"
 	"slices"
 	"strings"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // k6Env returns the environment variables that are passed to the k6 process that runs checks.
@@ -24,4 +27,27 @@ func k6Env(localEnv []string) []string {
 	}
 
 	return localEnv
+}
+
+// browserTracesEnv returns a K6_BROWSER_TRACES_METADATA entry that stamps the identity of the span covering this
+// execution onto every span k6's browser module emits, or nothing at all if ctx carries no valid span, which is the
+// case whenever tracing is disabled.
+//
+// k6 has no way to adopt a parent span handed to it from the outside, so its traces are always rooted at their own
+// iteration span. Carrying our trace and span IDs as attributes is what allows an operator to pivot between the agent
+// span for a check execution and the browser trace for that same execution.
+//
+// Note that k6 only emits these traces when it is told where to send them, via K6_TRACES_OUTPUT or --traces-output,
+// which k6 inherits from the agent's own environment.
+func browserTracesEnv(ctx context.Context) []string {
+	spanCtx := trace.SpanContextFromContext(ctx)
+	if !spanCtx.IsValid() {
+		return nil
+	}
+
+	return []string{
+		"K6_BROWSER_TRACES_METADATA=" +
+			"sm.trace.id=" + spanCtx.TraceID().String() +
+			",sm.span.id=" + spanCtx.SpanID().String(),
+	}
 }
