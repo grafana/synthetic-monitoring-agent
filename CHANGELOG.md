@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.64.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.63.0...v0.64.0) (2026-08-18)
+
+
+### Features
+
+* emit region as sm_region for tenants in label migration ([#1922](https://github.com/grafana/synthetic-monitoring-agent/issues/1922)) ([b3348f7](https://github.com/grafana/synthetic-monitoring-agent/commit/b3348f7cf5d688b46326d4e1453fc8acd732d8a3))
+
 ## [0.63.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.62.1...v0.63.0) (2026-08-10)
 
 
