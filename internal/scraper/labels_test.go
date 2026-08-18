@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -283,4 +284,69 @@ func TestMergeLogLabels_NoUserLabels(t *testing.T) {
 	got := mergeLogLabels(system, nil)
 
 	require.Equal(t, system, got)
+}
+
+// TestRegionLabelForMode pins the mode-conditional rename of the agent's
+// region label — legacy PREFIXED tenants keep "region"; tenants that have
+// started the migration receive "sm_region" (the reserved name) — and the
+// invariant the API's alert expressions depend on: for migrated modes,
+// sm_region is ALWAYS non-empty. A probe without a region gets the "unset"
+// sentinel, because an empty label value is the same as an absent label in
+// PromQL, and an absent sm_region classifies the series as pre-migration.
+func TestRegionLabelForMode(t *testing.T) {
+	require.Equal(t, labelPair{name: "region", value: "EMEA"},
+		regionLabelForMode(sm.LabelMode_LABEL_MODE_PREFIXED, "EMEA"))
+	require.Equal(t, labelPair{name: "sm_region", value: "EMEA"},
+		regionLabelForMode(sm.LabelMode_LABEL_MODE_DUAL_WRITE, "EMEA"))
+	require.Equal(t, labelPair{name: "sm_region", value: "EMEA"},
+		regionLabelForMode(sm.LabelMode_LABEL_MODE_UNPREFIXED, "EMEA"))
+
+	// Probe without a region: PREFIXED keeps the historical empty value
+	// (equivalent to an absent label), preserving legacy series identity.
+	require.Equal(t, labelPair{name: "region", value: ""},
+		regionLabelForMode(sm.LabelMode_LABEL_MODE_PREFIXED, ""))
+	// Migrated modes must never emit an empty sm_region.
+	require.Equal(t, labelPair{name: "sm_region", value: "unset"},
+		regionLabelForMode(sm.LabelMode_LABEL_MODE_DUAL_WRITE, ""))
+	require.Equal(t, labelPair{name: "sm_region", value: "unset"},
+		regionLabelForMode(sm.LabelMode_LABEL_MODE_UNPREFIXED, ""))
+}
+
+// TestBuildUserLabels_SMRegionDropped pins that a user label named sm_region —
+// the reserved name the agent's own region label migrates to — is dropped in
+// enforced modes and cannot shadow the agent's value.
+func TestBuildUserLabels_SMRegionDropped(t *testing.T) {
+	labels := []sm.Label{{Name: "sm_region", Value: "spoofed"}}
+
+	// DUAL_WRITE drops the un-prefixed reserved form but keeps the prefixed
+	// form, which cannot collide with the agent's sm_region.
+	require.Equal(t,
+		[]labelPair{{name: "label_sm_region", value: "spoofed"}},
+		buildUserLabels(nil, labels, sm.LabelMode_LABEL_MODE_DUAL_WRITE))
+	require.Empty(t, buildUserLabels(nil, labels, sm.LabelMode_LABEL_MODE_UNPREFIXED))
+	// In PREFIXED mode it is emitted with the prefix, which cannot collide.
+	require.Equal(t,
+		[]labelPair{{name: "label_sm_region", value: "spoofed"}},
+		buildUserLabels(nil, labels, sm.LabelMode_LABEL_MODE_PREFIXED))
+}
+
+// TestBuildCheckInfoLabels_RegionlessProbe pins the sentinel end to end on
+// sm_check_info: a migrated tenant's check running on a probe without a
+// region still carries a non-empty sm_region (the generation marker the
+// API's alert expressions select on), while a PREFIXED tenant's series keeps
+// the historical empty region value.
+func TestBuildCheckInfoLabels_RegionlessProbe(t *testing.T) {
+	s := Scraper{
+		checkName: "ping",
+		check:     model.Check{Check: sm.Check{Frequency: 60000}},
+		probe:     sm.Probe{Name: "regionless"},
+	}
+
+	migrated := s.buildCheckInfoLabels(nil, nil, sm.LabelMode_LABEL_MODE_DUAL_WRITE)
+	require.Equal(t, "unset", migrated["sm_region"])
+	require.NotContains(t, migrated, "region")
+
+	legacy := s.buildCheckInfoLabels(nil, nil, sm.LabelMode_LABEL_MODE_PREFIXED)
+	require.Equal(t, "", legacy["region"])
+	require.NotContains(t, legacy, "sm_region")
 }
