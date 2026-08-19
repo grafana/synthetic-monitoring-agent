@@ -24,9 +24,21 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
+	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
+
+// Telemeter counts check executions. It mirrors the interface consumed by the
+// scheduled-checks scraper so ad-hoc executions feed the same pipeline.
+type Telemeter interface {
+	AddExecution(e telemetry.Execution)
+}
+
+// TenantCals resolves the cost-attribution label names configured for a tenant.
+type TenantCals interface {
+	CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error)
+}
 
 // Handler is in charge of retrieving ad-hoc checks from the
 // synthetic-monitoring-api, running them and forwarding the results to
@@ -44,6 +56,8 @@ type Handler struct {
 	grpcAdhocChecksClientFactory func(conn ClientConn) (sm.AdHocChecksClient, error)
 	proberFactory                prober.ProberFactory
 	supportsProtocolSecrets      bool
+	telemeter                    Telemeter
+	cals                         TenantCals
 }
 
 // Error represents errors returned from this package.
@@ -65,12 +79,15 @@ const (
 // Removed HTTP status code parsing; we treat all codes.Unavailable as idle timeout.
 
 type runner struct {
-	logger  zerolog.Logger
-	prober  prober.Prober
-	id      string
-	target  string
-	probe   string
-	timeout time.Duration
+	logger     zerolog.Logger
+	prober     prober.Prober
+	id         string
+	target     string
+	probe      string
+	timeout    time.Duration
+	checkClass sm.CheckClass
+	telemeter  Telemeter
+	cals       TenantCals
 }
 
 // ClientConn represents the GRPC client connection that can be used to
@@ -118,6 +135,8 @@ type HandlerOpts struct {
 	K6Runner                k6runner.Runner
 	SecretProvider          secrets.SecretProvider
 	SupportsProtocolSecrets bool
+	Telemeter               Telemeter
+	CostAttributionLabels   TenantCals
 
 	// these two fields exists so that tests can pass alternate
 	// implementations, they are unexported so that clients of this
@@ -152,6 +171,8 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		grpcAdhocChecksClientFactory: opts.grpcAdhocChecksClientFactory,
 		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features, opts.SecretProvider),
 		supportsProtocolSecrets:      opts.SupportsProtocolSecrets,
+		telemeter:                    opts.Telemeter,
+		cals:                         opts.CostAttributionLabels,
 		api: apiInfo{
 			conn: opts.Conn,
 		},
@@ -466,12 +487,15 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 	}
 
 	return &runner{
-		logger:  h.logger,
-		prober:  p,
-		id:      req.AdHocCheck.Id,
-		target:  target,
-		probe:   h.probe.Name,
-		timeout: timeout,
+		logger:     h.logger,
+		prober:     p,
+		id:         req.AdHocCheck.Id,
+		target:     target,
+		probe:      h.probe.Name,
+		timeout:    timeout,
+		checkClass: check.Class(),
+		telemeter:  h.telemeter,
+		cals:       h.cals,
 	}, nil
 }
 
@@ -612,6 +636,66 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		Str("probe", r.probe).
 		Str("check_name", r.prober.Name()).
 		Msg("ad-hoc result sent to publisher")
+
+	// Count the execution through the same telemetry pipeline as scheduled
+	// checks, tagged as ad-hoc so the two kinds stay distinguishable.
+	r.recordExecution(ctx, tenantId, duration, start)
+}
+
+// recordExecution reports an ad-hoc execution to the telemeter, using the same
+// dimensions as scheduled checks (tenant, region, check class, duration, cost
+// attribution labels) and flagging it as ad-hoc.
+func (r *runner) recordExecution(ctx context.Context, tenantId model.GlobalID, duration float64, start time.Time) {
+	if r.telemeter == nil {
+		return
+	}
+
+	// The prober reports duration in seconds; fall back to wall-clock time if
+	// it did not, matching the durationGauge handling above.
+	execDuration := time.Duration(duration * float64(time.Second))
+	if duration == 0 {
+		execDuration = time.Since(start)
+	}
+
+	localTenantID, regionID := model.GetLocalAndRegionIDs(tenantId)
+
+	r.telemeter.AddExecution(telemetry.Execution{
+		LocalTenantID:         localTenantID,
+		RegionID:              int32(regionID),
+		CheckClass:            r.checkClass,
+		Duration:              execDuration,
+		CostAttributionLabels: r.costAttributionLabels(ctx, tenantId),
+		AdHoc:                 true,
+	})
+}
+
+// costAttributionLabels returns the tenant's configured cost-attribution labels
+// with the missing-value sentinel. Ad-hoc checks carry no labels, so there are
+// no values to derive; the names are still emitted so ad-hoc series share the
+// same label set as scheduled ones. A lookup error is logged and does not block
+// counting.
+func (r *runner) costAttributionLabels(ctx context.Context, tenantId model.GlobalID) []sm.CostAttributionLabel {
+	if r.cals == nil {
+		return nil
+	}
+
+	names, err := r.cals.CostAttributionLabels(ctx, tenantId)
+	if err != nil {
+		r.logger.Error().
+			Err(err).
+			Int64("tenantId", int64(tenantId)).
+			Msg("could not load cost attribution labels for ad-hoc execution")
+		return nil
+	}
+
+	cals := make([]sm.CostAttributionLabel, 0, len(names))
+	for _, name := range names {
+		cals = append(cals, sm.CostAttributionLabel{
+			Name:  name,
+			Value: telemetry.CalNilStringTerminator,
+		})
+	}
+	return cals
 }
 
 type (
