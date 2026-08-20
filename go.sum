@@ -114,8 +114,8 @@ github.com/googleapis/enterprise-certificate-proxy v0.3.15 h1:xolVQTEXusUcAA5Ugt
 github.com/googleapis/enterprise-certificate-proxy v0.3.15/go.mod h1:vqVt9yG9480NtzREnTlmGSBmFrA+bzb0yl0TxoBQXOg=
 github.com/googleapis/gax-go/v2 v2.22.0 h1:PjIWBpgGIVKGoCXuiCoP64altEJCj3/Ei+kSU5vlZD4=
 github.com/googleapis/gax-go/v2 v2.22.0/go.mod h1:irWBbALSr0Sk3qlqb9SyJ1h68WjgeFuiOzI4Rqw5+aY=
-github.com/grafana/gsm-api-go-client v0.3.3 h1:KrjdTbavLbHnnKA5ufbvhpwV2igCbgQUuZCKtYfK3ok=
-github.com/grafana/gsm-api-go-client v0.3.3/go.mod h1:6Rwz3URlHhfT/5cC0SlxgHVRzSZC8OO6lgisobVaKLA=
+github.com/grafana/gsm-api-go-client v0.3.4 h1:invc+CMwYgh6k7K1fGHg6ODYHbYiCcjjoPMSSRU77aE=
+github.com/grafana/gsm-api-go-client v0.3.4/go.mod h1:6Rwz3URlHhfT/5cC0SlxgHVRzSZC8OO6lgisobVaKLA=
 github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96 h1:wdu17bfMs5kQZHWzXG6abUHBZNLhIHE6K+LN8PvRIHk=
 github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96/go.mod h1:QClrwZWT4u0N/O0Z0zKnRn36D51XTJMMmy7ICgaECd0=
 github.com/grafana/mtr v0.1.1-0.20221107202107-a9806fdda166 h1:COSDtVDArtLKK9p+mkUlPXCfWFslQFVVuQos39vxQrU=
