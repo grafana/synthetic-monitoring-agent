@@ -147,13 +147,11 @@ func TestScraperRegistry(t *testing.T) {
 	requireRegistryConsistent(t, r)
 	require.Empty(t, r.checksForTenant(tenant42))
 
-	func() {
-		r.mu.Lock()
-		defer r.mu.Unlock()
+	r.mu.Lock()
+	_, exists := r.byTenant[tenant42]
+	r.mu.Unlock()
 
-		_, exists := r.byTenant[tenant42]
-		require.False(t, exists, "a tenant with no running scrapers must not keep an index key")
-	}()
+	require.False(t, exists, "a tenant with no running scrapers must not keep an index key")
 
 	// removing an absent ID reports absence and mutates nothing
 	removed, found = r.remove(checkA.GlobalID())
@@ -177,6 +175,36 @@ func TestScraperRegistry(t *testing.T) {
 	require.Equal(t, 1, registryLen(r))
 	require.Empty(t, r.checksForTenant(tenant42))
 	require.ElementsMatch(t, []model.Check{checkC}, r.checksForTenant(tenant99))
+
+	// replace under an existing key hands back the displaced scraper and
+	// registers the new one; the index does not change shape
+	scraperC2 := newRegistryTestScraper(t, checkC)
+
+	displaced, found := r.replace(checkC, scraperC2)
+	require.True(t, found)
+	require.Same(t, scraperC, displaced)
+	requireRegistryConsistent(t, r)
+	require.Equal(t, 1, registryLen(r))
+
+	got, found = r.get(checkC.GlobalID())
+	require.True(t, found)
+	require.Same(t, scraperC2, got)
+	require.ElementsMatch(t, []model.Check{checkC}, r.checksForTenant(tenant99))
+
+	// replace of an absent key displaces nothing and registers the new
+	// scraper under a fresh index entry
+	scraperA3 := newRegistryTestScraper(t, checkA)
+
+	displaced, found = r.replace(checkA, scraperA3)
+	require.False(t, found)
+	require.Nil(t, displaced)
+	requireRegistryConsistent(t, r)
+	require.Equal(t, 2, registryLen(r))
+
+	got, found = r.get(checkA.GlobalID())
+	require.True(t, found)
+	require.Same(t, scraperA3, got)
+	require.ElementsMatch(t, []model.Check{checkA}, r.checksForTenant(tenant42))
 
 	// setLabelMode truth table. The first sighting uses PREFIXED, the
 	// enum's zero value, to pin that "never seen" is distinguished from

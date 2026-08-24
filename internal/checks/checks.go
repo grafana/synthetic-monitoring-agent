@@ -695,17 +695,34 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) erro
 // The replacement is built before the old scraper is touched, so a
 // construction failure leaves the old scraper registered and running
 // (there is no retry path for a dead check until its next config change
-// or a reconnect). A check with no running scraper degrades to a plain
-// add: the API can legitimately send an update for a check this agent
-// never saw (e.g. it was created and updated while the agent was
-// disconnected).
+// or a reconnect), and the swap itself is a single registry operation, so
+// the check is never observably absent during a successful restart. A
+// check with no running scraper degrades to a plain add: the API can
+// legitimately send an update for a check this agent never saw (e.g. it
+// was created and updated while the agent was disconnected).
 func (c *Updater) restartCheck(ctx context.Context, check model.Check) error {
 	replacement, err := c.buildScraper(ctx, check)
 	if err != nil {
 		return err
 	}
 
-	old, found := c.scrapers.remove(check.GlobalID())
+	// A nil replacement is a check a disabled feature flag filters out:
+	// accepted, but nothing to register or run.
+	if replacement == nil {
+		old, found := c.scrapers.remove(check.GlobalID())
+		if !found {
+			c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("update request for an unknown check")
+			return nil
+		}
+
+		old.Stop()
+
+		c.metrics.runningScrapers.WithLabelValues(old.CheckType().String()).Dec()
+
+		return nil
+	}
+
+	old, found := c.scrapers.replace(check, replacement)
 	if !found {
 		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("update request for an unknown check")
 	} else {
@@ -713,14 +730,6 @@ func (c *Updater) restartCheck(ctx context.Context, check model.Check) error {
 
 		c.metrics.runningScrapers.WithLabelValues(old.CheckType().String()).Dec()
 	}
-
-	// A nil replacement is a check a disabled feature flag filters out:
-	// accepted, but nothing to register or run.
-	if replacement == nil {
-		return nil
-	}
-
-	c.scrapers.add(check, replacement)
 
 	go replacement.Run(ctx)
 
