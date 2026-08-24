@@ -44,9 +44,9 @@ func requireRegistryConsistent(t *testing.T, r *scraperRegistry) {
 	}
 }
 
-// registryLen reaches into the registry under its lock; the registry
-// deliberately exposes no size accessor because production code has no
-// use for one.
+// registryLen reaches into the registry under its lock, the same way tests
+// read labelModes; the registry deliberately exposes no size accessor
+// because production code has no use for one.
 func registryLen(r *scraperRegistry) int {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -177,4 +177,20 @@ func TestScraperRegistry(t *testing.T) {
 	require.Equal(t, 1, registryLen(r))
 	require.Empty(t, r.checksForTenant(tenant42))
 	require.ElementsMatch(t, []model.Check{checkC}, r.checksForTenant(tenant99))
+
+	// setLabelMode truth table. The first sighting uses PREFIXED, the
+	// enum's zero value, to pin that "never seen" is distinguished from
+	// "seen at PREFIXED".
+	require.True(t, r.setLabelMode(tenant42, sm.LabelMode_LABEL_MODE_PREFIXED),
+		"first sighting of a tenant must count as changed even at the zero-value mode")
+	require.False(t, r.setLabelMode(tenant42, sm.LabelMode_LABEL_MODE_PREFIXED),
+		"repeating the recorded mode must not count as changed")
+	require.True(t, r.setLabelMode(tenant42, sm.LabelMode_LABEL_MODE_DUAL_WRITE),
+		"a different mode must count as changed")
+
+	// record-always: a tenant with zero running scrapers still records
+	noScrapersTenant := model.GlobalID(7)
+	require.True(t, r.setLabelMode(noScrapersTenant, sm.LabelMode_LABEL_MODE_UNPREFIXED))
+	require.False(t, r.setLabelMode(noScrapersTenant, sm.LabelMode_LABEL_MODE_UNPREFIXED))
+	requireRegistryConsistent(t, r)
 }

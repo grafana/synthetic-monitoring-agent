@@ -2,6 +2,7 @@ package checks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync/atomic"
 	"syscall"
@@ -305,6 +306,450 @@ func testHandleCheckOpImpl(t *testing.T) {
 	requireRegistryConsistent(t, u.scrapers)
 
 	// Wait for all scraper goroutines to fully exit before test completes.
+	synctest.Wait()
+}
+
+func TestHandleTenantUpdate(t *testing.T) {
+	synctest.Test(t, testHandleTenantUpdateImpl)
+}
+
+func testHandleTenantUpdateImpl(t *testing.T) {
+	u, err := NewUpdater(
+		UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(make(chan pusher.Payload, 100)),
+			TenantCh:       make(chan sm.Tenant, 10),
+			Logger:         testhelper.Logger(t),
+			ScraperFactory: testScraperFactory,
+		},
+	)
+	require.NoError(t, err)
+
+	u.probe = &sm.Probe{Id: 100, Name: "test-probe"}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	readLastLabelMode := func(id model.GlobalID) (sm.LabelMode, bool) {
+		u.scrapers.mu.Lock()
+		defer u.scrapers.mu.Unlock()
+
+		mode, ok := u.scrapers.labelModes[id]
+
+		return mode, ok
+	}
+
+	// A tenant with zero running scrapers (the registry is still empty at
+	// this point in the test) must not panic and must not add anything to
+	// the registry, but it must still record the tenant's mode so a later
+	// update for the same tenant can tell a no-op change from a real one.
+	require.NotPanics(t, func() {
+		u.handleTenantUpdate(ctx, sm.Tenant{Id: 7, LabelMode: sm.LabelMode_LABEL_MODE_UNPREFIXED})
+	})
+	requireRegistryConsistent(t, u.scrapers)
+
+	require.Zero(t, registryLen(u.scrapers), "handleTenantUpdate must not add scrapers for a tenant with none running")
+
+	recordedMode, seen := readLastLabelMode(model.GlobalID(7))
+	require.True(t, seen, "labelModes should record the tenant even though it had zero running scrapers")
+	require.Equal(t, sm.LabelMode_LABEL_MODE_UNPREFIXED, recordedMode)
+
+	// record-always means a follow-up identical update is a no-op
+	require.NotPanics(t, func() {
+		u.handleTenantUpdate(ctx, sm.Tenant{Id: 7, LabelMode: sm.LabelMode_LABEL_MODE_UNPREFIXED})
+	})
+	require.Zero(t, registryLen(u.scrapers))
+	requireRegistryConsistent(t, u.scrapers)
+
+	newCheck := func(id int64) model.Check {
+		var check model.Check
+
+		err := check.FromSM(sm.Check{
+			Id:        id,
+			TenantId:  42,
+			Frequency: 1000,
+			Timeout:   1000,
+			Target:    "127.0.0.1",
+			Job:       "test-job",
+			Probes:    []int64{1},
+			Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
+		})
+		require.NoError(t, err)
+
+		return check
+	}
+
+	checkA := newCheck(5001)
+	checkB := newCheck(5002)
+
+	require.NoError(t, u.handleCheckAdd(ctx, checkA))
+	require.NoError(t, u.handleCheckAdd(ctx, checkB))
+	requireRegistryConsistent(t, u.scrapers)
+
+	scraperPointer := func(id model.GlobalID) *scraper.Scraper {
+		s, _ := u.scrapers.get(id)
+		return s
+	}
+
+	beforeA := scraperPointer(checkA.GlobalID())
+	beforeB := scraperPointer(checkB.GlobalID())
+
+	require.NotNil(t, beforeA)
+	require.NotNil(t, beforeB)
+
+	// First sighting of tenant 42: restart happens even though the mode
+	// (PREFIXED, the zero value) matches what an unseen tenant would
+	// default to if the zero value were mistaken for "no change".
+	u.handleTenantUpdate(ctx, sm.Tenant{Id: 42, LabelMode: sm.LabelMode_LABEL_MODE_PREFIXED})
+	requireRegistryConsistent(t, u.scrapers)
+
+	afterFirstA := scraperPointer(checkA.GlobalID())
+	afterFirstB := scraperPointer(checkB.GlobalID())
+
+	require.NotSame(t, beforeA, afterFirstA, "checkA's scraper should have been replaced on first sighting of its tenant")
+	require.NotSame(t, beforeB, afterFirstB, "checkB's scraper should have been replaced on first sighting of its tenant")
+
+	// Same mode again: no restart.
+	u.handleTenantUpdate(ctx, sm.Tenant{Id: 42, LabelMode: sm.LabelMode_LABEL_MODE_PREFIXED})
+	requireRegistryConsistent(t, u.scrapers)
+
+	afterRepeatA := scraperPointer(checkA.GlobalID())
+	afterRepeatB := scraperPointer(checkB.GlobalID())
+
+	require.Same(t, afterFirstA, afterRepeatA, "no label mode change should not restart checkA's scraper")
+	require.Same(t, afterFirstB, afterRepeatB, "no label mode change should not restart checkB's scraper")
+
+	// Different mode: restart again, but only for this tenant. Add an
+	// unrelated check for a different tenant first and confirm it is left
+	// alone by the restart.
+	otherCheck := newCheck(5003)
+	otherCheck.TenantId = 99
+	require.NoError(t, u.handleCheckAdd(ctx, otherCheck))
+	requireRegistryConsistent(t, u.scrapers)
+
+	beforeOther := scraperPointer(otherCheck.GlobalID())
+	require.NotNil(t, beforeOther)
+
+	u.handleTenantUpdate(ctx, sm.Tenant{Id: 42, LabelMode: sm.LabelMode_LABEL_MODE_DUAL_WRITE})
+	requireRegistryConsistent(t, u.scrapers)
+
+	afterChangedA := scraperPointer(checkA.GlobalID())
+	afterChangedB := scraperPointer(checkB.GlobalID())
+	afterOther := scraperPointer(otherCheck.GlobalID())
+
+	require.NotSame(t, afterRepeatA, afterChangedA, "checkA's scraper should have been replaced when its tenant's label mode changed")
+	require.NotSame(t, afterRepeatB, afterChangedB, "checkB's scraper should have been replaced when its tenant's label mode changed")
+	require.Same(t, beforeOther, afterOther, "a different tenant's scraper must not be restarted")
+
+	// Clean up: stop every scraper this test started before it exits.
+	require.NoError(t, u.handleCheckDelete(ctx, checkA))
+	require.NoError(t, u.handleCheckDelete(ctx, checkB))
+	require.NoError(t, u.handleCheckDelete(ctx, otherCheck))
+	requireRegistryConsistent(t, u.scrapers)
+	synctest.Wait()
+}
+
+// TestHandleTenantUpdateRestartFailure exercises handleTenantUpdate's error
+// branch: one check's scraper fails to restart (its factory returns an
+// error) while another check in the same tenant restarts successfully. It
+// asserts the failing check keeps its old scraper (restartCheck builds the
+// replacement before stopping anything), that the failure doesn't abort
+// the loop over the rest of the tenant's checks, and that the failure is
+// surfaced on changeErrorsCounter (not just logged) per the "update" label
+// already used by every other restart-style failure path in this file.
+func TestHandleTenantUpdateRestartFailure(t *testing.T) {
+	synctest.Test(t, testHandleTenantUpdateRestartFailureImpl)
+}
+
+func testHandleTenantUpdateRestartFailureImpl(t *testing.T) {
+	const failingCheckID = int64(6001)
+
+	var failNextRestart atomic.Bool
+
+	factory := func(ctx context.Context, check model.Check, publisher pusher.Publisher, probe sm.Probe,
+		features feature.Collection,
+		logger zerolog.Logger,
+		metrics scraper.Metrics,
+		k6Runner k6runner.Runner,
+		labelsLimiter scraper.LabelsLimiter,
+		telemeter *telemetry.Telemeter,
+		secretStore secrets.SecretProvider,
+		cals scraper.TenantCals,
+		labellingMode scraper.TenantLabelMode,
+	) (*scraper.Scraper, error) {
+		if check.Id == failingCheckID && failNextRestart.Load() {
+			return nil, errors.New("synthetic factory failure for test")
+		}
+
+		return testScraperFactory(ctx, check, publisher, probe, features, logger, metrics, k6Runner, labelsLimiter, telemeter, secretStore, cals, labellingMode)
+	}
+
+	u, err := NewUpdater(
+		UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(make(chan pusher.Payload, 100)),
+			TenantCh:       make(chan sm.Tenant, 10),
+			Logger:         testhelper.Logger(t),
+			ScraperFactory: factory,
+		},
+	)
+	require.NoError(t, err)
+
+	u.probe = &sm.Probe{Id: 100, Name: "test-probe"}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	newCheck := func(id int64) model.Check {
+		var check model.Check
+
+		err := check.FromSM(sm.Check{
+			Id:        id,
+			TenantId:  55,
+			Frequency: 1000,
+			Timeout:   1000,
+			Target:    "127.0.0.1",
+			Job:       "test-job",
+			Probes:    []int64{1},
+			Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
+		})
+		require.NoError(t, err)
+
+		return check
+	}
+
+	failingCheck := newCheck(failingCheckID)
+	okCheck := newCheck(6002)
+
+	require.NoError(t, u.handleCheckAdd(ctx, failingCheck))
+	require.NoError(t, u.handleCheckAdd(ctx, okCheck))
+	requireRegistryConsistent(t, u.scrapers)
+
+	scraperPointer := func(id model.GlobalID) *scraper.Scraper {
+		s, _ := u.scrapers.get(id)
+		return s
+	}
+
+	beforeOK := scraperPointer(okCheck.GlobalID())
+	beforeFailing := scraperPointer(failingCheck.GlobalID())
+
+	require.NotNil(t, beforeOK)
+	require.NotNil(t, beforeFailing)
+	require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.changeErrorsCounter.WithLabelValues("update")))
+
+	// Arm the failure only now, so both checks started cleanly above and
+	// the only failure this test exercises is the one inside
+	// handleTenantUpdate's restart loop.
+	failNextRestart.Store(true)
+
+	u.handleTenantUpdate(ctx, sm.Tenant{Id: 55, LabelMode: sm.LabelMode_LABEL_MODE_DUAL_WRITE})
+	requireRegistryConsistent(t, u.scrapers)
+
+	// restartCheck builds the replacement before touching the old scraper,
+	// so a construction failure must leave the old scraper registered and
+	// running: better a scraper on the stale label mode than a check with
+	// no scraper and no retry path.
+	afterFailing := scraperPointer(failingCheck.GlobalID())
+	require.NotNil(t, afterFailing)
+	require.Same(t, beforeFailing, afterFailing, "a failed restart must leave the old scraper in place")
+
+	// The other check in the same tenant must still have been restarted:
+	// one check's restart failure must not abort the loop over the rest.
+	afterOK := scraperPointer(okCheck.GlobalID())
+	require.NotNil(t, afterOK)
+	require.NotSame(t, beforeOK, afterOK, "okCheck's scraper should still be restarted despite failingCheck's error")
+
+	require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.changeErrorsCounter.WithLabelValues("update")),
+		"a restart failure must increment changeErrorsCounter the same way other failure paths in this file do")
+
+	// The surviving old scraper still counts as running.
+	require.Equal(t, 2.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+	// Clean up: the failing check still has its (old) scraper to delete.
+	require.NoError(t, u.handleCheckDelete(ctx, okCheck))
+	require.NoError(t, u.handleCheckDelete(ctx, failingCheck))
+	requireRegistryConsistent(t, u.scrapers)
+	synctest.Wait()
+}
+
+// TestHandleTenantUpdateRegionEncodedIDs pins the ID-space agreement that
+// tenant isolation rests on: for a check delivered with region-encoded
+// (global, negative) wire IDs, the registry's tenant index key
+// (check.GlobalTenantID()) must be the same value as the sm.Tenant.Id the
+// API sends for that tenant. A regression indexing by the decoded local
+// tenant ID (GlobalID(check.TenantId)) must fail this test.
+func TestHandleTenantUpdateRegionEncodedIDs(t *testing.T) {
+	synctest.Test(t, testHandleTenantUpdateRegionEncodedIDsImpl)
+}
+
+func testHandleTenantUpdateRegionEncodedIDsImpl(t *testing.T) {
+	u, err := NewUpdater(
+		UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(make(chan pusher.Payload, 100)),
+			TenantCh:       make(chan sm.Tenant, 10),
+			Logger:         testhelper.Logger(t),
+			ScraperFactory: testScraperFactory,
+		},
+	)
+	require.NoError(t, err)
+
+	u.probe = &sm.Probe{Id: 100, Name: "test-probe"}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	// Global wire IDs per pkg/pb/synthetic_monitoring/ids.go:
+	// -(localID*1000 + regionID). Check 5001 and tenant 42, both region 2.
+	const (
+		globalCheckID  = int64(-5001002)
+		globalTenantID = int64(-42002)
+	)
+
+	var check model.Check
+
+	require.NoError(t, check.FromSM(sm.Check{
+		Id:        globalCheckID,
+		TenantId:  globalTenantID,
+		Frequency: 1000,
+		Timeout:   1000,
+		Target:    "127.0.0.1",
+		Job:       "test-job",
+		Probes:    []int64{1},
+		Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
+	}))
+
+	// FromSM decodes the wire IDs to local ones; the global forms are
+	// recovered through the region. Pin all of it so a change to either
+	// side of the agreement shows up here, not as a silent non-restart.
+	require.Equal(t, int64(5001), check.Id)
+	require.Equal(t, 2, check.RegionId)
+	require.Equal(t, int64(42), check.TenantId)
+	require.Equal(t, model.GlobalID(globalCheckID), check.GlobalID())
+	require.Equal(t, model.GlobalID(globalTenantID), check.GlobalTenantID())
+
+	require.NoError(t, u.handleCheckAdd(ctx, check))
+	requireRegistryConsistent(t, u.scrapers)
+
+	before, found := u.scrapers.get(check.GlobalID())
+	require.True(t, found)
+
+	// The API addresses the tenant by its global wire ID.
+	u.handleTenantUpdate(ctx, sm.Tenant{Id: globalTenantID, LabelMode: sm.LabelMode_LABEL_MODE_DUAL_WRITE})
+	requireRegistryConsistent(t, u.scrapers)
+
+	after, found := u.scrapers.get(check.GlobalID())
+	require.True(t, found)
+	require.NotSame(t, before, after, "a region-encoded tenant ID must reach the scrapers indexed under it")
+
+	require.NoError(t, u.handleCheckDelete(ctx, check))
+	requireRegistryConsistent(t, u.scrapers)
+	synctest.Wait()
+}
+
+// TestHandleChangeBatchTenantWiring drives handleChangeBatch directly: a
+// delta batch carrying a tenant restarts that tenant's scrapers via
+// handleTenantUpdate, while a classic first batch (IsDeltaFirstBatch
+// false) never looks at changes.Tenants at all — handleFirstBatch ignores
+// them (pre-existing behavior, pinned here).
+func TestHandleChangeBatchTenantWiring(t *testing.T) {
+	synctest.Test(t, testHandleChangeBatchTenantWiringImpl)
+}
+
+func testHandleChangeBatchTenantWiringImpl(t *testing.T) {
+	tenantCh := make(chan sm.Tenant, 10)
+
+	u, err := NewUpdater(
+		UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(make(chan pusher.Payload, 100)),
+			TenantCh:       tenantCh,
+			Logger:         testhelper.Logger(t),
+			ScraperFactory: testScraperFactory,
+		},
+	)
+	require.NoError(t, err)
+
+	u.probe = &sm.Probe{Id: 100, Name: "test-probe"}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	smCheck := sm.Check{
+		Id:        7001,
+		TenantId:  42,
+		Frequency: 1000,
+		Timeout:   1000,
+		Target:    "127.0.0.1",
+		Job:       "test-job",
+		Probes:    []int64{1},
+		Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
+	}
+
+	var check model.Check
+	require.NoError(t, check.FromSM(smCheck))
+
+	// deliver the check through a delta batch, the way production would
+	u.handleChangeBatch(ctx, &sm.Changes{
+		Checks: []sm.CheckChange{{Operation: sm.CheckOperation_CHECK_ADD, Check: smCheck}},
+	}, false)
+	requireRegistryConsistent(t, u.scrapers)
+
+	p0, found := u.scrapers.get(check.GlobalID())
+	require.True(t, found)
+
+	// a delta batch carrying a tenant must reach handleTenantUpdate
+	u.handleChangeBatch(ctx, &sm.Changes{
+		Tenants: []sm.Tenant{{Id: 42, LabelMode: sm.LabelMode_LABEL_MODE_DUAL_WRITE}},
+	}, false)
+	requireRegistryConsistent(t, u.scrapers)
+
+	p1, found := u.scrapers.get(check.GlobalID())
+	require.True(t, found)
+	require.NotSame(t, p0, p1, "a delta batch with a tenant mode change must restart that tenant's scrapers")
+
+	// repeating the same mode in another delta batch restarts nothing
+	u.handleChangeBatch(ctx, &sm.Changes{
+		Tenants: []sm.Tenant{{Id: 42, LabelMode: sm.LabelMode_LABEL_MODE_DUAL_WRITE}},
+	}, false)
+	requireRegistryConsistent(t, u.scrapers)
+
+	p2, found := u.scrapers.get(check.GlobalID())
+	require.True(t, found)
+	require.Same(t, p1, p2)
+
+	// a classic first batch ignores changes.Tenants: no restart and no
+	// mode recording, even though the mode differs from the recorded one
+	u.handleChangeBatch(ctx, &sm.Changes{
+		Checks:  []sm.CheckChange{{Operation: sm.CheckOperation_CHECK_ADD, Check: smCheck}},
+		Tenants: []sm.Tenant{{Id: 42, LabelMode: sm.LabelMode_LABEL_MODE_UNPREFIXED}},
+	}, true)
+	requireRegistryConsistent(t, u.scrapers)
+
+	p3, found := u.scrapers.get(check.GlobalID())
+	require.True(t, found)
+	require.Same(t, p1, p3, "handleFirstBatch must not act on tenants")
+
+	// ...and because the first batch recorded nothing, the same mode in a
+	// later delta batch still counts as a change
+	u.handleChangeBatch(ctx, &sm.Changes{
+		Tenants: []sm.Tenant{{Id: 42, LabelMode: sm.LabelMode_LABEL_MODE_UNPREFIXED}},
+	}, false)
+	requireRegistryConsistent(t, u.scrapers)
+
+	p4, found := u.scrapers.get(check.GlobalID())
+	require.True(t, found)
+	require.NotSame(t, p3, p4)
+
+	// only the three delta batches forwarded their tenant to tenantCh
+	require.Len(t, tenantCh, 3)
+
+	require.NoError(t, u.handleCheckDelete(ctx, check))
+	requireRegistryConsistent(t, u.scrapers)
 	synctest.Wait()
 }
 
