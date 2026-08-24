@@ -692,10 +692,19 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) erro
 }
 
 // restartCheck replaces check's running scraper with a freshly built one.
-// A check with no running scraper degrades to a plain add: the API can
-// legitimately send an update for a check this agent never saw (e.g. it
-// was created and updated while the agent was disconnected).
+// The replacement is built before the old scraper is touched, so a
+// construction failure leaves the old scraper registered and running
+// (there is no retry path for a dead check until its next config change
+// or a reconnect). A check with no running scraper degrades to a plain
+// add: the API can legitimately send an update for a check this agent
+// never saw (e.g. it was created and updated while the agent was
+// disconnected).
 func (c *Updater) restartCheck(ctx context.Context, check model.Check) error {
+	replacement, err := c.buildScraper(ctx, check)
+	if err != nil {
+		return err
+	}
+
 	old, found := c.scrapers.remove(check.GlobalID())
 	if !found {
 		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("update request for an unknown check")
@@ -705,7 +714,19 @@ func (c *Updater) restartCheck(ctx context.Context, check model.Check) error {
 		c.metrics.runningScrapers.WithLabelValues(old.CheckType().String()).Dec()
 	}
 
-	return c.addAndStartScraper(ctx, check)
+	// A nil replacement is a check a disabled feature flag filters out:
+	// accepted, but nothing to register or run.
+	if replacement == nil {
+		return nil
+	}
+
+	c.scrapers.add(check, replacement)
+
+	go replacement.Run(ctx)
+
+	c.metrics.runningScrapers.WithLabelValues(check.Type().String()).Inc()
+
+	return nil
 }
 
 func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) error {
@@ -870,9 +891,12 @@ func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, fi
 	}
 }
 
-// addAndStartScraper creates a new scraper, adds it to the list of
-// scrapers managed by this updater and starts running it.
-func (c *Updater) addAndStartScraper(ctx context.Context, check model.Check) error {
+// buildScraper constructs a scraper for check without registering or
+// starting it, so callers replacing a running scraper can keep the old one
+// until the new one is known to exist. It returns a nil scraper and a nil
+// error for checks that a disabled feature flag filters out: those are
+// accepted from the API's point of view but never run.
+func (c *Updater) buildScraper(ctx context.Context, check model.Check) (*scraper.Scraper, error) {
 	// This is a good place to filter out checks by feature flags.
 	//
 	// If we need to accept checks based on whether a feature flag
@@ -881,7 +905,7 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check model.Check) err
 	switch check.Type() {
 	case sm.CheckTypeScripted:
 		if !c.features.IsSet(feature.K6) {
-			return nil
+			return nil, nil
 		}
 
 	case sm.CheckTypeMultiHttp:
@@ -889,7 +913,7 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check model.Check) err
 		// to abstrct this by adding a function to the settings that
 		// returns whether the check requires k6 or not.
 		if !c.features.IsSet(feature.K6) {
-			return nil
+			return nil, nil
 		}
 
 	default:
@@ -906,7 +930,7 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check model.Check) err
 		"regionId": ridStr,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	scrapeErrorCounter, err := c.metrics.scrapeErrorCounter.CurryWith(prometheus.Labels{
@@ -915,7 +939,7 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check model.Check) err
 		"regionId": ridStr,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	metrics := scraper.NewMetrics(
@@ -932,14 +956,29 @@ func (c *Updater) addAndStartScraper(ctx context.Context, check model.Check) err
 		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals, c.tenantLabellingMode,
 	)
 	if err != nil {
-		return fmt.Errorf("cannot create new scraper: %w", err)
+		return nil, fmt.Errorf("cannot create new scraper: %w", err)
+	}
+
+	return scraper, nil
+}
+
+// addAndStartScraper creates a new scraper, adds it to the list of
+// scrapers managed by this updater and starts running it.
+func (c *Updater) addAndStartScraper(ctx context.Context, check model.Check) error {
+	scraper, err := c.buildScraper(ctx, check)
+	if err != nil {
+		return err
+	}
+
+	if scraper == nil {
+		return nil
 	}
 
 	c.scrapers.add(check, scraper)
 
 	go scraper.Run(ctx)
 
-	c.metrics.runningScrapers.WithLabelValues(checkType).Inc()
+	c.metrics.runningScrapers.WithLabelValues(check.Type().String()).Inc()
 
 	return nil
 }
