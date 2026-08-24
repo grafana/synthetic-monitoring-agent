@@ -235,10 +235,7 @@ func testHandleCheckOpImpl(t *testing.T) {
 	require.NoError(t, err)
 
 	scraperExists := func() bool {
-		u.scrapersMutex.Lock()
-		defer u.scrapersMutex.Unlock()
-
-		_, found := u.scrapers[check.GlobalID()]
+		_, found := u.scrapers.get(check.GlobalID())
 
 		return found
 	}
@@ -250,6 +247,7 @@ func testHandleCheckOpImpl(t *testing.T) {
 	// (because of the error):
 	// require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
 	require.False(t, scraperExists())
+	requireRegistryConsistent(t, u.scrapers)
 
 	// fix check
 	check.Job = "test-job"
@@ -259,6 +257,7 @@ func testHandleCheckOpImpl(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
 	require.True(t, scraperExists())
+	requireRegistryConsistent(t, u.scrapers)
 
 	check.Modified++
 
@@ -267,6 +266,7 @@ func testHandleCheckOpImpl(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
 	require.True(t, scraperExists())
+	requireRegistryConsistent(t, u.scrapers)
 
 	check.Modified++
 
@@ -275,31 +275,111 @@ func testHandleCheckOpImpl(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
 	require.True(t, scraperExists())
+	requireRegistryConsistent(t, u.scrapers)
 
 	err = u.handleCheckDelete(ctx, check)
 	require.NoError(t, err)
 	require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
 	require.False(t, scraperExists())
+	requireRegistryConsistent(t, u.scrapers)
 
 	// try to delete again
 	err = u.handleCheckDelete(ctx, check)
 	require.Error(t, err)
 	require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
 	require.False(t, scraperExists())
+	requireRegistryConsistent(t, u.scrapers)
 
 	// updating a non-existing check becomes an add
 	err = u.handleCheckUpdate(ctx, check)
 	require.NoError(t, err)
 	require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
 	require.True(t, scraperExists())
+	requireRegistryConsistent(t, u.scrapers)
 
 	// clean up
 	err = u.handleCheckDelete(ctx, check)
 	require.NoError(t, err)
 	require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
 	require.False(t, scraperExists())
+	requireRegistryConsistent(t, u.scrapers)
 
 	// Wait for all scraper goroutines to fully exit before test completes.
+	synctest.Wait()
+}
+
+// TestHandleFirstBatchSweep covers the reconnect sweep at the Updater
+// level: scrapers absent from the first batch are stopped and dropped
+// (registry index included), survivors with an unchanged config version
+// keep their scraper.
+func TestHandleFirstBatchSweep(t *testing.T) {
+	synctest.Test(t, testHandleFirstBatchSweepImpl)
+}
+
+func testHandleFirstBatchSweepImpl(t *testing.T) {
+	u, err := NewUpdater(
+		UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(make(chan pusher.Payload, 100)),
+			TenantCh:       make(chan sm.Tenant, 10),
+			Logger:         testhelper.Logger(t),
+			ScraperFactory: testScraperFactory,
+		},
+	)
+	require.NoError(t, err)
+
+	u.probe = &sm.Probe{Id: 100, Name: "test-probe"}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	newSMCheck := func(id, tenantID int64) sm.Check {
+		return sm.Check{
+			Id:        id,
+			TenantId:  tenantID,
+			Frequency: 1000,
+			Timeout:   1000,
+			Target:    "127.0.0.1",
+			Job:       "test-job",
+			Probes:    []int64{1},
+			Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
+		}
+	}
+
+	smKept := newSMCheck(8001, 42)
+	smSwept := newSMCheck(8002, 43)
+
+	var kept, swept model.Check
+
+	require.NoError(t, kept.FromSM(smKept))
+	require.NoError(t, swept.FromSM(smSwept))
+
+	require.NoError(t, u.handleCheckAdd(ctx, kept))
+	require.NoError(t, u.handleCheckAdd(ctx, swept))
+	requireRegistryConsistent(t, u.scrapers)
+	require.Equal(t, 2.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+	keptBefore, found := u.scrapers.get(kept.GlobalID())
+	require.True(t, found)
+
+	// reconnect: the server only knows about one of the two checks
+	u.handleFirstBatch(ctx, &sm.Changes{
+		Checks: []sm.CheckChange{{Operation: sm.CheckOperation_CHECK_ADD, Check: smKept}},
+	})
+	requireRegistryConsistent(t, u.scrapers)
+
+	_, found = u.scrapers.get(swept.GlobalID())
+	require.False(t, found, "a scraper absent from the first batch must be swept")
+
+	keptAfter, found := u.scrapers.get(kept.GlobalID())
+	require.True(t, found)
+	require.Same(t, keptBefore, keptAfter, "a survivor with an unchanged config version must not be restarted")
+
+	require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+	require.NoError(t, u.handleCheckDelete(ctx, kept))
+	requireRegistryConsistent(t, u.scrapers)
 	synctest.Wait()
 }
 
