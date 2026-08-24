@@ -745,6 +745,36 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) erro
 	return nil
 }
 
+// handleTenantUpdate restarts every scraper belonging to tenant, but only
+// if tenant's label mode differs from the last one this agent observed for
+// it (or if this is the first time this agent has seen this tenant at
+// all). A scraper already re-fetches its tenant's label mode on every
+// scrape (collectDataWith's call to labellingMode.ForTenant); what the
+// restart buys is the replacement scraper's fresh startup offset, which
+// bounds mode-pickup latency to at most min(frequency,
+// maxPublishInterval), i.e. ~2 minutes, instead of the remainder of the
+// old scraper's current cycle — a material difference only for checks
+// whose frequency exceeds that bound.
+func (c *Updater) handleTenantUpdate(ctx context.Context, tenant sm.Tenant) {
+	tenantKey := model.GlobalID(tenant.Id)
+
+	if !c.scrapers.setLabelMode(tenantKey, tenant.LabelMode) {
+		return
+	}
+
+	for _, check := range c.scrapers.checksForTenant(tenantKey) {
+		if err := c.restartCheck(ctx, check); err != nil {
+			c.metrics.changeErrorsCounter.WithLabelValues("update").Inc()
+			c.logger.Error().
+				Err(err).
+				Int64("check_id", check.Id).
+				Int("region_id", check.RegionId).
+				Int64("tenant_id", tenant.Id).
+				Msg("restarting scraper after tenant label mode change")
+		}
+	}
+}
+
 // handleFirstBatch takes a list of changes and adds them to the running set
 // and stops any scrapers that shouldn't be running.
 //
@@ -858,6 +888,8 @@ func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, fi
 
 	for _, tenant := range changes.Tenants {
 		c.tenantCh <- tenant
+
+		c.handleTenantUpdate(ctx, tenant)
 	}
 
 	for _, checkChange := range changes.Checks {

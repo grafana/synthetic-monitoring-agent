@@ -8,12 +8,13 @@ import (
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
-// scraperRegistry owns the set of currently-running scrapers and a
-// derived view of it: a per-tenant index of the checks each tenant has
-// running. Both are guarded by mu and are only ever mutated together, so
-// the index can never drift from the scraper set. The registry is pure
-// state: it never stops scrapers, logs, or records metrics — callers do
-// that with the values it returns.
+// scraperRegistry owns the set of currently-running scrapers and two
+// derived views of it: a per-tenant index of the checks each tenant has
+// running, and the most recently observed label mode per tenant. All three
+// are guarded by mu and are only ever mutated together, so the index can
+// never drift from the scraper set. The registry is pure state: it never
+// stops scrapers, logs, or records metrics — callers do that with the
+// values it returns.
 type scraperRegistry struct {
 	mu       sync.Mutex
 	scrapers map[model.GlobalID]*scraper.Scraper
@@ -21,12 +22,17 @@ type scraperRegistry struct {
 	// for that tenant is present in scrapers; the inner set holds those
 	// checks' global IDs.
 	byTenant map[model.GlobalID]map[model.GlobalID]struct{}
+	// labelModes records the most recently observed label mode per tenant.
+	// Entries are recorded for any tenant seen in a change batch, running
+	// scrapers or not, and are never removed.
+	labelModes map[model.GlobalID]sm.LabelMode
 }
 
 func newScraperRegistry() *scraperRegistry {
 	return &scraperRegistry{
-		scrapers: make(map[model.GlobalID]*scraper.Scraper),
-		byTenant: make(map[model.GlobalID]map[model.GlobalID]struct{}),
+		scrapers:   make(map[model.GlobalID]*scraper.Scraper),
+		byTenant:   make(map[model.GlobalID]map[model.GlobalID]struct{}),
+		labelModes: make(map[model.GlobalID]sm.LabelMode),
 	}
 }
 
@@ -139,4 +145,20 @@ func (r *scraperRegistry) entityRefs() []sm.EntityRef {
 	}
 
 	return refs
+}
+
+// setLabelMode records mode as tenant's current label mode and reports
+// whether that differs from the previous record. A tenant never seen
+// before counts as changed: LabelMode's zero value is PREFIXED, so an
+// absent entry cannot be told apart from "seen at PREFIXED" without the
+// two-value read, and treating unseen as unchanged would reopen the
+// staleness bug the restart-on-mode-change feature exists to fix.
+func (r *scraperRegistry) setLabelMode(tenant model.GlobalID, mode sm.LabelMode) (changed bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	previous, seen := r.labelModes[tenant]
+	r.labelModes[tenant] = mode
+
+	return !seen || previous != mode
 }
