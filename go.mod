@@ -1,6 +1,6 @@
 module github.com/grafana/synthetic-monitoring-agent
 
-go 1.25.5
+go 1.26.0
 
 require (
 	github.com/go-kit/kit v0.13.0
@@ -44,7 +44,7 @@ require (
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/spf13/afero v1.15.0
-	golang.org/x/exp v0.0.0-20260727155853-b88d891fe743
+	golang.org/x/exp v0.0.0-20260820142414-ca536658362e
 	gopkg.in/yaml.v3 v3.0.1
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.78
 )
