@@ -160,6 +160,7 @@ quick index from "I changed code under X" to "I should update doc Y".
 | `internal/pusher/*`, `internal/pkg/{prom,loki}/*`       | `publisher.md`         |
 | `internal/adhoc/*`                                      | `adhoc.md`             |
 | `internal/cluster/*`                                    | `cluster.md`           |
+| `internal/discovery/*`                                  | `cluster.md`           |
 | Top-level data flow or any new cross-component pathway  | this file                           |
 | Add a new gRPC RPC                                      | the doc for the component that owns it |
 | Add a new check type                                    | `prober.md` (+ `k6runner.md` if k6-backed) |
