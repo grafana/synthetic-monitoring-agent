@@ -232,8 +232,11 @@ func TestReconcileObserverNilOnChange(t *testing.T) {
 
 // TestStop verifies the graceful-shutdown path on a lone node: it announces
 // departure, keeps running through the drain window, then leaves the cluster.
+// The caller's ctx bounds the window, keeping the test well under drainTimeout.
 // Multi-node handover is covered by the integration test (item 14).
 func TestStop(t *testing.T) {
+	const window = 50 * time.Millisecond
+
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
@@ -241,7 +244,6 @@ func TestStop(t *testing.T) {
 		Name:          "stop-node",
 		AdvertiseAddr: lis.Addr().String(),
 		Client:        NewGossipClient(),
-		DrainTimeout:  50 * time.Millisecond,
 	}, nil)
 	require.NoError(t, err)
 
@@ -253,10 +255,16 @@ func TestStop(t *testing.T) {
 	require.NoError(t, r.join())
 	require.NoError(t, r.setParticipant(context.Background()))
 
+	ctx, cancel := context.WithTimeout(context.Background(), window)
+	defer cancel()
+
 	start := time.Now()
-	require.NoError(t, r.Stop(context.Background()))
-	require.GreaterOrEqual(t, time.Since(start), r.drainTimeout,
+	require.NoError(t, r.Stop(ctx))
+	elapsed := time.Since(start)
+	require.GreaterOrEqual(t, elapsed, window,
 		"Stop must keep running through the drain window before leaving")
+	require.Less(t, elapsed, drainTimeout,
+		"ctx must bound the drain window")
 }
 
 // TestRingNodeMetrics verifies the cluster size and ring-ready gauges registered
