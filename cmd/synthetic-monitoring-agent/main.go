@@ -28,6 +28,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cluster"
+	"github.com/grafana/synthetic-monitoring-agent/internal/discovery"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -570,7 +571,7 @@ func buildClusterNode(cfg clusterConfig, logger zerolog.Logger, registerer prome
 		return nil, fmt.Errorf("resolving cluster advertise address: %w", err)
 	}
 
-	discoverFn, err := cluster.NewDiscoverer(cfg.JoinAddresses, log.New(logger, "", 0))
+	discoverFn, err := discovery.NewDiscoverer(cfg.JoinAddresses, log.New(logger, "", 0))
 	if err != nil {
 		return nil, fmt.Errorf("configuring cluster peer discovery: %w", err)
 	}

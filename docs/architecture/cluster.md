@@ -47,7 +47,7 @@ interface; see [updater.md](updater.md).
 | -------------- | ----------------------------------------------------------------------------------------------- |
 | `node.go`      | `Node` interface; `monoNode` (owns everything); `RingNode` (ckit-backed); `shard.Ring(512)` ownership via `IsOwner`; `keyOf(GlobalID)` stable key encoding; readiness state machine (`Ready`); lifecycle (`Start` / `Stop`). |
 | `transport.go` | `NewGossipClient` (`http2.Transport{AllowHTTP:true}`) and `NewGossipServer` (plaintext HTTP/2 / h2c) for gossip traffic.                                |
-| `discovery.go` | `NewDiscoverer` — peer resolution via `hashicorp/go-discover` (k8s provider) and/or static `host[:port]`; `AdvertiseAddress` resolution from interfaces. |
+| `discovery.go` | `AdvertiseAddress` resolution from interfaces. Peer resolution (`NewDiscoverer`, DNS/k8s discovery) now lives in `internal/discovery`, shared with other fleet-aware subsystems. |
 
 ## How it fits in
 
