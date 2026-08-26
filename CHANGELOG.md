@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.64.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.64.1...v0.64.2) (2026-08-26)
+
+
+### Miscellaneous Chores
+
+* Bump shared-workflows/create-github-app-token to v0.3.1 ([#1965](https://github.com/grafana/synthetic-monitoring-agent/issues/1965)) ([838e2f9](https://github.com/grafana/synthetic-monitoring-agent/commit/838e2f9c011dffafd1949d3b674b7b4799c8ba64))
+
 ## [0.64.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.64.0...v0.64.1) (2026-08-26)
 
 
