@@ -13,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/discovery"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 )
 
@@ -28,12 +29,12 @@ const DefaultRejoinInterval = 60 * time.Second
 // minimum cluster size, the node becomes ready anyway (fail-open).
 const DefaultMinimumSizeWaitTimeout = 60 * time.Second
 
-// DefaultDrainTimeout is used by Stop when RingConfig.DrainTimeout is zero. It
-// is how long the node stays in the cluster as Terminating after announcing its
-// departure, giving surviving peers time to observe the change and take over its
-// checks before it leaves. Keep it well under the deployment's termination grace
-// period so the node stops cleanly before being force-killed.
-const DefaultDrainTimeout = 10 * time.Second
+// drainTimeout is how long Stop stays in the cluster as Terminating after
+// announcing its departure, giving surviving peers time to observe the change
+// and take over its checks before it leaves. Keep it well under the
+// deployment's termination grace period so the node stops cleanly before being
+// force-killed.
+const drainTimeout = 5 * time.Second
 
 // readyState is the convergence state machine consulted by Ready. It latches:
 // once stateReady or stateDeadlinePassed is reached it never returns to
@@ -96,12 +97,11 @@ type RingNode struct {
 	node           *ckit.Node
 	sharder        shard.Sharder
 	onChange       func()
-	discover       DiscoverFn
+	discover       discovery.DiscoverFn
 	rejoinInterval time.Duration
 
 	minClusterSize int
 	waitTimeout    time.Duration
-	drainTimeout   time.Duration
 
 	mu         sync.Mutex
 	readyState readyState
@@ -130,7 +130,7 @@ type RingConfig struct {
 	Logger zerolog.Logger
 	// Discover resolves the peers to join. It is called by Join at startup and
 	// re-invoked on every RejoinInterval.
-	Discover DiscoverFn
+	Discover discovery.DiscoverFn
 	// RejoinInterval is how often the node re-resolves peers and re-joins, picking up
 	// scale-ups and restarted peers. Zero uses DefaultRejoinInterval.
 	RejoinInterval time.Duration
@@ -142,10 +142,6 @@ type RingConfig struct {
 	// MinimumClusterSize: once it elapses the node becomes ready anyway. Zero
 	// disables the deadline: the node waits until MinimumClusterSize is reached.
 	MinimumSizeWaitTimeout time.Duration
-	// DrainTimeout is how long Stop stays in the cluster as Terminating after
-	// announcing departure, giving peers time to take over before it leaves. Zero
-	// uses DefaultDrainTimeout.
-	DrainTimeout time.Duration
 }
 
 // NewRingNode builds a gossip-backed RingNode. The returned node is not yet a cluster
@@ -171,11 +167,6 @@ func NewRingNode(cfg RingConfig, registerer prometheus.Registerer) (*RingNode, e
 		rejoinInterval = DefaultRejoinInterval
 	}
 
-	drainTimeout := cfg.DrainTimeout
-	if drainTimeout <= 0 {
-		drainTimeout = DefaultDrainTimeout
-	}
-
 	r := &RingNode{
 		logger:         cfg.Logger,
 		node:           node,
@@ -184,7 +175,6 @@ func NewRingNode(cfg RingConfig, registerer prometheus.Registerer) (*RingNode, e
 		rejoinInterval: rejoinInterval,
 		minClusterSize: cfg.MinimumClusterSize,
 		waitTimeout:    cfg.MinimumSizeWaitTimeout,
-		drainTimeout:   drainTimeout,
 		readyState:     stateNotReady,
 	}
 
@@ -411,7 +401,7 @@ func (r *RingNode) startReadinessDeadline() {
 // and then leaves the cluster.
 //
 // It is best-effort: a failed drain does not skip leaving.
-// ctx bounds the drain window (whichever of ctx or DrainTimeout elapses first).
+// ctx bounds the drain window (whichever of ctx or drainTimeout elapses first).
 func (r *RingNode) Stop(ctx context.Context) error {
 	r.logger.Info().Msg("stopping cluster node")
 
@@ -438,9 +428,9 @@ func (r *RingNode) Stop(ctx context.Context) error {
 // surviving peers' observers fire and take over this node's checks) and waits
 // the drain window so that takeover can happen while this node is still a known
 // cluster member, before it leaves. The drain window also bounds the wait for
-// the Terminating broadcast, so drain never exceeds DrainTimeout.
+// the Terminating broadcast, so drain never exceeds drainTimeout.
 func (r *RingNode) drain(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, r.drainTimeout)
+	ctx, cancel := context.WithTimeout(ctx, drainTimeout)
 	defer cancel()
 
 	if err := r.setTerminating(ctx); err != nil {

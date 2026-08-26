@@ -47,7 +47,7 @@ interface; see [updater.md](updater.md).
 | -------------- | ----------------------------------------------------------------------------------------------- |
 | `node.go`      | `Node` interface; `monoNode` (owns everything); `RingNode` (ckit-backed); `shard.Ring(512)` ownership via `IsOwner`; `keyOf(GlobalID)` stable key encoding; readiness state machine (`Ready`); lifecycle (`Start` / `Stop`). |
 | `transport.go` | `NewGossipClient` (`http.Transport` with unencrypted HTTP/2 only) and `NewGossipServer` (plaintext HTTP/2 / h2c) for gossip traffic.                                |
-| `discovery.go` | `NewDiscoverer` — peer resolution via `hashicorp/go-discover` (k8s provider) and/or static `host[:port]`; `AdvertiseAddress` resolution from interfaces. |
+| `discovery.go` | `AdvertiseAddress` resolution from interfaces. Peer resolution (`NewDiscoverer`, DNS/k8s discovery) now lives in `internal/discovery`, shared with other fleet-aware subsystems. |
 
 ## How it fits in
 
@@ -78,26 +78,29 @@ re-runs ownership over `knownChecks` and starts/stops scrapers. See
 ## Flags
 
 All clustering flags are registered in `cmd/synthetic-monitoring-agent/main.go`
-and grouped onto the `clusterConfig` struct; `buildClusterNode` maps them onto
+and grouped onto the `clusterConfig` struct; `buildClusterNode`
+(`cmd/synthetic-monitoring-agent/cluster.go`) maps them onto
 `cluster.RingConfig`. Every flag is gated by `-cluster-enabled`.
 
-| Flag                                 | Type     | Default                       | Purpose                                                                                          |
-| ------------------------------------ | -------- | ----------------------------- | ------------------------------------------------------------------------------------------------ |
-| `-cluster-enabled`                   | bool     | `false`                       | Form a gossip cluster so checks are split across agents (each check runs on one owning agent).   |
-| `-cluster-node-name`                 | string   | hostname                      | Unique, stable name for this node in the cluster.                                                |
-| `-cluster-advertise-address`         | string   | resolved                      | `host:port` other nodes use to reach this one. Resolved from advertise interfaces + listen port if unset. |
-| `-cluster-advertise-interfaces`      | list     | `eth0,en0`                    | Interfaces to pick the advertise address from when `-cluster-advertise-address` is unset.        |
-| `-cluster-listen-port`               | int      | `7946`                        | Port for gossip traffic (plaintext HTTP/2).                                                      |
-| `-cluster-label`                     | string   | `""`                          | Cluster label; nodes only join peers sharing the same label.                                     |
-| `-cluster-join-addresses`            | list     | `[]`                          | Peers to join: go-discover configs (e.g. `provider=k8s namespace=sm label_selector=app=sm-agent`) and/or `host[:port]` addresses. |
-| `-cluster-minimum-size`              | int      | `0`                           | Minimum cluster size (incl. self) before ownership is trusted; `0` or `1` makes a lone agent run everything. |
-| `-cluster-minimum-size-wait-timeout` | duration | `0` → 60s (`DefaultMinimumSizeWaitTimeout`) | How long to wait to reach `-cluster-minimum-size` before running checks anyway (fail-open).      |
-| `-cluster-rejoin-interval`           | duration | `0` → 60s (`DefaultRejoinInterval`)         | How often to re-resolve peers and re-join, picking up scale-ups.                                 |
-| `-cluster-drain-timeout`             | duration | `0` → 10s (`DefaultDrainTimeout`)           | On shutdown, how long to stay in the cluster as Terminating after announcing departure.          |
+| Flag                             | Type     | Default                             | Purpose                                                                                          |
+| -------------------------------- | -------- | ----------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `-cluster-enabled`               | bool     | `false`                             | Form a gossip cluster so checks are split across agents (each check runs on one owning agent).   |
+| `-cluster-node-name`             | string   | hostname                            | Unique, stable name for this node in the cluster.                                                |
+| `-cluster-advertise-address`     | string   | resolved                            | `host[:port]` other nodes use to reach this one; the port defaults to `-cluster-listen-port`. Resolved from advertise interfaces + listen port if unset. |
+| `-cluster-advertise-interfaces`  | list     | `eth0,en0`                          | Interfaces to pick the advertise address from when `-cluster-advertise-address` is unset.        |
+| `-cluster-listen-port`           | int      | `7946`                              | Port for gossip traffic (plaintext HTTP/2). Also the default port for peers and the advertise address. |
+| `-cluster-name`                  | string   | `""`                                | Nodes only join peers sharing the same name (memberlist label).                                  |
+| `-cluster-join-addresses`        | list     | `[]`                                | Comma-separated `host[:port]` peers, resolved via DNS (see [Peer discovery](#deployment-topology)). Mutually exclusive with `-cluster-discover-peers`. |
+| `-cluster-discover-peers`        | string   | `""`                                | go-discover config to find peers (k8s provider only), e.g. `provider=k8s namespace=sm label_selector=app=sm-agent`. Mutually exclusive with `-cluster-join-addresses`. |
+| `-cluster-wait-for-size`         | int      | `0`                                 | Wait for the cluster to reach this many nodes (incl. self) before running checks; `0` or `1` disables waiting. |
+| `-cluster-wait-timeout`          | duration | `60s` (`DefaultMinimumSizeWaitTimeout`) | Maximum time to wait for `-cluster-wait-for-size` before running checks anyway (fail-open); `0` waits forever. |
+| `-cluster-rejoin-interval`       | duration | `0` → 60s (`DefaultRejoinInterval`) | How often to re-resolve peers and re-join, healing split-brain (e.g. nodes that bootstrapped alone). |
 
 The `0 → N` defaults are applied inside `NewRingNode` from constants in
 `internal/cluster/node.go`; a literal `0` on the command line means "use the
-constant", not "disabled".
+constant", not "disabled". `-cluster-wait-timeout` is the exception: its 60s
+default is the flag's own default, and a literal `0` disables the deadline so
+the node waits until `-cluster-wait-for-size` is reached.
 
 ## Deployment topology
 
@@ -111,16 +114,29 @@ is an interchangeable ring member:
   `7946`) for plaintext HTTP/2 (h2c) gossip, on a dedicated listener separate from
   the metrics/health HTTP server.
 - **Advertise address.** Other nodes reach this one at
-  `-cluster-advertise-address`. If unset, it is derived from the first usable
-  address on `-cluster-advertise-interfaces` plus the listen port.
-- **Peer discovery.** Point `-cluster-join-addresses` at a go-discover config to
-  find peers dynamically. The k8s provider is wired in:
-  `provider=k8s namespace=<ns> label_selector=<selector>`. A headless `Service`
-  fronting the agent pods, or a direct label selector, both work. Static
-  `host[:port]` entries are also accepted. The `-cluster-rejoin-interval` ticker
-  re-resolves and re-joins so scale-ups are picked up automatically (ckit's join
-  is additive).
-- **Cluster isolation.** Set `-cluster-label` to a per-region/per-tenant value so
+  `-cluster-advertise-address`; without a port, `-cluster-listen-port` is used.
+  If unset, it is derived from the first usable address on
+  `-cluster-advertise-interfaces` plus the listen port.
+- **Peer discovery.** `internal/discovery` resolves peers from one of two
+  mutually exclusive sources; with neither set, the node bootstraps its own
+  ring (a seed node):
+  - `-cluster-join-addresses`: comma-separated `host[:port]` entries. A literal
+    IP is used as is; a name is resolved by its prefix: `dns+` (A/AAAA),
+    `dnssrv+` (SRV, then A/AAAA for each target) or `dnssrvnoa+` (SRV targets
+    as-is). Without a prefix, A/AAAA is tried first and SRV second, so a headless
+    `Service` name resolves to its ready pod IPs.
+  - `-cluster-discover-peers`: a single go-discover config. Only the k8s provider
+    is wired in: `provider=k8s namespace=<ns> label_selector=<selector>`. The
+    value is not split on commas, so multi-term selectors work; quoted values
+    are not supported.
+
+  Peers without a port are joined on `-cluster-listen-port`, and SRV record
+  ports are ignored, so every agent must listen on the same port. The
+  `-cluster-rejoin-interval` ticker re-resolves and re-joins (ckit's join is
+  additive) to heal split-brain, since gossip never merges disjoint clusters:
+  e.g. nodes that bootstrapped alone because discovery returned no peers at
+  startup, or a partition that outlived memberlist's dead-node gossip.
+- **Cluster isolation.** Set `-cluster-name` to a per-region/per-tenant value so
   two distinct rings sharing a network never merge.
 
 ## Convergence & readiness
@@ -132,10 +148,11 @@ so a fresh node must not "own everything" before it has gossiped with its peers.
 - A starting node is a Viewer (excluded from ownership) until it becomes a
   Participant. It then buffers all received checks in `knownChecks` without
   starting scrapers while `!Ready()`.
-- `Ready()` returns true once the ring reaches `-cluster-minimum-size`, or once
-  `-cluster-minimum-size-wait-timeout` elapses (**fail-open**: a lone agent
-  eventually runs everything rather than nothing), or immediately when
-  `-cluster-minimum-size` is `0`/`1`.
+- `Ready()` returns true once the ring reaches `-cluster-wait-for-size`, or once
+  `-cluster-wait-timeout` elapses (**fail-open**: a lone agent eventually runs
+  everything rather than nothing), or immediately when `-cluster-wait-for-size`
+  is `0`/`1`. With `-cluster-wait-timeout=0` there is no deadline: the node
+  runs no checks until the ring reaches the minimum size.
 - Readiness **latches**: once converged it stays ready, so a transient dip below
   the minimum does not stop steady-state reconciliation.
 - Two triggers release buffered checks: the ckit observer firing when peers
@@ -149,7 +166,7 @@ On `SIGTERM` the shared context is cancelled and `RingNode.Stop` runs:
 1. The node announces departure by transitioning to **Terminating**, which
    `OpReadWrite` excludes from ownership. Surviving peers' observers fire and take
    over this node's checks.
-2. It stays in the cluster for `-cluster-drain-timeout` so that takeover happens
+2. It stays in the cluster for up to 5s (`drainTimeout`) so that takeover happens
    while the node is still a known member, shrinking the RF=1 gap.
 3. It then leaves the cluster (`node.Stop()`).
 
@@ -211,9 +228,9 @@ Update this document when you:
 
 - Add, remove, or rename a `-cluster-*` flag, or change its default.
 - Change the `Node` interface, ownership computation, or `keyOf` encoding.
-- Change the readiness model (`-cluster-minimum-size`,
-  `-cluster-minimum-size-wait-timeout`, latching, fail-open).
-- Change the drain/shutdown sequence (`Stop` / `-cluster-drain-timeout`).
+- Change the readiness model (`-cluster-wait-for-size`,
+  `-cluster-wait-timeout`, latching, fail-open).
+- Change the drain/shutdown sequence (`Stop` / `drainTimeout`).
 - Change peer discovery, advertise-address resolution, or the gossip transport.
 - Add, remove, or rename a cluster metric.
 - Change the replication factor or the eventual-consistency guarantees.

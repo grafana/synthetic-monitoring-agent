@@ -44,7 +44,6 @@ func startNode(t *testing.T, parent context.Context, name string, lis net.Listen
 		Discover:           func() ([]string, error) { return peers, nil },
 		RejoinInterval:     200 * time.Millisecond,
 		MinimumClusterSize: minSize,
-		DrainTimeout:       50 * time.Millisecond,
 	}, nil)
 	require.NoError(t, err)
 
