@@ -27,7 +27,7 @@ require (
 )
 
 require (
-	github.com/KimMachineGun/automemlimit v0.7.5
+	github.com/KimMachineGun/automemlimit v1.0.0
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/bradfitz/gomemcache v0.0.0-20260422231931-4d751bb6e37c
