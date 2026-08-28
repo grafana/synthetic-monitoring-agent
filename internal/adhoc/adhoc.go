@@ -85,7 +85,8 @@ type apiInfo struct {
 }
 
 type metrics struct {
-	opsCounter *prometheus.CounterVec
+	opsCounter  *prometheus.CounterVec
+	k6GraceTime prometheus.Gauge
 }
 
 // Backoffer defines an interface to provide backoff durations.
@@ -138,7 +139,21 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		[]string{"type"},
 	)
 
+	k6GraceTime := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "sm",
+			Subsystem: "adhoc",
+			Name:      "k6_grace_time_seconds",
+			Help:      "Grace time added to ad-hoc k6 check timeouts",
+		},
+	)
+	k6GraceTime.Set(k6AdhocGraceTime.Seconds())
+
 	if err := opts.PromRegisterer.Register(opsCounter); err != nil {
+		return nil, err
+	}
+
+	if err := opts.PromRegisterer.Register(k6GraceTime); err != nil {
 		return nil, err
 	}
 
@@ -156,7 +171,8 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 			conn: opts.Conn,
 		},
 		metrics: metrics{
-			opsCounter: opsCounter,
+			opsCounter:  opsCounter,
+			k6GraceTime: k6GraceTime,
 		},
 	}
 

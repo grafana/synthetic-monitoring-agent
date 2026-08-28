@@ -349,6 +349,7 @@ func (r HttpRunner) Versions(ctx context.Context) <-chan []string {
 type HTTPMetrics struct {
 	Requests       *prometheus.CounterVec
 	RequestsPerRun *prometheus.HistogramVec
+	GraceTime      prometheus.Gauge
 }
 
 const (
@@ -356,7 +357,7 @@ const (
 	metricLabelRetriable = "retriable"
 )
 
-func NewHTTPMetrics(registerer prometheus.Registerer) *HTTPMetrics {
+func NewHTTPMetrics(registerer prometheus.Registerer, graceTime time.Duration) *HTTPMetrics {
 	m := &HTTPMetrics{}
 	m.Requests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -386,6 +387,17 @@ func NewHTTPMetrics(registerer prometheus.Registerer) *HTTPMetrics {
 		[]string{metricLabelSuccess},
 	)
 	registerer.MustRegister(m.RequestsPerRun)
+
+	m.GraceTime = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: "sm_agent",
+			Subsystem: "k6runner",
+			Name:      "grace_time_seconds",
+			Help:      "Grace time added to remote k6 runner request timeouts",
+		},
+	)
+	m.GraceTime.Set(graceTime.Seconds())
+	registerer.MustRegister(m.GraceTime)
 
 	return m
 }
