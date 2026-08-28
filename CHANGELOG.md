@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.65.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.64.2...v0.65.0) (2026-08-28)
+
+
+### Features
+
+* Export k6 grace time metric ([#1926](https://github.com/grafana/synthetic-monitoring-agent/issues/1926)) ([a2d9fba](https://github.com/grafana/synthetic-monitoring-agent/commit/a2d9fba03a322b2eb1bc6fc1813f0d7b78aa215d))
+
+
+### Miscellaneous Chores
+
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v151 ([#1956](https://github.com/grafana/synthetic-monitoring-agent/issues/1956)) ([8fb140f](https://github.com/grafana/synthetic-monitoring-agent/commit/8fb140fc677ccf547eaaa9fb913e451a06f7313a))
+* Update module github.com/prometheus/prometheus to v0.314.0 ([#1957](https://github.com/grafana/synthetic-monitoring-agent/issues/1957)) ([f74dd89](https://github.com/grafana/synthetic-monitoring-agent/commit/f74dd89f9df24525733bd5e879f5780829ca84ce))
+
 ## [0.64.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.64.1...v0.64.2) (2026-08-26)
 
 
