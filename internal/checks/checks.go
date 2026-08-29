@@ -81,8 +81,7 @@ type Updater struct {
 	probeTenantOnce         sync.Once
 	IsConnected             func(bool)
 	probe                   *sm.Probe
-	scrapersMutex           sync.Mutex
-	scrapers                map[model.GlobalID]*scraper.Scraper
+	scrapers                *scraperRegistry
 	metrics                 metrics
 	k6Runner                k6runner.Runner
 	scraperFactory          scraper.Factory
@@ -251,7 +250,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantCh:                opts.TenantCh,
 		probeCh:                 opts.ProbeCh,
 		IsConnected:             opts.IsConnected,
-		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
+		scrapers:                newScraperRegistry(),
 		k6Runner:                opts.K6Runner,
 		scraperFactory:          scraperFactory,
 		tenantLimits:            opts.TenantLimits,
@@ -471,14 +470,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	}
 
 	knownChecks := sm.ProbeState{
-		Checks: make([]sm.EntityRef, 0, len(c.scrapers)),
-	}
-
-	for cID, scraper := range c.scrapers {
-		knownChecks.Checks = append(knownChecks.Checks, sm.EntityRef{
-			Id:           int64(cID),
-			LastModified: scraper.LastModified(),
-		})
+		Checks: c.scrapers.entityRefs(),
 	}
 
 	cc, err := client.GetChanges(sigCtx, &knownChecks)
@@ -678,10 +670,7 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 		return fmt.Errorf("invalid check: %w", err)
 	}
 
-	c.scrapersMutex.Lock()
-	defer c.scrapersMutex.Unlock()
-
-	if running, found := c.scrapers[check.GlobalID()]; found {
+	if running, found := c.scrapers.get(check.GlobalID()); found {
 		// we can get here if the API sent us a check add twice:
 		// once during the initial connection and another right
 		// after that. The window for that is small, but it
@@ -689,7 +678,7 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 		return fmt.Errorf("check with id %d already exists (version %s)", check.GlobalID(), running.ConfigVersion())
 	}
 
-	return c.addAndStartScraperWithLock(ctx, check)
+	return c.addAndStartScraper(ctx, check)
 }
 
 func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) error {
@@ -699,58 +688,100 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) erro
 		return fmt.Errorf("invalid check: %w", err)
 	}
 
-	c.scrapersMutex.Lock()
-	defer c.scrapersMutex.Unlock()
-
-	return c.handleCheckUpdateWithLock(ctx, check)
+	return c.restartCheck(ctx, check)
 }
 
-// handleCheckUpdateWithLock is the bottom half of handleCheckUpdate. It
-// MUST be called with the scrapersMutex lock held.
-func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check model.Check) error {
-	cid := check.GlobalID()
-
-	scraper, found := c.scrapers[cid]
-	if !found {
-		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("update request for an unknown check")
-		return c.addAndStartScraperWithLock(ctx, check)
+// restartCheck replaces check's running scraper with a freshly built one.
+// The replacement is built before the old scraper is touched, so a
+// construction failure leaves the old scraper registered and running
+// (there is no retry path for a dead check until its next config change
+// or a reconnect), and the swap itself is a single registry operation, so
+// the check is never observably absent during a successful restart. A
+// check with no running scraper degrades to a plain add: the API can
+// legitimately send an update for a check this agent never saw (e.g. it
+// was created and updated while the agent was disconnected).
+func (c *Updater) restartCheck(ctx context.Context, check model.Check) error {
+	replacement, err := c.buildScraper(ctx, check)
+	if err != nil {
+		return err
 	}
 
-	// this is the lazy way to update the scraper: tear everything
-	// down, start it again.
+	// A nil replacement is a check a disabled feature flag filters out:
+	// accepted, but nothing to register or run.
+	if replacement == nil {
+		old, found := c.scrapers.remove(check.GlobalID())
+		if !found {
+			c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("update request for an unknown check")
+			return nil
+		}
 
-	scraper.Stop()
-	checkType := scraper.CheckType().String()
+		old.Stop()
 
-	delete(c.scrapers, cid)
+		c.metrics.runningScrapers.WithLabelValues(old.CheckType().String()).Dec()
 
-	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
+		return nil
+	}
 
-	return c.addAndStartScraperWithLock(ctx, check)
+	old, found := c.scrapers.replace(check, replacement)
+	if !found {
+		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("update request for an unknown check")
+	} else {
+		old.Stop()
+
+		c.metrics.runningScrapers.WithLabelValues(old.CheckType().String()).Dec()
+	}
+
+	go replacement.Run(ctx)
+
+	c.metrics.runningScrapers.WithLabelValues(check.Type().String()).Inc()
+
+	return nil
 }
 
 func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) error {
 	c.metrics.changesCounter.WithLabelValues("delete").Inc()
 
-	cid := check.GlobalID()
-
-	c.scrapersMutex.Lock()
-	defer c.scrapersMutex.Unlock()
-
-	scraper, found := c.scrapers[cid]
+	scraper, found := c.scrapers.remove(check.GlobalID())
 	if !found {
 		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("delete request for an unknown check")
 		return errors.New("check not found")
 	}
 
 	scraper.Stop()
-	checkType := scraper.CheckType().String()
 
-	delete(c.scrapers, cid)
-
-	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
+	c.metrics.runningScrapers.WithLabelValues(scraper.CheckType().String()).Dec()
 
 	return nil
+}
+
+// handleTenantUpdate restarts every scraper belonging to tenant, but only
+// if tenant's label mode differs from the last one this agent observed for
+// it (or if this is the first time this agent has seen this tenant at
+// all). A scraper already re-fetches its tenant's label mode on every
+// scrape (collectDataWith's call to labellingMode.ForTenant); what the
+// restart buys is the replacement scraper's fresh startup offset, which
+// bounds mode-pickup latency to at most min(frequency,
+// maxPublishInterval), i.e. ~2 minutes, instead of the remainder of the
+// old scraper's current cycle — a material difference only for checks
+// whose frequency exceeds that bound.
+func (c *Updater) handleTenantUpdate(ctx context.Context, tenant sm.Tenant) {
+	tenantKey := model.GlobalID(tenant.Id)
+
+	if !c.scrapers.setLabelMode(tenantKey, tenant.LabelMode) {
+		return
+	}
+
+	for _, check := range c.scrapers.checksForTenant(tenantKey) {
+		if err := c.restartCheck(ctx, check); err != nil {
+			c.metrics.changeErrorsCounter.WithLabelValues("update").Inc()
+			c.logger.Error().
+				Err(err).
+				Int64("check_id", check.Id).
+				Int("region_id", check.RegionId).
+				Int64("tenant_id", tenant.Id).
+				Msg("restarting scraper after tenant label mode change")
+		}
+	}
 }
 
 // handleFirstBatch takes a list of changes and adds them to the running set
@@ -771,9 +802,6 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) erro
 func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 	newChecks := make(map[model.GlobalID]struct{})
 
-	c.scrapersMutex.Lock()
-	defer c.scrapersMutex.Unlock()
-
 	// add checks from the provided list
 	for _, checkChange := range changes.Checks {
 		c.logger.Debug().Interface("check change", checkChange).Msg("got check change")
@@ -786,7 +814,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 				continue
 			}
 
-			if err := c.handleInitialChangeAddWithLock(ctx, check); err != nil {
+			if err := c.handleInitialChangeAdd(ctx, check); err != nil {
 				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
 				c.logger.Error().Err(err).Int64("check_id", check.Id).Int("region_id", check.RegionId).
 					Msg("adding check failed, dropping check")
@@ -811,34 +839,26 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 	}
 
 	// remove all the running scrapers that weren't sent with the first batch
-	for id, scraper := range c.scrapers {
-		if _, found := newChecks[id]; found {
-			continue
-		}
+	for _, scraper := range c.scrapers.removeAbsent(newChecks) {
+		check := scraper.Check()
 
-		cid, rid := model.GetLocalAndRegionIDs(id)
 		c.logger.Debug().
-			Int64("check_id", cid).
-			Int("region_id", rid).
+			Int64("check_id", check.Id).
+			Int("region_id", check.RegionId).
 			Msg("stopping scraper during first batch handling")
 
-		checkType := scraper.CheckType().String()
 		scraper.Stop()
 
-		delete(c.scrapers, id)
-
-		c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
+		c.metrics.runningScrapers.WithLabelValues(scraper.CheckType().String()).Dec()
 	}
 }
 
-// handleCheckUpdateWithLock the specified check to the running checks.
+// handleInitialChangeAdd adds the specified check to the running checks.
 //
 // It deals with the case where this check is the product of a reconnection
 // and changes the operation to an update if necessary.
-//
-// This function MUST be called with the scrapers mutex held.
-func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check model.Check) error {
-	if running, found := c.scrapers[check.GlobalID()]; found {
+func (c *Updater) handleInitialChangeAdd(ctx context.Context, check model.Check) error {
+	if running, found := c.scrapers.get(check.GlobalID()); found {
 		oldVersion := running.ConfigVersion()
 		newVersion := check.ConfigVersion()
 
@@ -852,7 +872,7 @@ func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check mode
 		// transform this request into an update
 		c.logger.Debug().Str("old_check_version", oldVersion).Str("new_check_version", newVersion).Msg("transforming add into update")
 
-		return c.handleCheckUpdateWithLock(ctx, check)
+		return c.restartCheck(ctx, check)
 	}
 
 	c.metrics.changesCounter.WithLabelValues("add").Inc()
@@ -861,7 +881,7 @@ func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check mode
 		return err
 	}
 
-	if err := c.addAndStartScraperWithLock(ctx, check); err != nil {
+	if err := c.addAndStartScraper(ctx, check); err != nil {
 		c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
 		return err
 	}
@@ -877,6 +897,8 @@ func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, fi
 
 	for _, tenant := range changes.Tenants {
 		c.tenantCh <- tenant
+
+		c.handleTenantUpdate(ctx, tenant)
 	}
 
 	for _, checkChange := range changes.Checks {
@@ -910,11 +932,12 @@ func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, fi
 	}
 }
 
-// addAndStartScraperWithLock creates a new scraper, adds it to the list of
-// scrapers managed by this updater and starts running it.
-//
-// This MUST be called with the scrapersMutex held.
-func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Check) error {
+// buildScraper constructs a scraper for check without registering or
+// starting it, so callers replacing a running scraper can keep the old one
+// until the new one is known to exist. It returns a nil scraper and a nil
+// error for checks that a disabled feature flag filters out: those are
+// accepted from the API's point of view but never run.
+func (c *Updater) buildScraper(ctx context.Context, check model.Check) (*scraper.Scraper, error) {
 	// This is a good place to filter out checks by feature flags.
 	//
 	// If we need to accept checks based on whether a feature flag
@@ -923,7 +946,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 	switch check.Type() {
 	case sm.CheckTypeScripted:
 		if !c.features.IsSet(feature.K6) {
-			return nil
+			return nil, nil
 		}
 
 	case sm.CheckTypeMultiHttp:
@@ -931,7 +954,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		// to abstrct this by adding a function to the settings that
 		// returns whether the check requires k6 or not.
 		if !c.features.IsSet(feature.K6) {
-			return nil
+			return nil, nil
 		}
 
 	default:
@@ -948,7 +971,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		"regionId": ridStr,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	scrapeErrorCounter, err := c.metrics.scrapeErrorCounter.CurryWith(prometheus.Labels{
@@ -957,7 +980,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		"regionId": ridStr,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	metrics := scraper.NewMetrics(
@@ -974,14 +997,29 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals, c.tenantLabellingMode,
 	)
 	if err != nil {
-		return fmt.Errorf("cannot create new scraper: %w", err)
+		return nil, fmt.Errorf("cannot create new scraper: %w", err)
 	}
 
-	c.scrapers[check.GlobalID()] = scraper
+	return scraper, nil
+}
+
+// addAndStartScraper creates a new scraper, adds it to the list of
+// scrapers managed by this updater and starts running it.
+func (c *Updater) addAndStartScraper(ctx context.Context, check model.Check) error {
+	scraper, err := c.buildScraper(ctx, check)
+	if err != nil {
+		return err
+	}
+
+	if scraper == nil {
+		return nil
+	}
+
+	c.scrapers.add(check, scraper)
 
 	go scraper.Run(ctx)
 
-	c.metrics.runningScrapers.WithLabelValues(checkType).Inc()
+	c.metrics.runningScrapers.WithLabelValues(check.Type().String()).Inc()
 
 	return nil
 }
