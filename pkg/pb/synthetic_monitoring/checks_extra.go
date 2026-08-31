@@ -21,7 +21,6 @@ package synthetic_monitoring
 
 import (
 	"cmp"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"mime"
@@ -33,7 +32,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/rs/zerolog"
 	"golang.org/x/net/http/httpguts"
 )
 
@@ -324,36 +322,48 @@ func CheckTypeFromString(in string) (CheckType, bool) {
 }
 
 func (c Check) Type() CheckType {
+	checkType, found := c.Settings.checkType()
+	if !found {
+		panic("unhandled check type")
+	}
+
+	return checkType
+}
+
+// checkType reports the type of check the settings describe. Unlike
+// Check.Type it does not panic on settings that have nothing set, which is
+// what a check attached to a delete operation looks like.
+func (s CheckSettings) checkType() (CheckType, bool) {
 	switch {
-	case c.Settings.Dns != nil:
-		return CheckTypeDns
+	case s.Dns != nil:
+		return CheckTypeDns, true
 
-	case c.Settings.Http != nil:
-		return CheckTypeHttp
+	case s.Http != nil:
+		return CheckTypeHttp, true
 
-	case c.Settings.Ping != nil:
-		return CheckTypePing
+	case s.Ping != nil:
+		return CheckTypePing, true
 
-	case c.Settings.Tcp != nil:
-		return CheckTypeTcp
+	case s.Tcp != nil:
+		return CheckTypeTcp, true
 
-	case c.Settings.Traceroute != nil:
-		return CheckTypeTraceroute
+	case s.Traceroute != nil:
+		return CheckTypeTraceroute, true
 
-	case c.Settings.Scripted != nil:
-		return CheckTypeScripted
+	case s.Scripted != nil:
+		return CheckTypeScripted, true
 
-	case c.Settings.Multihttp != nil:
-		return CheckTypeMultiHttp
+	case s.Multihttp != nil:
+		return CheckTypeMultiHttp, true
 
-	case c.Settings.Grpc != nil:
-		return CheckTypeGrpc
+	case s.Grpc != nil:
+		return CheckTypeGrpc, true
 
-	case c.Settings.Browser != nil:
-		return CheckTypeBrowser
+	case s.Browser != nil:
+		return CheckTypeBrowser, true
 
 	default:
-		panic("unhandled check type")
+		return 0, false
 	}
 }
 
@@ -517,37 +527,12 @@ func (c Check) ConfigVersion() string {
 }
 
 func (c AdHocCheck) Type() CheckType {
-	switch {
-	case c.Settings.Dns != nil:
-		return CheckTypeDns
-
-	case c.Settings.Http != nil:
-		return CheckTypeHttp
-
-	case c.Settings.Ping != nil:
-		return CheckTypePing
-
-	case c.Settings.Tcp != nil:
-		return CheckTypeTcp
-
-	case c.Settings.Traceroute != nil:
-		return CheckTypeTraceroute
-
-	case c.Settings.Scripted != nil:
-		return CheckTypeScripted
-
-	case c.Settings.Multihttp != nil:
-		return CheckTypeMultiHttp
-
-	case c.Settings.Grpc != nil:
-		return CheckTypeGrpc
-
-	case c.Settings.Browser != nil:
-		return CheckTypeBrowser
-
-	default:
+	checkType, found := c.Settings.checkType()
+	if !found {
 		panic("unhandled check type")
 	}
+
+	return checkType
 }
 
 func (c AdHocCheck) Validate() error {
@@ -1696,21 +1681,4 @@ func GetCheckInstance(checkType CheckType) Check {
 	}
 
 	return instance
-}
-
-func (ri RemoteInfo) MarshalZerologObject(e *zerolog.Event) {
-	e.Str("name", ri.Name).
-		Str("url", ri.Url).
-		Str("username", ri.Username).
-		Str("password", "<encrypted>")
-}
-
-func (ri RemoteInfo) MarshalJSON() ([]byte, error) {
-	type T RemoteInfo
-
-	tmp := T(ri)
-
-	tmp.Password = `<encrypted>`
-
-	return json.Marshal(tmp)
 }
