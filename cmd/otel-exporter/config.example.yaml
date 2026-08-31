@@ -1,0 +1,19 @@
+# Copy this file to config.yaml and fill in real tenant endpoints/credentials.
+# config.yaml is gitignored so credentials never get committed.
+
+# Address the collector's OTLP/HTTP ingest listener binds to.
+listen_addr: localhost:4318
+
+# Each tenant's password doubles as the bearer token producers must send
+# in their Authorization header to publish as that tenant. Tokens must be
+# unique across tenants.
+tenants:
+  - name: tenant-a
+    endpoint: https://tempo-a.example.com:4318
+    username: tenant-a-user
+    password: tenant-a-pass
+
+  - name: tenant-b
+    endpoint: https://tempo-b.example.com:4318
+    username: tenant-b-user
+    password: tenant-b-pass
