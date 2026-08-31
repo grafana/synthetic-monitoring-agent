@@ -159,6 +159,79 @@ func TestHandlerRun(t *testing.T) {
 	require.NoError(t, err, "execution_id should be a valid UUID")
 }
 
+func TestHandleAdHocCheckDoesNotLogCredentials(t *testing.T) {
+	const (
+		checkPassword  = "randompasswordinplaintext"
+		remotePassword = "theremotepassword"
+	)
+
+	features := feature.NewCollection()
+	require.NoError(t, features.Set("adhoc"))
+
+	logs := &testhelper.LogBuffer{}
+
+	globalLevel := zerolog.GlobalLevel()
+
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+
+	t.Cleanup(func() { zerolog.SetGlobalLevel(globalLevel) })
+
+	logger := zerolog.New(logs).Level(zerolog.DebugLevel)
+
+	h, err := NewHandler(HandlerOpts{
+		Logger:         logger,
+		Publisher:      channelPublisher(make(chan pusher.Payload, 1)),
+		TenantCh:       make(chan sm.Tenant, 1),
+		PromRegisterer: prometheus.NewPedanticRegistry(),
+		Features:       features,
+		runnerFactory: func(ctx context.Context, req *sm.AdHocRequest) (*runner, error) {
+			return &runner{
+				logger: logger,
+				prober: &testProber{logger},
+				id:     req.AdHocCheck.Id,
+				target: req.AdHocCheck.Target,
+				probe:  "testProbe",
+			}, nil
+		},
+	})
+	require.NoError(t, err)
+
+	request := sm.AdHocRequest{
+		AdHocCheck: sm.AdHocCheck{
+			Id:       "8f8b7b4e-1f5d-4b0f-9b3a-000000000000",
+			TenantId: 1,
+			Timeout:  10000,
+			Target:   "https://intranet.example.org/alerts",
+			Settings: sm.CheckSettings{
+				Http: &sm.HttpSettings{
+					BasicAuth: &sm.BasicAuth{
+						Username: "grafana",
+						Password: checkPassword,
+					},
+				},
+			},
+		},
+		Tenant: &sm.Tenant{
+			Id: 1,
+			MetricsRemote: &sm.RemoteInfo{
+				Name:     "metrics",
+				Url:      "https://example.org/push",
+				Username: "1",
+				Password: remotePassword,
+			},
+		},
+	}
+
+	require.NoError(t, h.handleAdHocCheck(t.Context(), &request))
+
+	actual := logs.String()
+
+	require.Contains(t, actual, "got ad-hoc check request", "the log line under test did not make it to the logger")
+	require.NotContains(t, actual, checkPassword, "the debug log must not leak the HTTP basic auth password")
+	require.NotContains(t, actual, remotePassword, "the debug log must not leak the tenant remote write password")
+	require.Contains(t, actual, request.AdHocCheck.Id)
+}
+
 type channelPublisher chan pusher.Payload
 
 func (c channelPublisher) Publish(payload pusher.Payload) {
