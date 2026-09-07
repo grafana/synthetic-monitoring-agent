@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.65.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.64.2...v0.65.0) (2026-09-07)
+
+
+### Features
+
+* Export k6 grace time metric ([#1926](https://github.com/grafana/synthetic-monitoring-agent/issues/1926)) ([a2d9fba](https://github.com/grafana/synthetic-monitoring-agent/commit/a2d9fba03a322b2eb1bc6fc1813f0d7b78aa215d))
+
+
+### Miscellaneous Chores
+
+* Update dependency grafana/xk6-sm-v1 to v1.1.13 ([#1970](https://github.com/grafana/synthetic-monitoring-agent/issues/1970)) ([6f6156a](https://github.com/grafana/synthetic-monitoring-agent/commit/6f6156a13cf24750c2b901bc6c108d07998f3880))
+* Update dependency grafana/xk6-sm-v2 to v2.0.8 ([#1971](https://github.com/grafana/synthetic-monitoring-agent/issues/1971)) ([5224b79](https://github.com/grafana/synthetic-monitoring-agent/commit/5224b79132749ff2722e6ba82b3b7d259c4a0515))
+* Update docker:dind Docker digest to 5efed98 ([#1976](https://github.com/grafana/synthetic-monitoring-agent/issues/1976)) ([5c2387d](https://github.com/grafana/synthetic-monitoring-agent/commit/5c2387d3caf9e3c67683f0ceedc05552159e8f45))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v151 ([#1956](https://github.com/grafana/synthetic-monitoring-agent/issues/1956)) ([8fb140f](https://github.com/grafana/synthetic-monitoring-agent/commit/8fb140fc677ccf547eaaa9fb913e451a06f7313a))
+* Update golang.org/x/exp digest to e88cd73 ([#1973](https://github.com/grafana/synthetic-monitoring-agent/issues/1973)) ([85da306](https://github.com/grafana/synthetic-monitoring-agent/commit/85da306df1d0931a801fd24473a7843330a41d59))
+* Update module github.com/prometheus/prometheus to v0.314.0 ([#1957](https://github.com/grafana/synthetic-monitoring-agent/issues/1957)) ([f74dd89](https://github.com/grafana/synthetic-monitoring-agent/commit/f74dd89f9df24525733bd5e879f5780829ca84ce))
+* Update module golang.org/x/crypto to v0.56.0 [SECURITY] ([#1977](https://github.com/grafana/synthetic-monitoring-agent/issues/1977)) ([c0e7765](https://github.com/grafana/synthetic-monitoring-agent/commit/c0e77653cea98c673787d8763fe1a896d524959c))
+* Update module google.golang.org/grpc to v1.83.2 ([#1972](https://github.com/grafana/synthetic-monitoring-agent/issues/1972)) ([12e82aa](https://github.com/grafana/synthetic-monitoring-agent/commit/12e82aa04d0ec864bfcf19fad9cca9b24941e02d))
+* Update prometheus-go ([#1978](https://github.com/grafana/synthetic-monitoring-agent/issues/1978)) ([c4f5a85](https://github.com/grafana/synthetic-monitoring-agent/commit/c4f5a85522dcaa102cd928bb78f4912ffdb6e326))
+
 ## [0.64.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.64.1...v0.64.2) (2026-08-26)
 
 
