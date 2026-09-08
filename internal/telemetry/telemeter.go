@@ -51,6 +51,7 @@ type Execution struct {
 	CheckClass            sm.CheckClass
 	Duration              time.Duration
 	CostAttributionLabels []sm.CostAttributionLabel
+	AdHoc                 bool
 }
 
 // NewTelemeter creates a new Telemeter component.
