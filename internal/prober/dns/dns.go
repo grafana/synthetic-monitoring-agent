@@ -3,6 +3,8 @@ package dns
 import (
 	"context"
 	"errors"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +33,7 @@ func NewProber(check model.Check) (Prober, error) {
 	cfg.Timeout = time.Duration(check.Timeout) * time.Millisecond
 
 	return Prober{
-		target: check.Settings.Dns.Server,
+		target: serverAddr(check.Settings.Dns),
 		config: cfg,
 	}, nil
 }
@@ -100,6 +102,10 @@ func settingsToModule(settings *sm.DnsSettings, target string) config.Module {
 	// "udp".
 	m.DNS.TransportProtocol = strings.ToLower(settings.Protocol.String())
 
+	// TODO(digitalcrab): DnsSettings carries no TLS field, so DNSOverTLS
+	// is never set and the DoT path in the BBE prober is unreachable.
+	// Needs to be wired up.
+
 	m.DNS.Recursion = true
 
 	m.DNS.ValidRcodes = settings.ValidRCodes
@@ -120,4 +126,14 @@ func settingsToModule(settings *sm.DnsSettings, target string) config.Module {
 	}
 
 	return m
+}
+
+// serverAddr joins the DNS server and port. Port zero means unset,
+// and in that case the BBE prober applies its own default of 53.
+func serverAddr(settings *sm.DnsSettings) string {
+	if settings.Port == 0 {
+		return settings.Server
+	}
+
+	return net.JoinHostPort(settings.Server, strconv.Itoa(int(settings.Port)))
 }
