@@ -55,6 +55,86 @@ func TestNewProber(t *testing.T) {
 			},
 			ExpectError: false,
 		},
+		"custom-port": {
+			input: model.Check{Check: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Dns: &sm.DnsSettings{
+						Server: "127.0.0.1",
+						Port:   5353,
+					},
+				},
+			}},
+			expected: Prober{
+				target: "127.0.0.1:5353",
+				config: config.Module{
+					Prober:  "dns",
+					Timeout: 0,
+					DNS: config.DNSProbe{
+						IPProtocol:         "ip6",
+						IPProtocolFallback: true,
+						TransportProtocol:  "tcp",
+						QueryName:          "www.grafana.com",
+						QueryType:          "ANY",
+						Recursion:          true,
+					},
+				},
+			},
+			ExpectError: false,
+		},
+		"custom-port-ipv6": {
+			input: model.Check{Check: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Dns: &sm.DnsSettings{
+						Server: "::1",
+						Port:   5353,
+					},
+				},
+			}},
+			expected: Prober{
+				target: "[::1]:5353",
+				config: config.Module{
+					Prober:  "dns",
+					Timeout: 0,
+					DNS: config.DNSProbe{
+						IPProtocol:         "ip6",
+						IPProtocolFallback: true,
+						TransportProtocol:  "tcp",
+						QueryName:          "www.grafana.com",
+						QueryType:          "ANY",
+						Recursion:          true,
+					},
+				},
+			},
+			ExpectError: false,
+		},
+		"no-port": {
+			input: model.Check{Check: sm.Check{
+				Target: "www.grafana.com",
+				Settings: sm.CheckSettings{
+					Dns: &sm.DnsSettings{
+						Server: "127.0.0.1",
+					},
+				},
+			}},
+			expected: Prober{
+				target: "127.0.0.1",
+				config: config.Module{
+					Prober:  "dns",
+					Timeout: 0,
+					DNS: config.DNSProbe{
+						IPProtocol:         "ip6",
+						IPProtocolFallback: true,
+						TransportProtocol:  "tcp",
+						QueryName:          "www.grafana.com",
+						QueryType:          "ANY",
+						Recursion:          true,
+					},
+				},
+			},
+			ExpectError: false,
+		},
 		"no-settings": {
 			input: model.Check{
 				Check: sm.Check{
