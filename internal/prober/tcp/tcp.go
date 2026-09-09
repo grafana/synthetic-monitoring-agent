@@ -58,18 +58,26 @@ func settingsToModule(ctx context.Context, settings *sm.TcpSettings, logger zero
 
 	m.TCP.TLS = settings.Tls
 
-	m.TCP.QueryResponse = make([]config.QueryResponse, len(settings.QueryResponse))
+	m.TCP.QueryResponse = make([]config.QueryResponse, 0, len(settings.QueryResponse))
 
 	for _, qr := range settings.QueryResponse {
-		re, err := config.NewRegexp(string(qr.Expect))
-		if err != nil {
-			return m, err
+		entry := config.QueryResponse{
+			Send:     string(qr.Send),
+			StartTLS: qr.StartTLS,
 		}
 
-		m.TCP.QueryResponse = append(m.TCP.QueryResponse, config.QueryResponse{
-			Expect: re,
-			Send:   string(qr.Send),
-		})
+		// An empty expect has to stay a nil regexp: BBE reads a line for
+		// every step that carries one, and an empty pattern matches anything.
+		if len(qr.Expect) > 0 {
+			re, err := config.NewRegexp(string(qr.Expect))
+			if err != nil {
+				return m, err
+			}
+
+			entry.Expect = re
+		}
+
+		m.TCP.QueryResponse = append(m.TCP.QueryResponse, entry)
 	}
 
 	if settings.TlsConfig != nil {
