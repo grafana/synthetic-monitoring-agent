@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.65.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.65.0...v0.65.1) (2026-09-11)
+
+
+### Fixes
+
+* Redact check credentials in logs ([#1974](https://github.com/grafana/synthetic-monitoring-agent/issues/1974)) ([dae6336](https://github.com/grafana/synthetic-monitoring-agent/commit/dae6336c63e2603b8f46bfdb6449b12f18a031e4)), closes [#508](https://github.com/grafana/synthetic-monitoring-agent/issues/508)
+* Use the configured port for DNS checks ([#1981](https://github.com/grafana/synthetic-monitoring-agent/issues/1981)) ([4a2c2e1](https://github.com/grafana/synthetic-monitoring-agent/commit/4a2c2e17ac94f86f9363c10e252fc64417947131))
+
+
+### Miscellaneous Chores
+
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v152 ([#1979](https://github.com/grafana/synthetic-monitoring-agent/issues/1979)) ([d8670e2](https://github.com/grafana/synthetic-monitoring-agent/commit/d8670e2891a18076d985f24064203509c2dbf3cd))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:152.0.7977.82-r0-3.24.1 Docker digest to eea17bd ([#1984](https://github.com/grafana/synthetic-monitoring-agent/issues/1984)) ([378433a](https://github.com/grafana/synthetic-monitoring-agent/commit/378433a81aad5aebd9b194132d2ec072e28d2b06))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.47.1 ([#1985](https://github.com/grafana/synthetic-monitoring-agent/issues/1985)) ([4f0970d](https://github.com/grafana/synthetic-monitoring-agent/commit/4f0970d05ed8becb44ab100206d5b10f497c6e3e))
+* Update module golang.org/x/sync to v0.23.0 ([#1980](https://github.com/grafana/synthetic-monitoring-agent/issues/1980)) ([dde4777](https://github.com/grafana/synthetic-monitoring-agent/commit/dde47776e646ffd2683de68d537a4aa9523aa6b6))
+
 ## [0.65.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.64.2...v0.65.0) (2026-09-07)
 
 
