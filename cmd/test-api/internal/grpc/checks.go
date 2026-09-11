@@ -472,7 +472,7 @@ func (s *ChecksServer) sendInitialChanges(currentState *sm.ProbeState, stream sm
 		}
 	}
 
-	s.logger.Info().Int64("probeId", probeID).Interface("changes", changes).Msg("initial changes")
+	s.logger.Info().Int64("probeId", probeID).Interface("changes", sm.Changes{Checks: changes}).Msg("initial changes")
 
 	// If existing checks were provided, notify the probe that we're sending a diff
 	// against the existing checks instead of the full batch.

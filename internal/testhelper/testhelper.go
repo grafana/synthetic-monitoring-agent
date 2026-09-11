@@ -1,6 +1,7 @@
 package testhelper
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -39,6 +41,26 @@ func Logger(t *testing.T) zerolog.Logger {
 // where you don't need to see the log output.
 func NewTestLogger() zerolog.Logger {
 	return zerolog.New(io.Discard)
+}
+
+// LogBuffer captures log output so that a test can assert on it. Safe for async call.
+type LogBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *LogBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.Write(p)
+}
+
+func (b *LogBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.String()
 }
 
 func MustReadFile(t *testing.T, filename string) []byte {

@@ -303,6 +303,94 @@ func testHandleCheckOpImpl(t *testing.T) {
 	synctest.Wait()
 }
 
+func TestHandleFirstBatchDoesNotLogCredentials(t *testing.T) {
+	synctest.Test(t, testHandleFirstBatchDoesNotLogCredentialsImpl)
+}
+
+func testHandleFirstBatchDoesNotLogCredentialsImpl(t *testing.T) {
+	const (
+		password    = "randompasswordinplaintext"
+		bearerToken = "supersecretbearertoken"
+	)
+
+	publishCh := make(chan pusher.Payload, 100)
+
+	logs := &testhelper.LogBuffer{}
+
+	u, err := NewUpdater(
+		UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: prometheus.NewPedanticRegistry(),
+			Publisher:      channelPublisher(publishCh),
+			TenantCh:       make(chan<- sm.Tenant),
+			Logger:         zerolog.New(logs).Level(zerolog.DebugLevel),
+			ScraperFactory: testScraperFactory,
+		},
+	)
+
+	require.NotNil(t, u)
+	require.NoError(t, err)
+
+	u.probe = &sm.Probe{
+		Id:   100,
+		Name: "test-probe",
+	}
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+
+	smCheck := sm.Check{
+		Id:        1565289,
+		TenantId:  1,
+		Frequency: 120000,
+		Timeout:   10000,
+		Enabled:   true,
+		Probes:    []int64{7193},
+		Target:    "https://intranet.example.org/alerts",
+		Job:       "Intranet - Alerts",
+		Settings: sm.CheckSettings{
+			Http: &sm.HttpSettings{
+				TlsConfig: &sm.TLSConfig{InsecureSkipVerify: true},
+				BasicAuth: &sm.BasicAuth{
+					Username: "grafana",
+					Password: password,
+				},
+				BearerToken:      bearerToken,
+				ValidStatusCodes: []int32{200},
+			},
+		},
+	}
+
+	u.handleFirstBatch(ctx, &sm.Changes{
+		Checks: []sm.CheckChange{
+			{Operation: sm.CheckOperation_CHECK_ADD, Check: smCheck},
+		},
+	})
+
+	actual := logs.String()
+
+	require.Contains(t, actual, "got check change", "the log line under test did not make it to the logger")
+	require.NotContains(t, actual, password, "the debug log must not leak the HTTP basic auth password")
+	require.NotContains(t, actual, bearerToken, "the debug log must not leak the HTTP bearer token")
+
+	require.Contains(t, actual, `"id":1565289`)
+	require.Contains(t, actual, `"username":"grafana"`)
+
+	var check model.Check
+
+	require.NoError(t, check.FromSM(smCheck))
+
+	u.scrapersMutex.Lock()
+	_, found := u.scrapers[check.GlobalID()]
+	u.scrapersMutex.Unlock()
+
+	if found {
+		require.NoError(t, u.handleCheckDelete(ctx, check))
+	}
+
+	synctest.Wait()
+}
+
 func TestCheckHandlerProbeValidation(t *testing.T) {
 	t.Parallel()
 
