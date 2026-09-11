@@ -1,7 +1,7 @@
 XK6_PLATFORMS := $(filter-out linux/arm,$(PLATFORMS)) darwin/arm64 darwin/amd64
 
 K6_V1_VERSION=v1.1.13
-K6_V2_VERSION=v2.0.8
+K6_V2_VERSION=v2.0.9
 
 .PHONY: sm-k6
 sm-k6:
