@@ -34,7 +34,7 @@ require (
 	github.com/felixge/httpsnoop v1.1.0
 	github.com/go-kit/log v0.2.1
 	github.com/gogo/status v1.1.1
-	github.com/grafana/gsm-api-go-client v0.3.4
+	github.com/grafana/gsm-api-go-client v0.3.5
 	github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96
 	github.com/jpillora/backoff v1.0.0
 	github.com/maypok86/otter/v2 v2.3.0
@@ -66,7 +66,7 @@ require (
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.23 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/oapi-codegen/runtime v1.6.0 // indirect
+	github.com/oapi-codegen/runtime v1.7.0 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
