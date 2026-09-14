@@ -273,9 +273,7 @@ func (s *Scraper) Run(ctx context.Context) {
 		offset    = ms(s.check.Offset)
 	)
 
-	if offset == 0 {
-		offset = randDuration(min(frequency, maxPublishInterval))
-	}
+	offset = initialOffset(frequency, offset)
 
 	scrapeHandler := scrapeHandler{scraper: s}
 
@@ -401,6 +399,24 @@ func (h *scrapeHandler) cleanup(ctx context.Context, t time.Time) {
 
 func ms(n int64) time.Duration {
 	return time.Duration(n) * time.Millisecond
+}
+
+// initialOffset returns the delay before a scraper's first execution.
+//
+// The delay is random so that checks sharing a frequency do not all run at the same moment.
+// It spans the whole frequency on purpose: tickWithOffset draws it once and then keeps that
+// phase until the scraper restarts, so a delay taken from a smaller window would hold the
+// check inside that window for as long as it runs. maxPublishInterval is not a bound here -
+// it controls how often stale data is republished, which is a different concern.
+//
+// The cost of an even phase is that the first sample can arrive up to one full frequency
+// after the scraper starts.
+func initialOffset(frequency, configured time.Duration) time.Duration {
+	if configured != 0 {
+		return configured
+	}
+
+	return randDuration(frequency)
 }
 
 func randDuration(d time.Duration) time.Duration {

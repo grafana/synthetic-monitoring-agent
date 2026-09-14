@@ -3232,3 +3232,212 @@ func TestHTTPCheckLogTimestampsAreNonDecreasing(t *testing.T) {
 		}
 	}
 }
+
+func TestInitialOffsetSpread(t *testing.T) {
+	// Every check waits a random delay before its first run, so that checks with the same
+	// frequency do not start together.
+	//
+	// The delay must be able to land anywhere inside the check's own period. Example: a
+	// check that runs every 10m must be able to start at any point in those 10m. A delay
+	// limited to 0-2m would make the check start in the first 2m and stay there forever,
+	// because the delay is drawn only once.
+	//
+	// The test draws many delays and checks that they fill the whole period evenly.
+	// No seed is used, because rand.Seed no longer reseeds the global source on this
+	// toolchain. 10000 draws make a wrong result practically impossible.
+	const (
+		samples   = 10000
+		buckets   = 10
+		perBucket = samples / buckets
+		tolerance = perBucket / 4 // 8 standard deviations, so noise cannot trip it
+	)
+
+	testcases := []struct {
+		name      string
+		frequency time.Duration
+	}{
+		{"1s, the shortest period allowed", time.Second},
+		{"1m", time.Minute},
+		{"2m", 2 * time.Minute},
+		{"5m", 5 * time.Minute},
+		{"10m", 10 * time.Minute},
+		{"30m", 30 * time.Minute},
+		{"1h, the longest period allowed", time.Hour},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				maxSeen  time.Duration
+				bucketed [buckets]int
+				width    = tc.frequency / buckets
+			)
+
+			for range samples {
+				offset := initialOffset(tc.frequency, 0)
+
+				require.GreaterOrEqual(t, offset, time.Duration(0),
+					"delay must not be negative")
+				require.Less(t, offset, tc.frequency,
+					"delay must stay inside the period")
+
+				maxSeen = max(maxSeen, offset)
+				bucketed[min(int(offset/width), buckets-1)]++
+			}
+
+			// Does the spread reach the far end of the period?
+			require.Greater(t, maxSeen, tc.frequency/2,
+				"delays do not spread across the period: in %d draws at period %v the "+
+					"largest delay was %v, which is under half the period (%v). "+
+					"That is %.1f%% of the period. Draws per %v bucket: %v.",
+				samples, tc.frequency, maxSeen, tc.frequency/2,
+				100*float64(maxSeen)/float64(tc.frequency), width, bucketed)
+
+			// Is the spread even, and not merely present?
+			for i, count := range bucketed {
+				require.InDelta(t, perBucket, count, tolerance,
+					"delays are not even across the period: bucket %d, covering [%v, %v), "+
+						"holds %d draws, but %d buckets over %d draws should hold about %d "+
+						"each. Draws per %v bucket: %v.",
+					i, width*time.Duration(i), width*time.Duration(i+1), count,
+					buckets, samples, perBucket, width, bucketed)
+			}
+		})
+	}
+}
+
+func TestInitialOffsetReachesEndOfPeriod(t *testing.T) {
+	// The delay must be able to reach the very end of its period.
+	//
+	// Example: with a period of 2m and 1ms, a delay of 2m must be possible. A delay
+	// limited to 2m can never reach that value, so the check can never start in the last
+	// millisecond of its period.
+	//
+	// The three periods below sit on both sides of that 2m limit. They catch a limit that
+	// is close to correct but still wrong, without looking at the spread at all.
+	//
+	// 10 million draws: the last millisecond is one part in 120000 of the period, so it
+	// is hit about 83 times. Missing it every time is not possible in practice.
+	const samples = 10_000_000
+
+	for _, frequency := range []time.Duration{
+		maxPublishInterval - time.Millisecond,
+		maxPublishInterval,
+		maxPublishInterval + time.Millisecond,
+	} {
+		t.Run(frequency.String(), func(t *testing.T) {
+			var maxSeen time.Duration
+
+			for range samples {
+				maxSeen = max(maxSeen, initialOffset(frequency, 0))
+			}
+
+			require.GreaterOrEqual(t, maxSeen, frequency-time.Millisecond,
+				"a delay must be able to reach the end of its period: at period %v the "+
+					"largest delay in %d draws was %v, short of %v. The draw is limited to "+
+					"%v instead of using the period.",
+				frequency, samples, maxSeen, frequency-time.Millisecond, maxPublishInterval)
+		})
+	}
+}
+
+func TestInitialOffsetSpreadsLoad(t *testing.T) {
+	// What the delays mean for load on a probe.
+	//
+	// Example: 1000 checks share a 10m period. Their start times should sit evenly across
+	// those 10m, so any 2m slice of the period holds about a fifth of them. If every delay
+	// were limited to 0-2m, all 1000 starts would fall in the first slice: five times the
+	// average, repeating every 10m.
+	//
+	// The test cuts each period into five slices and compares the busiest slice with the
+	// average slice. An even spread gives about 1x. The second case mixes periods, because
+	// each group has to spread inside its own period.
+	const windows = 5
+
+	type group struct {
+		frequency time.Duration
+		checks    int
+	}
+
+	testcases := []struct {
+		name   string
+		groups []group
+	}{
+		{"one period", []group{
+			{10 * time.Minute, 1000},
+		}},
+		{"mixed periods", []group{
+			{10 * time.Minute, 1000},
+			{30 * time.Minute, 500},
+			{time.Hour, 200},
+		}},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, g := range tc.groups {
+				var (
+					busy  [windows]int
+					width = g.frequency / windows
+				)
+
+				for range g.checks {
+					busy[min(int(initialOffset(g.frequency, 0)/width), windows-1)]++
+				}
+
+				var (
+					peak  = slices.Max(busy[:])
+					mean  = float64(g.checks) / windows
+					ratio = float64(peak) / mean
+				)
+
+				require.Less(t, ratio, 2.0,
+					"starts are bunched: %d checks with a %v period should spread over %d "+
+						"slices of %v, about %.1f each, but the busiest slice holds %d. "+
+						"That is %.2fx the average, where an even spread is about 1x. "+
+						"Starts per %v slice: %v.",
+					g.checks, g.frequency, windows, width, mean, peak, ratio, width, busy)
+			}
+		})
+	}
+}
+
+func TestInitialOffsetDiffersBetweenChecks(t *testing.T) {
+	// Two checks with the same period must get different delays. That is the point of
+	// drawing at random.
+	//
+	// Example: 1000 checks running every 1h should produce close to 1000 different delays,
+	// not the same value over and over.
+	const (
+		checks    = 1000
+		frequency = time.Hour
+	)
+
+	seen := make(map[time.Duration]struct{}, checks)
+
+	for range checks {
+		seen[initialOffset(frequency, 0)] = struct{}{}
+	}
+
+	require.Greater(t, len(seen), checks-checks/100,
+		"delays repeat: %d checks with a %v period produced only %d different delays",
+		checks, frequency, len(seen))
+}
+
+func TestInitialOffsetHonoursConfiguredValue(t *testing.T) {
+	// A check can carry its own offset, set through the API. That value is returned as it
+	// is, with no random draw and no limit applied.
+	//
+	// Example: an offset of 90m is kept as 90m, even though it is longer than the period
+	// it is used with.
+	for _, configured := range []time.Duration{
+		1 * time.Millisecond,
+		30 * time.Second,
+		5 * time.Minute,
+		90 * time.Minute,
+	} {
+		t.Run(configured.String(), func(t *testing.T) {
+			require.Equal(t, configured, initialOffset(10*time.Minute, configured))
+		})
+	}
+}
