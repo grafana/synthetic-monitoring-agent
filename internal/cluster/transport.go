@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"golang.org/x/net/http2"
 )
@@ -36,7 +37,14 @@ func NewGossipClient() *http.Client {
 		Transport: &http2.Transport{
 			AllowHTTP: true,
 			DialTLSContext: func(ctx context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-				var d net.Dialer
+				// Cap connection establishment so a dial to a gone or black-holed peer fails
+				// fast instead of hanging on the OS TCP timeout when the caller's context has
+				// no deadline. This bounds only the dial, not the connection lifetime, so
+				// long-lived /stream connections are unaffected. DialContext still honors ctx
+				// cancellation and any earlier deadline.
+				//
+				// TODO: Consider making this timeout configurable.
+				d := net.Dialer{Timeout: 30 * time.Second}
 				return d.DialContext(ctx, network, addr)
 			},
 		},
