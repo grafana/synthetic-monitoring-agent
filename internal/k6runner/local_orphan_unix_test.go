@@ -132,8 +132,12 @@ func newSpawnerRunner(t *testing.T) (Runner, string) {
 	return runner, pidFile
 }
 
-// requireGrandchildStopped waits for the grandchild to go away. The reason names what
-// should have stopped it, for the failure message.
+// requireGrandchildStopped waits for the grandchild to stop running. The reason names
+// what should have stopped it, for the failure message.
+//
+// A zombie counts as stopped, because it has already exited and only a reaping parent
+// clears the entry. CI runs the tests in a container whose PID 1 does not reap, so an
+// orphan stays a zombie there and kill(pid, 0) keeps succeeding.
 func requireGrandchildStopped(t *testing.T, pid int, reason string) {
 	t.Helper()
 
@@ -149,24 +153,25 @@ func requireGrandchildStopped(t *testing.T, pid int, reason string) {
 
 	for {
 		// Signal 0 only checks that the process exists.
-		err := syscall.Kill(pid, 0)
-		if err == syscall.ESRCH {
-			return // Grandchild is gone, so the runner cleaned up after itself.
+		if err := syscall.Kill(pid, 0); err == syscall.ESRCH {
+			return
+		}
+
+		ppid, state, command := describeProcess(t, pid)
+		if strings.HasPrefix(state, "Z") {
+			return
 		}
 
 		if time.Now().After(deadline) {
-			ppid, state, command := describeProcess(t, pid)
 			t.Fatalf(
-				"grandchild %d is still alive after %s "+
-					"(kill(pid, 0) = %v, ppid = %q, state = %q, command = %q). "+
-					"A ppid of 1 means the process lost its parent and was adopted, so it really leaked. "+
-					"State Z would mean it had already exited and was only waiting to be removed. "+
-					"The command shows this is still the process the fake started, and not a reused PID.",
-				pid, reason, err, ppid, state, command,
+				"grandchild %d is still running after %s (ppid = %q, state = %q, command = %q). "+
+					"A ppid of 1 means it lost its parent and was adopted, so it really leaked. "+
+					"The command shows this is the process the fake started, and not a reused PID.",
+				pid, reason, ppid, state, command,
 			)
 		}
 
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
@@ -192,9 +197,9 @@ func readPIDFile(t *testing.T, path string) int {
 	}
 }
 
-// describeProcess returns the parent PID, state and command, for the failure message.
-// ppid 1 means the process was adopted, so it really leaked. State tells a live process
-// from a zombie, which also answers kill(pid, 0). Command rules out a reused PID.
+// describeProcess returns the parent PID, state and command. ppid 1 means the process
+// was adopted. State separates a live process from a zombie. Command rules out a PID
+// that was reused by something else.
 func describeProcess(t *testing.T, pid int) (string, string, string) {
 	t.Helper()
 
