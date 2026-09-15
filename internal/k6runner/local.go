@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"syscall"
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner/version"
@@ -148,6 +149,18 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 	cmd.Stderr = &stderr
 	cmd.Env = k6Env(os.Environ())
 
+	// k6 starts its own processes, such as a Chromium tree. Its own group lets one
+	// signal stop all of them. k6 stops getting signals sent to the agent group, but
+	// nothing needs that: systemd signals the cgroup, everything else the main PID.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+
+	// Kill the full process group.
+	cmd.Cancel = func() error { return killProcessGroup(cmd) }
+
+	// Never let a stuck child block the agent. Wait() also waits for the output pipes,
+	// which a leaked child holds open.
+	cmd.WaitDelay = 5 * time.Second
+
 	start := time.Now()
 
 	logger.Info().Str("command", cmd.String()).Msg("running k6 script")
@@ -233,6 +246,23 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 	}
 
 	return rr, nil
+}
+
+// killProcessGroup sends SIGKILL to the whole process group that cmd leads.
+func killProcessGroup(cmd *exec.Cmd) error {
+	if cmd.Process == nil {
+		return nil
+	}
+
+	// A negative PID means the process group with this ID.
+	err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+
+	// Already gone. This keeps a stale error out of the check result.
+	if errors.Is(err, syscall.ESRCH) {
+		return os.ErrProcessDone
+	}
+
+	return err
 }
 
 func (r Local) Versions(ctx context.Context) <-chan []string {
