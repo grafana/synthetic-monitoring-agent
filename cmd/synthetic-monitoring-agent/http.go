@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -38,7 +39,13 @@ type MuxOpts struct {
 	isReady               *readynessHandler
 	changeLogLevelEnabled bool
 	disconnectEnabled     bool
-	pprofEnabled          bool
+	pprof                 pprofOpts
+}
+
+type pprofOpts struct {
+	enabled              bool
+	blockProfileRate     int
+	mutexProfileFraction int
 }
 
 func NewMux(opts MuxOpts) *Mux {
@@ -70,7 +77,15 @@ func NewMux(opts MuxOpts) *Mux {
 	}
 
 	// Register pprof handlers
-	if opts.pprofEnabled {
+	if opts.pprof.enabled {
+		opts.Logger.Warn().
+			Int("block_profile_rate", opts.pprof.blockProfileRate).
+			Int("mutex_profile_fraction", opts.pprof.mutexProfileFraction).
+			Msg("diagnostics: pprof profiling enabled")
+
+		runtime.SetBlockProfileRate(opts.pprof.blockProfileRate)
+		runtime.SetMutexProfileFraction(opts.pprof.mutexProfileFraction)
+
 		router.HandleFunc("/debug/pprof/", pprof.Index)
 		router.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 		router.HandleFunc("/debug/pprof/profile", pprof.Profile)

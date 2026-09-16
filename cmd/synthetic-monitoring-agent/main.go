@@ -60,47 +60,51 @@ func run(args []string, stdout io.Writer) error {
 	var (
 		features = feature.NewCollection()
 		config   = struct {
-			DevMode               bool
-			Debug                 bool
-			Verbose               bool
-			ReportVersion         bool
-			GrpcApiServerAddr     string
-			GrpcInsecure          bool
-			ApiToken              Secret
-			EnableChangeLogLevel  bool
-			EnableDisconnect      bool
-			EnablePProf           bool
-			HttpListenAddr        string
-			K6URI                 string
-			K6Repository          string
-			K6BlacklistedIP       string
-			SelectedPublisher     string
-			TelemetryTimeSpan     int
-			AutoMemLimit          bool
-			MemLimitRatio         float64
-			DisableK6             bool
-			DisableUsageReports   bool
-			CacheType             cache.Kind
-			CacheLocalCapacity    int
-			CacheLocalTTL         time.Duration
-			MemcachedServers      StringList
-			EnableProtocolSecrets bool
-			PushTelemetry         bool
-			MetricsInterval       time.Duration
+			DevMode                   bool
+			Debug                     bool
+			Verbose                   bool
+			ReportVersion             bool
+			GrpcApiServerAddr         string
+			GrpcInsecure              bool
+			ApiToken                  Secret
+			EnableChangeLogLevel      bool
+			EnableDisconnect          bool
+			EnablePProf               bool
+			PprofBlockProfileRate     int
+			PprofMutexProfileFraction int
+			HttpListenAddr            string
+			K6URI                     string
+			K6Repository              string
+			K6BlacklistedIP           string
+			SelectedPublisher         string
+			TelemetryTimeSpan         int
+			AutoMemLimit              bool
+			MemLimitRatio             float64
+			DisableK6                 bool
+			DisableUsageReports       bool
+			CacheType                 cache.Kind
+			CacheLocalCapacity        int
+			CacheLocalTTL             time.Duration
+			MemcachedServers          StringList
+			EnableProtocolSecrets     bool
+			PushTelemetry             bool
+			MetricsInterval           time.Duration
 		}{
-			GrpcApiServerAddr:  "localhost:4031",
-			HttpListenAddr:     "localhost:4050",
-			K6URI:              "",
-			K6Repository:       "/usr/libexec/sm-k6",
-			K6BlacklistedIP:    "10.0.0.0/8",
-			SelectedPublisher:  pusherV2.Name,
-			TelemetryTimeSpan:  defTelemetryTimeSpan,
-			AutoMemLimit:       true,
-			MemLimitRatio:      0.9,
-			CacheType:          cache.KindAuto,
-			CacheLocalCapacity: 10000,
-			CacheLocalTTL:      5 * time.Minute,
-			MetricsInterval:    time.Minute,
+			GrpcApiServerAddr:         "localhost:4031",
+			HttpListenAddr:            "localhost:4050",
+			K6URI:                     "",
+			K6Repository:              "/usr/libexec/sm-k6",
+			K6BlacklistedIP:           "10.0.0.0/8",
+			SelectedPublisher:         pusherV2.Name,
+			TelemetryTimeSpan:         defTelemetryTimeSpan,
+			AutoMemLimit:              true,
+			MemLimitRatio:             0.9,
+			CacheType:                 cache.KindAuto,
+			CacheLocalCapacity:        10000,
+			CacheLocalTTL:             5 * time.Minute,
+			MetricsInterval:           time.Minute,
+			PprofBlockProfileRate:     1_000_000,
+			PprofMutexProfileFraction: 100,
 		}
 	)
 
@@ -114,6 +118,8 @@ func run(args []string, stdout io.Writer) error {
 	flags.BoolVar(&config.EnableChangeLogLevel, "enable-change-log-level", config.EnableChangeLogLevel, "enable changing the log level at runtime")
 	flags.BoolVar(&config.EnableDisconnect, "enable-disconnect", config.EnableDisconnect, "enable HTTP /disconnect endpoint")
 	flags.BoolVar(&config.EnablePProf, "enable-pprof", config.EnablePProf, "exposes profiling data via HTTP /debug/pprof/ endpoint")
+	flags.IntVar(&config.PprofBlockProfileRate, "block-profile-rate", config.PprofBlockProfileRate, "block profile sampling rate in nanoseconds (only when profiling is enabled)")
+	flags.IntVar(&config.PprofMutexProfileFraction, "mutex-profile-fraction", config.PprofMutexProfileFraction, "fraction of mutex contention events reported, 1/N (only when profiling is enabled)")
 	flags.StringVar(&config.HttpListenAddr, "listen-address", config.HttpListenAddr, "listen address")
 	flags.StringVar(&config.K6URI, "k6-uri", config.K6URI, "Path or URI to a specific k6 binary, overrides k6 version autodetection")
 	flags.StringVar(&config.K6Repository, "k6-repository", config.K6Repository, "path to folder containing k6 binaries")
@@ -269,7 +275,11 @@ func run(args []string, stdout io.Writer) error {
 		isReady:               readynessHandler,
 		changeLogLevelEnabled: config.EnableChangeLogLevel,
 		disconnectEnabled:     config.EnableDisconnect,
-		pprofEnabled:          config.EnablePProf,
+		pprof: pprofOpts{
+			enabled:              config.EnablePProf,
+			blockProfileRate:     config.PprofBlockProfileRate,
+			mutexProfileFraction: config.PprofMutexProfileFraction,
+		},
 	})
 
 	httpConfig := http.Config{
