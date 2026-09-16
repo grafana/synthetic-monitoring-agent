@@ -60,10 +60,9 @@ func TestNewHandler(t *testing.T) {
 	metricCount, err := testutil.GatherAndCount(registry, "sm_adhoc_k6_grace_time_seconds")
 	require.NoError(t, err)
 	require.Equal(t, 1, metricCount)
-	require.False(t, h.supportsProtocolSecrets, "default value should be false")
 }
 
-func TestHandlerSupportsProtocolSecrets(t *testing.T) {
+func TestHandlerAdvertisesProtocolSecrets(t *testing.T) {
 	features := feature.NewCollection()
 	require.NoError(t, features.Set("adhoc"))
 
@@ -77,13 +76,12 @@ func TestHandlerSupportsProtocolSecrets(t *testing.T) {
 	}
 
 	opts := HandlerOpts{
-		Conn:                    &grpcTestConn{},
-		Logger:                  zerolog.New(io.Discard),
-		Publisher:               channelPublisher(make(chan pusher.Payload)),
-		TenantCh:                make(chan sm.Tenant),
-		PromRegisterer:          prometheus.NewPedanticRegistry(),
-		Features:                features,
-		SupportsProtocolSecrets: true,
+		Conn:           &grpcTestConn{},
+		Logger:         zerolog.New(io.Discard),
+		Publisher:      channelPublisher(make(chan pusher.Payload)),
+		TenantCh:       make(chan sm.Tenant),
+		PromRegisterer: prometheus.NewPedanticRegistry(),
+		Features:       features,
 		grpcAdhocChecksClientFactory: func(conn ClientConn) (sm.AdHocChecksClient, error) {
 			return testClient, nil
 		},
@@ -92,7 +90,6 @@ func TestHandlerSupportsProtocolSecrets(t *testing.T) {
 	h, err := NewHandler(opts)
 	require.NoError(t, err)
 	require.NotNil(t, h)
-	require.True(t, h.supportsProtocolSecrets, "should be set to true")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
