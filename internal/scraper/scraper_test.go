@@ -56,7 +56,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	grpchealth "google.golang.org/grpc/health/grpc_health_v1"
-	"kernel.org/pub/linux/libs/security/libcap/cap"
 )
 
 var updateGolden = flag.Bool("update-golden", false, "update golden files")
@@ -479,16 +478,7 @@ func setupTCPSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.C
 }
 
 func setupTracerouteProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Check, func()) {
-	checkCap := func(set *cap.Set, v cap.Value) {
-		if permitted, err := set.GetFlag(cap.Permitted, v); err != nil {
-			t.Fatalf("cannot get %s flag: %s", v, err)
-		} else if !permitted {
-			t.Skipf("traceroute cannot run, process doesn't have %s capability", v)
-		}
-	}
-	c := cap.GetProc()
-	checkCap(c, cap.NET_ADMIN)
-	checkCap(c, cap.NET_RAW)
+	requireTracerouteCapabilities(t)
 
 	check := model.Check{
 		Check: sm.Check{
