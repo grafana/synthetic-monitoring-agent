@@ -139,8 +139,8 @@ If you add a new top-level component, follow the same pattern: define an
 - **`Secret` for the API token.** `Secret.MarshalText` returns `"<redacted>"` so the config struct can be safely logged (`zl.Info().Interface("config", config)`).
 - **gRPC keep-alive.** Tuned via `HealthCheckInterval` / `HealthCheckTimeout` defined in the protobuf package. Required to detect network failures absent client writes — without it, the agent hangs when the server disappears mid-call.
 - **Cache fallbacks.** `setupCache` and `setupLocalCache` log and fall back rather than failing — the agent will boot with a noop cache if everything else fails. This is intentional: caching is a load-shedding optimisation, not a correctness requirement.
-- **The `k6` and `traceroute` feature flags are deprecated.** They are permanently enabled. `notifyAboutDeprecatedFeatureFlags` logs a hint if someone still passes them on the command line.
-- **The `protocol-secrets` feature flag.** When set (`-features protocol-secrets`), `config.EnableProtocolSecrets` is turned on, which makes the agent advertise `ProbeInfo.SupportsProtocolSecrets=true` at registration and enables `${secrets.<name>}` resolution for checks that opt in. It is opt-in for now, intended to become the default once released.
+- **The `k6`, `traceroute` and `protocol-secrets` feature flags are deprecated.** They are permanently enabled. `notifyAboutDeprecatedFeatureFlags` logs a hint if someone still passes them on the command line.
+- **Protocol secrets are always advertised.** The agent reports `ProbeInfo.SupportsProtocolSecrets=true` at registration unconditionally, in both the Updater and the Adhoc handler. Advertising support does not resolve anything on its own: `${secrets.<name>}` interpolation is enabled per check by `HttpSettings.SecretManagerEnabled`, so a check that did not opt in is never affected.
 
 ## Testing strategy
 
