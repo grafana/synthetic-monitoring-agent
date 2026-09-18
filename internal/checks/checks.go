@@ -98,6 +98,7 @@ type Updater struct {
 	tenantCals              *cals.CostAttributionLabels
 	tenantLabellingMode     *labelmode.LabelMode
 	supportsProtocolSecrets bool
+	isClusterEnabled        bool
 }
 
 type apiInfo struct {
@@ -139,6 +140,7 @@ type UpdaterOptions struct {
 	CostAttributionLabels   *cals.CostAttributionLabels
 	LabellingMode           *labelmode.LabelMode
 	SupportsProtocolSecrets bool
+	IsClusterEnabled        bool
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -168,6 +170,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		tenantSecrets:           opts.SecretProvider,
 		telemeter:               opts.Telemeter,
 		supportsProtocolSecrets: opts.SupportsProtocolSecrets,
+		isClusterEnabled:        opts.IsClusterEnabled,
 		usageReporter:           opts.UsageReporter,
 		tenantCals:              opts.CostAttributionLabels,
 		tenantLabellingMode:     opts.LabellingMode,
@@ -303,6 +306,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		Commit:                  version.Commit(),
 		Buildstamp:              version.Buildstamp(),
 		SupportsProtocolSecrets: c.supportsProtocolSecrets,
+		IsClusterEnabled:        c.isClusterEnabled,
 	})
 	if err != nil {
 		return connected, grpcErrorHandler("registering probe with synthetic-monitoring-api", err)

@@ -94,6 +94,26 @@ func TestNewUpdaterSupportsProtocolSecrets(t *testing.T) {
 	require.True(t, u.supportsProtocolSecrets, "should be set to true")
 }
 
+func TestNewUpdaterIsClusterEnabled(t *testing.T) {
+	testFeatureCollection := feature.NewCollection()
+	require.NotNil(t, testFeatureCollection)
+
+	opts := UpdaterOptions{
+		Conn:             new(grpc.ClientConn),
+		PromRegisterer:   prometheus.NewPedanticRegistry(),
+		Publisher:        channelPublisher(make(chan pusher.Payload)),
+		TenantCh:         make(chan<- sm.Tenant),
+		Logger:           testhelper.Logger(t),
+		Features:         testFeatureCollection,
+		IsClusterEnabled: true,
+	}
+
+	u, err := NewUpdater(opts)
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	require.True(t, u.isClusterEnabled, "should be set to true")
+}
+
 func TestInstallSignalHandler(t *testing.T) {
 	testcases := map[string]func(t *testing.T){
 		"signal": func(t *testing.T) {
