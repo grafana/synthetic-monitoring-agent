@@ -30,30 +30,31 @@ func TestTelemeterAddExecution(t *testing.T) {
 			tele.pushersMu.RUnlock()
 			require.True(t, ok)
 
-			// sum expected executions data, indexed by tenant -> checkClass -> calKey
-			regionTele := make(map[int64]map[sm.CheckClass]map[string]*sm.CheckClassTelemetry)
+			// sum expected executions data, indexed by tenant -> checkClass -> telemetryKey
+			regionTele := make(map[int64]map[sm.CheckClass]map[telemetryKey]*sm.CheckClassTelemetry)
 			for _, e := range ee {
 				tenantTele, ok := regionTele[e.LocalTenantID]
 				if !ok {
-					tenantTele = make(map[sm.CheckClass]map[string]*sm.CheckClassTelemetry)
+					tenantTele = make(map[sm.CheckClass]map[telemetryKey]*sm.CheckClassTelemetry)
 					regionTele[e.LocalTenantID] = tenantTele
 				}
 
 				clTele, ok := tenantTele[e.CheckClass]
 				if !ok {
-					clTele = make(map[string]*sm.CheckClassTelemetry)
+					clTele = make(map[telemetryKey]*sm.CheckClassTelemetry)
 					tenantTele[e.CheckClass] = clTele
 				}
 
-				calKey := serializeCALs(e.CostAttributionLabels)
+				key := telemetryKey{adhoc: e.AdHoc, cals: serializeCALs(e.CostAttributionLabels)}
 
-				calTele, ok := clTele[calKey]
+				calTele, ok := clTele[key]
 				if !ok {
 					calTele = &sm.CheckClassTelemetry{
 						CheckClass:            e.CheckClass,
-						CostAttributionLabels: deserializeCals(calKey),
+						CostAttributionLabels: deserializeCals(key.cals),
+						Adhoc:                 e.AdHoc,
 					}
-					clTele[calKey] = calTele
+					clTele[key] = calTele
 				}
 
 				calTele.Executions++
@@ -73,12 +74,13 @@ func TestTelemeterAddExecution(t *testing.T) {
 					gotCLTele, ok := gotTTele[checkClass]
 					require.True(t, ok, "telemetry not found for check class %v", checkClass)
 
-					for calKey, expCalTele := range expCLTele {
-						gotCalTele, ok := gotCLTele[calKey]
-						require.True(t, ok, "telemetry not found for cal key %s", calKey)
-						require.Equal(t, expCalTele.Executions, gotCalTele.Executions, "executions mismatch for cal key %s", calKey)
-						require.Equal(t, expCalTele.Duration, gotCalTele.Duration, "duration mismatch for cal key %s", calKey)
-						require.Equal(t, expCalTele.CostAttributionLabels, gotCalTele.CostAttributionLabels, "cals mispath for cal key %s", calKey)
+					for key, expCalTele := range expCLTele {
+						gotCalTele, ok := gotCLTele[key]
+						require.True(t, ok, "telemetry not found for key %v", key)
+						require.Equal(t, expCalTele.Executions, gotCalTele.Executions, "executions mismatch for key %v", key)
+						require.Equal(t, expCalTele.Duration, gotCalTele.Duration, "duration mismatch for key %v", key)
+						require.Equal(t, expCalTele.CostAttributionLabels, gotCalTele.CostAttributionLabels, "cals mismatch for key %v", key)
+						require.Equal(t, expCalTele.Adhoc, gotCalTele.Adhoc, "adhoc mismatch for key %v", key)
 					}
 				}
 			}

@@ -724,6 +724,7 @@ message CheckClassTelemetry {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "costAttributionLabels"
   ];
+  bool adhoc = 6 [(gogoproto.jsontag) = "adhoc"];
 }
 
 // PushTelemetryResponse represents a response for a push telemetry rpc call.
