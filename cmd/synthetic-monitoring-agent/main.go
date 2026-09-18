@@ -441,6 +441,7 @@ func run(args []string, stdout io.Writer) error {
 		CostAttributionLabels:   cals,
 		LabellingMode:           labelmode.New(tm),
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		IsClusterEnabled:        config.Cluster.Enabled,
 		Node:                    clusterNode,
 	})
 	if err != nil {
@@ -500,6 +501,7 @@ func run(args []string, stdout io.Writer) error {
 		K6Runner:                k6Runner,
 		SecretProvider:          secretProvider,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		IsClusterEnabled:        config.Cluster.Enabled,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create ad-hoc checks handler: %w", err)
