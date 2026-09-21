@@ -105,8 +105,21 @@ func K6Paths(t *testing.T) []string {
 	t.Helper()
 
 	dir := filepath.Join(ModuleDir(t), "dist", runtime.GOOS+"-"+runtime.GOARCH)
+
+	// grafana/xk6-sm publishes linux-amd64 and linux-arm64 only, so on darwin `make sm-k6-native`
+	// 404s and there is nothing for a developer on a Mac to install. Skip there instead of failing.
+	// Everywhere else an absent binary means the download step did not run, which is a setup
+	// problem worth failing on. A locally built binary placed in dist/darwin-* is still used.
+	skipIfAbsent := runtime.GOOS == "darwin"
+
 	entries, err := os.ReadDir(dir)
-	require.NoErrorf(t, err, "reading k6 binaries directory %s", dir)
+	switch {
+	case err == nil:
+	case skipIfAbsent && os.IsNotExist(err):
+		// Leave entries empty, the skip below reports the directory.
+	default:
+		require.NoErrorf(t, err, "reading k6 binaries directory %s", dir)
+	}
 
 	var paths []string
 
@@ -121,6 +134,10 @@ func K6Paths(t *testing.T) []string {
 		}
 
 		paths = append(paths, filepath.Join(dir, entry.Name()))
+	}
+
+	if skipIfAbsent && len(paths) == 0 {
+		t.Skipf("no sm-k6 binary in %s, and grafana/xk6-sm publishes no %s build", dir, runtime.GOOS)
 	}
 
 	require.NotEmptyf(t, paths, "no k6 binaries found in %s", dir)
