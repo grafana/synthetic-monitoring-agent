@@ -20,9 +20,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/telemetry"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
@@ -425,6 +427,83 @@ func (p *testProber) Probe(ctx context.Context, target string, registry *prometh
 	_ = logger.Log("msg", "test")
 
 	return true, 1
+}
+
+type testTelemeter struct {
+	executions []telemetry.Execution
+}
+
+func (t *testTelemeter) AddExecution(e telemetry.Execution) {
+	t.executions = append(t.executions, e)
+}
+
+type testCals struct {
+	names []string
+	err   error
+}
+
+func (c testCals) CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error) {
+	return c.names, c.err
+}
+
+func TestRunnerRecordsExecution(t *testing.T) {
+	t.Parallel()
+
+	logger := zerolog.New(io.Discard)
+
+	// Build a global tenant ID so we can assert it is decoded into its local
+	// tenant and region components.
+	globalTenantID, err := sm.LocalIDToGlobalID(42, 3)
+	require.NoError(t, err)
+
+	tele := &testTelemeter{}
+	r := &runner{
+		logger:     logger,
+		prober:     &testProber{logger},
+		id:         "test-id",
+		target:     "example.com",
+		probe:      "testProbe",
+		checkClass: sm.CheckClass_BROWSER,
+		telemeter:  tele,
+		cals:       testCals{names: []string{"team", "env"}},
+	}
+
+	// Buffered so the single Publish call does not block.
+	pub := channelPublisher(make(chan pusher.Payload, 1))
+
+	r.Run(context.Background(), model.GlobalID(globalTenantID), pub)
+
+	require.Len(t, tele.executions, 1, "ad-hoc execution should be counted once")
+	got := tele.executions[0]
+	require.True(t, got.AdHoc, "execution should be flagged ad-hoc")
+	require.Equal(t, int64(42), got.LocalTenantID, "local tenant ID should be decoded")
+	require.Equal(t, int32(3), got.RegionID, "region ID should be decoded")
+	require.Equal(t, sm.CheckClass_BROWSER, got.CheckClass)
+	require.Equal(t, time.Second, got.Duration, "prober reported 1s")
+	require.Equal(t, []sm.CostAttributionLabel{
+		{Name: "team", Value: telemetry.CalNilStringTerminator},
+		{Name: "env", Value: telemetry.CalNilStringTerminator},
+	}, got.CostAttributionLabels, "ad-hoc CALs carry the missing-value sentinel")
+}
+
+func TestRunnerRecordsExecutionWithoutTelemeter(t *testing.T) {
+	t.Parallel()
+
+	// A runner without a telemeter (e.g. in tests that don't wire one) must not
+	// panic; it simply skips counting.
+	logger := zerolog.New(io.Discard)
+	r := &runner{
+		logger: logger,
+		prober: &testProber{logger},
+		id:     "test-id",
+		target: "example.com",
+		probe:  "testProbe",
+	}
+
+	pub := channelPublisher(make(chan pusher.Payload, 1))
+	require.NotPanics(t, func() {
+		r.Run(context.Background(), model.GlobalID(1), pub)
+	})
 }
 
 func TestIdleTimeoutHandling(t *testing.T) {
