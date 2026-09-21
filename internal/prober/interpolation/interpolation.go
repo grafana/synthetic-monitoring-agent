@@ -27,16 +27,14 @@ type Resolver struct {
 	secretProvider SecretProvider
 	tenantID       model.GlobalID
 	logger         zerolog.Logger
-	secretEnabled  bool
 }
 
 // NewResolver creates a new interpolation resolver
-func NewResolver(secretProvider SecretProvider, tenantID model.GlobalID, logger zerolog.Logger, secretEnabled bool) *Resolver {
+func NewResolver(secretProvider SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) *Resolver {
 	return &Resolver{
 		secretProvider: secretProvider,
 		tenantID:       tenantID,
 		logger:         logger,
-		secretEnabled:  secretEnabled,
 	}
 }
 
@@ -46,11 +44,6 @@ func NewResolver(secretProvider SecretProvider, tenantID model.GlobalID, logger 
 func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 	if value == "" {
 		return "", nil
-	}
-
-	// If secrets are disabled, the value is not ours to touch
-	if !r.secretEnabled {
-		return value, nil
 	}
 
 	// Step 1: Find all secret matches with their positions
