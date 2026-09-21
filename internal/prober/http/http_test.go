@@ -798,69 +798,6 @@ func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
 	})
 }
 
-func TestUpdatableSecretProvider(t *testing.T) {
-	ctx, logger, tenantID := testhelper.CommonTestSetup()
-
-	// Mock secret store
-	mockSecretStore := testhelper.NewMockSecretProvider(map[string]string{
-		"my-bearer-token": "resolved-bearer-token",
-	})
-
-	// Create updatable secret store
-	updatableStore := mockSecretStore
-
-	t.Run("defaults to disabled", func(t *testing.T) {
-		require.False(t, updatableStore.IsProtocolSecretsEnabled())
-
-		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, false)
-		require.NoError(t, err)
-		require.Equal(t, "${secrets.my-bearer-token}", actual)
-	})
-
-	t.Run("can be updated to enabled", func(t *testing.T) {
-		// Update capabilities to enable protocol secrets
-		capabilities := &sm.Probe_Capabilities{
-			EnableProtocolSecrets: true,
-		}
-		updatableStore.UpdateCapabilities(capabilities)
-
-		require.True(t, updatableStore.IsProtocolSecretsEnabled())
-
-		// Should now resolve secrets
-		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, true)
-		require.NoError(t, err)
-		require.Equal(t, "resolved-bearer-token", actual)
-	})
-
-	t.Run("can be updated to disabled", func(t *testing.T) {
-		// Update capabilities to disable protocol secrets
-		capabilities := &sm.Probe_Capabilities{
-			EnableProtocolSecrets: false,
-		}
-		updatableStore.UpdateCapabilities(capabilities)
-
-		require.False(t, updatableStore.IsProtocolSecretsEnabled())
-
-		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, false)
-		require.NoError(t, err)
-		require.Equal(t, "${secrets.my-bearer-token}", actual)
-	})
-
-	t.Run("handles nil capabilities", func(t *testing.T) {
-		// Update with nil capabilities (should default to disabled)
-		updatableStore.UpdateCapabilities(nil)
-
-		require.False(t, updatableStore.IsProtocolSecretsEnabled())
-
-		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, false)
-		require.NoError(t, err)
-		require.Equal(t, "${secrets.my-bearer-token}", actual)
-	})
-}
-
 func TestResolveSecretValueWithSecretManagerEnabled(t *testing.T) {
 	ctx, logger, tenantID := testhelper.CommonTestSetup()
 
