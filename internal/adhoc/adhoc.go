@@ -29,14 +29,14 @@ import (
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
-// Telemeter counts check executions. It mirrors the interface consumed by the
+// telemeter counts check executions. It mirrors the interface consumed by the
 // scheduled-checks scraper so ad-hoc executions feed the same pipeline.
-type Telemeter interface {
+type telemeter interface {
 	AddExecution(e telemetry.Execution)
 }
 
-// TenantCals resolves the cost-attribution label names configured for a tenant.
-type TenantCals interface {
+// tenantCals resolves the cost-attribution label names configured for a tenant.
+type tenantCals interface {
 	CostAttributionLabels(ctx context.Context, tenantID model.GlobalID) ([]string, error)
 }
 
@@ -56,8 +56,8 @@ type Handler struct {
 	grpcAdhocChecksClientFactory func(conn ClientConn) (sm.AdHocChecksClient, error)
 	proberFactory                prober.ProberFactory
 	supportsProtocolSecrets      bool
-	telemeter                    Telemeter
-	cals                         TenantCals
+	telemeter                    telemeter
+	cals                         tenantCals
 }
 
 // Error represents errors returned from this package.
@@ -86,8 +86,8 @@ type runner struct {
 	probe      string
 	timeout    time.Duration
 	checkClass sm.CheckClass
-	telemeter  Telemeter
-	cals       TenantCals
+	telemeter  telemeter
+	cals       tenantCals
 }
 
 // ClientConn represents the GRPC client connection that can be used to
@@ -135,8 +135,8 @@ type HandlerOpts struct {
 	K6Runner                k6runner.Runner
 	SecretProvider          secrets.SecretProvider
 	SupportsProtocolSecrets bool
-	Telemeter               Telemeter
-	CostAttributionLabels   TenantCals
+	Telemeter               telemeter
+	CostAttributionLabels   tenantCals
 
 	// these two fields exists so that tests can pass alternate
 	// implementations, they are unexported so that clients of this
