@@ -1,0 +1,26 @@
+#!/bin/sh
+#
+# Fake k6 for tests. Starts a grandchild, then stays alive past the check timeout, so
+# a test can see what the runner does to the process tree.
+#
+#   version --json  Print the same JSON as testdata/k6-fake. The version check clears
+#                   the environment, so use shell builtins only.
+#   anything else   Start a grandchild, save its PID, wait past the timeout.
+
+if [ "$1" = "version" ] && [ "$2" = "--json" ]; then
+	echo '{"commit":"1111111111","go_arch":"amd64","go_os":"linux","go_version":"go1.24.6","version":"v1.2.3"}'
+	exit 0
+fi
+
+# cmd.Run() returns only once every process holding the stdout and stderr pipes has
+# exited. Both sleeps would inherit them, so a leak would hide the bug.
+exec >/dev/null 2>&1 </dev/null
+
+# The grandchild. Still visible after the runner gives up.
+sleep 10 &
+echo $! > "$ORPHAN_PIDFILE"
+
+# Foreground, and no exec, so this shell stays the direct child.
+sleep 3
+
+exit 0
