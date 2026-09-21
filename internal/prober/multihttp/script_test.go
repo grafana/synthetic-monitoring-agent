@@ -13,6 +13,7 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mccutchen/go-httpbin/v2/httpbin"
@@ -127,7 +128,7 @@ func TestBuildUrl(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			actual := performVariableExpansion(tc.request.Url)
+			actual := interpolation.ExpandVariablesToJS(tc.request.Url)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
@@ -879,34 +880,5 @@ func TestSettingsToScript(t *testing.T) {
 			require.True(t, success)
 			require.NotEqual(t, 0, duration)
 		})
-	}
-}
-
-func TestReplaceVariablesInString(t *testing.T) {
-	testcases := map[string]struct {
-		input    string
-		expected string
-	}{
-		"no replacements": {
-			input:    "plain string",
-			expected: `'plain string'`,
-		},
-		"one variable": {
-			input:    "this is a ${var} to replace",
-			expected: `'this is a '+vars['var']+' to replace'`,
-		},
-		"two variables": {
-			input:    "this is ${v1} and ${v2}",
-			expected: `'this is '+vars['v1']+' and '+vars['v2']`,
-		},
-		"multiple instances": {
-			input:    "this is ${v1}, ${v2} and ${v1} again",
-			expected: `'this is '+vars['v1']+', '+vars['v2']+' and '+vars['v1']+' again'`,
-		},
-	}
-
-	for name, testcase := range testcases {
-		actual := performVariableExpansion(testcase.input)
-		require.Equal(t, testcase.expected, actual, name)
 	}
 }
