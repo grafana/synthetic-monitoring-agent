@@ -21,6 +21,8 @@ import (
 // alone and PID 1 adopts whatever k6 started. The fake acts as k6: it starts a
 // grandchild, then waits past the timeout.
 func TestLocalRunStopsProcessTreeOnTimeout(t *testing.T) {
+	t.Parallel()
+
 	runner, pidFile := newSpawnerRunner(t)
 
 	const checkTimeout = 1000 * time.Millisecond
@@ -54,6 +56,8 @@ func TestLocalRunStopsProcessTreeOnTimeout(t *testing.T) {
 // cancel the check context, and k6 sits in its own group now, so that context is the
 // only thing still reaching it.
 func TestLocalRunStopsProcessTreeOnCancel(t *testing.T) {
+	t.Parallel()
+
 	runner, pidFile := newSpawnerRunner(t)
 
 	// Long enough that the timeout cannot be what stops the tree.
@@ -110,20 +114,25 @@ func TestLocalRunStopsProcessTreeOnCancel(t *testing.T) {
 }
 
 // newSpawnerRunner returns a Local runner using testdata/k6-fake-spawner, plus the path
-// where the fake writes the grandchild PID. Callers must not use t.Parallel(), because
-// t.Setenv panics there and the environment carries that path.
+// where the fake writes the grandchild PID. A wrapper carries that path, so these tests
+// can use t.Parallel, which t.Setenv would rule out.
 func newSpawnerRunner(t *testing.T) (Runner, string) {
 	t.Helper()
 
-	// Must be absolute. exec.LookPath returns a path with a slash unchanged, and
-	// Local.Run resolves a relative cmd.Path against its own temp cmd.Dir. A relative
-	// path would fail with an ENOENT that looks just like the errors we expect.
-	k6Path, err := filepath.Abs("testdata/k6-fake-spawner")
+	fakePath, err := filepath.Abs("testdata/k6-fake-spawner")
 	require.NoError(t, err)
 
+	dir := t.TempDir()
+
 	// Outside the runner workdir, which Local.Run deletes before it returns.
-	pidFile := filepath.Join(t.TempDir(), "orphan.pid")
-	t.Setenv("ORPHAN_PIDFILE", pidFile)
+	pidFile := filepath.Join(dir, "orphan.pid")
+
+	k6Path := filepath.Join(dir, filepath.Base(fakePath))
+	wrapper := "#!/bin/sh\n" +
+		"ORPHAN_PIDFILE='" + pidFile + "'\n" +
+		"export ORPHAN_PIDFILE\n" +
+		"exec '" + fakePath + "' \"$@\"\n"
+	require.NoError(t, os.WriteFile(k6Path, []byte(wrapper), 0o755))
 
 	runner, err := New(RunnerOpts{Uri: k6Path})
 	require.NoError(t, err)
@@ -149,7 +158,7 @@ func requireGrandchildStopped(t *testing.T, pid int, reason string) {
 	})
 
 	// Removal is not instant, so poll.
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 
 	for {
 		// Signal 0 only checks that the process exists.
@@ -179,7 +188,7 @@ func requireGrandchildStopped(t *testing.T, pid int, reason string) {
 func readPIDFile(t *testing.T, path string) int {
 	t.Helper()
 
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(5 * time.Second)
 
 	for {
 		raw, err := os.ReadFile(path)
