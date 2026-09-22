@@ -13,6 +13,10 @@ import (
 // SecretRegex matches ${secrets.secret_name} patterns
 var SecretRegex = regexp.MustCompile(`\$\{secrets\.([^}]*)\}`)
 
+// secretNameRegex matches a Kubernetes DNS subdomain name: lowercase alphanumerics, '-' and
+// '.', starting and ending with an alphanumeric.
+var secretNameRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9\-\.]*[a-z0-9])?$`)
+
 // SecretProvider defines the interface for resolving secrets
 type SecretProvider interface {
 	GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
@@ -109,10 +113,5 @@ func isValidSecretName(name string) bool {
 		return false
 	}
 
-	// Must consist of lowercase alphanumeric characters, '-' or '.', and must start and end with an alphanumeric character
-	if !regexp.MustCompile(`^[a-z0-9]([a-z0-9\-\.]*[a-z0-9])?$`).MatchString(name) {
-		return false
-	}
-
-	return true
+	return secretNameRegex.MatchString(name)
 }
