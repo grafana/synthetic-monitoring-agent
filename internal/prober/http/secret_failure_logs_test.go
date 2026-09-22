@@ -42,7 +42,9 @@ func TestSecretFailureReachesTheCheckLogs(t *testing.T) {
 		settings sm.HttpSettings
 		// wantCheckLog is asserted against the stream the tenant receives.
 		wantCheckLog []string
-		wantSuccess  bool
+		// wantCheckLogAbsent is asserted against the same stream.
+		wantCheckLogAbsent []string
+		wantSuccess        bool
 	}{
 		"unknown secret in bearer token": {
 			settings:     sm.HttpSettings{BearerToken: missingRef},
@@ -76,6 +78,16 @@ func TestSecretFailureReachesTheCheckLogs(t *testing.T) {
 		"invalid secret name": {
 			settings:     sm.HttpSettings{BearerToken: "${secrets.My_Token}"},
 			wantCheckLog: []string{"invalid secret name", "My_Token", "lowercase letters"},
+		},
+
+		// Building the config fails for reasons that have nothing to do with
+		// secrets, on a proxy URL, on TLS material and on OAuth2 settings. The
+		// owner can fix those too, but not by looking at a secret, so the
+		// secret wording has to stay off them.
+		"a failure that is not about secrets is not called one": {
+			settings:           sm.HttpSettings{ProxyURL: "http://%zz"},
+			wantCheckLog:       []string{"Could not build the configuration for this check", "proxy URL"},
+			wantCheckLogAbsent: []string{"secret"},
 		},
 
 		// The counterpart. A check whose references resolve says nothing about
@@ -145,8 +157,12 @@ func TestSecretFailureReachesTheCheckLogs(t *testing.T) {
 				require.Contains(t, checkLog.String(), want)
 			}
 
+			for _, absent := range tc.wantCheckLogAbsent {
+				require.NotContains(t, checkLog.String(), absent)
+			}
+
 			// The operator keeps what they had before this change.
-			require.Contains(t, agentLog.String(), "failed to resolve secrets for HTTP probe")
+			require.Contains(t, agentLog.String(), "failed to build config for HTTP probe")
 		})
 	}
 }

@@ -28,6 +28,18 @@ import (
 
 var errUnsupportedCheck = errors.New("unsupported check")
 
+// secretResolutionError marks a ${secrets.*} reference that did not resolve.
+// buildProbeConfig also fails on a proxy URL, on TLS material and on OAuth2
+// settings, and those are not the check owner's secrets to fix - telling them
+// to look at a secret would send them to the wrong place.
+type secretResolutionError struct {
+	err error
+}
+
+func (e secretResolutionError) Error() string { return e.err.Error() }
+
+func (e secretResolutionError) Unwrap() error { return e.err }
+
 type Prober struct {
 	// Raw settings and dependencies for runtime secret resolution
 	settings                   *sm.HttpSettings
@@ -88,8 +100,16 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		// reads the check's log stream, and they are the only one who can fix a
 		// reference that does not resolve, so leaving them a bare "Check failed"
 		// gave them less to go on than any other way a check can fail.
-		p.logger.Error().Err(err).Msg("failed to resolve secrets for HTTP probe")
-		_ = level.Error(l).Log("msg", "Could not resolve a secret referenced by this check", "err", err)
+		p.logger.Error().Err(err).Msg("failed to build config for HTTP probe")
+
+		msg := "Could not build the configuration for this check"
+
+		var secretErr secretResolutionError
+		if errors.As(err, &secretErr) {
+			msg = "Could not resolve a secret referenced by this check"
+		}
+
+		_ = level.Error(l).Log("msg", msg, "err", err)
 
 		return false, 0
 	}
@@ -224,7 +244,12 @@ func resolveSecretValue(ctx context.Context, value string, secretStore secrets.S
 
 	resolver := interpolation.NewResolver(secretStore, tenantID, logger)
 
-	return resolver.Resolve(ctx, value)
+	resolved, err := resolver.Resolve(ctx, value)
+	if err != nil {
+		return "", secretResolutionError{err: err}
+	}
+
+	return resolved, nil
 }
 
 func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider, tenantID model.GlobalID) (promconfig.HTTPClientConfig, error) {
