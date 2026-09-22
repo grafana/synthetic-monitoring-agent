@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner/version"
 	"github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
@@ -130,7 +131,7 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 		logger.Warn().Msg("No secret store configuration available")
 	}
 
-	args, err := r.buildK6Args(script, metricsFn, logsFn, scriptFn, configFile, executionID)
+	args, err := r.buildK6Args(script, k6Version.Version, metricsFn, logsFn, scriptFn, configFile, executionID)
 	if err != nil {
 		return nil, fmt.Errorf("building k6 arguments: %w", err)
 	}
@@ -299,7 +300,7 @@ func (r Local) Versions(ctx context.Context) <-chan []string {
 	return ch
 }
 
-func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFile, executionID string) ([]string, error) {
+func (r Local) buildK6Args(script Script, k6Version *semver.Version, metricsFn, logsFn, scriptFn, configFile, executionID string) ([]string, error) {
 	var (
 		logger    *zerolog.Logger
 		nopLogger = zerolog.Nop()
@@ -331,6 +332,12 @@ func (r Local) buildK6Args(script Script, metricsFn, logsFn, scriptFn, configFil
 		"--summary-mode", "disabled",
 		"--verbose",
 		"--throw", // Abort with an exception on certain abnormal cases: https://grafana.com/docs/k6/latest/using-k6/k6-options/reference/#throw
+	}
+
+	// --log-ns-timestamps enables nanosecond precision timestamps in logs.
+	// This option, introduced in v2.3.0, is only available in k6 2.0.0 and above.
+	if k6Version.Major() >= 2 {
+		args = append(args, "--log-ns-timestamps")
 	}
 
 	// Add secretStore configuration if available
