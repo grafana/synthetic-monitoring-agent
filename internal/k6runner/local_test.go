@@ -5,6 +5,8 @@ import (
 	"os"
 	"slices"
 	"testing"
+
+	"github.com/Masterminds/semver/v3"
 )
 
 func TestCreateSecretConfigFile(t *testing.T) {
@@ -92,6 +94,7 @@ func TestBuildK6Args(t *testing.T) {
 
 	tests := map[string]struct {
 		script        Script
+		k6Version     string
 		metricsFn     string
 		logsFn        string
 		scriptFn      string
@@ -102,6 +105,7 @@ func TestBuildK6Args(t *testing.T) {
 		wantAbsent    []string
 	}{
 		"script without secrets": {
+			k6Version:     "v2.3.0",
 			metricsFn:     "/tmp/metrics.json",
 			logsFn:        "/tmp/logs.log",
 			scriptFn:      "/tmp/script.js",
@@ -118,6 +122,7 @@ func TestBuildK6Args(t *testing.T) {
 		},
 		"script with secrets": {
 			script:        Script{},
+			k6Version:     "v2.3.0",
 			metricsFn:     "/tmp/metrics.json",
 			logsFn:        "/tmp/logs.log",
 			scriptFn:      "/tmp/script.js",
@@ -137,6 +142,7 @@ func TestBuildK6Args(t *testing.T) {
 			script: Script{
 				CheckInfo: CheckInfo{Type: "browser"},
 			},
+			k6Version:     "v2.3.0",
 			metricsFn:     "/tmp/metrics.json",
 			logsFn:        "/tmp/logs.log",
 			scriptFn:      "/tmp/script.js",
@@ -151,6 +157,7 @@ func TestBuildK6Args(t *testing.T) {
 			script: Script{
 				CheckInfo: CheckInfo{Type: "browser"},
 			},
+			k6Version:     "v2.3.0",
 			metricsFn:     "/tmp/metrics.json",
 			logsFn:        "/tmp/logs.log",
 			scriptFn:      "/tmp/script.js",
@@ -158,13 +165,31 @@ func TestBuildK6Args(t *testing.T) {
 			executionID:   "",
 			wantAbsent:    []string{k6CloudPushRefIDEnvVar, "--vus", "--iterations"},
 		},
+		"k6 v1 omits nanosecond log timestamps": {
+			k6Version: "v1.1.13",
+			wantAbsent: []string{
+				"--log-ns-timestamps",
+			},
+		},
+		"k6 v2 sets nanosecond log timestamps": {
+			k6Version: "v2.3.0",
+			wantArgs: []string{
+				"--log-ns-timestamps",
+			},
+		},
+		"k6 v3 sets nanosecond log timestamps": {
+			k6Version: "v3.0.0",
+			wantArgs: []string{
+				"--log-ns-timestamps",
+			},
+		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := Local{blacklistedIP: tt.blacklistedIP}
 
-			args, err := r.buildK6Args(tt.script, tt.metricsFn, tt.logsFn, tt.scriptFn, tt.configFile, tt.executionID)
+			args, err := r.buildK6Args(tt.script, semver.MustParse(tt.k6Version), tt.metricsFn, tt.logsFn, tt.scriptFn, tt.configFile, tt.executionID)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return
