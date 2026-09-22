@@ -13,7 +13,6 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
-	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/mccutchen/go-httpbin/v2/httpbin"
@@ -89,46 +88,6 @@ func TestBuildQueryParams(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			actual := buildQueryParams("url", &tc.request)
-			require.Equal(t, tc.expected, actual)
-		})
-	}
-}
-
-func TestBuildUrl(t *testing.T) {
-	testcases := map[string]struct {
-		request  sm.MultiHttpEntryRequest
-		expected string
-	}{
-		"trivial": {
-			request: sm.MultiHttpEntryRequest{
-				Url: "https://www.example.org/",
-			},
-			expected: `'https://www.example.org/'`,
-		},
-		"variable in url": {
-			request: sm.MultiHttpEntryRequest{
-				Url: "${variable}",
-				QueryFields: []*sm.QueryField{
-					{
-						Name:  "q",
-						Value: "hello",
-					},
-				},
-			},
-			expected: `vars['variable']`,
-		},
-		"multiple variables in url": {
-			request: sm.MultiHttpEntryRequest{
-				Url:         "https://www.${variable1}.com/${variable2}",
-				QueryFields: []*sm.QueryField{},
-			},
-			expected: `'https://www.'+vars['variable1']+'.com/'+vars['variable2']`,
-		},
-	}
-
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			actual := interpolation.ExpandVariablesToJS(tc.request.Url)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
@@ -370,6 +329,18 @@ func TestInterpolateBodyVariables(t *testing.T) {
 				"body=body.replaceAll('${variable1}', vars['variable1'])",
 				"body=body.replaceAll('${variable2}', vars['variable2'])",
 				"body=body.replaceAll('${variable3}', vars['variable3'])",
+			},
+		},
+
+		// This loop writes the matched reference straight into a single-quoted JavaScript
+		// string, so a pattern that could match a quote or a backslash would let a check break
+		// out of it. It also trims the name by byte offset, so one that allowed a dot would
+		// emit vars['secrets.api-token'] and look up the wrong thing. That pattern lives in the
+		// interpolation package now, where the coupling is easy to miss.
+		"names the pattern rejects produce no replacement": {
+			input: input{body: &sm.HttpRequestBody{Payload: []byte("${my-var} ${secrets.api-token} ${ok_var}")}},
+			expected: []string{
+				"body=body.replaceAll('${ok_var}', vars['ok_var'])",
 			},
 		},
 	}
