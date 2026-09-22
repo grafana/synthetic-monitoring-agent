@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
@@ -82,7 +83,14 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	// Resolve secrets and build complete config at probe time
 	probeConfig, err := p.buildProbeConfig(ctx)
 	if err != nil {
+		// Two audiences for one failure. The operator reads the agent's own
+		// logger, where the rest of this probe already reports. The check owner
+		// reads the check's log stream, and they are the only one who can fix a
+		// reference that does not resolve, so leaving them a bare "Check failed"
+		// gave them less to go on than any other way a check can fail.
 		p.logger.Error().Err(err).Msg("failed to resolve secrets for HTTP probe")
+		_ = level.Error(l).Log("msg", "Could not resolve a secret referenced by this check", "err", err)
+
 		return false, 0
 	}
 
@@ -103,7 +111,7 @@ func (p Prober) buildProbeConfig(ctx context.Context) (config.Module, error) {
 		p.tenantID,
 	)
 	if err != nil {
-		return cfg, fmt.Errorf("failed to build HTTP client config: %w", err)
+		return cfg, err
 	}
 
 	cfg.HTTP.HTTPClientConfig = httpClientConfig
