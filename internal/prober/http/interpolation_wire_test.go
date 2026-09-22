@@ -118,7 +118,9 @@ func TestInterpolationOnTheWire(t *testing.T) {
 		wantAuthorization string
 		wantHeader        map[string]string
 		wantFailure       bool
-		wantLogContains   string
+		// wantLogContains is the error text for a failure case, and the secret
+		// name for a success case that resolves one.
+		wantLogContains string
 	}{
 		"plaintext bearer token": {
 			settings: sm.HttpSettings{
@@ -132,6 +134,7 @@ func TestInterpolationOnTheWire(t *testing.T) {
 				BearerToken: wireTokenRef,
 			},
 			wantAuthorization: "Bearer " + wireTokenValue,
+			wantLogContains:   wireTokenName,
 		},
 
 		"plaintext basic auth password": {
@@ -152,9 +155,8 @@ func TestInterpolationOnTheWire(t *testing.T) {
 				},
 			},
 			wantAuthorization: basicAuthHeader(wireUsername, wirePasswordValue),
+			wantLogContains:   wirePasswordName,
 		},
-
-		// As above, for the other credential field.
 
 		"secret reference surrounded by literal text": {
 			settings: sm.HttpSettings{
@@ -271,6 +273,22 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			wantFailure:     true,
 			wantLogContains: "no secret store configured",
 		},
+
+		// Every failure case above reaches the resolver through the bearer
+		// token, so the wrapping on the basic auth call was never exercised.
+		// It carries the only text that tells the reader which of the two
+		// credential fields failed, and a check that never opted in can now
+		// reach it.
+		"unknown secret in basic auth password": {
+			settings: sm.HttpSettings{
+				BasicAuth: &sm.BasicAuth{
+					Username: wireUsername,
+					Password: "${secrets.does-not-exist}",
+				},
+			},
+			wantFailure:     true,
+			wantLogContains: "failed to resolve basic auth password",
+		},
 	}
 
 	for name, tc := range testcases {
@@ -333,6 +351,20 @@ func TestInterpolationOnTheWire(t *testing.T) {
 
 			require.True(t, success)
 			require.Len(t, requests, 1)
+
+			// A case that resolved a reference has the secret name in the
+			// buffer. Asserting that first is what stops the value assertion
+			// below from passing because nothing was logged at all.
+			if tc.wantLogContains != "" {
+				require.Contains(t, logs.String(), tc.wantLogContains)
+			}
+
+			// The resolver logs the secret name, never the value. A resolved
+			// credential in the agent's own logs is a leak that no other
+			// assertion here would notice, and resolution now happens for
+			// checks that never asked for it.
+			require.NotContains(t, logs.String(), wireTokenValue)
+			require.NotContains(t, logs.String(), wirePasswordValue)
 
 			// Exact equality, never Contains: "Bearer ${secrets.api-token}" and
 			// "Bearer resolved-token-value" both contain "Bearer".
@@ -424,6 +456,28 @@ func TestInterpolationInTLSMaterial(t *testing.T) {
 			},
 			wantError: "secret not found",
 		},
+
+		// Both failures above go through the CA cert, which left the other two
+		// resolve calls in buildTLSConfig with no failing case at all. Each one
+		// wraps with its own field name, and that name is all the operator gets
+		// to tell three identical-looking failures apart.
+		"unknown secret in client cert": {
+			settings: sm.HttpSettings{
+				TlsConfig: &sm.TLSConfig{
+					ClientCert: []byte("${secrets.does-not-exist}"),
+				},
+			},
+			wantError: "failed to resolve client cert",
+		},
+
+		"unknown secret in client key": {
+			settings: sm.HttpSettings{
+				TlsConfig: &sm.TLSConfig{
+					ClientKey: []byte("${secrets.does-not-exist}"),
+				},
+			},
+			wantError: "failed to resolve client key",
+		},
 	}
 
 	requireFileContents := func(t *testing.T, path, want string) {
@@ -449,13 +503,27 @@ func TestInterpolationInTLSMaterial(t *testing.T) {
 
 			settings := tc.settings
 
+			var logs testhelper.LogBuffer
+
 			cfg, err := buildPrometheusHTTPClientConfig(
 				ctx,
 				&settings,
-				testhelper.NewTestLogger(),
+				zerolog.New(&logs),
 				secretStore,
 				model.GlobalID(1),
 			)
+
+			// Resolved TLS material is the worst thing in this package to leak,
+			// the client key most of all. These assert on the PEM bodies rather
+			// than on the fixture constants because zerolog escapes the newlines
+			// in a PEM blob, so a check against the constant itself would never
+			// match and would sit here passing through a real leak.
+			// TestInterpolationOnTheWire pins the other half of this, that the
+			// name does get logged, so neither assertion can pass on an empty
+			// buffer.
+			require.NotContains(t, logs.String(), "CA_CERT_CONTENT")
+			require.NotContains(t, logs.String(), "CLIENT_CERT_CONTENT")
+			require.NotContains(t, logs.String(), "CLIENT_KEY_CONTENT")
 
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
