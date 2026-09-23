@@ -93,46 +93,6 @@ func TestBuildQueryParams(t *testing.T) {
 	}
 }
 
-func TestBuildUrl(t *testing.T) {
-	testcases := map[string]struct {
-		request  sm.MultiHttpEntryRequest
-		expected string
-	}{
-		"trivial": {
-			request: sm.MultiHttpEntryRequest{
-				Url: "https://www.example.org/",
-			},
-			expected: `'https://www.example.org/'`,
-		},
-		"variable in url": {
-			request: sm.MultiHttpEntryRequest{
-				Url: "${variable}",
-				QueryFields: []*sm.QueryField{
-					{
-						Name:  "q",
-						Value: "hello",
-					},
-				},
-			},
-			expected: `vars['variable']`,
-		},
-		"multiple variables in url": {
-			request: sm.MultiHttpEntryRequest{
-				Url:         "https://www.${variable1}.com/${variable2}",
-				QueryFields: []*sm.QueryField{},
-			},
-			expected: `'https://www.'+vars['variable1']+'.com/'+vars['variable2']`,
-		},
-	}
-
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			actual := performVariableExpansion(tc.request.Url)
-			require.Equal(t, tc.expected, actual)
-		})
-	}
-}
-
 func TestBuildHeaders(t *testing.T) {
 	type input struct {
 		headers []*sm.HttpHeader
@@ -369,6 +329,18 @@ func TestInterpolateBodyVariables(t *testing.T) {
 				"body=body.replaceAll('${variable1}', vars['variable1'])",
 				"body=body.replaceAll('${variable2}', vars['variable2'])",
 				"body=body.replaceAll('${variable3}', vars['variable3'])",
+			},
+		},
+
+		// This loop writes the matched reference straight into a single-quoted JavaScript
+		// string, so a pattern that could match a quote or a backslash would let a check break
+		// out of it. It also trims the name by byte offset, so one that allowed a dot would
+		// emit vars['secrets.api-token'] and look up the wrong thing. That pattern lives in the
+		// interpolation package now, where the coupling is easy to miss.
+		"names the pattern rejects produce no replacement": {
+			input: input{body: &sm.HttpRequestBody{Payload: []byte("${my-var} ${secrets.api-token} ${ok_var}")}},
+			expected: []string{
+				"body=body.replaceAll('${ok_var}', vars['ok_var'])",
 			},
 		},
 	}
@@ -879,34 +851,5 @@ func TestSettingsToScript(t *testing.T) {
 			require.True(t, success)
 			require.NotEqual(t, 0, duration)
 		})
-	}
-}
-
-func TestReplaceVariablesInString(t *testing.T) {
-	testcases := map[string]struct {
-		input    string
-		expected string
-	}{
-		"no replacements": {
-			input:    "plain string",
-			expected: `'plain string'`,
-		},
-		"one variable": {
-			input:    "this is a ${var} to replace",
-			expected: `'this is a '+vars['var']+' to replace'`,
-		},
-		"two variables": {
-			input:    "this is ${v1} and ${v2}",
-			expected: `'this is '+vars['v1']+' and '+vars['v2']`,
-		},
-		"multiple instances": {
-			input:    "this is ${v1}, ${v2} and ${v1} again",
-			expected: `'this is '+vars['v1']+', '+vars['v2']+' and '+vars['v1']+' again'`,
-		},
-	}
-
-	for name, testcase := range testcases {
-		actual := performVariableExpansion(testcase.input)
-		require.Equal(t, testcase.expected, actual, name)
 	}
 }

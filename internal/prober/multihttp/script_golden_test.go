@@ -82,7 +82,7 @@ func TestScriptGolden(t *testing.T) {
 		// How an expanded value is escaped for JavaScript. template.JSEscape
 		// passes multi-byte UTF-8 through unchanged and escapes "<" and ">" as
 		// \u003C and \u003E. ${my-var} stays a literal string because the
-		// userVariables pattern does not allow a hyphen in a name.
+		// variable name pattern does not allow a hyphen.
 		"escaping": {
 			Entries: []*sm.MultiHttpEntry{
 				{
