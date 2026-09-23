@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -103,17 +104,17 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 	// Get the secret store configuration for this tenant
 	secretStore, err := sp.GetSecretCredentials(ctx, tenantID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get secret store credentials: %w", err)
+		return "", fmt.Errorf("could not load the secret store configuration: %w", err)
 	}
 
 	if secretStore == nil {
-		return "", fmt.Errorf("no secret store configured for tenant %d", tenantID)
+		return "", errors.New("no secret store is configured for this stack")
 	}
 
 	// Create GSM client
 	client, err := sp.gsmClientFactory.CreateClient(secretStore.Url, secretStore.Token)
 	if err != nil {
-		return "", fmt.Errorf("failed to create GSM client: %w", err)
+		return "", fmt.Errorf("could not connect to the secret store: %w", err)
 	}
 
 	// Get the decrypted secret value
@@ -126,7 +127,7 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Str("secretKey", secretKey).
 			Msg("network error fetching secret, leaving cache unchanged")
 
-		return "", fmt.Errorf("failed to contact GSM for secret '%s': %w", secretKey, err)
+		return "", fmt.Errorf("could not reach the secret store: %w", err)
 	}
 
 	// Handle different status codes
@@ -134,7 +135,7 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 	case http.StatusOK:
 		// Success - update cache and return value
 		if resp.JSON200 == nil {
-			return "", fmt.Errorf("empty response from GSM for secret %s", secretKey)
+			return "", errors.New("the secret store returned an empty value")
 		}
 
 		secretValue := resp.JSON200.Plaintext
@@ -156,7 +157,7 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Str("secretKey", secretKey).
 			Msg("secret not found in GSM, removed from cache")
 
-		return "", fmt.Errorf("secret '%s' not found in GSM (404)", secretKey)
+		return "", errors.New("the secret does not exist")
 
 	case http.StatusUnauthorized:
 		// Auth issue - remove from cache (credentials may have changed)
@@ -167,7 +168,7 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Str("secretKey", secretKey).
 			Msg("unauthorized accessing secret in GSM, removed from cache")
 
-		return "", fmt.Errorf("unauthorized to access secret '%s' in GSM (401)", secretKey)
+		return "", errors.New("not authorized to read this secret")
 
 	default:
 		// 5xx or other errors - leave cache unchanged
@@ -179,6 +180,6 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Str("secretKey", secretKey).
 			Msg("GSM returned error status, leaving cache unchanged")
 
-		return "", fmt.Errorf("GSM returned status %d for secret '%s'", statusCode, secretKey)
+		return "", fmt.Errorf("the secret store returned status %d", statusCode)
 	}
 }

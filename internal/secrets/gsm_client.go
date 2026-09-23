@@ -2,7 +2,7 @@ package secrets
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 
 	gsmClient "github.com/grafana/gsm-api-go-client"
@@ -19,11 +19,11 @@ func NewGSMClientFactory() *GSMClientFactory {
 // CreateClient creates a new GSM client with the provided URL and token
 func (f *GSMClientFactory) CreateClient(url, token string) (gsmClient.ClientWithResponsesInterface, error) {
 	if url == "" {
-		return nil, fmt.Errorf("GSM URL cannot be empty")
+		return nil, errors.New("the secret store URL is not configured")
 	}
 
 	if token == "" {
-		return nil, fmt.Errorf("GSM token cannot be empty")
+		return nil, errors.New("the secret store token is not configured")
 	}
 
 	return gsmClient.NewClientWithResponses(url, withAuth(token), withAcceptJSON())

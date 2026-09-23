@@ -90,7 +90,7 @@ func TestSecretProvider_GetSecretValue_NoSecretStore(t *testing.T) {
 
 	_, err := sp.GetSecretValue(context.Background(), model.GlobalID(123), "test-secret")
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "no secret store configured")
+	require.Contains(t, err.Error(), "no secret store is configured")
 }
 
 func TestSecretProvider_GetSecretValue_EmptyURLAndToken(t *testing.T) {
@@ -104,17 +104,17 @@ func TestSecretProvider_GetSecretValue_EmptyURLAndToken(t *testing.T) {
 		"empty URL": {
 			url:   "",
 			token: "test-token",
-			error: "GSM URL cannot be empty",
+			error: "the secret store URL is not configured",
 		},
 		"empty token": {
 			url:   "https://test-gsm.com",
 			token: "",
-			error: "GSM token cannot be empty",
+			error: "the secret store token is not configured",
 		},
 		"both empty": {
 			url:   "",
 			token: "",
-			error: "GSM URL cannot be empty",
+			error: "the secret store URL is not configured",
 		},
 	}
 
