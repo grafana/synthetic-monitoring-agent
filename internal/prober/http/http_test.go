@@ -589,7 +589,7 @@ func TestResolveSecretValue(t *testing.T) {
 			// Use mock secret store directly
 			secretStore := mockSecretStore
 
-			actual, err := resolveSecretValue(ctx, tc.input, secretStore, tenantID, logger, true)
+			actual, err := resolveSecretValue(ctx, tc.input, secretStore, tenantID, logger)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -617,8 +617,7 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 	}{
 		"secret interpolation": {
 			settings: sm.HttpSettings{
-				BearerToken:          "${secrets.bearer-token-key}",
-				SecretManagerEnabled: true,
+				BearerToken: "${secrets.bearer-token-key}",
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
 					Password: "${secrets.password-key}",
@@ -629,8 +628,7 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 		},
 		"plaintext values": {
 			settings: sm.HttpSettings{
-				BearerToken:          "plain-bearer-token",
-				SecretManagerEnabled: true,
+				BearerToken: "plain-bearer-token",
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
 					Password: "plain-password",
@@ -641,8 +639,7 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 		},
 		"mixed interpolation and plaintext": {
 			settings: sm.HttpSettings{
-				BearerToken:          "${secrets.bearer-token-key}",
-				SecretManagerEnabled: true,
+				BearerToken: "${secrets.bearer-token-key}",
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
 					Password: "plain-password",
@@ -653,8 +650,7 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 		},
 		"complex interpolation": {
 			settings: sm.HttpSettings{
-				BearerToken:          "Bearer ${secrets.bearer-token-key}",
-				SecretManagerEnabled: true,
+				BearerToken: "Bearer ${secrets.bearer-token-key}",
 				BasicAuth: &sm.BasicAuth{
 					Username: "testuser",
 					Password: "${secrets.password-key}",
@@ -684,249 +680,6 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 	}
 }
 
-func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
-	ctx, logger, tenantID := testhelper.CommonTestSetup()
-
-	// Mock secret store that should never be called when capability is disabled
-	mockSecretStore := testhelper.NewMockSecretProvider(map[string]string{
-		"my-bearer-token": "resolved-bearer-token",
-	})
-
-	t.Run("with EnableProtocolSecrets=true", func(t *testing.T) {
-		// Create secret store with capability enabled
-		secretStore := mockSecretStore
-
-		testcases := map[string]struct {
-			input          string
-			expectedOutput string
-			expectError    bool
-		}{
-			"secret interpolation resolved when capability enabled": {
-				input:          "${secrets.my-bearer-token}",
-				expectedOutput: "resolved-bearer-token",
-				expectError:    false,
-			},
-			"plaintext value unchanged when capability enabled": {
-				input:          "my-plain-password",
-				expectedOutput: "my-plain-password",
-				expectError:    false,
-			},
-			"mixed interpolation and plaintext when capability enabled": {
-				input:          "Bearer ${secrets.my-bearer-token}",
-				expectedOutput: "Bearer resolved-bearer-token",
-				expectError:    false,
-			},
-		}
-
-		for name, tc := range testcases {
-			t.Run(name, func(t *testing.T) {
-				actual, err := resolveSecretValue(ctx, tc.input, secretStore, tenantID, logger, true)
-
-				if tc.expectError {
-					require.Error(t, err)
-				} else {
-					require.NoError(t, err)
-					require.Equal(t, tc.expectedOutput, actual)
-				}
-			})
-		}
-	})
-
-	t.Run("with EnableProtocolSecrets=false", func(t *testing.T) {
-		// Mock that should never be called
-		failingMockStore := testhelper.NewMockSecretProviderWithFunc(func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
-			t.Fatal("GetSecretValue should not be called when EnableProtocolSecrets is false")
-			return "", nil
-		})
-
-		// Create secret store with capability disabled
-		secretStore := failingMockStore
-
-		testcases := map[string]struct {
-			input          string
-			expectedOutput string
-		}{
-			"secret interpolation preserved when capability disabled": {
-				input:          "${secrets.my-bearer-token}",
-				expectedOutput: "${secrets.my-bearer-token}",
-			},
-			"plaintext value unchanged when capability disabled": {
-				input:          "my-plain-password",
-				expectedOutput: "my-plain-password",
-			},
-			"mixed interpolation preserved when capability disabled": {
-				input:          "Bearer ${secrets.my-bearer-token}",
-				expectedOutput: "Bearer ${secrets.my-bearer-token}",
-			},
-		}
-
-		for name, tc := range testcases {
-			t.Run(name, func(t *testing.T) {
-				actual, err := resolveSecretValue(ctx, tc.input, secretStore, tenantID, logger, false)
-
-				require.NoError(t, err)
-				require.Equal(t, tc.expectedOutput, actual)
-			})
-		}
-	})
-
-	t.Run("with nil capabilities (defaults to false)", func(t *testing.T) {
-		// Mock that should never be called
-		failingMockStore := testhelper.NewMockSecretProviderWithFunc(func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
-			t.Fatal("GetSecretValue should not be called when capabilities are nil")
-			return "", nil
-		})
-
-		// Create secret store with nil capabilities
-		secretStore := failingMockStore
-
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", secretStore, tenantID, logger, false)
-		require.NoError(t, err)
-		require.Equal(t, "gsm:my-bearer-token", actual)
-	})
-
-	t.Run("with regular SecretProvider (no capability awareness)", func(t *testing.T) {
-		// When using a regular SecretProvider, should default to false (no resolution)
-		failingMockStore := testhelper.NewMockSecretProviderWithFunc(func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
-			t.Fatal("GetSecretValue should not be called when no capability interface is implemented")
-			return "", nil
-		})
-
-		actual, err := resolveSecretValue(ctx, "gsm:my-bearer-token", failingMockStore, tenantID, logger, false)
-		require.NoError(t, err)
-		require.Equal(t, "gsm:my-bearer-token", actual)
-	})
-}
-
-func TestUpdatableSecretProvider(t *testing.T) {
-	ctx, logger, tenantID := testhelper.CommonTestSetup()
-
-	// Mock secret store
-	mockSecretStore := testhelper.NewMockSecretProvider(map[string]string{
-		"my-bearer-token": "resolved-bearer-token",
-	})
-
-	// Create updatable secret store
-	updatableStore := mockSecretStore
-
-	t.Run("defaults to disabled", func(t *testing.T) {
-		require.False(t, updatableStore.IsProtocolSecretsEnabled())
-
-		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, false)
-		require.NoError(t, err)
-		require.Equal(t, "${secrets.my-bearer-token}", actual)
-	})
-
-	t.Run("can be updated to enabled", func(t *testing.T) {
-		// Update capabilities to enable protocol secrets
-		capabilities := &sm.Probe_Capabilities{
-			EnableProtocolSecrets: true,
-		}
-		updatableStore.UpdateCapabilities(capabilities)
-
-		require.True(t, updatableStore.IsProtocolSecretsEnabled())
-
-		// Should now resolve secrets
-		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, true)
-		require.NoError(t, err)
-		require.Equal(t, "resolved-bearer-token", actual)
-	})
-
-	t.Run("can be updated to disabled", func(t *testing.T) {
-		// Update capabilities to disable protocol secrets
-		capabilities := &sm.Probe_Capabilities{
-			EnableProtocolSecrets: false,
-		}
-		updatableStore.UpdateCapabilities(capabilities)
-
-		require.False(t, updatableStore.IsProtocolSecretsEnabled())
-
-		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, false)
-		require.NoError(t, err)
-		require.Equal(t, "${secrets.my-bearer-token}", actual)
-	})
-
-	t.Run("handles nil capabilities", func(t *testing.T) {
-		// Update with nil capabilities (should default to disabled)
-		updatableStore.UpdateCapabilities(nil)
-
-		require.False(t, updatableStore.IsProtocolSecretsEnabled())
-
-		// Should not resolve secrets when disabled
-		actual, err := resolveSecretValue(ctx, "${secrets.my-bearer-token}", updatableStore, tenantID, logger, false)
-		require.NoError(t, err)
-		require.Equal(t, "${secrets.my-bearer-token}", actual)
-	})
-}
-
-func TestResolveSecretValueWithSecretManagerEnabled(t *testing.T) {
-	ctx, logger, tenantID := testhelper.CommonTestSetup()
-
-	// Mock secret store
-	mockSecretStore := testhelper.NewMockSecretProvider(map[string]string{
-		"my-bearer-token": "resolved-bearer-token",
-	})
-
-	testcases := map[string]struct {
-		input                string
-		secretManagerEnabled bool
-		expectedOutput       string
-		expectError          bool
-	}{
-		"secret manager enabled with secret interpolation": {
-			input:                "${secrets.my-bearer-token}",
-			secretManagerEnabled: true,
-			expectedOutput:       "resolved-bearer-token",
-			expectError:          false,
-		},
-		"secret manager enabled with plaintext value": {
-			input:                "my-plain-password",
-			secretManagerEnabled: true,
-			expectedOutput:       "my-plain-password",
-			expectError:          false,
-		},
-		"secret manager enabled with mixed interpolation": {
-			input:                "Bearer ${secrets.my-bearer-token}",
-			secretManagerEnabled: true,
-			expectedOutput:       "Bearer resolved-bearer-token",
-			expectError:          false,
-		},
-		"secret manager disabled with secret interpolation": {
-			input:                "${secrets.my-bearer-token}",
-			secretManagerEnabled: false,
-			expectedOutput:       "${secrets.my-bearer-token}",
-			expectError:          false,
-		},
-		"secret manager disabled with plaintext value": {
-			input:                "my-plain-password",
-			secretManagerEnabled: false,
-			expectedOutput:       "my-plain-password",
-			expectError:          false,
-		},
-		"secret manager disabled with mixed interpolation": {
-			input:                "Bearer ${secrets.my-bearer-token}",
-			secretManagerEnabled: false,
-			expectedOutput:       "Bearer ${secrets.my-bearer-token}",
-			expectError:          false,
-		},
-	}
-
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			actual, err := resolveSecretValue(ctx, tc.input, mockSecretStore, tenantID, logger, tc.secretManagerEnabled)
-
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.expectedOutput, actual)
-			}
-		})
-	}
-}
-
 func TestBuildTLSConfig_WithSecrets(t *testing.T) {
 	ctx, logger, tenantID := testhelper.CommonTestSetup()
 
@@ -938,9 +691,8 @@ func TestBuildTLSConfig_WithSecrets(t *testing.T) {
 	})
 
 	testcases := map[string]struct {
-		tlsConfig            *sm.TLSConfig
-		secretManagerEnabled bool
-		expectError          bool
+		tlsConfig   *sm.TLSConfig
+		expectError bool
 	}{
 		"TLS with secret interpolation": {
 			tlsConfig: &sm.TLSConfig{
@@ -950,8 +702,7 @@ func TestBuildTLSConfig_WithSecrets(t *testing.T) {
 				ClientCert:         []byte("${secrets.client-cert-key}"),
 				ClientKey:          []byte("${secrets.client-key-key}"),
 			},
-			secretManagerEnabled: true,
-			expectError:          false,
+			expectError: false,
 		},
 		"TLS with plain values": {
 			tlsConfig: &sm.TLSConfig{
@@ -961,19 +712,7 @@ func TestBuildTLSConfig_WithSecrets(t *testing.T) {
 				ClientCert:         []byte("-----BEGIN CERTIFICATE-----\nPLAIN_CLIENT_CERT\n-----END CERTIFICATE-----"),
 				ClientKey:          []byte("-----BEGIN PRIVATE KEY-----\nPLAIN_CLIENT_KEY\n-----END PRIVATE KEY-----"),
 			},
-			secretManagerEnabled: true,
-			expectError:          false,
-		},
-		"TLS with secret manager disabled": {
-			tlsConfig: &sm.TLSConfig{
-				InsecureSkipVerify: false,
-				ServerName:         "example.com",
-				CACert:             []byte("${secrets.ca-cert-key}"),
-				ClientCert:         []byte("${secrets.client-cert-key}"),
-				ClientKey:          []byte("${secrets.client-key-key}"),
-			},
-			secretManagerEnabled: false,
-			expectError:          false,
+			expectError: false,
 		},
 		"TLS with mixed secret and plain values": {
 			tlsConfig: &sm.TLSConfig{
@@ -983,8 +722,7 @@ func TestBuildTLSConfig_WithSecrets(t *testing.T) {
 				ClientCert:         []byte("-----BEGIN CERTIFICATE-----\nPLAIN_CLIENT_CERT\n-----END CERTIFICATE-----"),
 				ClientKey:          []byte("${secrets.client-key-key}"),
 			},
-			secretManagerEnabled: true,
-			expectError:          false,
+			expectError: false,
 		},
 		"TLS with only some fields": {
 			tlsConfig: &sm.TLSConfig{
@@ -993,14 +731,13 @@ func TestBuildTLSConfig_WithSecrets(t *testing.T) {
 				CACert:             []byte("${secrets.ca-cert-key}"),
 				// ClientCert and ClientKey are empty
 			},
-			secretManagerEnabled: true,
-			expectError:          false,
+			expectError: false,
 		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			cfg, err := buildTLSConfig(ctx, tc.tlsConfig, mockSecretStore, tenantID, logger, tc.secretManagerEnabled)
+			cfg, err := buildTLSConfig(ctx, tc.tlsConfig, mockSecretStore, tenantID, logger)
 
 			if tc.expectError {
 				require.Error(t, err)

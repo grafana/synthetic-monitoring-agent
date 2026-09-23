@@ -208,18 +208,13 @@ func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 }
 
 // resolveSecretValue resolves a secret value using string interpolation with ${secrets.secret_name} syntax.
-// If secretManagerEnabled is false, the value is returned as-is without any interpolation.
-func resolveSecretValue(ctx context.Context, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger, secretManagerEnabled bool) (string, error) {
+// A value holding no reference is returned unchanged.
+func resolveSecretValue(ctx context.Context, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) (string, error) {
 	if value == "" {
 		return "", nil
 	}
 
-	// If secret manager is not enabled, return the value as-is
-	if !secretManagerEnabled {
-		return value, nil
-	}
-
-	resolver := interpolation.NewResolver(secretStore, tenantID, logger, secretManagerEnabled)
+	resolver := interpolation.NewResolver(secretStore, tenantID, logger)
 
 	return resolver.Resolve(ctx, value)
 }
@@ -252,14 +247,14 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 	if settings.TlsConfig != nil {
 		var err error
 
-		cfg.TLSConfig, err = buildTLSConfig(ctx, settings.TlsConfig, secretStore, tenantID, logger, settings.SecretManagerEnabled)
+		cfg.TLSConfig, err = buildTLSConfig(ctx, settings.TlsConfig, secretStore, tenantID, logger)
 		if err != nil {
 			return cfg, err
 		}
 	}
 
 	// Resolve bearer token (may be a secret)
-	bearerToken, err := resolveSecretValue(ctx, settings.BearerToken, secretStore, tenantID, logger, settings.SecretManagerEnabled)
+	bearerToken, err := resolveSecretValue(ctx, settings.BearerToken, secretStore, tenantID, logger)
 	if err != nil {
 		return cfg, fmt.Errorf("failed to resolve bearer token: %w", err)
 	}
@@ -268,7 +263,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 
 	if settings.BasicAuth != nil {
 		// Resolve password (may be a secret)
-		password, err := resolveSecretValue(ctx, settings.BasicAuth.Password, secretStore, tenantID, logger, settings.SecretManagerEnabled)
+		password, err := resolveSecretValue(ctx, settings.BasicAuth.Password, secretStore, tenantID, logger)
 		if err != nil {
 			return cfg, fmt.Errorf("failed to resolve basic auth password: %w", err)
 		}
@@ -303,7 +298,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 }
 
 // buildTLSConfig builds a Prometheus TLS config from SM TLS config with secret resolution support
-func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger, secretManagerEnabled bool) (promconfig.TLSConfig, error) {
+func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) (promconfig.TLSConfig, error) {
 	// Create a copy of the TLS config with resolved secrets
 	resolvedTLSConfig := &sm.TLSConfig{
 		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
@@ -312,47 +307,32 @@ func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore se
 
 	// Resolve CA cert if present
 	if len(tlsConfig.CACert) > 0 {
-		if secretManagerEnabled {
-			// Resolve CA cert from secret if secret manager is enabled
-			caCertStr, err := resolveSecretValue(ctx, string(tlsConfig.CACert), secretStore, tenantID, logger, secretManagerEnabled)
-			if err != nil {
-				return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve CA cert: %w", err)
-			}
-
-			resolvedTLSConfig.CACert = []byte(caCertStr)
-		} else {
-			resolvedTLSConfig.CACert = tlsConfig.CACert
+		caCertStr, err := resolveSecretValue(ctx, string(tlsConfig.CACert), secretStore, tenantID, logger)
+		if err != nil {
+			return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve CA cert: %w", err)
 		}
+
+		resolvedTLSConfig.CACert = []byte(caCertStr)
 	}
 
 	// Resolve client cert if present
 	if len(tlsConfig.ClientCert) > 0 {
-		if secretManagerEnabled {
-			// Resolve client cert from secret if secret manager is enabled
-			clientCertStr, err := resolveSecretValue(ctx, string(tlsConfig.ClientCert), secretStore, tenantID, logger, secretManagerEnabled)
-			if err != nil {
-				return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client cert: %w", err)
-			}
-
-			resolvedTLSConfig.ClientCert = []byte(clientCertStr)
-		} else {
-			resolvedTLSConfig.ClientCert = tlsConfig.ClientCert
+		clientCertStr, err := resolveSecretValue(ctx, string(tlsConfig.ClientCert), secretStore, tenantID, logger)
+		if err != nil {
+			return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client cert: %w", err)
 		}
+
+		resolvedTLSConfig.ClientCert = []byte(clientCertStr)
 	}
 
 	// Resolve client key if present
 	if len(tlsConfig.ClientKey) > 0 {
-		if secretManagerEnabled {
-			// Resolve client key from secret if secret manager is enabled
-			clientKeyStr, err := resolveSecretValue(ctx, string(tlsConfig.ClientKey), secretStore, tenantID, logger, secretManagerEnabled)
-			if err != nil {
-				return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client key: %w", err)
-			}
-
-			resolvedTLSConfig.ClientKey = []byte(clientKeyStr)
-		} else {
-			resolvedTLSConfig.ClientKey = tlsConfig.ClientKey
+		clientKeyStr, err := resolveSecretValue(ctx, string(tlsConfig.ClientKey), secretStore, tenantID, logger)
+		if err != nil {
+			return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client key: %w", err)
 		}
+
+		resolvedTLSConfig.ClientKey = []byte(clientKeyStr)
 	}
 
 	// Use the existing TLS conversion function with resolved config

@@ -16,90 +16,18 @@ import (
 type SecretProvider interface {
 	GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error)
 	GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
-	IsProtocolSecretsEnabled() bool
 }
 
 type TenantProvider interface {
 	GetTenant(context.Context, *sm.TenantInfo) (*sm.Tenant, error)
 }
 
-// TenantSecrets provides backward compatibility with existing code
-type TenantSecrets struct {
-	tp                    TenantProvider
-	logger                zerolog.Logger
-	enableProtocolSecrets bool
-}
-
-// NewTenantSecrets creates a new TenantSecrets instance for backward compatibility
-func NewTenantSecrets(tp TenantProvider, logger zerolog.Logger) *TenantSecrets {
-	return &TenantSecrets{
-		tp:                    tp,
-		logger:                logger,
-		enableProtocolSecrets: false, // Default to false for backward compatibility
-	}
-}
-
-// GetSecretCredentials gets the secret store configuration for a tenant (backward compatibility)
-func (ts *TenantSecrets) GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error) {
-	localTenantID, regionID := model.GetLocalAndRegionIDs(tenantID)
-	ts.logger.Debug().
-		Int("regionID", regionID).
-		Int64("tenantId", localTenantID).
-		Int64("globalTenantID", int64(tenantID)).
-		Msg("getting secret credentials")
-
-	tenant, err := ts.tp.GetTenant(ctx, &sm.TenantInfo{
-		Id: int64(tenantID),
-	})
-	if err != nil {
-		ts.logger.Warn().Err(err).Int64("tenantId", int64(tenantID)).Msg("failed to get tenant")
-		return nil, err
-	}
-
-	ts.logger.Debug().
-		Int64("tenantId", localTenantID).
-		Bool("tenantHasSecretStore", tenant.SecretStore != nil).
-		Msg("tenant retrieved for secret credentials")
-
-	if tenant.SecretStore != nil {
-		ts.logger.Debug().
-			Int64("tenantId", localTenantID).
-			Str("secretStoreUrl", tenant.SecretStore.Url).
-			Bool("hasSecretStoreToken", tenant.SecretStore.Token != "").
-			Float64("secretStoreExpiry", tenant.SecretStore.Expiry).
-			Msg("secret store configuration retrieved successfully")
-	}
-
-	return tenant.SecretStore, nil
-}
-
-// GetSecretValue implements SecretProvider interface (backward compatibility)
-func (ts *TenantSecrets) GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
-	// For backward compatibility, return empty string
-	// This will be replaced by the full implementation in PR 2
-	return "", nil
-}
-
-// IsProtocolSecretsEnabled returns whether protocol secrets are enabled for this probe
-func (ts *TenantSecrets) IsProtocolSecretsEnabled() bool {
-	return ts.enableProtocolSecrets
-}
-
-// UpdateCapabilities updates the probe capabilities
-func (ts *TenantSecrets) UpdateCapabilities(probeCapabilities *sm.Probe_Capabilities) {
-	ts.enableProtocolSecrets = false
-	if probeCapabilities != nil {
-		ts.enableProtocolSecrets = probeCapabilities.EnableProtocolSecrets
-	}
-}
-
 // secretProvider provides caching for secret values with TTL and intelligent response handling
 type secretProvider struct {
-	tenantProvider        TenantProvider
-	cache                 *cache.Cache
-	logger                zerolog.Logger
-	enableProtocolSecrets bool
-	gsmClientFactory      *GSMClientFactory
+	tenantProvider   TenantProvider
+	cache            *cache.Cache
+	logger           zerolog.Logger
+	gsmClientFactory *GSMClientFactory
 }
 
 // NewSecretProvider creates a new secret provider
@@ -112,34 +40,10 @@ func NewSecretProvider(tenantProvider TenantProvider, ttl time.Duration, logger 
 	}
 
 	return &secretProvider{
-		tenantProvider:        tenantProvider,
-		cache:                 cache.New(ttl, cleanupInterval),
-		logger:                logger.With().Str("component", "secret-cache").Logger(),
-		enableProtocolSecrets: false, // Default to false
-		gsmClientFactory:      NewGSMClientFactory(),
-	}
-}
-
-// NewSecretProviderWithCapabilities creates a new secret provider with probe capabilities
-func NewSecretProviderWithCapabilities(tenantProvider TenantProvider, ttl time.Duration, logger zerolog.Logger, probeCapabilities *sm.Probe_Capabilities) SecretProvider {
-	enableProtocolSecrets := false
-	if probeCapabilities != nil {
-		enableProtocolSecrets = probeCapabilities.EnableProtocolSecrets
-	}
-
-	// go-cache handles cleanup automatically, so we don't need manual cleanup
-	// The cleanup interval is set to ttl/10 to ensure expired items are cleaned up reasonably quickly
-	cleanupInterval := ttl / 10
-	if cleanupInterval < time.Minute {
-		cleanupInterval = time.Minute
-	}
-
-	return &secretProvider{
-		tenantProvider:        tenantProvider,
-		cache:                 cache.New(ttl, cleanupInterval),
-		logger:                logger.With().Str("component", "secret-cache").Logger(),
-		enableProtocolSecrets: enableProtocolSecrets,
-		gsmClientFactory:      NewGSMClientFactory(),
+		tenantProvider:   tenantProvider,
+		cache:            cache.New(ttl, cleanupInterval),
+		logger:           logger.With().Str("component", "secret-cache").Logger(),
+		gsmClientFactory: NewGSMClientFactory(),
 	}
 }
 
@@ -276,18 +180,5 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Msg("GSM returned error status, leaving cache unchanged")
 
 		return "", fmt.Errorf("GSM returned status %d for secret '%s'", statusCode, secretKey)
-	}
-}
-
-// IsProtocolSecretsEnabled returns whether protocol secrets are enabled for this probe
-func (sp *secretProvider) IsProtocolSecretsEnabled() bool {
-	return sp.enableProtocolSecrets
-}
-
-// UpdateCapabilities updates the probe capabilities
-func (sp *secretProvider) UpdateCapabilities(probeCapabilities *sm.Probe_Capabilities) {
-	sp.enableProtocolSecrets = false
-	if probeCapabilities != nil {
-		sp.enableProtocolSecrets = probeCapabilities.EnableProtocolSecrets
 	}
 }
