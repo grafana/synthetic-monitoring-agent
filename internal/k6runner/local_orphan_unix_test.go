@@ -158,7 +158,7 @@ func requireGrandchildStopped(t *testing.T, pid int, reason string) {
 	})
 
 	// Removal is not instant, so poll.
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(2 * time.Second)
 
 	for {
 		// Signal 0 only checks that the process exists.
@@ -188,7 +188,7 @@ func requireGrandchildStopped(t *testing.T, pid int, reason string) {
 func readPIDFile(t *testing.T, path string) int {
 	t.Helper()
 
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.Now().Add(2 * time.Second)
 
 	for {
 		raw, err := os.ReadFile(path)
