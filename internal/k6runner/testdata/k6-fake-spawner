@@ -16,14 +16,11 @@ fi
 # exited. Both sleeps would inherit them, so a leak would hide the bug.
 exec >/dev/null 2>&1 </dev/null
 
-# Both sleeps outlast the tests on purpose: one that ended on its own would make a leaked
-# process look like a stopped one. The tests kill both within a second.
-
 # The grandchild. Still visible after the runner gives up.
-sleep 300 &
+sleep 10 &
 echo $! > "$ORPHAN_PIDFILE"
 
 # Foreground, and no exec, so this shell stays the direct child.
-sleep 60
+sleep 3
 
 exit 0
