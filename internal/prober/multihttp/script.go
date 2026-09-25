@@ -296,7 +296,7 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 				b.WriteString(`return assertHeader(response.headers, "`)
 				b.WriteString(template.JSEscapeString(assertion.Expression))
 				b.WriteString(`", `)
-				b.WriteString(`v => `)
+				b.WriteString(`value => `)
 				cond.Render(&b, "value", assertion.Value)
 				cond.Render(&assertionDescriptor, "value", assertion.Value)
 				b.WriteString(`);`)
