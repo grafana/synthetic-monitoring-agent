@@ -442,21 +442,22 @@ func (c *Updater) setProbe(p *sm.Probe) {
 	c.probe = p
 }
 
-// probeState returns the checks this probe is currently running, as reported
-// to the API in GetChanges. It takes the scrapersMutex because the reconcile
-// loop mutates c.scrapers concurrently.
+// probeState returns all checks known to this agent.
+// Clustered agents connect to the API independently, so each reports the probe's complete
+// check set. Ring ownership will determines which checks each agent runs.
+// It takes the scrapersMutex because check handlers mutate c.knownChecks concurrently.
 func (c *Updater) probeState() sm.ProbeState {
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
 	state := sm.ProbeState{
-		Checks: make([]sm.EntityRef, 0, len(c.scrapers)),
+		Checks: make([]sm.EntityRef, 0, len(c.knownChecks)),
 	}
 
-	for cID, scraper := range c.scrapers {
+	for cID, check := range c.knownChecks {
 		state.Checks = append(state.Checks, sm.EntityRef{
 			Id:           int64(cID),
-			LastModified: scraper.LastModified(),
+			LastModified: check.Modified,
 		})
 	}
 
@@ -617,13 +618,13 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 
 	cid := check.GlobalID()
 
-	if running, found := c.scrapers[cid]; found {
+	if existing, found := c.knownChecks[cid]; found {
 		// we can get here if the API sent us a check add twice:
 		// once during the initial connection and another right
 		// after that. The window for that is small, but it
 		// exists.
 
-		return fmt.Errorf("check with id %d already exists (version %s)", cid, running.ConfigVersion())
+		return fmt.Errorf("check with id %d already exists (version %s)", cid, existing.ConfigVersion())
 	}
 
 	c.knownChecks[cid] = check

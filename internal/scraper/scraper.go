@@ -420,10 +420,6 @@ func (s Scraper) ConfigVersion() string {
 	return s.check.ConfigVersion()
 }
 
-func (s Scraper) LastModified() float64 {
-	return s.check.Modified
-}
-
 func tickWithOffset(
 	ctx context.Context,
 	stop <-chan struct{},

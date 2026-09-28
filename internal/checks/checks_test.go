@@ -858,6 +858,16 @@ func TestHandleCheckOpWithCluster(t *testing.T) {
 		require.NoError(t, u.handleCheckAdd(ctx, check))
 		require.False(t, scraperExists(u, cid))
 
+		// A duplicate add must be rejected even though the check has no scraper,
+		// and it must not overwrite the known configuration.
+		duplicate := check
+		duplicate.Modified++
+		require.Error(t, u.handleCheckAdd(ctx, duplicate))
+		u.scrapersMutex.Lock()
+		known := u.knownChecks[cid]
+		u.scrapersMutex.Unlock()
+		require.Equal(t, check.ConfigVersion(), known.ConfigVersion())
+
 		// Ownership gained: reconcileAll starts the buffered check, proving the
 		// add was recorded even though no scraper ran.
 		node.setOwned(cid, true)
@@ -934,6 +944,48 @@ func TestReconcileAllFirstBatch(t *testing.T) {
 		require.False(t, scraperExists(u, notOwnedID))
 		require.False(t, scraperExists(u, orphanID))
 		require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+		synctest.Wait()
+	})
+}
+
+// TestDeltaReconnectDeletesUnownedKnownCheck verifies that unowned checks are
+// included in reconnect state so a delta first batch can delete them.
+func TestDeltaReconnectDeletesUnownedKnownCheck(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		node := newFakeNode()
+		u := newTestUpdater(t, node)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		check := validCheck(t, 8500)
+		check.Modified = 123
+		cid := check.GlobalID()
+		node.setOwned(cid, false)
+
+		require.NoError(t, u.handleCheckAdd(ctx, check))
+		require.False(t, scraperExists(u, cid))
+		require.Equal(t, sm.ProbeState{
+			Checks: []sm.EntityRef{{Id: int64(cid), LastModified: check.Modified}},
+		}, u.probeState())
+
+		u.handleChangeBatch(ctx, &sm.Changes{
+			Checks: []sm.CheckChange{{
+				Operation: sm.CheckOperation_CHECK_DELETE,
+				Check:     sm.Check{Id: int64(cid)},
+			}},
+			IsDeltaFirstBatch: true,
+		}, true)
+
+		u.scrapersMutex.Lock()
+		_, known := u.knownChecks[cid]
+		u.scrapersMutex.Unlock()
+		require.False(t, known)
+
+		node.setOwned(cid, true)
+		u.reconcileAll(ctx)
+		require.False(t, scraperExists(u, cid))
 
 		synctest.Wait()
 	})
@@ -1018,8 +1070,8 @@ func TestReconcileReadyGate(t *testing.T) {
 }
 
 // TestProbeStateConcurrentReconcile verifies that the state touched by loop()
-// on reconnect (the probe and the scrapers map) is safe to access while the
-// reconcile loop is starting and stopping scrapers. It relies on -race.
+// on reconnect is safe to access while the reconcile loop is starting and
+// stopping scrapers. It relies on -race.
 func TestProbeStateConcurrentReconcile(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		node := newFakeNode()
