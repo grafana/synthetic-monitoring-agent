@@ -138,6 +138,13 @@ func TestBuildK6Args(t *testing.T) {
 			},
 			wantAbsent: []string{k6CloudPushRefIDEnvVar},
 		},
+		"multiple blocked nets": {
+			k6Version:     "v2.3.0",
+			blacklistedIP: "10.0.0.0/8,127.0.0.0/8",
+			wantArgs: []string{
+				"--blacklist-ip", "10.0.0.0/8,127.0.0.0/8",
+			},
+		},
 		"browser check sets K6_CLOUD_PUSH_REF_ID": {
 			script: Script{
 				CheckInfo: CheckInfo{Type: "browser"},
