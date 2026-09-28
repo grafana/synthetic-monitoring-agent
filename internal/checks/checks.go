@@ -327,7 +327,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		return connected, err
 	}
 
-	c.probe = &result.Probe
+	c.setProbe(&result.Probe)
 
 	c.notifyProbeTenant()
 
@@ -383,16 +383,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		}
 	}
 
-	knownChecks := sm.ProbeState{
-		Checks: make([]sm.EntityRef, 0, len(c.scrapers)),
-	}
-
-	for cID, scraper := range c.scrapers {
-		knownChecks.Checks = append(knownChecks.Checks, sm.EntityRef{
-			Id:           int64(cID),
-			LastModified: scraper.LastModified(),
-		})
-	}
+	knownChecks := c.probeState()
 
 	cc, err := client.GetChanges(sigCtx, &knownChecks)
 	if err != nil {
@@ -440,6 +431,36 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	err = g.Wait()
 
 	return connected, errorHandler(err, "getting changes from synthetic-monitoring-api", signalFired)
+}
+
+// setProbe records the probe returned by RegisterProbe. It takes the
+// scrapersMutex because the reconcile loop reads c.probe to create scrapers.
+func (c *Updater) setProbe(p *sm.Probe) {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+
+	c.probe = p
+}
+
+// probeState returns the checks this probe is currently running, as reported
+// to the API in GetChanges. It takes the scrapersMutex because the reconcile
+// loop mutates c.scrapers concurrently.
+func (c *Updater) probeState() sm.ProbeState {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+
+	state := sm.ProbeState{
+		Checks: make([]sm.EntityRef, 0, len(c.scrapers)),
+	}
+
+	for cID, scraper := range c.scrapers {
+		state.Checks = append(state.Checks, sm.EntityRef{
+			Id:           int64(cID),
+			LastModified: scraper.LastModified(),
+		})
+	}
+
+	return state
 }
 
 func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities) error {

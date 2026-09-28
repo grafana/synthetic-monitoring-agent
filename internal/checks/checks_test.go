@@ -1017,6 +1017,47 @@ func TestReconcileReadyGate(t *testing.T) {
 	})
 }
 
+// TestProbeStateConcurrentReconcile verifies that the state touched by loop()
+// on reconnect (the probe and the scrapers map) is safe to access while the
+// reconcile loop is starting and stopping scrapers. It relies on -race.
+func TestProbeStateConcurrentReconcile(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		node := newFakeNode()
+		u := newTestUpdater(t, node)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		var ids []model.GlobalID
+		for i := range 10 {
+			check := validCheck(t, int64(9600+i))
+			node.setOwned(check.GlobalID(), true)
+			require.NoError(t, u.handleCheckAdd(ctx, check))
+			ids = append(ids, check.GlobalID())
+		}
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			for i := range 100 {
+				for _, id := range ids {
+					node.setOwned(id, i%2 == 1)
+				}
+				u.reconcileAll(ctx)
+			}
+		}()
+
+		for range 100 {
+			u.setProbe(&sm.Probe{Id: 100, Name: "test-probe"})
+			_ = u.probeState()
+		}
+
+		<-done
+		cancel()
+		synctest.Wait()
+	})
+}
+
 // fakeNode is a cluster.Node with directly controllable ownership, used to drive
 // the Updater's ownership filtering without a real gossip ring.
 type fakeNode struct {
