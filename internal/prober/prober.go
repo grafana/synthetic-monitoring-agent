@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/agentic"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/browser"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/dns"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/grpc"
@@ -92,7 +93,10 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		target = check.Target
 
 	case sm.CheckTypeScripted:
-		if f.runner != nil {
+		if endpoint := agentic.Endpoint(check); endpoint != "" {
+			p = agentic.NewProber(check, endpoint, logger)
+			target = check.Target
+		} else if f.runner != nil {
 			p, err = scripted.NewProber(ctx, check, logger, f.runner, f.secretStore)
 			target = check.Target
 		} else {
