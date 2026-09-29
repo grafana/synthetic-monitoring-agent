@@ -1,6 +1,7 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -219,6 +220,20 @@ func resolveSecretValue(ctx context.Context, value string, secretStore secrets.S
 	return resolver.Resolve(ctx, value)
 }
 
+// resolveSecretBytes skips the string round trip, and its two copies, when there is no reference.
+func resolveSecretBytes(ctx context.Context, value []byte, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) ([]byte, error) {
+	if !bytes.Contains(value, []byte(interpolation.SecretRefPrefix)) {
+		return value, nil
+	}
+
+	resolved, err := resolveSecretValue(ctx, string(value), secretStore, tenantID, logger)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(resolved), nil
+}
+
 func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider, tenantID model.GlobalID) (promconfig.HTTPClientConfig, error) {
 	var cfg promconfig.HTTPClientConfig
 
@@ -305,34 +320,21 @@ func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore se
 		ServerName:         tlsConfig.ServerName,
 	}
 
-	// Resolve CA cert if present
-	if len(tlsConfig.CACert) > 0 {
-		caCertStr, err := resolveSecretValue(ctx, string(tlsConfig.CACert), secretStore, tenantID, logger)
-		if err != nil {
-			return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve CA cert: %w", err)
-		}
+	var err error
 
-		resolvedTLSConfig.CACert = []byte(caCertStr)
+	resolvedTLSConfig.CACert, err = resolveSecretBytes(ctx, tlsConfig.CACert, secretStore, tenantID, logger)
+	if err != nil {
+		return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve CA cert: %w", err)
 	}
 
-	// Resolve client cert if present
-	if len(tlsConfig.ClientCert) > 0 {
-		clientCertStr, err := resolveSecretValue(ctx, string(tlsConfig.ClientCert), secretStore, tenantID, logger)
-		if err != nil {
-			return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client cert: %w", err)
-		}
-
-		resolvedTLSConfig.ClientCert = []byte(clientCertStr)
+	resolvedTLSConfig.ClientCert, err = resolveSecretBytes(ctx, tlsConfig.ClientCert, secretStore, tenantID, logger)
+	if err != nil {
+		return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client cert: %w", err)
 	}
 
-	// Resolve client key if present
-	if len(tlsConfig.ClientKey) > 0 {
-		clientKeyStr, err := resolveSecretValue(ctx, string(tlsConfig.ClientKey), secretStore, tenantID, logger)
-		if err != nil {
-			return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client key: %w", err)
-		}
-
-		resolvedTLSConfig.ClientKey = []byte(clientKeyStr)
+	resolvedTLSConfig.ClientKey, err = resolveSecretBytes(ctx, tlsConfig.ClientKey, secretStore, tenantID, logger)
+	if err != nil {
+		return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client key: %w", err)
 	}
 
 	// Use the existing TLS conversion function with resolved config

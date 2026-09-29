@@ -17,6 +17,14 @@ var SecretRegex = regexp.MustCompile(`\$\{secrets\.([^}]*)\}`)
 // '.', starting and ending with an alphanumeric.
 var secretNameRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9\-\.]*[a-z0-9])?$`)
 
+// SecretRefPrefix is the literal start of every SecretRegex match.
+const SecretRefPrefix = "${secrets."
+
+// HasSecretRef reports whether value may hold a ${secrets.name} reference.
+func HasSecretRef(value string) bool {
+	return strings.Contains(value, SecretRefPrefix)
+}
+
 // SecretProvider defines the interface for resolving secrets
 type SecretProvider interface {
 	GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
@@ -42,8 +50,9 @@ func NewResolver(secretProvider SecretProvider, tenantID model.GlobalID, logger 
 // else is copied through byte for byte, including a bare ${name}, which this package does not
 // expand.
 func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
-	if value == "" {
-		return "", nil
+	// Runs on every probe, and almost no value holds a reference.
+	if !HasSecretRef(value) {
+		return value, nil
 	}
 
 	// Step 1: Find all secret matches with their positions
@@ -74,6 +83,11 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 		})
 	}
 
+	// The whole value is one reference, so there is nothing to build.
+	if len(secretMatches) == 1 && secretMatches[0].start == 0 && secretMatches[0].end == len(value) {
+		return r.resolveSecret(ctx, secretMatches[0].name)
+	}
+
 	// Step 2: Write out the gaps between the secrets verbatim, resolving each secret in turn
 	var result strings.Builder
 
@@ -82,11 +96,9 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 	for _, secretMatch := range secretMatches {
 		result.WriteString(value[lastPos:secretMatch.start])
 
-		r.logger.Debug().Str("secretName", secretMatch.name).Int64("tenantId", int64(r.tenantID)).Msg("resolving secret from GSM")
-
-		secretValue, err := r.secretProvider.GetSecretValue(ctx, r.tenantID, secretMatch.name)
+		secretValue, err := r.resolveSecret(ctx, secretMatch.name)
 		if err != nil {
-			return "", fmt.Errorf("failed to get secret '%s' from GSM: %w", secretMatch.name, err)
+			return "", err
 		}
 
 		result.WriteString(secretValue)
@@ -97,6 +109,17 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 	result.WriteString(value[lastPos:])
 
 	return result.String(), nil
+}
+
+func (r *Resolver) resolveSecret(ctx context.Context, name string) (string, error) {
+	r.logger.Debug().Str("secretName", name).Int64("tenantId", int64(r.tenantID)).Msg("resolving secret from GSM")
+
+	secretValue, err := r.secretProvider.GetSecretValue(ctx, r.tenantID, name)
+	if err != nil {
+		return "", fmt.Errorf("failed to get secret '%s' from GSM: %w", name, err)
+	}
+
+	return secretValue, nil
 }
 
 // isValidSecretName validates that a secret name follows Kubernetes DNS subdomain naming convention.
