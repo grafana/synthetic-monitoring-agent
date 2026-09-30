@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -124,7 +125,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.StringVar(&config.K6URI, "k6-uri", config.K6URI, "Path or URI to a specific k6 binary, overrides k6 version autodetection")
 	flags.StringVar(&config.K6Repository, "k6-repository", config.K6Repository, "path to folder containing k6 binaries")
 	flags.StringVar(&config.K6BlacklistedIP, "blocked-nets", config.K6BlacklistedIP,
-		"IP networks to block in CIDR notation. Setting this to an empty string, or '0.0.0.0/32', will disable the blocklist.")
+		"Comma-separated list of IP networks to block in CIDR notation, without spaces. Setting this to an empty string, or '0.0.0.0/32', will disable the blocklist.")
 	flags.StringVar(&config.SelectedPublisher, "publisher", config.SelectedPublisher, "publisher type")
 	flags.IntVar(&config.TelemetryTimeSpan, "telemetry-time-span", config.TelemetryTimeSpan, "time span between telemetry push executions per tenant")
 	flags.BoolVar(&config.AutoMemLimit, "enable-auto-memlimit", config.AutoMemLimit, "automatically set GOMEMLIMIT")
@@ -323,7 +324,7 @@ func run(args []string, stdout io.Writer) error {
 	var k6Runner k6runner.Runner
 
 	if features.IsSet(feature.K6) {
-		if err := validateCIDR(config.K6BlacklistedIP); err != nil {
+		if err := validateCIDRs(config.K6BlacklistedIP); err != nil {
 			return err
 		}
 
@@ -485,9 +486,13 @@ func newConnectionBackoff() *backoff.Backoff {
 	}
 }
 
-func validateCIDR(ip string) error {
-	if ip != "" {
-		if _, _, err := net.ParseCIDR(ip); err != nil {
+func validateCIDRs(s string) error {
+	if s == "" {
+		return nil
+	}
+
+	for _, cidr := range strings.Split(s, ",") {
+		if _, _, err := net.ParseCIDR(cidr); err != nil {
 			return err
 		}
 	}

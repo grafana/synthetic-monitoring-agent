@@ -69,7 +69,7 @@ anything.
 10. **Create the readiness handler** (`NewReadynessHandler()`). The Updater calls `Set(true)` once it has registered with the API; the handler is wired into `/ready`.
 11. **Build the HTTP mux** (`NewMux()`) and start the HTTP server. The server is shut down via a separate `g.Go` that waits on `ctx.Done()` and calls `Shutdown` with a 5-second timeout.
 12. **Dial the API server** (`dialAPIServer()` in `grpc.go`). Uses bearer-token credentials and gRPC keep-alive set to `synthetic_monitoring.HealthCheckInterval` / `HealthCheckTimeout`.
-13. **Build the k6 runner** if the `k6` feature is set (it is, by default, unless `-disable-k6`). Validates `-blocked-nets` as a CIDR.
+13. **Build the k6 runner** if the `k6` feature is set (it is, by default, unless `-disable-k6`). Validates `-blocked-nets` as a comma-separated list of CIDRs.
 14. **Build the tenant manager**, **publisher** (selected by `-publisher`; v2 is the default), **limits**, **secret provider**, **cost attribution labels**, and **telemeter**.
 15. **Spawn the Updater**: `checks.NewUpdater(...)` + `g.Go(updater.Run)`.
 16. **Spawn the Adhoc handler**: `adhoc.NewHandler(...)` + `g.Go(handler.Run)`.
