@@ -176,6 +176,7 @@ func NewRingNode(cfg RingConfig, registerer prometheus.Registerer) (*RingNode, e
 	if registerer == nil {
 		registerer = prometheus.NewRegistry()
 	}
+
 	if err := r.registerMetrics(registerer); err != nil {
 		return nil, err
 	}
@@ -195,6 +196,7 @@ func (r *RingNode) IsOwner(globalID model.GlobalID) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+
 	return owners[0].Self, nil
 }
 
@@ -210,6 +212,7 @@ func (r *RingNode) Ready() bool {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	return r.readyState != stateNotReady
 }
 
@@ -227,13 +230,17 @@ func (r *RingNode) Start(ctx context.Context, onChange func()) error {
 	if err := r.join(); err != nil {
 		return err
 	}
+
 	if err := r.setParticipant(ctx); err != nil {
 		return err
 	}
+
 	if r.rejoinInterval > 0 {
 		return r.rejoinLoop(ctx)
 	}
+
 	<-ctx.Done()
+
 	return nil
 }
 
@@ -308,6 +315,7 @@ func (r *RingNode) resolvePeers() ([]string, error) {
 	if r.discover == nil {
 		return nil, nil
 	}
+
 	return r.discover()
 }
 
@@ -318,7 +326,9 @@ func (r *RingNode) setParticipant(ctx context.Context) error {
 	if err := r.node.ChangeState(ctx, peer.StateParticipant); err != nil {
 		return err
 	}
+
 	r.startReadinessDeadline()
+
 	return nil
 }
 
@@ -347,6 +357,7 @@ func reconcileObserver(onChange func()) ckit.Observer {
 // non-blocking RequestReconcile.
 func (r *RingNode) handleMembershipChange() {
 	r.updateReadyState()
+
 	if r.onChange != nil {
 		r.onChange()
 	}
@@ -366,6 +377,7 @@ func (r *RingNode) updateReadyState() {
 	if r.readyState != stateNotReady {
 		return
 	}
+
 	if len(r.sharder.Peers()) >= r.minClusterSize {
 		r.readyState = stateReady
 	}
@@ -382,6 +394,7 @@ func (r *RingNode) startReadinessDeadline() {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.deadline = time.AfterFunc(r.waitTimeout, func() {
 		r.mu.Lock()
 		if r.readyState == stateNotReady {
@@ -411,6 +424,7 @@ func (r *RingNode) Stop(ctx context.Context) error {
 	r.mu.Lock()
 	d := r.deadline
 	r.mu.Unlock()
+
 	if d != nil {
 		d.Stop()
 	}
@@ -467,6 +481,7 @@ func (r *RingNode) registerMetrics(reg prometheus.Registerer) error {
 		if r.Ready() {
 			return 1
 		}
+
 		return 0
 	})
 	if err := reg.Register(ringReady); err != nil {
@@ -489,5 +504,6 @@ func (r *RingNode) registerMetrics(reg prometheus.Registerer) error {
 		Name:      "join_failures_total",
 		Help:      "Number of failures joining discovered peers on join and rejoin.",
 	})
+
 	return reg.Register(r.metrics.joinFailures)
 }

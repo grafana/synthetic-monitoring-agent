@@ -75,9 +75,11 @@ func NewDiscoverer(joinAddresses []string, discoverPeers string, defaultPort int
 			if err != nil {
 				return nil, err
 			}
+
 			for i, addr := range addrs {
 				addrs[i] = appendPortIfAbsent(addr, port)
 			}
+
 			return dedupe(addrs), nil
 		}, nil
 	}
@@ -97,14 +99,17 @@ func NewDiscoverer(joinAddresses []string, discoverPeers string, defaultPort int
 			addrs []string
 			errs  []error
 		)
+
 		for _, e := range joinAddresses {
 			resolved, err := resolveJoinAddress(e, port)
 			if err != nil {
 				errs = append(errs, err)
 				continue
 			}
+
 			addrs = append(addrs, resolved...)
 		}
+
 		addrs = dedupe(addrs)
 		// Surface errors only when nothing resolved: a single failing entry
 		// (e.g. a transient DNS blip) should not discard peers found by the
@@ -112,6 +117,7 @@ func NewDiscoverer(joinAddresses []string, discoverPeers string, defaultPort int
 		if len(addrs) == 0 && len(errs) > 0 {
 			return nil, errors.Join(errs...)
 		}
+
 		return addrs, nil
 	}, nil
 }
@@ -126,11 +132,13 @@ func NewDiscoverer(joinAddresses []string, discoverPeers string, defaultPort int
 // quote handling here is the lighter-weight path if it is ever needed.
 func parseConfig(s string) map[string]string {
 	args := make(map[string]string)
+
 	for field := range strings.FieldsSeq(s) {
 		if k, v, ok := strings.Cut(field, "="); ok {
 			args[k] = v
 		}
 	}
+
 	return args
 }
 
@@ -155,6 +163,7 @@ func resolveJoinAddress(entry, defaultPort string) ([]string, error) {
 	for _, h := range hosts {
 		addrs = append(addrs, net.JoinHostPort(h, port))
 	}
+
 	return addrs, nil
 }
 
@@ -165,9 +174,11 @@ func resolveHost(host string) ([]string, error) {
 	if name, ok := strings.CutPrefix(host, "dns+"); ok {
 		return lookupHost(name)
 	}
+
 	if name, ok := strings.CutPrefix(host, "dnssrv+"); ok {
 		return resolveSRV(name, true)
 	}
+
 	if name, ok := strings.CutPrefix(host, "dnssrvnoa+"); ok {
 		return resolveSRV(name, false)
 	}
@@ -180,10 +191,12 @@ func resolveHost(host string) ([]string, error) {
 	if err == nil {
 		return ips, nil
 	}
+
 	hosts, srvErr := resolveSRV(host, true)
 	if srvErr != nil {
 		return nil, errors.Join(err, srvErr)
 	}
+
 	return hosts, nil
 }
 
@@ -200,6 +213,7 @@ func resolveSRV(name string, resolveTargets bool) ([]string, error) {
 		hosts []string
 		errs  []error
 	)
+
 	for _, record := range records {
 		target := strings.TrimSuffix(record.Target, ".")
 		if !resolveTargets {
@@ -212,11 +226,14 @@ func resolveSRV(name string, resolveTargets bool) ([]string, error) {
 			errs = append(errs, err)
 			continue
 		}
+
 		hosts = append(hosts, ips...)
 	}
+
 	if len(hosts) == 0 && len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
+
 	return hosts, nil
 }
 
@@ -225,18 +242,22 @@ func appendPortIfAbsent(addr, port string) string {
 	if _, _, err := net.SplitHostPort(addr); err == nil {
 		return addr
 	}
+
 	return net.JoinHostPort(strings.Trim(addr, "[]"), port)
 }
 
 func dedupe(in []string) []string {
 	seen := make(map[string]struct{}, len(in))
+
 	out := make([]string, 0, len(in))
 	for _, s := range in {
 		if _, ok := seen[s]; ok {
 			continue
 		}
+
 		seen[s] = struct{}{}
 		out = append(out, s)
 	}
+
 	return out
 }

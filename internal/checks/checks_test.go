@@ -883,6 +883,7 @@ func TestHandleCheckOpWithCluster(t *testing.T) {
 
 		// Update while no longer owned: the scraper is stopped.
 		node.setOwned(cid, false)
+
 		check.Modified++
 		require.NoError(t, u.handleCheckUpdate(ctx, check))
 		require.False(t, scraperExists(u, cid))
@@ -1081,6 +1082,7 @@ func TestProbeStateConcurrentReconcile(t *testing.T) {
 		defer cancel()
 
 		var ids []model.GlobalID
+
 		for i := range 10 {
 			check := validCheck(t, int64(9600+i))
 			node.setOwned(check.GlobalID(), true)
@@ -1091,10 +1093,12 @@ func TestProbeStateConcurrentReconcile(t *testing.T) {
 		done := make(chan struct{})
 		go func() {
 			defer close(done)
+
 			for i := range 100 {
 				for _, id := range ids {
 					node.setOwned(id, i%2 == 1)
 				}
+
 				u.reconcileAll(ctx)
 			}
 		}()
@@ -1125,24 +1129,28 @@ func newFakeNode() *fakeNode {
 func (f *fakeNode) setOwned(id model.GlobalID, v bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	f.owned[id] = v
 }
 
 func (f *fakeNode) setReady(v bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	f.ready = v
 }
 
 func (f *fakeNode) IsOwner(id model.GlobalID) (bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return f.owned[id], nil
 }
 
 func (f *fakeNode) Ready() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+
 	return f.ready
 }
 
@@ -1189,7 +1197,9 @@ func validCheck(t *testing.T, id int64) model.Check {
 func scraperExists(u *Updater, cid model.GlobalID) bool {
 	u.scrapersMutex.Lock()
 	defer u.scrapersMutex.Unlock()
+
 	_, ok := u.scrapers[cid]
+
 	return ok
 }
 
@@ -1210,6 +1220,7 @@ func TestCheckCountGauges(t *testing.T) {
 			Node:           node,
 		})
 		require.NoError(t, err)
+
 		u.probe = &sm.Probe{Id: 100, Name: "test-probe"}
 
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
@@ -1246,12 +1257,15 @@ func gaugeValue(t *testing.T, g prometheus.Gatherer, name string) float64 {
 
 	mfs, err := g.Gather()
 	require.NoError(t, err)
+
 	for _, mf := range mfs {
 		if mf.GetName() == name {
 			require.NotEmpty(t, mf.GetMetric())
 			return mf.GetMetric()[0].GetGauge().GetValue()
 		}
 	}
+
 	t.Fatalf("metric %q not found", name)
+
 	return 0
 }

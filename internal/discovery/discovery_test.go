@@ -16,18 +16,21 @@ func stubLookups(t *testing.T, hosts map[string][]string, srvs map[string][]*net
 	t.Helper()
 
 	origHost, origSRV := lookupHost, lookupSRV
+
 	t.Cleanup(func() { lookupHost, lookupSRV = origHost, origSRV })
 
 	lookupHost = func(host string) ([]string, error) {
 		if ips, ok := hosts[host]; ok {
 			return ips, nil
 		}
+
 		return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
 	}
 	lookupSRV = func(_, _, name string) (string, []*net.SRV, error) {
 		if records, ok := srvs[name]; ok {
 			return name, records, nil
 		}
+
 		return "", nil, &net.DNSError{Err: "no such host", Name: name, IsNotFound: true}
 	}
 }
@@ -90,9 +93,11 @@ func TestNewDiscoverer_AcceptsK8sProvider(t *testing.T) {
 
 func TestDiscoverPeers_DefaultPort(t *testing.T) {
 	origAddrs := k8sAddrs
+
 	t.Cleanup(func() { k8sAddrs = origAddrs })
 
 	var gotArgs map[string]string
+
 	k8sAddrs = func(args map[string]string, _ *log.Logger) ([]string, error) {
 		gotArgs = args
 		// A pod with the port annotation keeps its port; the others get the default.
@@ -110,6 +115,7 @@ func TestDiscoverPeers_DefaultPort(t *testing.T) {
 
 func TestDiscoverPeers_ProviderError(t *testing.T) {
 	origAddrs := k8sAddrs
+
 	t.Cleanup(func() { k8sAddrs = origAddrs })
 
 	k8sAddrs = func(map[string]string, *log.Logger) ([]string, error) {

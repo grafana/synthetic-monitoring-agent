@@ -48,10 +48,12 @@ func startNode(t *testing.T, parent context.Context, name string, lis net.Listen
 	require.NoError(t, err)
 
 	route, h := node.Handler()
+
 	srv := NewGossipServer(route, h)
 	go func() { _ = srv.Run(lis) }()
 
 	ctx, cancel := context.WithCancel(parent)
+
 	errc := make(chan error, 1)
 	go func() { errc <- node.Start(ctx, func() {}) }()
 
@@ -59,7 +61,9 @@ func startNode(t *testing.T, parent context.Context, name string, lis net.Listen
 
 	t.Cleanup(func() {
 		cancel()
+
 		_ = srv.Shutdown(context.Background())
+
 		select {
 		case err := <-errc:
 			if err != nil && !isContextErr(err) {
@@ -85,8 +89,10 @@ func newLoopbackListeners(t *testing.T, n int) []net.Listener {
 	for i := range lis {
 		l, err := net.Listen("tcp", "127.0.0.1:0")
 		require.NoError(t, err)
+
 		lis[i] = l
 	}
+
 	return lis
 }
 
@@ -98,6 +104,7 @@ func otherAddrs(lis []net.Listener, self int) []string {
 			addrs = append(addrs, l.Addr().String())
 		}
 	}
+
 	return addrs
 }
 
@@ -108,27 +115,34 @@ func awaitOwnership(t *testing.T, nodes []*testNode, ids []model.GlobalID) map[m
 	t.Helper()
 
 	var converged map[model.GlobalID]string
+
 	require.Eventually(t, func() bool {
 		m := make(map[model.GlobalID]string, len(ids))
 		for _, id := range ids {
 			owners := 0
 			owner := ""
+
 			for _, n := range nodes {
 				mine, err := n.node.IsOwner(id)
 				if err != nil {
 					return false
 				}
+
 				if mine {
 					owners++
 					owner = n.name
 				}
 			}
+
 			if owners != 1 {
 				return false
 			}
+
 			m[id] = owner
 		}
+
 		converged = m
+
 		return true
 	}, convergeTimeout, convergeTick, "checks did not converge to exactly one owner each")
 
@@ -140,6 +154,7 @@ func ownerCounts(m map[model.GlobalID]string) map[string]int {
 	for _, owner := range m {
 		counts[owner]++
 	}
+
 	return counts
 }
 
@@ -148,6 +163,7 @@ func syntheticIDs(n int) []model.GlobalID {
 	for i := range ids {
 		ids[i] = model.GlobalID(i + 1)
 	}
+
 	return ids
 }
 
@@ -206,11 +222,13 @@ func TestRingClusterRebalanceOnJoin(t *testing.T) {
 	require.Equal(t, len(ids), counts["node-0"]+counts["node-1"]+counts["node-2"], "every check owned exactly once")
 
 	moved := 0
+
 	for _, id := range ids {
 		if before[id] != after[id] {
 			moved++
 		}
 	}
+
 	require.Greater(t, moved, 0, "joining must rebalance some checks onto the new node")
 }
 
