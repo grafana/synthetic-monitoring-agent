@@ -3,12 +3,14 @@ package checks
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/cluster"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -90,6 +92,26 @@ func TestNewUpdaterSupportsProtocolSecrets(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, u)
 	require.True(t, u.supportsProtocolSecrets, "should be set to true")
+}
+
+func TestNewUpdaterIsClusterEnabled(t *testing.T) {
+	testFeatureCollection := feature.NewCollection()
+	require.NotNil(t, testFeatureCollection)
+
+	opts := UpdaterOptions{
+		Conn:             new(grpc.ClientConn),
+		PromRegisterer:   prometheus.NewPedanticRegistry(),
+		Publisher:        channelPublisher(make(chan pusher.Payload)),
+		TenantCh:         make(chan<- sm.Tenant),
+		Logger:           testhelper.Logger(t),
+		Features:         testFeatureCollection,
+		IsClusterEnabled: true,
+	}
+
+	u, err := NewUpdater(opts)
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	require.True(t, u.isClusterEnabled, "should be set to true")
 }
 
 func TestInstallSignalHandler(t *testing.T) {
@@ -200,6 +222,7 @@ func testHandleCheckOpImpl(t *testing.T) {
 			TenantCh:       make(chan<- sm.Tenant),
 			Logger:         testhelper.Logger(t),
 			ScraperFactory: testScraperFactory,
+			Node:           cluster.NewMono(),
 		},
 	)
 
@@ -325,6 +348,7 @@ func testHandleFirstBatchDoesNotLogCredentialsImpl(t *testing.T) {
 			TenantCh:       make(chan<- sm.Tenant),
 			Logger:         zerolog.New(logs).Level(zerolog.DebugLevel),
 			ScraperFactory: testScraperFactory,
+			Node:           cluster.NewMono(),
 		},
 	)
 
@@ -810,4 +834,438 @@ func TestProbeTenantCh(t *testing.T) {
 			u.notifyProbeTenant()
 		})
 	})
+}
+
+// TestHandleCheckOpWithCluster is the clustering analog of TestHandleCheckOp: it
+// walks a single check through its lifecycle while ownership changes underneath,
+// asserting that a check runs if and only if it is known and owned. Membership
+// changes are driven through reconcileAll, the same entry point the cluster
+// observer uses.
+func TestHandleCheckOpWithCluster(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		node := newFakeNode()
+		u := newTestUpdater(t, node)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		check := validCheck(t, 5000)
+		cid := check.GlobalID()
+
+		// Not owned: the add is buffered but starts no scraper. (The gauge has no
+		// series yet, so it is not asserted here; scraperExists covers it.)
+		node.setOwned(cid, false)
+		require.NoError(t, u.handleCheckAdd(ctx, check))
+		require.False(t, scraperExists(u, cid))
+
+		// A duplicate add must be rejected even though the check has no scraper,
+		// and it must not overwrite the known configuration.
+		duplicate := check
+		duplicate.Modified++
+		require.Error(t, u.handleCheckAdd(ctx, duplicate))
+		u.scrapersMutex.Lock()
+		known := u.knownChecks[cid]
+		u.scrapersMutex.Unlock()
+		require.Equal(t, check.ConfigVersion(), known.ConfigVersion())
+
+		// Ownership gained: reconcileAll starts the buffered check, proving the
+		// add was recorded even though no scraper ran.
+		node.setOwned(cid, true)
+		u.reconcileAll(ctx)
+		require.True(t, scraperExists(u, cid))
+		require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+		// Update while owned: the scraper is restarted and keeps running.
+		check.Modified++
+		require.NoError(t, u.handleCheckUpdate(ctx, check))
+		require.True(t, scraperExists(u, cid))
+		require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+		// Update while no longer owned: the scraper is stopped.
+		node.setOwned(cid, false)
+
+		check.Modified++
+		require.NoError(t, u.handleCheckUpdate(ctx, check))
+		require.False(t, scraperExists(u, cid))
+		require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+		// Delete of a known-but-not-owned check clears it without error.
+		require.NoError(t, u.handleCheckDelete(ctx, check))
+
+		// The check is gone from the desired set: gaining ownership and
+		// reconciling must not resurrect it.
+		node.setOwned(cid, true)
+		u.reconcileAll(ctx)
+		require.False(t, scraperExists(u, cid))
+		require.Equal(t, 0.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+		// Deleting again: now truly unknown.
+		require.Error(t, u.handleCheckDelete(ctx, check))
+
+		synctest.Wait()
+	})
+}
+
+// TestReconcileAllFirstBatch verifies that handleFirstBatch resets the desired
+// set to the batch contents: owned checks in the batch run, checks absent from
+// the batch are stopped as orphans, and not-owned checks in the batch don't run.
+func TestReconcileAllFirstBatch(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		node := newFakeNode()
+		u := newTestUpdater(t, node)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		// An owned check from a previous connection is already running.
+		orphan := validCheck(t, 8000)
+		orphanID := orphan.GlobalID()
+		node.setOwned(orphanID, true)
+		require.NoError(t, u.handleCheckAdd(ctx, orphan))
+		require.True(t, scraperExists(u, orphanID))
+
+		owned := validCheck(t, 8001)
+		ownedID := owned.GlobalID()
+		node.setOwned(ownedID, true)
+
+		notOwned := validCheck(t, 8002)
+		notOwnedID := notOwned.GlobalID()
+		node.setOwned(notOwnedID, false)
+
+		// The first batch after reconnect resends only owned and notOwned; the
+		// orphan is not resent.
+		u.handleFirstBatch(ctx, &sm.Changes{
+			Checks: []sm.CheckChange{
+				{Operation: sm.CheckOperation_CHECK_ADD, Check: owned.Check},
+				{Operation: sm.CheckOperation_CHECK_ADD, Check: notOwned.Check},
+			},
+		})
+
+		require.True(t, scraperExists(u, ownedID))
+		require.False(t, scraperExists(u, notOwnedID))
+		require.False(t, scraperExists(u, orphanID))
+		require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+		synctest.Wait()
+	})
+}
+
+// TestDeltaReconnectDeletesUnownedKnownCheck verifies that unowned checks are
+// included in reconnect state so a delta first batch can delete them.
+func TestDeltaReconnectDeletesUnownedKnownCheck(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		node := newFakeNode()
+		u := newTestUpdater(t, node)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		check := validCheck(t, 8500)
+		check.Modified = 123
+		cid := check.GlobalID()
+		node.setOwned(cid, false)
+
+		require.NoError(t, u.handleCheckAdd(ctx, check))
+		require.False(t, scraperExists(u, cid))
+		require.Equal(t, sm.ProbeState{
+			Checks: []sm.EntityRef{{Id: int64(cid), LastModified: check.Modified}},
+		}, u.probeState())
+
+		u.handleChangeBatch(ctx, &sm.Changes{
+			Checks: []sm.CheckChange{{
+				Operation: sm.CheckOperation_CHECK_DELETE,
+				Check:     sm.Check{Id: int64(cid)},
+			}},
+			IsDeltaFirstBatch: true,
+		}, true)
+
+		u.scrapersMutex.Lock()
+		_, known := u.knownChecks[cid]
+		u.scrapersMutex.Unlock()
+		require.False(t, known)
+
+		node.setOwned(cid, true)
+		u.reconcileAll(ctx)
+		require.False(t, scraperExists(u, cid))
+
+		synctest.Wait()
+	})
+}
+
+// TestRequestReconcileCoalesces verifies that bursts of reconcile requests
+// collapse into a single pending notification and never block the caller.
+func TestRequestReconcileCoalesces(t *testing.T) {
+	u := newTestUpdater(t, newFakeNode())
+
+	for range 10 {
+		u.RequestReconcile()
+	}
+
+	require.Len(t, u.reconcileCh, 1)
+}
+
+// TestReconcileLoopReconciles verifies that a reconcile request drives
+// reconcileAll through the drain loop: a buffered, newly-owned check starts.
+func TestReconcileLoopReconciles(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		node := newFakeNode()
+		u := newTestUpdater(t, node)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		go u.runReconcileLoop(ctx)
+
+		check := validCheck(t, 9000)
+		cid := check.GlobalID()
+
+		// Not owned: the add is buffered but starts no scraper.
+		node.setOwned(cid, false)
+		require.NoError(t, u.handleCheckAdd(ctx, check))
+		require.False(t, scraperExists(u, cid))
+
+		// Ownership gained + a reconcile request: the loop starts the check.
+		node.setOwned(cid, true)
+		u.RequestReconcile()
+		synctest.Wait()
+
+		require.True(t, scraperExists(u, cid))
+		require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+		cancel()
+		synctest.Wait()
+	})
+}
+
+// TestReconcileReadyGate verifies the convergence gate: while the node is not
+// ready, an owned check is recorded in knownChecks but starts no scraper; once
+// the node becomes ready, reconcileAll releases the buffered check.
+func TestReconcileReadyGate(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		node := newFakeNode()
+		node.setReady(false)
+		u := newTestUpdater(t, node)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		check := validCheck(t, 9500)
+		cid := check.GlobalID()
+		node.setOwned(cid, true)
+
+		// Owned but not ready: the add is buffered (recorded in knownChecks) and
+		// starts no scraper.
+		require.NoError(t, u.handleCheckAdd(ctx, check))
+		require.False(t, scraperExists(u, cid))
+		_, known := u.knownChecks[cid]
+		require.True(t, known, "check must be recorded in knownChecks while buffered")
+
+		// Readiness flips: reconcileAll releases the buffered check.
+		node.setReady(true)
+		u.reconcileAll(ctx)
+		require.True(t, scraperExists(u, cid))
+		require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
+
+		synctest.Wait()
+	})
+}
+
+// TestProbeStateConcurrentReconcile verifies that the state touched by loop()
+// on reconnect is safe to access while the reconcile loop is starting and
+// stopping scrapers. It relies on -race.
+func TestProbeStateConcurrentReconcile(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		node := newFakeNode()
+		u := newTestUpdater(t, node)
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		var ids []model.GlobalID
+
+		for i := range 10 {
+			check := validCheck(t, int64(9600+i))
+			node.setOwned(check.GlobalID(), true)
+			require.NoError(t, u.handleCheckAdd(ctx, check))
+			ids = append(ids, check.GlobalID())
+		}
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+
+			for i := range 100 {
+				for _, id := range ids {
+					node.setOwned(id, i%2 == 1)
+				}
+
+				u.reconcileAll(ctx)
+			}
+		}()
+
+		for range 100 {
+			u.setProbe(&sm.Probe{Id: 100, Name: "test-probe"})
+			_ = u.probeState()
+		}
+
+		<-done
+		cancel()
+		synctest.Wait()
+	})
+}
+
+// fakeNode is a cluster.Node with directly controllable ownership, used to drive
+// the Updater's ownership filtering without a real gossip ring.
+type fakeNode struct {
+	mu    sync.Mutex
+	owned map[model.GlobalID]bool
+	ready bool
+}
+
+func newFakeNode() *fakeNode {
+	return &fakeNode{owned: make(map[model.GlobalID]bool), ready: true}
+}
+
+func (f *fakeNode) setOwned(id model.GlobalID, v bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.owned[id] = v
+}
+
+func (f *fakeNode) setReady(v bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.ready = v
+}
+
+func (f *fakeNode) IsOwner(id model.GlobalID) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.owned[id], nil
+}
+
+func (f *fakeNode) Ready() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.ready
+}
+
+var _ cluster.Node = (*fakeNode)(nil)
+
+func newTestUpdater(t *testing.T, node cluster.Node) *Updater {
+	t.Helper()
+
+	u, err := NewUpdater(UpdaterOptions{
+		Conn:           new(grpc.ClientConn),
+		PromRegisterer: prometheus.NewPedanticRegistry(),
+		Publisher:      channelPublisher(make(chan pusher.Payload, 100)),
+		TenantCh:       make(chan<- sm.Tenant),
+		Logger:         testhelper.Logger(t),
+		ScraperFactory: testScraperFactory,
+		Node:           node,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, u)
+
+	u.probe = &sm.Probe{Id: 100, Name: "test-probe"}
+
+	return u
+}
+
+func validCheck(t *testing.T, id int64) model.Check {
+	t.Helper()
+
+	var check model.Check
+	require.NoError(t, check.FromSM(sm.Check{
+		Id:        id,
+		TenantId:  1,
+		Frequency: 1000,
+		Timeout:   1000,
+		Target:    "127.0.0.1",
+		Job:       "test-job",
+		Probes:    []int64{1},
+		Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
+	}))
+
+	return check
+}
+
+func scraperExists(u *Updater, cid model.GlobalID) bool {
+	u.scrapersMutex.Lock()
+	defer u.scrapersMutex.Unlock()
+
+	_, ok := u.scrapers[cid]
+
+	return ok
+}
+
+// TestCheckCountGauges verifies the known/owned check gauges track the desired
+// set and the running scraper set as ownership changes.
+func TestCheckCountGauges(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		reg := prometheus.NewPedanticRegistry()
+		node := newFakeNode()
+
+		u, err := NewUpdater(UpdaterOptions{
+			Conn:           new(grpc.ClientConn),
+			PromRegisterer: reg,
+			Publisher:      channelPublisher(make(chan pusher.Payload, 100)),
+			TenantCh:       make(chan<- sm.Tenant),
+			Logger:         testhelper.Logger(t),
+			ScraperFactory: testScraperFactory,
+			Node:           node,
+		})
+		require.NoError(t, err)
+
+		u.probe = &sm.Probe{Id: 100, Name: "test-probe"}
+
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_updater_known_checks"))
+		require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_updater_owned_checks"))
+
+		owned := validCheck(t, 6000)
+		ownedID := owned.GlobalID()
+		node.setOwned(ownedID, true)
+		require.NoError(t, u.handleCheckAdd(ctx, owned))
+
+		notOwned := validCheck(t, 6001)
+		node.setOwned(notOwned.GlobalID(), false)
+		require.NoError(t, u.handleCheckAdd(ctx, notOwned))
+
+		// Both checks are known; only the owned one runs.
+		require.Equal(t, 2.0, gaugeValue(t, reg, "sm_agent_updater_known_checks"))
+		require.Equal(t, 1.0, gaugeValue(t, reg, "sm_agent_updater_owned_checks"))
+
+		// Disowning the running check stops it on reconcile; it stays known.
+		node.setOwned(ownedID, false)
+		u.reconcileAll(ctx)
+		require.Equal(t, 2.0, gaugeValue(t, reg, "sm_agent_updater_known_checks"))
+		require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_updater_owned_checks"))
+
+		synctest.Wait()
+	})
+}
+
+func gaugeValue(t *testing.T, g prometheus.Gatherer, name string) float64 {
+	t.Helper()
+
+	mfs, err := g.Gather()
+	require.NoError(t, err)
+
+	for _, mf := range mfs {
+		if mf.GetName() == name {
+			require.NotEmpty(t, mf.GetMetric())
+			return mf.GetMetric()[0].GetGauge().GetValue()
+		}
+	}
+
+	t.Fatalf("metric %q not found", name)
+
+	return 0
 }
