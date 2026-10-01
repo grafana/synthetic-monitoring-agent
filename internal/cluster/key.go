@@ -14,7 +14,9 @@ import (
 func keyOf(id model.GlobalID) shard.Key {
 	var b [8]byte
 	binary.BigEndian.PutUint64(b[:], uint64(id))
+
 	kb := shard.NewKeyBuilder()
 	_, _ = kb.Write(b[:]) // KeyBuilder.Write never returns an error.
+
 	return kb.Key()
 }

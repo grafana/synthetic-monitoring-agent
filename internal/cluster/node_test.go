@@ -58,13 +58,16 @@ func TestRingNodeSingleConsistentOwner(t *testing.T) {
 
 	for id := model.GlobalID(1); id <= 500; id++ {
 		owners := 0
+
 		for _, n := range cluster {
 			mine, err := n.IsOwner(id)
 			require.NoError(t, err)
+
 			if mine {
 				owners++
 			}
 		}
+
 		require.Equalf(t, 1, owners, "check %d must have exactly one owner", id)
 	}
 }
@@ -75,6 +78,7 @@ func TestRingNodeDeterministic(t *testing.T) {
 	for id := model.GlobalID(1); id <= 200; id++ {
 		want, err := n.IsOwner(id)
 		require.NoError(t, err)
+
 		for range 5 {
 			got, err := n.IsOwner(id)
 			require.NoError(t, err)
@@ -88,17 +92,22 @@ func TestRingNodeDistribution(t *testing.T) {
 	cluster := ringCluster(names...)
 
 	const total = 3000
+
 	counts := make(map[string]int, len(names))
+
 	for id := model.GlobalID(1); id <= total; id++ {
 		owned := 0
+
 		for self, n := range cluster {
 			mine, err := n.IsOwner(id)
 			require.NoError(t, err)
+
 			if mine {
 				counts[self]++
 				owned++
 			}
 		}
+
 		require.Equalf(t, 1, owned, "check %d must be owned exactly once", id)
 	}
 
@@ -249,8 +258,10 @@ func TestStop(t *testing.T) {
 	require.NoError(t, err)
 
 	route, h := r.Handler()
+
 	srv := NewGossipServer(route, h)
 	defer func() { _ = srv.Shutdown(context.Background()) }()
+
 	go func() { _ = srv.Run(lis) }()
 
 	require.NoError(t, r.join())
@@ -260,7 +271,9 @@ func TestStop(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
+
 	require.NoError(t, r.Stop(ctx))
+
 	elapsed := time.Since(start)
 	require.GreaterOrEqual(t, elapsed, window,
 		"Stop must keep running through the drain window before leaving")
@@ -310,8 +323,10 @@ func TestJoinResolveFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	route, h := r.Handler()
+
 	srv := NewGossipServer(route, h)
 	defer func() { _ = srv.Shutdown(context.Background()) }()
+
 	go func() { _ = srv.Run(lis) }()
 
 	// Discovery fails, but join falls back to a single-node bootstrap.
@@ -326,6 +341,7 @@ func TestStartRejoinDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	var calls atomic.Int32
+
 	r, err := NewRingNode(RingConfig{
 		Name:          "no-rejoin-node",
 		AdvertiseAddr: lis.Addr().String(),
@@ -335,11 +351,14 @@ func TestStartRejoinDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	route, h := r.Handler()
+
 	srv := NewGossipServer(route, h)
 	defer func() { _ = srv.Shutdown(context.Background()) }()
+
 	go func() { _ = srv.Run(lis) }()
 
 	ctx, cancel := context.WithCancel(t.Context())
+
 	errc := make(chan error, 1)
 	go func() { errc <- r.Start(ctx, func() {}) }()
 
@@ -364,6 +383,7 @@ func participants(self string, names ...string) []peer.Peer {
 			State: peer.StateParticipant,
 		})
 	}
+
 	return ps
 }
 
@@ -376,6 +396,7 @@ func ringCluster(names ...string) map[string]*RingNode {
 		s.SetPeers(participants(self, names...))
 		cluster[self] = &RingNode{sharder: s}
 	}
+
 	return cluster
 }
 
@@ -384,13 +405,16 @@ func gaugeValue(t *testing.T, g prometheus.Gatherer, name string) float64 {
 
 	mfs, err := g.Gather()
 	require.NoError(t, err)
+
 	for _, mf := range mfs {
 		if mf.GetName() == name {
 			require.NotEmpty(t, mf.GetMetric())
 			return mf.GetMetric()[0].GetGauge().GetValue()
 		}
 	}
+
 	t.Fatalf("metric %q not found", name)
+
 	return 0
 }
 
@@ -399,12 +423,15 @@ func counterValue(t *testing.T, g prometheus.Gatherer, name string) float64 {
 
 	mfs, err := g.Gather()
 	require.NoError(t, err)
+
 	for _, mf := range mfs {
 		if mf.GetName() == name {
 			require.NotEmpty(t, mf.GetMetric())
 			return mf.GetMetric()[0].GetCounter().GetValue()
 		}
 	}
+
 	t.Fatalf("metric %q not found", name)
+
 	return 0
 }

@@ -25,11 +25,13 @@ func TestGossipTransport(t *testing.T) {
 
 	srv := NewGossipServer(route, handler)
 	defer func() { _ = srv.Shutdown(context.Background()) }()
+
 	go func() { _ = srv.Run(lis) }()
 
 	client := NewGossipClient()
 	resp, err := client.Get("http://" + lis.Addr().String() + route)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)

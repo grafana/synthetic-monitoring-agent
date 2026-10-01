@@ -74,6 +74,7 @@ func clusterNodeName(name string) (string, error) {
 	if name != "" {
 		return name, nil
 	}
+
 	return os.Hostname()
 }
 
@@ -84,14 +85,17 @@ func clusterAdvertiseAddr(explicit string, interfaces []string, port int) (strin
 	if explicit == "" {
 		return cluster.AdvertiseAddress(interfaces, port)
 	}
+
 	_, p, err := net.SplitHostPort(explicit)
 	if err != nil {
 		// No port. Trim brackets from an IPv6 address like "[::1]": JoinHostPort
 		// adds its own, which would otherwise produce "[[::1]]:port".
 		return net.JoinHostPort(strings.Trim(explicit, "[]"), strconv.Itoa(port)), nil
 	}
+
 	if n, err := strconv.ParseUint(p, 10, 16); err != nil || n == 0 {
 		return "", fmt.Errorf("invalid port in advertise address %q", explicit)
 	}
+
 	return explicit, nil
 }

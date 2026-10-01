@@ -396,8 +396,8 @@ func run(args []string, stdout io.Writer) error {
 	// When clustering is disabled, the updater uses the mono node (owns everything),
 	// The updater needs the node, so it is built first; the node is started after the updater exists.
 	var (
-		clusterNode cluster.Node      = cluster.NewMono() // passed to the updater
-		ringNode    *cluster.RingNode                     // set + started only when clustering is enabled
+		clusterNode = cluster.NewMono() // passed to the updater
+		ringNode    *cluster.RingNode   // set + started only when clustering is enabled
 	)
 
 	if config.Cluster.Enabled {
@@ -453,8 +453,10 @@ func run(args []string, stdout io.Writer) error {
 
 		g.Go(func() error {
 			<-ctx.Done()
+
 			timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer timeoutCancel()
+
 			return gossipServer.Shutdown(timeoutCtx)
 		})
 

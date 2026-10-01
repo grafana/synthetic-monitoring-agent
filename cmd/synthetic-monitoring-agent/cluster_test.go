@@ -34,6 +34,7 @@ func TestClusterAdvertiseAddr(t *testing.T) {
 				require.ErrorContains(t, err, tc.expectedErr)
 				return
 			}
+
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, actual)
 		})

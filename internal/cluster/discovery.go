@@ -19,9 +19,11 @@ func AdvertiseAddress(interfaces []string, port int) (string, error) {
 	if len(interfaces) == 0 {
 		interfaces = advertise.DefaultInterfaces
 	}
+
 	addr, err := advertise.FirstAddress(interfaces)
 	if err != nil {
 		return "", fmt.Errorf("cluster: resolving advertise address: %w", err)
 	}
+
 	return net.JoinHostPort(addr.String(), strconv.Itoa(port)), nil
 }

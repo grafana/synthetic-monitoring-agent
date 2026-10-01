@@ -35,11 +35,13 @@ func TestKeyOfDeterministic(t *testing.T) {
 
 func TestKeyOfDistinct(t *testing.T) {
 	seen := make(map[shard.Key]model.GlobalID)
+
 	for _, id := range []model.GlobalID{0, 1, 2, 42, 1000001, 9999999} {
 		k := keyOf(id)
 		if prev, ok := seen[k]; ok {
 			t.Fatalf("key collision: ids %d and %d both hash to %d", prev, id, k)
 		}
+
 		seen[k] = id
 	}
 }

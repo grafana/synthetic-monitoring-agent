@@ -56,6 +56,7 @@ const (
 )
 
 const metricNamespace = "sm_agent"
+const metricSubsystem = "updater"
 
 // Backoffer defines an interface to provide backoff durations.
 //
@@ -623,7 +624,6 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 		// once during the initial connection and another right
 		// after that. The window for that is small, but it
 		// exists.
-
 		return fmt.Errorf("check with id %d already exists (version %s)", cid, existing.ConfigVersion())
 	}
 
@@ -650,6 +650,7 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) erro
 func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check model.Check) error {
 	cid := check.GlobalID()
 	c.knownChecks[cid] = check
+
 	return c.reconcileCheckWithLock(ctx, cid)
 }
 
@@ -721,6 +722,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 			c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
 			c.logger.Error().Err(err).Int64("check_id", check.Id).Int("region_id", check.RegionId).
 				Msg("adding check failed, dropping check")
+
 			continue
 		}
 
@@ -863,11 +865,13 @@ func (c *Updater) reconcileCheckWithLock(ctx context.Context, cid model.GlobalID
 	check, known := c.knownChecks[cid]
 
 	shouldRun := false
+
 	if known {
 		owned, err := c.node.IsOwner(cid)
 		if err != nil {
 			return fmt.Errorf("determining ownership of check %d: %w", cid, err)
 		}
+
 		shouldRun = owned
 	}
 
@@ -884,6 +888,7 @@ func (c *Updater) reconcileCheckWithLock(ctx context.Context, cid model.GlobalID
 		}
 		// configuration changed: tear it down and start it again.
 		c.stopScraperWithLock(cid, running)
+
 		return c.addAndStartScraperWithLock(ctx, check)
 
 	case !shouldRun && isRunning:
@@ -921,6 +926,7 @@ func (c *Updater) runReconcileLoop(ctx context.Context) {
 			if err := limiter.Wait(ctx); err != nil {
 				return
 			}
+
 			c.reconcileAll(ctx)
 		}
 	}
@@ -932,6 +938,7 @@ func (c *Updater) runReconcileLoop(ctx context.Context) {
 func (c *Updater) reconcileAll(ctx context.Context) {
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
+
 	c.reconcileAllWithLock(ctx)
 }
 
@@ -955,6 +962,7 @@ func (c *Updater) reconcileAllWithLock(ctx context.Context) {
 		if _, known := c.knownChecks[checkID]; known {
 			continue
 		}
+
 		reconcile(checkID)
 	}
 }
@@ -971,7 +979,7 @@ func (c *Updater) stopScraperWithLock(cid model.GlobalID, s *scraper.Scraper) {
 func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
 	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: metricNamespace,
-		Subsystem: "updater",
+		Subsystem: metricSubsystem,
 		Name:      "changes_total",
 		Help:      "Total number of changes processed.",
 	}, []string{
@@ -980,7 +988,7 @@ func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
 
 	changeErrorsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
 		Namespace: metricNamespace,
-		Subsystem: "updater",
+		Subsystem: metricSubsystem,
 		Name:      "change_errors_total",
 		Help:      "Total number of errors during change processing.",
 	}, []string{
@@ -989,7 +997,7 @@ func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
 
 	runningScrapers := prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: metricNamespace,
-		Subsystem: "updater",
+		Subsystem: metricSubsystem,
 		Name:      "scrapers_total",
 		Help:      "Total number of running scrapers.",
 	}, []string{
@@ -1040,23 +1048,25 @@ func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
 
 	knownChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Namespace: metricNamespace,
-		Subsystem: "updater",
+		Subsystem: metricSubsystem,
 		Name:      "known_checks",
 		Help:      "Total number of checks known to the agent, owned or not.",
 	}, func() float64 {
 		c.scrapersMutex.Lock()
 		defer c.scrapersMutex.Unlock()
+
 		return float64(len(c.knownChecks))
 	})
 
 	ownedChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 		Namespace: metricNamespace,
-		Subsystem: "updater",
+		Subsystem: metricSubsystem,
 		Name:      "owned_checks",
 		Help:      "Number of checks the agent owns and is currently running.",
 	}, func() float64 {
 		c.scrapersMutex.Lock()
 		defer c.scrapersMutex.Unlock()
+
 		return float64(len(c.scrapers))
 	})
 
