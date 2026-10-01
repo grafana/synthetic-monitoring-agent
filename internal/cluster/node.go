@@ -21,7 +21,7 @@ import (
 // memberlist's default.
 const DefaultListenPort = 7946
 
-// DefaultRejoinInterval is used when RingConfig.RejoinInterval is zero.
+// DefaultRejoinInterval is the recommended RingConfig.RejoinInterval.
 const DefaultRejoinInterval = 60 * time.Second
 
 // DefaultMinimumSizeWaitTimeout is the recommended
@@ -131,8 +131,8 @@ type RingConfig struct {
 	// Discover resolves the peers to join. It is called by Join at startup and
 	// re-invoked on every RejoinInterval.
 	Discover discovery.DiscoverFn
-	// RejoinInterval is how often the node re-resolves peers and re-joins, picking up
-	// scale-ups and restarted peers. Zero uses DefaultRejoinInterval.
+	// RejoinInterval is how often the node re-resolves peers and re-joins, healing
+	// split-brain (e.g. nodes that bootstrapped alone). Zero disables rejoining.
 	RejoinInterval time.Duration
 	// MinimumClusterSize is the number of peers (including this node) the ring
 	// must reach before Ready reports true. Zero or one makes the node ready
@@ -162,17 +162,12 @@ func NewRingNode(cfg RingConfig, registerer prometheus.Registerer) (*RingNode, e
 		return nil, err
 	}
 
-	rejoinInterval := cfg.RejoinInterval
-	if rejoinInterval <= 0 {
-		rejoinInterval = DefaultRejoinInterval
-	}
-
 	r := &RingNode{
 		logger:         cfg.Logger,
 		node:           node,
 		sharder:        sharder,
 		discover:       cfg.Discover,
-		rejoinInterval: rejoinInterval,
+		rejoinInterval: cfg.RejoinInterval,
 		minClusterSize: cfg.MinimumClusterSize,
 		waitTimeout:    cfg.MinimumSizeWaitTimeout,
 		readyState:     stateNotReady,
@@ -220,8 +215,8 @@ func (r *RingNode) Ready() bool {
 
 // Start registers onChange (invoked whenever the set of participant peers
 // changes; may be nil), joins the cluster, becomes a participant (eligible to
-// own checks), and then runs the periodic rejoin loop until ctx is cancelled. It
-// blocks; run it under errgroup.Go. Serve Handler() before calling Start.
+// own checks), and then runs the periodic rejoin loop, if enabled, until ctx is
+// cancelled. It blocks; run it under errgroup.Go. Serve Handler() before calling Start.
 func (r *RingNode) Start(ctx context.Context, onChange func()) error {
 	r.logger.Info().Msg("starting cluster node")
 	r.onChange = onChange
@@ -235,7 +230,11 @@ func (r *RingNode) Start(ctx context.Context, onChange func()) error {
 	if err := r.setParticipant(ctx); err != nil {
 		return err
 	}
-	return r.rejoinLoop(ctx)
+	if r.rejoinInterval > 0 {
+		return r.rejoinLoop(ctx)
+	}
+	<-ctx.Done()
+	return nil
 }
 
 // join resolves peers via the configured DiscoverFn and joins the cluster. If
@@ -273,8 +272,8 @@ func (r *RingNode) join() error {
 	return nil
 }
 
-// rejoinLoop periodically re-resolves peers and re-joins so the ring picks up
-// scale-ups and restarted peers. It blocks until ctx is cancelled.
+// rejoinLoop periodically re-resolves peers and re-joins to heal split-brain,
+// since gossip never merges disjoint clusters. It blocks until ctx is cancelled.
 func (r *RingNode) rejoinLoop(ctx context.Context) error {
 	ticker := time.NewTicker(r.rejoinInterval)
 	defer ticker.Stop()

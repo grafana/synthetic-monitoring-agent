@@ -94,13 +94,13 @@ and grouped onto the `clusterConfig` struct; `buildClusterNode`
 | `-cluster-discover-peers`        | string   | `""`                                | go-discover config to find peers (k8s provider only), e.g. `provider=k8s namespace=sm label_selector=app=sm-agent`. Mutually exclusive with `-cluster-join-addresses`. |
 | `-cluster-wait-for-size`         | int      | `0`                                 | Wait for the cluster to reach this many nodes (incl. self) before running checks; `0` or `1` disables waiting. |
 | `-cluster-wait-timeout`          | duration | `60s` (`DefaultMinimumSizeWaitTimeout`) | Maximum time to wait for `-cluster-wait-for-size` before running checks anyway (fail-open); `0` waits forever. |
-| `-cluster-rejoin-interval`       | duration | `0` → 60s (`DefaultRejoinInterval`) | How often to re-resolve peers and re-join, healing split-brain (e.g. nodes that bootstrapped alone). |
+| `-cluster-rejoin-interval`       | duration | `60s` (`DefaultRejoinInterval`)     | How often to re-resolve peers and re-join, healing split-brain (e.g. nodes that bootstrapped alone); `0` disables rejoining. |
 
-The `0 → N` defaults are applied inside `NewRingNode` from constants in
-`internal/cluster/node.go`; a literal `0` on the command line means "use the
-constant", not "disabled". `-cluster-wait-timeout` is the exception: its 60s
-default is the flag's own default, and a literal `0` disables the deadline so
-the node waits until `-cluster-wait-for-size` is reached.
+The 60s defaults of `-cluster-wait-timeout` and `-cluster-rejoin-interval` are
+the flags' own defaults, taken from constants in `internal/cluster/node.go`. A
+literal `0` disables the feature: `-cluster-wait-timeout=0` makes the node wait
+until `-cluster-wait-for-size` is reached, and `-cluster-rejoin-interval=0`
+only discovers peers at startup, relying on gossip afterwards.
 
 ## Deployment topology
 

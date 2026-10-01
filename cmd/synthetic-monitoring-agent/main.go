@@ -113,6 +113,7 @@ func run(args []string, stdout io.Writer) error {
 			Cluster: clusterConfig{
 				ListenPort:             cluster.DefaultListenPort,
 				MinimumSizeWaitTimeout: cluster.DefaultMinimumSizeWaitTimeout,
+				RejoinInterval:         cluster.DefaultRejoinInterval,
 			},
 		}
 	)
@@ -158,7 +159,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.StringVar(&config.Cluster.DiscoverPeers, "cluster-discover-peers", config.Cluster.DiscoverPeers, "[experimental] go-discover config to find peers (k8s provider only), e.g. 'provider=k8s namespace=sm label_selector=app=sm-agent'; peers without a port use cluster-listen-port; mutually exclusive with cluster-join-addresses")
 	flags.IntVar(&config.Cluster.MinimumSize, "cluster-wait-for-size", config.Cluster.MinimumSize, "[experimental] wait for the cluster to reach this many nodes (incl. self) before running checks; 0 or 1 disables waiting")
 	flags.DurationVar(&config.Cluster.MinimumSizeWaitTimeout, "cluster-wait-timeout", config.Cluster.MinimumSizeWaitTimeout, "[experimental] maximum time to wait for cluster-wait-for-size before running checks anyway (fail-open); 0 waits forever")
-	flags.DurationVar(&config.Cluster.RejoinInterval, "cluster-rejoin-interval", config.Cluster.RejoinInterval, "[experimental] how often to re-resolve peers and re-join, healing split-brain (e.g. nodes that bootstrapped alone)")
+	flags.DurationVar(&config.Cluster.RejoinInterval, "cluster-rejoin-interval", config.Cluster.RejoinInterval, "[experimental] how often to re-resolve peers and re-join, healing split-brain (e.g. nodes that bootstrapped alone); 0 disables rejoining")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
