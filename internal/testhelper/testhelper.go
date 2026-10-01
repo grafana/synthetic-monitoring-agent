@@ -158,10 +158,6 @@ func (n NoopSecretStore) GetSecretValue(ctx context.Context, tenantID model.Glob
 	return "", nil
 }
 
-func (n NoopSecretStore) IsProtocolSecretsEnabled() bool {
-	return false
-}
-
 // TestSecretStore is a test implementation of the SecretProvider interface
 // that returns a mock secret store with test credentials. Use this in tests
 // when you need to test behavior that depends on having actual secret values.
@@ -187,31 +183,24 @@ func (s TestSecretStore) GetSecretValue(ctx context.Context, tenantID model.Glob
 	return "test-secret-value", nil
 }
 
-func (s TestSecretStore) IsProtocolSecretsEnabled() bool {
-	return true
-}
-
 // MockSecretProvider is a flexible mock implementation of the SecretProvider interface
 // that allows you to specify custom secret values and behaviors for testing.
 type MockSecretProvider struct {
-	secrets               map[string]string
-	getSecretValueFunc    func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
-	enableProtocolSecrets bool
+	secrets            map[string]string
+	getSecretValueFunc func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
 }
 
 // NewMockSecretProvider creates a new MockSecretProvider with the given secrets map.
 func NewMockSecretProvider(secrets map[string]string) *MockSecretProvider {
 	return &MockSecretProvider{
-		secrets:               secrets,
-		enableProtocolSecrets: false, // Default to false for testing
+		secrets: secrets,
 	}
 }
 
 // NewMockSecretProviderWithFunc creates a new MockSecretProvider with a custom function.
 func NewMockSecretProviderWithFunc(fn func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)) *MockSecretProvider {
 	return &MockSecretProvider{
-		getSecretValueFunc:    fn,
-		enableProtocolSecrets: false, // Default to false for testing
+		getSecretValueFunc: fn,
 	}
 }
 
@@ -232,18 +221,6 @@ func (m *MockSecretProvider) GetSecretValue(ctx context.Context, tenantID model.
 	}
 
 	return "", errors.New("secret not found")
-}
-
-func (m *MockSecretProvider) IsProtocolSecretsEnabled() bool {
-	return m.enableProtocolSecrets
-}
-
-// UpdateCapabilities updates the probe capabilities for testing
-func (m *MockSecretProvider) UpdateCapabilities(probeCapabilities *sm.Probe_Capabilities) {
-	m.enableProtocolSecrets = false
-	if probeCapabilities != nil {
-		m.enableProtocolSecrets = probeCapabilities.EnableProtocolSecrets
-	}
 }
 
 // CommonTestSetup returns commonly used test values for context, logger, and tenant ID
