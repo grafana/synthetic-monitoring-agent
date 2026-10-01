@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -316,6 +317,39 @@ func TestJoinResolveFailure(t *testing.T) {
 	// Discovery fails, but join falls back to a single-node bootstrap.
 	require.NoError(t, r.join())
 	require.Equal(t, 1.0, counterValue(t, reg, "sm_agent_cluster_peer_resolve_failures_total"))
+}
+
+// TestStartRejoinDisabled verifies that with a zero RejoinInterval, Start
+// discovers peers only on join and still blocks until ctx is cancelled.
+func TestStartRejoinDisabled(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	var calls atomic.Int32
+	r, err := NewRingNode(RingConfig{
+		Name:          "no-rejoin-node",
+		AdvertiseAddr: lis.Addr().String(),
+		Client:        NewGossipClient(),
+		Discover:      func() ([]string, error) { calls.Add(1); return nil, nil },
+	}, nil)
+	require.NoError(t, err)
+
+	route, h := r.Handler()
+	srv := NewGossipServer(route, h)
+	defer func() { _ = srv.Shutdown(context.Background()) }()
+	go func() { _ = srv.Run(lis) }()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	errc := make(chan error, 1)
+	go func() { errc <- r.Start(ctx, func() {}) }()
+
+	require.Eventually(t, func() bool { return calls.Load() == 1 }, time.Second, 10*time.Millisecond)
+	require.Never(t, func() bool { return len(errc) > 0 }, 100*time.Millisecond, 10*time.Millisecond,
+		"Start must block until ctx is cancelled")
+	require.Equal(t, int32(1), calls.Load())
+
+	cancel()
+	require.NoError(t, <-errc)
 }
 
 // participants builds a Participant peer set, marking the peer named self as the
