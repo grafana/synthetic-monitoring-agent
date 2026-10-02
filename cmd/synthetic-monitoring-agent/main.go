@@ -409,6 +409,8 @@ func run(args []string, stdout io.Writer) error {
 		K6Runner:                k6Runner,
 		SecretProvider:          secretProvider,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		Telemeter:               telemetry,
+		CostAttributionLabels:   cals,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create ad-hoc checks handler: %w", err)
