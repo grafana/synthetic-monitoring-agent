@@ -55,7 +55,7 @@ flowchart LR
 `cmd/synthetic-monitoring-agent/main.go`. The options are deliberately
 a subset of the Updater's: gRPC connection, logger, back-off,
 publisher, tenant channel, Prometheus registerer, features, k6 runner,
-secret provider, `SupportsProtocolSecrets`.
+secret provider.
 
 The handler builds its own `prober.ProberFactory` with **`probeId = 0`**,
 intentionally — ad-hoc runs must not inject the `x-sm-id` request

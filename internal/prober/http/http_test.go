@@ -692,7 +692,7 @@ func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
 		"my-bearer-token": "resolved-bearer-token",
 	})
 
-	t.Run("with EnableProtocolSecrets=true", func(t *testing.T) {
+	t.Run("with secretManagerEnabled=true", func(t *testing.T) {
 		// Create secret store with capability enabled
 		secretStore := mockSecretStore
 
@@ -732,10 +732,10 @@ func TestResolveSecretValueWithCapabilityFromSecretStore(t *testing.T) {
 		}
 	})
 
-	t.Run("with EnableProtocolSecrets=false", func(t *testing.T) {
+	t.Run("with secretManagerEnabled=false", func(t *testing.T) {
 		// Mock that should never be called
 		failingMockStore := testhelper.NewMockSecretProviderWithFunc(func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
-			t.Fatal("GetSecretValue should not be called when EnableProtocolSecrets is false")
+			t.Fatal("GetSecretValue should not be called when secretManagerEnabled is false")
 			return "", nil
 		})
 
