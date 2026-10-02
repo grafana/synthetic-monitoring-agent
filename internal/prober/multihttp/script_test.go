@@ -469,6 +469,56 @@ func TestAssertionConditionRender(t *testing.T) {
 			value:     "val'ue",
 			expected:  `subject.endsWith("val\'ue")`,
 		},
+		// The value can reference variables extracted from earlier requests,
+		// which must be resolved at run time rather than compared literally.
+		"TestAssertionConditionRenderContainsVariable": {
+			condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+			subject:   "subject",
+			value:     "${my_var}",
+			expected:  `subject.includes(vars['my_var'])`,
+		},
+		"TestAssertionConditionRenderNotContainsVariable": {
+			condition: sm.MultiHttpEntryAssertionConditionVariant_NOT_CONTAINS,
+			subject:   "subject",
+			value:     "${my_var}",
+			expected:  `!subject.includes(vars['my_var'])`,
+		},
+		"TestAssertionConditionRenderEqualsVariable": {
+			condition: sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+			subject:   "subject",
+			value:     "${my_var}",
+			expected:  `subject === vars['my_var']`,
+		},
+		"TestAssertionConditionRenderStartsWithVariable": {
+			condition: sm.MultiHttpEntryAssertionConditionVariant_STARTS_WITH,
+			subject:   "subject",
+			value:     "${my_var}",
+			expected:  `subject.startsWith(vars['my_var'])`,
+		},
+		"TestAssertionConditionRenderEndsWithVariable": {
+			condition: sm.MultiHttpEntryAssertionConditionVariant_ENDS_WITH,
+			subject:   "subject",
+			value:     "${my_var}",
+			expected:  `subject.endsWith(vars['my_var'])`,
+		},
+		"TestAssertionConditionRenderVariableSurroundedByText": {
+			condition: sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+			subject:   "subject",
+			value:     "pre-${my_var}-post",
+			expected:  `subject === 'pre-'+vars['my_var']+'-post'`,
+		},
+		"TestAssertionConditionRenderMultipleVariables": {
+			condition: sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+			subject:   "subject",
+			value:     "${v1}/${v2}",
+			expected:  `subject === vars['v1']+'/'+vars['v2']`,
+		},
+		"TestAssertionConditionRenderEmptyValue": {
+			condition: sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+			subject:   "subject",
+			value:     "",
+			expected:  `subject === ""`,
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -631,6 +681,104 @@ func TestBuildChecks(t *testing.T) {
 	};
 `,
 		},
+		// Assertions can reference variables extracted from earlier requests.
+		// The check name keeps the literal ${var} so that the resulting metric
+		// tag stays stable across iterations; only the comparison is resolved
+		// at run time.
+		"TestBuildChecksJsonPathValueAssertionWithVariableValue": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+				Condition:  sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+				Expression: "$.theirValue",
+				Value:      "${my_var}",
+			},
+			expected: `currentCheck = check(response, { "$.theirValue equals \"${my_var}\"": response => jsonpath.query(response.json(), "$.theirValue").some(values => values === vars['my_var']) }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "values \u003D\u003D\u003D vars[\'my_var\']");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksJsonPathValueAssertionWithVariableExpression": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+				Condition:  sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Expression: "$.items[${idx}].name",
+				Value:      "value",
+			},
+			expected: `currentCheck = check(response, { "$.items[${idx}].name contains \"value\"": response => jsonpath.query(response.json(), '$.items['+vars['idx']+'].name').some(values => values.includes("value")) }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "values.includes(\"value\")");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksTextAssertionWithVariableInValue": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:      sm.MultiHttpEntryAssertionType_TEXT,
+				Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+				Value:     "token-${session_id}",
+			},
+			expected: `currentCheck = check(response, { "body contains \"token-${session_id}\"": response => response.body.includes('token-'+vars['session_id']) }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "response.body.includes(\'token-\'+vars[\'session_id\'])");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksTextAssertionWithVariableHeaderName": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:       sm.MultiHttpEntryAssertionType_TEXT,
+				Condition:  sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
+				Expression: "${header_name}",
+				Value:      "${header_value}",
+			},
+			expected: `currentCheck = check(response, { "header equals \"${header_value}\"": response => { return assertHeader(response.headers, vars['header_name'], v => value === vars['header_value']); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "value \u003D\u003D\u003D vars[\'header_value\']");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksJsonPathAssertionWithVariableExpression": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_ASSERTION,
+				Expression: "$.${field}",
+			},
+			expected: `currentCheck = check(response, { "$.${field} exists": response => jsonpath.query(response.json(), '$.'+vars['field']).length > 0 }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "JsonPath expression $.${field}");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksRegexAssertionWithVariableExpression": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:       sm.MultiHttpEntryAssertionType_REGEX_ASSERTION,
+				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+				Expression: "^${prefix}-[0-9]+$",
+			},
+			expected: `currentCheck = check(response, { "body matches /^${prefix}-[0-9]+$/": response => { const expr = new RegExp('^'+vars['prefix']+'-[0-9]+$'); return expr.test(response.body); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "Body matches^${prefix}-[0-9]+$");
+		fail()
+	};
+`,
+		},
 	}
 
 	for name, testcase := range testcases {
@@ -774,6 +922,11 @@ func TestSettingsToScript(t *testing.T) {
 						Name:       "date",
 						Expression: "$.slideshow.date",
 					},
+					{
+						Type:       sm.MultiHttpEntryVariableType_REGEX,
+						Name:       "authorKey",
+						Expression: `"(author)"`,
+					},
 				},
 			},
 			{
@@ -785,6 +938,41 @@ func TestSettingsToScript(t *testing.T) {
 					{
 						Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_ASSERTION,
 						Expression: `$.slideshow.title`,
+					},
+				},
+			},
+			// Assertions referencing variables captured by the entries above.
+			// Without variable expansion these compare against the literal
+			// "${author}" / query the literal "$.slideshow.${authorKey}" and
+			// the whole probe fails.
+			{
+				Request: &sm.MultiHttpEntryRequest{
+					Method: sm.HttpMethod_GET,
+					Url:    testServer.URL + "/json",
+				},
+				Assertions: []*sm.MultiHttpEntryAssertion{
+					{
+						Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+						Expression: "$.slideshow.author",
+						Condition:  sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+						Value:      "${author}",
+					},
+					{
+						Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+						Expression: "$.slideshow.${authorKey}",
+						Condition:  sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+						Value:      "${author}",
+					},
+					{
+						Type:      sm.MultiHttpEntryAssertionType_TEXT,
+						Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+						Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+						Value:     "${author}",
+					},
+					{
+						Type:       sm.MultiHttpEntryAssertionType_REGEX_ASSERTION,
+						Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+						Expression: `"${authorKey}": "${author}"`,
 					},
 				},
 			},
