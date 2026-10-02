@@ -396,7 +396,14 @@ func (h *Handler) processAdHocChecks(ctx context.Context, client sm.AdHocChecks_
 				return nil
 
 			default:
+				// An idle stream cut by a proxy (e.g. a 504) fails
+				// here rather than on the calls that opened it.
+				if status.Code(err) == codes.Unavailable {
+					return errIdleTimeout
+				}
+
 				h.logger.Error().Err(err).Msg("receiving ad-hoc check")
+
 				return err
 			}
 		}
