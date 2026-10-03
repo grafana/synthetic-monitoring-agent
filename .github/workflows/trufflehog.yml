@@ -1,0 +1,17 @@
+name: Trufflehog Secret Scan
+
+on:
+  pull_request:
+    paths:
+      - '**/*'
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*'
+
+jobs:
+  trufflehog:
+    uses: grafana/shared-workflows/.github/workflows/reusable-trufflehog.yml@pr/trufflehog-scan
+    with:
+      fail-on-secrets: "true"
