@@ -80,7 +80,6 @@ func run(args []string, stdout io.Writer) error {
 			K6Repository              string
 			K6BlacklistedIP           string
 			BrowserPoolAddresses      StringList
-			BrowserPoolDiscover       string
 			SelectedPublisher         string
 			TelemetryTimeSpan         int
 			AutoMemLimit              bool
@@ -143,8 +142,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
-	flags.Var(&config.BrowserPoolAddresses, "browser-pool-addresses", "[experimental] comma-separated external browser (crocochrome) pool instances as host[:port]; prefixes: dns+ (A/AAAA), dnssrv+ (SRV then A/AAAA), dnssrvnoa+ (SRV only); without a prefix A/AAAA then SRV; instances are addressed as http://host:port, port defaults to 8080; mutually exclusive with browser-pool-discover. If set, browser checks use remote browser sessions instead of a local Chromium")
-	flags.StringVar(&config.BrowserPoolDiscover, "browser-pool-discover", config.BrowserPoolDiscover, "[experimental] go-discover config to find external browser (crocochrome) pool instances (k8s provider only), e.g. 'provider=k8s namespace=sm label_selector=app=crocochrome'; instances without a port use 8080; mutually exclusive with browser-pool-addresses. If set, browser checks use remote browser sessions instead of a local Chromium")
+	flags.Var(&config.BrowserPoolAddresses, "browser-pool-addresses", "[experimental] comma-separated external browser (crocochrome) pool instances as host[:port]; prefixes: dns+ (A/AAAA), dnssrv+ (SRV then A/AAAA), dnssrvnoa+ (SRV only); without a prefix A/AAAA then SRV; instances are addressed as http://host:port, port defaults to 8080. If set, browser checks use remote browser sessions instead of a local Chromium")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -341,10 +339,10 @@ func run(args []string, stdout io.Writer) error {
 			Registerer:    promRegisterer,
 		}
 
-		if len(config.BrowserPoolAddresses) > 0 || config.BrowserPoolDiscover != "" {
+		if len(config.BrowserPoolAddresses) > 0 {
 			zl.Warn().Msg("browser pool is experimental: the -browser-pool-* flags and their behavior may change or be removed in future releases")
 
-			browserPool, err := buildBrowserPool(ctx, config.BrowserPoolAddresses, config.BrowserPoolDiscover,
+			browserPool, err := buildBrowserPool(ctx, config.BrowserPoolAddresses,
 				zl.With().Str("subsystem", "browser_pool").Logger(), promRegisterer)
 			if err != nil {
 				return fmt.Errorf("building browser pool: %w", err)
@@ -356,7 +354,7 @@ func run(args []string, stdout io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("building k6 runner: %w", err)
 		}
-	} else if len(config.BrowserPoolAddresses) > 0 || config.BrowserPoolDiscover != "" {
+	} else if len(config.BrowserPoolAddresses) > 0 {
 		zl.Warn().Msg("browser pool configured but the k6 feature is disabled; ignoring")
 	}
 
@@ -498,14 +496,14 @@ func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 	}
 }
 
-// buildBrowserPool translates the -browser-pool-addresses and
-// -browser-pool-discover flags into a running browser.Pool, whose sync loop
-// stops when ctx is cancelled. It returns the k6runner interface type so a
-// typed-nil can never reach RunnerOpts.BrowserPool.
+// buildBrowserPool translates the -browser-pool-addresses flag into a running
+// browser.Pool, whose sync loop stops when ctx is cancelled. It returns the
+// k6runner interface type so a typed-nil can never reach
+// RunnerOpts.BrowserPool.
 func buildBrowserPool(
-	ctx context.Context, addresses []string, discover string, logger zerolog.Logger, registerer prometheus.Registerer,
+	ctx context.Context, addresses []string, logger zerolog.Logger, registerer prometheus.Registerer,
 ) (k6runner.BrowserPool, error) {
-	discoverFn, err := discovery.NewDiscoverer(addresses, discover, browser.DefaultInstancePort)
+	discoverFn, err := discovery.NewDiscoverer(addresses, browser.DefaultInstancePort)
 	if err != nil {
 		return nil, fmt.Errorf("configuring browser pool discovery: %w", err)
 	}
