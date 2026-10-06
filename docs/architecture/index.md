@@ -68,7 +68,7 @@ flowchart LR
 - **[Publisher](publisher.md)** — `internal/pusher`. Per-tenant push handlers; batches and ships to Prometheus and Loki.
 - **[Adhoc handler](adhoc.md)** — `internal/adhoc`. Separate gRPC stream for on-demand "test this check now" runs.
 - **[Clustering](cluster.md)** — `internal/cluster`. Optional gossip ring (`grafana/ckit`) that splits check ownership across a fleet of agents (RF=1). Off by default. Consumed by the Updater via the `Node` interface.
-- **[Browser pool client](browser-pool.md)** — `internal/browser`. Optional client for an external fleet of crocochrome instances serving remote browser sessions for browser checks. Off by default (`-browser-pool-addresses` / `-browser-pool-discover`). Consumed by the local k6 runner via the `BrowserPool` interface.
+- **[Browser pool client](browser-pool.md)** — `internal/browser`. Optional client for an external fleet of crocochrome instances serving remote browser sessions for browser checks. Off by default (`-browser-pool-addresses`). Consumed by the local k6 runner via the `BrowserPool` interface.
 
 ## Supporting components (follow-up docs)
 

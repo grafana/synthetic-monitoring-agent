@@ -20,10 +20,9 @@ instances and hands k6 a CDP WebSocket URL to connect to, via the
 `K6_BROWSER_WS_URL` environment variable.
 
 The feature is **off by default**: it activates only when
-`-browser-pool-addresses` or `-browser-pool-discover` is set (and the `k6`
-feature is enabled). When off, browser checks run against a local Chromium
-exactly as before. Nothing in this document applies unless one of those flags
-is set.
+`-browser-pool-addresses` is set (and the `k6` feature is enabled). When off,
+browser checks run against a local Chromium exactly as before. Nothing in this
+document applies unless that flag is set.
 
 This is a client-driven design: there is no allocator service. Each agent
 probes the fleet directly, and the correctness anchor is crocochrome's atomic
@@ -120,15 +119,14 @@ construction, then every 15s:
 
 1. **Resolve the fleet** by calling `Config.Discover`, a
    `discovery.DiscoverFn` that `main` builds from the flags via the
-   [`internal/discovery`](../../internal/discovery/) package, from either the
-   configured addresses or the go-discover config (mutually exclusive).
+   [`internal/discovery`](../../internal/discovery/) package, from the
+   configured addresses.
    - `[prefix+]host[:port]` addresses: literal IPs pass through; names are
      resolved by prefix — `dns+` (A/AAAA), `dnssrv+` (SRV, targets then
      resolved as A/AAAA), `dnssrvnoa+` (SRV, targets as-is), and no prefix
      (A/AAAA, falling back to SRV then A/AAAA). A headless Service resolves to
      all its ready pods. Addresses are resolved independently and unioned
      (per-address fail-open: an error is returned only when nothing resolves).
-   - A `provider=k8s` config queries the Kubernetes API for pod IPs.
 
    Discovery applies the default instance port (`browser.DefaultInstancePort`,
    8080, crocochrome's default) to addresses without one; SRV record ports are
@@ -164,8 +162,7 @@ Namespace `sm_agent`, subsystem `browser_pool`:
 
 | Flag | Meaning |
 | --- | --- |
-| `-browser-pool-addresses` | Comma-separated `[prefix+]host[:port]` addresses resolving the fleet via DNS (`dns+`, `dnssrv+`, `dnssrvnoa+`, or no prefix; see [Sync loop](#sync-loop)). Mutually exclusive with `-browser-pool-discover`. Presence enables the feature; instances are addressed as `http://host:port` (port defaults to 8080). Requires the `k6` feature |
-| `-browser-pool-discover` | go-discover config resolving the fleet (k8s provider only), e.g. `provider=k8s namespace=... label_selector=...`. Mutually exclusive with `-browser-pool-addresses`. Presence enables the feature; instances without a port use 8080. Requires the `k6` feature |
+| `-browser-pool-addresses` | Comma-separated `[prefix+]host[:port]` addresses resolving the fleet via DNS (`dns+`, `dnssrv+`, `dnssrvnoa+`, or no prefix; see [Sync loop](#sync-loop)). Presence enables the feature; instances are addressed as `http://host:port` (port defaults to 8080). Requires the `k6` feature |
 
 The sync interval (15s) and the acquire budget (`min(checkTimeout/2, 30s)`,
 enforced by the k6 runner) are not exposed as flags.
@@ -190,7 +187,7 @@ runner side is covered in `internal/k6runner/local_test.go` with a fake k6
 binary that proves `K6_BROWSER_WS_URL` reaches the k6 process environment.
 Fleet resolution (prefix grammar, SRV fallback, default port, partial
 failure, flag validation) is covered in `internal/discovery/discovery_test.go`
-with stubbed DNS and Kubernetes lookups.
+with stubbed DNS lookups.
 
 ## When to update this doc
 
