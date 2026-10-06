@@ -3,13 +3,9 @@ package discovery
 import (
 	"errors"
 	"fmt"
-	"io"
-	"log"
 	"net"
 	"strconv"
 	"strings"
-
-	"github.com/hashicorp/go-discover/provider/k8s"
 )
 
 // DiscoverFn resolves the current set of peer addresses the node should try to
@@ -22,11 +18,9 @@ type DiscoverFn func() ([]string, error)
 var (
 	lookupHost = net.LookupHost
 	lookupSRV  = net.LookupSRV
-	k8sAddrs   = (&k8s.Provider{}).Addrs
 )
 
-// NewDiscoverer builds a DiscoverFn from either static join addresses or a
-// go-discover config. The two are mutually exclusive; with neither set the
+// NewDiscoverer builds a DiscoverFn from join addresses. With none set the
 // DiscoverFn returns no peers and the node bootstraps its own cluster.
 //
 // joinAddresses are [prefix+]host[:port] entries. Each is resolved
@@ -40,49 +34,13 @@ var (
 //     name has none. This is how a headless Service is resolved: the Service
 //     name resolves to the set of ready pod IPs.
 //
-// discoverPeers is a go-discover config ("provider=k8s namespace=...
-// label_selector=..."): pod discovery via the Kubernetes API.
-//
 // Addresses without a port are joined with defaultPort. SRV record ports are
 // ignored: every peer is expected to listen on the same port.
 //
-// TODO: support the other go-discover providers (AWS/GCE/Azure/DigitalOcean/
-// ...). They are intentionally omitted for now so the agent does not pull the
-// full cloud-provider SDK dependency tree (only the k8s provider, and thus only
-// client-go, is imported). Add them explicitly as deployment targets require.
-func NewDiscoverer(joinAddresses []string, discoverPeers string, defaultPort int) (DiscoverFn, error) {
-	if len(joinAddresses) > 0 && discoverPeers != "" {
-		return nil, errors.New("discovery: at most one of join addresses and discover peers may be set")
-	}
-
+// TODO: consider supporting go-discover providers (k8s, AWS, GCE, Azure, ...)
+// as an alternative to join addresses.
+func NewDiscoverer(joinAddresses []string, defaultPort int) (DiscoverFn, error) {
 	port := strconv.Itoa(defaultPort)
-
-	if discoverPeers != "" {
-		args := parseConfig(discoverPeers)
-		// Validate the provider up front so misconfiguration fails fast at
-		// startup rather than on the first discovery tick.
-		if p := args["provider"]; p != "k8s" {
-			return nil, fmt.Errorf("discovery: unsupported discovery provider %q (only k8s is supported)", p)
-		}
-
-		// TODO: the k8s provider's debug output (why pods are skipped: not running,
-		// not ready, missing port) is discarded. Route it to a debug-level logger if
-		// it is ever needed to troubleshoot discovery.
-		logger := log.New(io.Discard, "", 0)
-
-		return func() ([]string, error) {
-			addrs, err := k8sAddrs(args, logger)
-			if err != nil {
-				return nil, err
-			}
-
-			for i, addr := range addrs {
-				addrs[i] = appendPortIfAbsent(addr, port)
-			}
-
-			return dedupe(addrs), nil
-		}, nil
-	}
 
 	// Validate ports up front: memberlist silently drops a peer with a bad port
 	// as long as another peer joins.
@@ -120,26 +78,6 @@ func NewDiscoverer(joinAddresses []string, discoverPeers string, defaultPort int
 
 		return addrs, nil
 	}, nil
-}
-
-// parseConfig parses a go-discover "key=val key=val" string into an args map.
-// Pairs are whitespace-separated and values are split on the first '=' (so
-// values may themselves contain '=', e.g. label_selector=app=sm-agent).
-//
-// TODO: this does not handle quoted values containing spaces (e.g. a selector
-// with a space). go-discover's quoting-aware parser lives in its top-level
-// package, which transitively imports every provider SDK; reproducing only the
-// quote handling here is the lighter-weight path if it is ever needed.
-func parseConfig(s string) map[string]string {
-	args := make(map[string]string)
-
-	for field := range strings.FieldsSeq(s) {
-		if k, v, ok := strings.Cut(field, "="); ok {
-			args[k] = v
-		}
-	}
-
-	return args
 }
 
 // resolveJoinAddress resolves a [prefix+]host[:port] join address to peer
@@ -235,15 +173,6 @@ func resolveSRV(name string, resolveTargets bool) ([]string, error) {
 	}
 
 	return hosts, nil
-}
-
-// appendPortIfAbsent joins addr with port unless addr already has one.
-func appendPortIfAbsent(addr, port string) string {
-	if _, _, err := net.SplitHostPort(addr); err == nil {
-		return addr
-	}
-
-	return net.JoinHostPort(strings.Trim(addr, "[]"), port)
 }
 
 func dedupe(in []string) []string {

@@ -25,7 +25,6 @@ type clusterConfig struct {
 	ListenPort             int
 	Label                  string
 	JoinAddresses          StringList
-	DiscoverPeers          string
 	MinimumSize            int
 	MinimumSizeWaitTimeout time.Duration
 	RejoinInterval         time.Duration
@@ -45,7 +44,7 @@ func buildClusterNode(cfg clusterConfig, logger zerolog.Logger, registerer prome
 		return nil, fmt.Errorf("resolving cluster advertise address: %w", err)
 	}
 
-	discoverFn, err := discovery.NewDiscoverer(cfg.JoinAddresses, cfg.DiscoverPeers, cfg.ListenPort)
+	discoverFn, err := discovery.NewDiscoverer(cfg.JoinAddresses, cfg.ListenPort)
 	if err != nil {
 		return nil, fmt.Errorf("configuring cluster peer discovery: %w", err)
 	}
