@@ -1,8 +1,6 @@
 package discovery
 
 import (
-	"errors"
-	"log"
 	"net"
 	"testing"
 
@@ -35,39 +33,13 @@ func stubLookups(t *testing.T, hosts map[string][]string, srvs map[string][]*net
 	}
 }
 
-func TestParseConfig(t *testing.T) {
-	// Values may contain '=' (e.g. label selectors); only the first '=' splits.
-	got := parseConfig("provider=k8s namespace=sm label_selector=app=sm-agent")
-	require.Equal(t, map[string]string{
-		"provider":       "k8s",
-		"namespace":      "sm",
-		"label_selector": "app=sm-agent",
-	}, got)
-
-	// Commas are part of the value: multi-term selectors must survive intact.
-	got = parseConfig("provider=k8s label_selector=app=sm-agent,tier=probe")
-	require.Equal(t, "app=sm-agent,tier=probe", got["label_selector"])
-}
-
-func TestNewDiscoverer_MutuallyExclusive(t *testing.T) {
-	_, err := NewDiscoverer([]string{"10.0.0.1"}, "provider=k8s namespace=sm", 7946)
-	require.Error(t, err)
-}
-
 func TestNewDiscoverer_NoPeers(t *testing.T) {
-	discover, err := NewDiscoverer(nil, "", 7946)
+	discover, err := NewDiscoverer(nil, 7946)
 	require.NoError(t, err)
 
 	addrs, err := discover()
 	require.NoError(t, err)
 	require.Empty(t, addrs)
-}
-
-func TestNewDiscoverer_RejectsUnsupportedProvider(t *testing.T) {
-	for _, cfg := range []string{"provider=aws tag_key=cluster", "namespace=sm"} {
-		_, err := NewDiscoverer(nil, cfg, 7946)
-		require.Errorf(t, err, "config %q", cfg)
-	}
 }
 
 func TestNewDiscoverer_RejectsInvalidJoinPort(t *testing.T) {
@@ -79,54 +51,9 @@ func TestNewDiscoverer_RejectsInvalidJoinPort(t *testing.T) {
 		"10.0.0.1:65536", // port out of range
 		"[::1]:",         // ipv6 empty port
 	} {
-		_, err := NewDiscoverer([]string{"10.0.0.2:7946", entry}, "", 7946)
+		_, err := NewDiscoverer([]string{"10.0.0.2:7946", entry}, 7946)
 		require.ErrorContainsf(t, err, "invalid port", "entry %q", entry)
 	}
-}
-
-func TestNewDiscoverer_AcceptsK8sProvider(t *testing.T) {
-	// Validation only: resolution would need a real cluster, so the DiscoverFn
-	// is not invoked here.
-	_, err := NewDiscoverer(nil, "provider=k8s namespace=sm", 7946)
-	require.NoError(t, err)
-}
-
-func TestDiscoverPeers_DefaultPort(t *testing.T) {
-	origAddrs := k8sAddrs
-
-	t.Cleanup(func() { k8sAddrs = origAddrs })
-
-	var gotArgs map[string]string
-
-	k8sAddrs = func(args map[string]string, _ *log.Logger) ([]string, error) {
-		gotArgs = args
-		// A pod with the port annotation keeps its port; the others get the default.
-		return []string{"10.0.0.1", "10.0.0.2:9000", "10.0.0.1", "fd00::1"}, nil
-	}
-
-	discover, err := NewDiscoverer(nil, "provider=k8s namespace=sm label_selector=app=sm-agent,tier=probe", 7946)
-	require.NoError(t, err)
-
-	addrs, err := discover()
-	require.NoError(t, err)
-	require.Equal(t, []string{"10.0.0.1:7946", "10.0.0.2:9000", "[fd00::1]:7946"}, addrs)
-	require.Equal(t, "app=sm-agent,tier=probe", gotArgs["label_selector"])
-}
-
-func TestDiscoverPeers_ProviderError(t *testing.T) {
-	origAddrs := k8sAddrs
-
-	t.Cleanup(func() { k8sAddrs = origAddrs })
-
-	k8sAddrs = func(map[string]string, *log.Logger) ([]string, error) {
-		return nil, errors.New("listing pods failed")
-	}
-
-	discover, err := NewDiscoverer(nil, "provider=k8s namespace=sm", 7946)
-	require.NoError(t, err)
-
-	_, err = discover()
-	require.Error(t, err)
 }
 
 func TestJoinAddresses_StaticAddressesAndDedupe(t *testing.T) {
@@ -134,7 +61,7 @@ func TestJoinAddresses_StaticAddressesAndDedupe(t *testing.T) {
 		"10.0.0.1:7946",
 		"10.0.0.2:7946",
 		"10.0.0.1", // duplicate once the default port is added
-	}, "", 7946)
+	}, 7946)
 	require.NoError(t, err)
 
 	addrs, err := discover()
@@ -146,7 +73,7 @@ func TestJoinAddresses_PartialFailure(t *testing.T) {
 	stubLookups(t, map[string][]string{"sm-agent": {"10.0.0.1"}}, nil)
 
 	// One failing entry does not discard the peers found by the others.
-	discover, err := NewDiscoverer([]string{"sm-agent", "no-such-host"}, "", 7946)
+	discover, err := NewDiscoverer([]string{"sm-agent", "no-such-host"}, 7946)
 	require.NoError(t, err)
 
 	addrs, err := discover()
@@ -154,7 +81,7 @@ func TestJoinAddresses_PartialFailure(t *testing.T) {
 	require.Equal(t, []string{"10.0.0.1:7946"}, addrs)
 
 	// When nothing resolves, the errors are surfaced.
-	discover, err = NewDiscoverer([]string{"no-such-host"}, "", 7946)
+	discover, err = NewDiscoverer([]string{"no-such-host"}, 7946)
 	require.NoError(t, err)
 
 	_, err = discover()

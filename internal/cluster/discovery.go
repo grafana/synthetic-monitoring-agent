@@ -1,6 +1,6 @@
 package cluster
 
-// Peer discovery (DiscoverFn, NewDiscoverer, DNS/k8s resolution) lives in
+// Peer discovery (DiscoverFn, NewDiscoverer, DNS resolution) lives in
 // internal/discovery. This file retains only the ckit-specific advertise-
 // address helper.
 

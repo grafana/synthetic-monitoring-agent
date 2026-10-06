@@ -47,7 +47,7 @@ interface; see [updater.md](updater.md).
 | -------------- | ----------------------------------------------------------------------------------------------- |
 | `node.go`      | `Node` interface; `monoNode` (owns everything); `RingNode` (ckit-backed); `shard.Ring(512)` ownership via `IsOwner`; `keyOf(GlobalID)` stable key encoding; readiness state machine (`Ready`); lifecycle (`Start` / `Stop`). |
 | `transport.go` | `NewGossipClient` (`http.Transport` with unencrypted HTTP/2 only) and `NewGossipServer` (plaintext HTTP/2 / h2c) for gossip traffic.                                |
-| `discovery.go` | `AdvertiseAddress` resolution from interfaces. Peer resolution (`NewDiscoverer`, DNS/k8s discovery) now lives in `internal/discovery`, shared with other fleet-aware subsystems. |
+| `discovery.go` | `AdvertiseAddress` resolution from interfaces. Peer resolution (`NewDiscoverer`, DNS discovery) now lives in `internal/discovery`, shared with other fleet-aware subsystems. |
 
 ## How it fits in
 
@@ -90,8 +90,7 @@ and grouped onto the `clusterConfig` struct; `buildClusterNode`
 | `-cluster-advertise-interfaces`  | list     | `eth0,en0`                          | Interfaces to pick the advertise address from when `-cluster-advertise-address` is unset.        |
 | `-cluster-listen-port`           | int      | `7946`                              | Port for gossip traffic (plaintext HTTP/2). Also the default port for peers and the advertise address. |
 | `-cluster-name`                  | string   | `""`                                | Nodes only join peers sharing the same name (memberlist label).                                  |
-| `-cluster-join-addresses`        | list     | `[]`                                | Comma-separated `host[:port]` peers, resolved via DNS (see [Peer discovery](#deployment-topology)). Mutually exclusive with `-cluster-discover-peers`. |
-| `-cluster-discover-peers`        | string   | `""`                                | go-discover config to find peers (k8s provider only), e.g. `provider=k8s namespace=sm label_selector=app=sm-agent`. Mutually exclusive with `-cluster-join-addresses`. |
+| `-cluster-join-addresses`        | list     | `[]`                                | Comma-separated `host[:port]` peers, resolved via DNS (see [Peer discovery](#deployment-topology)). |
 | `-cluster-wait-for-size`         | int      | `0`                                 | Wait for the cluster to reach this many nodes (incl. self) before running checks; `0` or `1` disables waiting. |
 | `-cluster-wait-timeout`          | duration | `60s` (`DefaultMinimumSizeWaitTimeout`) | Maximum time to wait for `-cluster-wait-for-size` before running checks anyway (fail-open); `0` waits forever. |
 | `-cluster-rejoin-interval`       | duration | `60s` (`DefaultRejoinInterval`)     | How often to re-resolve peers and re-join, healing split-brain (e.g. nodes that bootstrapped alone); `0` disables rejoining. |
@@ -117,18 +116,13 @@ is an interchangeable ring member:
   `-cluster-advertise-address`; without a port, `-cluster-listen-port` is used.
   If unset, it is derived from the first usable address on
   `-cluster-advertise-interfaces` plus the listen port.
-- **Peer discovery.** `internal/discovery` resolves peers from one of two
-  mutually exclusive sources; with neither set, the node bootstraps its own
-  ring (a seed node):
-  - `-cluster-join-addresses`: comma-separated `host[:port]` entries. A literal
-    IP is used as is; a name is resolved by its prefix: `dns+` (A/AAAA),
-    `dnssrv+` (SRV, then A/AAAA for each target) or `dnssrvnoa+` (SRV targets
-    as-is). Without a prefix, A/AAAA is tried first and SRV second, so a headless
-    `Service` name resolves to its ready pod IPs.
-  - `-cluster-discover-peers`: a single go-discover config. Only the k8s provider
-    is wired in: `provider=k8s namespace=<ns> label_selector=<selector>`. The
-    value is not split on commas, so multi-term selectors work; quoted values
-    are not supported.
+- **Peer discovery.** `internal/discovery` resolves peers from
+  `-cluster-join-addresses`; with none set, the node bootstraps its own ring (a
+  seed node). Entries are comma-separated `host[:port]`. A literal IP is used as
+  is; a name is resolved by its prefix: `dns+` (A/AAAA), `dnssrv+` (SRV, then
+  A/AAAA for each target) or `dnssrvnoa+` (SRV targets as-is). Without a prefix,
+  A/AAAA is tried first and SRV second, so a headless `Service` name resolves to
+  its ready pod IPs.
 
   Peers without a port are joined on `-cluster-listen-port`, and SRV record
   ports are ignored, so every agent must listen on the same port. The
