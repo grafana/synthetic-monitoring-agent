@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.66.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.66.0...v0.66.1) (2026-10-01)
+
+
+### Fixes
+
+* Support multiple CIDRs in -blocked-nets ([#2017](https://github.com/grafana/synthetic-monitoring-agent/issues/2017)) ([39d8bdf](https://github.com/grafana/synthetic-monitoring-agent/commit/39d8bdfdf23f0fbcf24bc50c3d6002c9ca971f94))
+
+
+### Miscellaneous Chores
+
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v152.0.7977.82-r1-3.24.2 ([#2011](https://github.com/grafana/synthetic-monitoring-agent/issues/2011)) ([05f09f9](https://github.com/grafana/synthetic-monitoring-agent/commit/05f09f9702d8f41736b1075e5ba8f66c28b80077))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.48.0 ([#2018](https://github.com/grafana/synthetic-monitoring-agent/issues/2018)) ([b5226f4](https://github.com/grafana/synthetic-monitoring-agent/commit/b5226f4301c43faf032b96b3e8960ef5015247f8))
+* Update module github.com/prometheus/prometheus to v0.315.0 ([#2015](https://github.com/grafana/synthetic-monitoring-agent/issues/2015)) ([20d9b22](https://github.com/grafana/synthetic-monitoring-agent/commit/20d9b22b6dbdaee76aea228ccdf68d8afb0995fb))
+
 ## [0.66.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.65.0...v0.66.0) (2026-09-23)
 
 
