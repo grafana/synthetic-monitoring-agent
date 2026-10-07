@@ -6,6 +6,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/rs/zerolog"
 )
 
 // DiscoverFn resolves the current set of peer addresses the node should try to
@@ -37,9 +39,13 @@ var (
 // Addresses without a port are joined with defaultPort. SRV record ports are
 // ignored: every peer is expected to listen on the same port.
 //
+// An entry that resolves to no addresses, whether from a lookup error or an
+// empty result, is logged as a warning and skipped; the DiscoverFn returns an
+// error only when nothing resolves.
+//
 // TODO: consider supporting go-discover providers (k8s, AWS, GCE, Azure, ...)
 // as an alternative to join addresses.
-func NewDiscoverer(joinAddresses []string, defaultPort int) (DiscoverFn, error) {
+func NewDiscoverer(joinAddresses []string, defaultPort int, logger zerolog.Logger) (DiscoverFn, error) {
 	port := strconv.Itoa(defaultPort)
 
 	// Validate ports up front: memberlist silently drops a peer with a bad port
@@ -60,6 +66,12 @@ func NewDiscoverer(joinAddresses []string, defaultPort int) (DiscoverFn, error) 
 
 		for _, e := range joinAddresses {
 			resolved, err := resolveJoinAddress(e, port)
+			if len(resolved) == 0 {
+				// A failing entry should not discard the addresses found by the
+				// others. Log a warning instead.
+				logger.Warn().Err(err).Str("address", e).Msg("address did not resolve")
+			}
+
 			if err != nil {
 				errs = append(errs, err)
 				continue
@@ -70,8 +82,9 @@ func NewDiscoverer(joinAddresses []string, defaultPort int) (DiscoverFn, error) 
 
 		addrs = dedupe(addrs)
 		// Surface errors only when nothing resolved: a single failing entry
-		// (e.g. a transient DNS blip) should not discard peers found by the
-		// others, and periodic re-invocation recovers on the next tick.
+		// (e.g. a transient DNS blip) is logged above rather than discarding the
+		// addresses found by the others, and periodic re-invocation recovers on
+		// the next tick.
 		if len(addrs) == 0 && len(errs) > 0 {
 			return nil, errors.Join(errs...)
 		}
