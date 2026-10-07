@@ -36,6 +36,10 @@ const DefaultMinimumSizeWaitTimeout = 60 * time.Second
 // force-killed.
 const drainTimeout = 5 * time.Second
 
+// maxPeersToLog caps how many peers a log line lists; the peer count is always
+// logged in full.
+const maxPeersToLog = 10
+
 // readyState is the convergence state machine consulted by Ready. It latches:
 // once stateReady or stateDeadlinePassed is reached it never returns to
 // stateNotReady, so a transient dip below the minimum cluster size does not
@@ -99,6 +103,7 @@ type RingNode struct {
 	onChange       func()
 	discover       discovery.DiscoverFn
 	rejoinInterval time.Duration
+	advertiseAddr  string
 
 	minClusterSize int
 	waitTimeout    time.Duration
@@ -168,6 +173,7 @@ func NewRingNode(cfg RingConfig, registerer prometheus.Registerer) (*RingNode, e
 		sharder:        sharder,
 		discover:       cfg.Discover,
 		rejoinInterval: cfg.RejoinInterval,
+		advertiseAddr:  cfg.AdvertiseAddr,
 		minClusterSize: cfg.MinimumClusterSize,
 		waitTimeout:    cfg.MinimumSizeWaitTimeout,
 		readyState:     stateNotReady,
@@ -221,7 +227,12 @@ func (r *RingNode) Ready() bool {
 // own checks), and then runs the periodic rejoin loop, if enabled, until ctx is
 // cancelled. It blocks; run it under errgroup.Go. Serve Handler() before calling Start.
 func (r *RingNode) Start(ctx context.Context, onChange func()) error {
-	r.logger.Info().Msg("starting cluster node")
+	r.logger.Info().
+		Str("advertiseAddr", r.advertiseAddr).
+		Int("minClusterSize", r.minClusterSize).
+		Dur("minSizeWaitTimeout", r.waitTimeout).
+		Msg("starting cluster node")
+
 	r.onChange = onChange
 	// Subscribe to participant-set changes:
 	// ckit invokes handleMembershipChange on every join/leave.
@@ -274,7 +285,7 @@ func (r *RingNode) join() error {
 		return r.node.Start(nil)
 	}
 
-	r.logger.Info().Int("peers", len(peers)).Msg("joined cluster")
+	r.logPeers(zerolog.InfoLevel, "joined cluster", peers)
 
 	return nil
 }
@@ -302,6 +313,8 @@ func (r *RingNode) rejoinLoop(ctx context.Context) error {
 				continue
 			}
 
+			r.logPeers(zerolog.DebugLevel, "rejoining cluster peers", peers)
+
 			// Start is additive; transient errors are retried on the next tick.
 			if err := r.node.Start(peers); err != nil {
 				r.metrics.joinFailures.Inc()
@@ -317,6 +330,16 @@ func (r *RingNode) resolvePeers() ([]string, error) {
 	}
 
 	return r.discover()
+}
+
+// logPeers logs msg at level with the peer count and the minimum cluster size,
+// listing at most maxPeersToLog peers.
+func (r *RingNode) logPeers(level zerolog.Level, msg string, peers []string) {
+	r.logger.WithLevel(level).
+		Int("peerCount", len(peers)).
+		Int("minClusterSize", r.minClusterSize).
+		Strs("peers", peers[:min(len(peers), maxPeersToLog)]).
+		Msg(msg)
 }
 
 // setParticipant transitions the node to the Participant state, making it
@@ -352,11 +375,20 @@ func reconcileObserver(onChange func()) ckit.Observer {
 
 // handleMembershipChange runs on every participant-set change. It refreshes the
 // readiness state first so a reconcile triggered by onChange observes the new
-// Ready() value, then notifies the rest of the agent. onChange is invoked
-// without r.mu held: it runs on ckit's notifier goroutine and feeds the
-// non-blocking RequestReconcile.
+// Ready() value, logs the new peer set, then notifies the rest of the agent.
+// onChange is invoked without r.mu held: it runs on ckit's notifier goroutine
+// and feeds the non-blocking RequestReconcile.
 func (r *RingNode) handleMembershipChange() {
 	r.updateReadyState()
+
+	peers := r.sharder.Peers()
+
+	members := make([]string, 0, len(peers))
+	for _, p := range peers {
+		members = append(members, p.Name+"@"+p.Addr)
+	}
+
+	r.logPeers(zerolog.InfoLevel, "cluster peers changed", members)
 
 	if r.onChange != nil {
 		r.onChange()
