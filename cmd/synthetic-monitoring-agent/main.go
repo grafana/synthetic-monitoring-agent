@@ -503,7 +503,7 @@ func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 func buildBrowserPool(
 	ctx context.Context, addresses []string, logger zerolog.Logger, registerer prometheus.Registerer,
 ) (k6runner.BrowserPool, error) {
-	discoverFn, err := discovery.NewDiscoverer(addresses, browser.DefaultInstancePort)
+	discoverFn, err := discovery.NewDiscoverer(addresses, browser.DefaultInstancePort, logger)
 	if err != nil {
 		return nil, fmt.Errorf("configuring browser pool discovery: %w", err)
 	}
