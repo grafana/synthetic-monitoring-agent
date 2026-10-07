@@ -1,9 +1,11 @@
 package discovery
 
 import (
+	"bytes"
 	"net"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +36,7 @@ func stubLookups(t *testing.T, hosts map[string][]string, srvs map[string][]*net
 }
 
 func TestNewDiscoverer_NoPeers(t *testing.T) {
-	discover, err := NewDiscoverer(nil, 7946)
+	discover, err := NewDiscoverer(nil, 7946, zerolog.Nop())
 	require.NoError(t, err)
 
 	addrs, err := discover()
@@ -51,7 +53,7 @@ func TestNewDiscoverer_RejectsInvalidJoinPort(t *testing.T) {
 		"10.0.0.1:65536", // port out of range
 		"[::1]:",         // ipv6 empty port
 	} {
-		_, err := NewDiscoverer([]string{"10.0.0.2:7946", entry}, 7946)
+		_, err := NewDiscoverer([]string{"10.0.0.2:7946", entry}, 7946, zerolog.Nop())
 		require.ErrorContainsf(t, err, "invalid port", "entry %q", entry)
 	}
 }
@@ -61,7 +63,7 @@ func TestJoinAddresses_StaticAddressesAndDedupe(t *testing.T) {
 		"10.0.0.1:7946",
 		"10.0.0.2:7946",
 		"10.0.0.1", // duplicate once the default port is added
-	}, 7946)
+	}, 7946, zerolog.Nop())
 	require.NoError(t, err)
 
 	addrs, err := discover()
@@ -70,18 +72,49 @@ func TestJoinAddresses_StaticAddressesAndDedupe(t *testing.T) {
 }
 
 func TestJoinAddresses_PartialFailure(t *testing.T) {
-	stubLookups(t, map[string][]string{"sm-agent": {"10.0.0.1"}}, nil)
+	stubLookups(t,
+		map[string][]string{"sm-agent": {"10.0.0.1"}},
+		map[string][]*net.SRV{"empty-srv": {}},
+	)
 
-	// One failing entry does not discard the peers found by the others.
-	discover, err := NewDiscoverer([]string{"sm-agent", "no-such-host"}, 7946)
+	var logs bytes.Buffer
+
+	// One failing entry does not discard the peers found by the others, and
+	// is logged.
+	discover, err := NewDiscoverer([]string{"sm-agent", "no-such-host"}, 7946, zerolog.New(&logs))
 	require.NoError(t, err)
 
 	addrs, err := discover()
 	require.NoError(t, err)
 	require.Equal(t, []string{"10.0.0.1:7946"}, addrs)
+	require.Contains(t, logs.String(), "address did not resolve")
+	require.Contains(t, logs.String(), "no-such-host")
+
+	// An entry resolving to no addresses without an error, such as an SRV
+	// name with no records, is logged too.
+	logs.Reset()
+
+	discover, err = NewDiscoverer([]string{"sm-agent", "dnssrv+empty-srv"}, 7946, zerolog.New(&logs))
+	require.NoError(t, err)
+
+	addrs, err = discover()
+	require.NoError(t, err)
+	require.Equal(t, []string{"10.0.0.1:7946"}, addrs)
+	require.Contains(t, logs.String(), "address did not resolve")
+	require.Contains(t, logs.String(), "dnssrv+empty-srv")
+
+	// Nothing is logged when every entry resolves.
+	logs.Reset()
+
+	discover, err = NewDiscoverer([]string{"sm-agent"}, 7946, zerolog.New(&logs))
+	require.NoError(t, err)
+
+	_, err = discover()
+	require.NoError(t, err)
+	require.Empty(t, logs.String())
 
 	// When nothing resolves, the errors are surfaced.
-	discover, err = NewDiscoverer([]string{"no-such-host"}, 7946)
+	discover, err = NewDiscoverer([]string{"no-such-host"}, 7946, zerolog.Nop())
 	require.NoError(t, err)
 
 	_, err = discover()

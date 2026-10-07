@@ -44,7 +44,7 @@ func buildClusterNode(cfg clusterConfig, logger zerolog.Logger, registerer prome
 		return nil, fmt.Errorf("resolving cluster advertise address: %w", err)
 	}
 
-	discoverFn, err := discovery.NewDiscoverer(cfg.JoinAddresses, cfg.ListenPort)
+	discoverFn, err := discovery.NewDiscoverer(cfg.JoinAddresses, cfg.ListenPort, logger)
 	if err != nil {
 		return nil, fmt.Errorf("configuring cluster peer discovery: %w", err)
 	}
