@@ -9,6 +9,8 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/stretchr/testify/require"
@@ -283,6 +285,8 @@ func TestLocalBrowserPool(t *testing.T) {
 		// The fake k6 dumps K6_BROWSER_WS_URL into the logs: the session URL
 		// reached the k6 process environment.
 		require.Contains(t, string(rr.Logs), pool.wsURL)
+		// t.Context() has no deadline, so the acquire gets the full cap.
+		require.InDelta(t, browserAcquireTimeoutCap, pool.acquireBudget(), float64(time.Second))
 	})
 
 	t.Run("non-browser check does not use the pool", func(t *testing.T) {
@@ -348,6 +352,42 @@ func TestLocalBrowserPool(t *testing.T) {
 	})
 }
 
+func TestBrowserAcquireTimeout(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]struct {
+		deadline     time.Duration // 0 means no deadline.
+		checkTimeout time.Duration
+		expected     time.Duration
+	}{
+		"no deadline":  {checkTimeout: 60 * time.Second, expected: browserAcquireTimeoutCap},
+		"plenty spare": {deadline: 5 * time.Minute, checkTimeout: 60 * time.Second, expected: browserAcquireTimeoutCap},
+		"some spare":   {deadline: 35 * time.Second, checkTimeout: 20 * time.Second, expected: 15 * time.Second},
+		"no spare":     {deadline: 20 * time.Second, checkTimeout: 20 * time.Second, expected: 10 * time.Second},
+		"long timeout": {deadline: 3 * time.Minute, checkTimeout: 3 * time.Minute, expected: browserAcquireTimeoutCap},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			// synctest's fake clock keeps time.Until exact.
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+
+				if tc.deadline > 0 {
+					var cancel context.CancelFunc
+
+					ctx, cancel = context.WithTimeout(ctx, tc.deadline)
+					defer cancel()
+				}
+
+				require.Equal(t, tc.expected, browserAcquireTimeout(ctx, tc.checkTimeout))
+			})
+		})
+	}
+}
+
 // fakeBrowserPool implements BrowserPool for tests.
 type fakeBrowserPool struct {
 	wsURL string
@@ -356,11 +396,16 @@ type fakeBrowserPool struct {
 	mtx      sync.Mutex
 	acquired []CheckInfo
 	releases int
+	budget   time.Duration
 }
 
-func (f *fakeBrowserPool) Acquire(_ context.Context, checkInfo CheckInfo) (string, func(context.Context), error) {
+func (f *fakeBrowserPool) Acquire(ctx context.Context, checkInfo CheckInfo) (string, func(context.Context), error) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
+
+	if deadline, ok := ctx.Deadline(); ok {
+		f.budget = time.Until(deadline)
+	}
 
 	if f.err != nil {
 		return "", nil, f.err
@@ -378,4 +423,13 @@ func (f *fakeBrowserPool) state() (acquired []CheckInfo, releases int) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 	return slices.Clone(f.acquired), f.releases
+}
+
+// acquireBudget returns the time left on the acquire context when Acquire was
+// last called.
+func (f *fakeBrowserPool) acquireBudget() time.Duration {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	return f.budget
 }

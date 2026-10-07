@@ -34,9 +34,7 @@ const (
 	k6BrowserWSURLEnvVar = "K6_BROWSER_WS_URL"
 
 	// browserAcquireTimeoutCap is the maximum time to wait for a browser session
-	// from the pool. The effective budget is the smaller of this cap and half the
-	// check timeout, so waiting for a browser can never consume the entire check
-	// budget.
+	// from the pool. See browserAcquireTimeout for the effective budget.
 	browserAcquireTimeoutCap = 30 * time.Second
 )
 
@@ -117,6 +115,25 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 		return nil, fmt.Errorf("cannot write temporary script file: %w", err)
 	}
 
+	// For browser checks running against a browser pool, acquire a remote
+	// browser session and hand its CDP WebSocket URL to k6 through the
+	// process environment. The acquire runs before the check timeout starts, so
+	// the wait does not shorten the k6 run when ctx leaves room for it. If no
+	// session can be acquired in time, the check fails.
+	var browserWSURL string
+	if r.usesBrowserPool(script) {
+		acquireCtx, acquireCancel := context.WithTimeout(ctx, browserAcquireTimeout(ctx, checkTimeout))
+		wsURL, release, err := r.browserPool.Acquire(acquireCtx, script.CheckInfo)
+		acquireCancel()
+		if err != nil {
+			return nil, fmt.Errorf("acquiring browser session: %w", err)
+		}
+		// Fresh context: the check context may already be done when k6 exits.
+		defer release(context.Background())
+
+		browserWSURL = wsURL
+	}
+
 	var cancel context.CancelFunc
 
 	ctx, cancel = context.WithTimeout(ctx, checkTimeout)
@@ -150,24 +167,6 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 	args, err := r.buildK6Args(script, k6Version.Version, metricsFn, logsFn, scriptFn, configFile, executionID)
 	if err != nil {
 		return nil, fmt.Errorf("building k6 arguments: %w", err)
-	}
-
-	// For browser checks running against a browser pool, acquire a remote
-	// browser session and hand its CDP WebSocket URL to k6 through the
-	// process environment. If no session can be acquired in time, the check
-	// fails.
-	var browserWSURL string
-	if r.usesBrowserPool(script) {
-		acquireCtx, acquireCancel := context.WithTimeout(ctx, min(checkTimeout/2, browserAcquireTimeoutCap))
-		wsURL, release, err := r.browserPool.Acquire(acquireCtx, script.CheckInfo)
-		acquireCancel()
-		if err != nil {
-			return nil, fmt.Errorf("acquiring browser session: %w", err)
-		}
-		// Fresh context: the check context may already be done when k6 exits.
-		defer release(context.Background())
-
-		browserWSURL = wsURL
 	}
 
 	cmd := exec.CommandContext(
@@ -341,6 +340,20 @@ func (r Local) Versions(ctx context.Context) <-chan []string {
 // from the pool: a pool is configured and the check is a browser check.
 func (r Local) usesBrowserPool(script Script) bool {
 	return r.browserPool != nil && script.CheckInfo.Type == synthetic_monitoring.CheckTypeBrowser.String()
+}
+
+// browserAcquireTimeout returns how long to wait for a browser session: the time
+// ctx leaves beyond the check timeout, so k6 keeps its full timeout, but at
+// least half the check timeout and at most browserAcquireTimeoutCap.
+func browserAcquireTimeout(ctx context.Context, checkTimeout time.Duration) time.Duration {
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return browserAcquireTimeoutCap
+	}
+
+	spare := time.Until(deadline) - checkTimeout
+
+	return min(browserAcquireTimeoutCap, max(spare, checkTimeout/2))
 }
 
 func (r Local) buildK6Args(script Script, k6Version *semver.Version, metricsFn, logsFn, scriptFn, configFile, executionID string) ([]string, error) {
