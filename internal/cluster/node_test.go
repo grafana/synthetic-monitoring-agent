@@ -1,8 +1,11 @@
 package cluster
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"sync/atomic"
@@ -13,6 +16,7 @@ import (
 	"github.com/grafana/ckit/peer"
 	"github.com/grafana/ckit/shard"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
@@ -369,6 +373,33 @@ func TestStartRejoinDisabled(t *testing.T) {
 
 	cancel()
 	require.NoError(t, <-errc)
+}
+
+// TestLogPeersTruncates verifies that logPeers reports the full peer count but
+// lists at most maxPeersToLog peers.
+func TestLogPeersTruncates(t *testing.T) {
+	var logs bytes.Buffer
+
+	r := &RingNode{logger: zerolog.New(&logs), minClusterSize: 3}
+
+	peers := make([]string, 0, maxPeersToLog+2)
+	for i := range maxPeersToLog + 2 {
+		peers = append(peers, fmt.Sprintf("10.0.0.%d:7946", i))
+	}
+
+	r.logPeers(zerolog.InfoLevel, "joining cluster peers", peers)
+
+	var entry struct {
+		Message        string   `json:"message"`
+		PeerCount      int      `json:"peerCount"`
+		MinClusterSize int      `json:"minClusterSize"`
+		Peers          []string `json:"peers"`
+	}
+	require.NoError(t, json.Unmarshal(logs.Bytes(), &entry))
+	require.Equal(t, "joining cluster peers", entry.Message)
+	require.Equal(t, maxPeersToLog+2, entry.PeerCount)
+	require.Equal(t, 3, entry.MinClusterSize)
+	require.Equal(t, peers[:maxPeersToLog], entry.Peers)
 }
 
 // participants builds a Participant peer set, marking the peer named self as the
