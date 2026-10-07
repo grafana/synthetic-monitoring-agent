@@ -164,8 +164,10 @@ Namespace `sm_agent`, subsystem `browser_pool`:
 | --- | --- |
 | `-browser-pool-addresses` | Comma-separated `[prefix+]host[:port]` addresses resolving the fleet via DNS (`dns+`, `dnssrv+`, `dnssrvnoa+`, or no prefix; see [Sync loop](#sync-loop)). Presence enables the feature; instances are addressed as `http://host:port` (port defaults to 8080). Requires the `k6` feature |
 
-The sync interval (15s) and the acquire budget (`min(checkTimeout/2, 30s)`,
-enforced by the k6 runner) are not exposed as flags.
+The sync interval (15s) and the acquire budget
+(`min(30s, max(spare, checkTimeout/2))`, enforced by the k6 runner before the
+check timeout starts; see [k6runner.md](k6runner.md#remote-browser-sessions-browser-pool))
+are not exposed as flags.
 
 ## Failure modes
 
