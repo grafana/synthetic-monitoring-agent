@@ -1,38 +1,14 @@
 package interpolation
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	"github.com/stretchr/testify/require"
 )
 
-// mockVariableProvider is a mock implementation of VariableProvider for testing
-type mockVariableProvider struct {
-	variables map[string]string
-}
-
-func (m *mockVariableProvider) GetVariable(name string) (string, error) {
-	if value, exists := m.variables[name]; exists {
-		return value, nil
-	}
-
-	return "", fmt.Errorf("variable '%s' not found", name)
-}
-
 func TestResolver_Resolve(t *testing.T) {
 	ctx, logger, tenantID := testhelper.CommonTestSetup()
-
-	// Mock providers
-	variableProvider := &mockVariableProvider{
-		variables: map[string]string{
-			"username":             "admin",
-			"domain":               "example.com",
-			"random":               "123",
-			"variable-with-secret": "${secrets.api-token}",
-		},
-	}
 
 	secretProvider := testhelper.NewMockSecretProvider(map[string]string{
 		"api-token":       "secret-token-123",
@@ -66,22 +42,16 @@ func TestResolver_Resolve(t *testing.T) {
 			expectedOutput: "secret-token-123",
 			expectError:    false,
 		},
-		"variable interpolation only": {
-			input:          "${username}",
-			secretEnabled:  true,
-			expectedOutput: "admin",
-			expectError:    false,
-		},
-		"mixed secret and variable": {
-			input:          "Bearer ${secrets.api-token} for ${username}@${domain}",
-			secretEnabled:  true,
-			expectedOutput: "Bearer secret-token-123 for admin@example.com",
-			expectError:    false,
-		},
 		"multiple secrets": {
 			input:          "${secrets.api-token}:${secrets.db-password}",
 			secretEnabled:  true,
 			expectedOutput: "secret-token-123:secret-password",
+			expectError:    false,
+		},
+		"empty secret resolves to empty string": {
+			input:          "token=${secrets.empty-secret}",
+			secretEnabled:  true,
+			expectedOutput: "token=",
 			expectError:    false,
 		},
 		"secrets disabled": {
@@ -90,20 +60,14 @@ func TestResolver_Resolve(t *testing.T) {
 			expectedOutput: "${secrets.api-token}",
 			expectError:    false,
 		},
-		"variables still work when secrets disabled": {
-			input:          "${username}",
-			secretEnabled:  false,
-			expectedOutput: "admin",
-			expectError:    false,
-		},
 		"empty secret name": {
 			input:          "${secrets.}",
 			secretEnabled:  true,
 			expectedOutput: "",
 			expectError:    true,
 		},
-		"invalid secret name": {
-			input:          "${secrets.invalid-name}",
+		"secret name that fails validation": {
+			input:          "${secrets.Invalid_Name}",
 			secretEnabled:  true,
 			expectedOutput: "",
 			expectError:    true,
@@ -114,59 +78,53 @@ func TestResolver_Resolve(t *testing.T) {
 			expectedOutput: "",
 			expectError:    true,
 		},
-		"missing variable": {
-			input:          "${missing-variable}",
+
+		// This package resolves ${secrets.name} and nothing else. A bare ${name} belongs to
+		// multihttp variable expansion, which runs elsewhere, so it has to survive untouched.
+		"bare variable is not expanded": {
+			input:          "${username}",
 			secretEnabled:  true,
-			expectedOutput: "${missing-variable}",
+			expectedOutput: "${username}",
 			expectError:    false,
 		},
-		"missing variable when secrets disabled": {
-			input:          "${missing-variable}",
-			secretEnabled:  false,
-			expectedOutput: "${missing-variable}",
-			expectError:    false,
-		},
-		"variable with no provider": {
+		"bare hyphenated variable is not expanded": {
 			input:          "${some-variable}",
 			secretEnabled:  true,
 			expectedOutput: "${some-variable}",
 			expectError:    false,
 		},
-		"secret containing variables": {
+		"bare variable is not expanded when secrets disabled": {
+			input:          "${username}",
+			secretEnabled:  false,
+			expectedOutput: "${username}",
+			expectError:    false,
+		},
+		"secret alongside bare variables": {
+			input:          "Bearer ${secrets.api-token} for ${username}@${domain}",
+			secretEnabled:  true,
+			expectedOutput: "Bearer secret-token-123 for ${username}@${domain}",
+			expectError:    false,
+		},
+
+		// A resolved secret is never rescanned, so a reference inside a secret's value stays
+		// literal. Both cases below would change meaning if expansion came back.
+		"secret value containing variables": {
 			input:          "https://api.example.com/auth?${secrets.auth-config}",
 			secretEnabled:  true,
 			expectedOutput: "https://api.example.com/auth?username=${username}&token=${api-token}",
 			expectError:    false,
 		},
-		"secret with variable-like pattern": {
+		"secret value containing a variable-like pattern": {
 			input:          "Password: ${secrets.random-password}",
 			secretEnabled:  true,
 			expectedOutput: "Password: my-password-${random}",
-			expectError:    false,
-		},
-		"variable with secret": {
-			input:          "${variable-with-secret}",
-			secretEnabled:  true,
-			expectedOutput: "${secrets.api-token}",
-			expectError:    false,
-		},
-		"variables disabled": {
-			input:          "Hello ${username} with token ${secrets.api-token}",
-			secretEnabled:  true,
-			expectedOutput: "Hello ${username} with token secret-token-123",
 			expectError:    false,
 		},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			var resolver *Resolver
-			if name == "variables disabled" {
-				// Create resolver with no variable provider to test variables disabled
-				resolver = NewResolver(nil, secretProvider, tenantID, logger, tc.secretEnabled)
-			} else {
-				resolver = NewResolver(variableProvider, secretProvider, tenantID, logger, tc.secretEnabled)
-			}
+			resolver := NewResolver(secretProvider, tenantID, logger, tc.secretEnabled)
 
 			actual, err := resolver.Resolve(ctx, tc.input)
 
@@ -178,14 +136,6 @@ func TestResolver_Resolve(t *testing.T) {
 			}
 		})
 	}
-
-	// Test with no variable provider
-	t.Run("no variable provider", func(t *testing.T) {
-		resolver := NewResolver(nil, secretProvider, tenantID, logger, true)
-		actual, err := resolver.Resolve(ctx, "${some-variable}")
-		require.NoError(t, err)
-		require.Equal(t, "${some-variable}", actual)
-	})
 }
 
 func TestIsValidSecretName(t *testing.T) {
@@ -246,53 +196,6 @@ func TestIsValidSecretName(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			actual := isValidSecretName(tc.name)
-			require.Equal(t, tc.expected, actual)
-		})
-	}
-}
-
-func TestToJavaScript(t *testing.T) {
-	testcases := map[string]struct {
-		input    string
-		expected string
-	}{
-		"empty string": {
-			input:    "",
-			expected: "''",
-		},
-		"plaintext only": {
-			input:    "hello world",
-			expected: "'hello world'",
-		},
-		"variable only": {
-			input:    "${username}",
-			expected: "vars['username']",
-		},
-		"mixed text and variable": {
-			input:    "Hello ${username}!",
-			expected: "'Hello '+vars['username']+'!'",
-		},
-		"multiple variables": {
-			input:    "${username}@${domain}",
-			expected: "vars['username']+'@'+vars['domain']",
-		},
-		"complex mixed": {
-			input:    "Bearer ${token} for ${username}@${domain}",
-			expected: "'Bearer '+vars['token']+' for '+vars['username']+'@'+vars['domain']",
-		},
-		"with quotes": {
-			input:    "Hello \"${username}\"",
-			expected: "'Hello \\\"'+vars['username']+'\\\"'",
-		},
-		"with backslashes": {
-			input:    "Path: \\${username}\\",
-			expected: "'Path: \\\\'+vars['username']+'\\\\'",
-		},
-	}
-
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			actual := ToJavaScript(tc.input)
 			require.Equal(t, tc.expected, actual)
 		})
 	}

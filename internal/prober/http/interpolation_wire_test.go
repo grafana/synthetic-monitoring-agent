@@ -227,9 +227,9 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			wantAuthorization: "Bearer ${" + wireTokenValue,
 		},
 
-		// The resolver is built with a nil VariableProvider, so only the
-		// literal "secrets." prefix is meaningful here and a bare ${name} is
-		// left alone.
+		// The resolver only ever expands ${secrets.name}, so the literal
+		// "secrets." prefix is the only thing that is meaningful here and a
+		// bare ${name} is left alone.
 		"variable syntax is not interpolated, flag on": {
 			settings: sm.HttpSettings{
 				BearerToken:          "${api-token}",
