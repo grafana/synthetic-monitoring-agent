@@ -609,16 +609,39 @@ func TestMetrics(t *testing.T) {
 	t.Run("sync results", func(t *testing.T) {
 		t.Parallel()
 
+		a := newFakeInstance(t)
 		pool := newTestPool(t)
+		pool.cfg.Discover = staticFleet(hostOf(a))
+		pool.syncOnce(t.Context())
+		require.Equal(t, 1.0, counter(t, pool.metrics.discoveries, "ok"))
+
 		pool.cfg.Discover = staticFleet()
 		pool.syncOnce(t.Context())
-		require.Equal(t, 1.0, counter(t, pool.metrics.syncs, "ok"))
+		require.Equal(t, 1.0, counter(t, pool.metrics.discoveries, "empty"))
 
 		pool.cfg.Discover = func() ([]string, error) {
 			return nil, errors.New("dns is down")
 		}
 		pool.syncOnce(t.Context())
-		require.Equal(t, 1.0, counter(t, pool.metrics.syncs, "error"))
+		require.Equal(t, 1.0, counter(t, pool.metrics.discoveries, "error"))
+	})
+
+	t.Run("sync observations", func(t *testing.T) {
+		t.Parallel()
+
+		free := newFakeInstance(t)
+		busy := newFakeInstance(t)
+		busy.setSession("s1")
+		broken := newFakeInstance(t)
+		broken.forceListStatus = http.StatusInternalServerError
+
+		pool := newTestPool(t)
+		pool.cfg.Discover = staticFleet(hostOf(free), hostOf(busy), hostOf(broken))
+		pool.syncOnce(t.Context())
+
+		require.Equal(t, 1.0, counter(t, pool.metrics.syncObservations, "free"))
+		require.Equal(t, 1.0, counter(t, pool.metrics.syncObservations, "busy"))
+		require.Equal(t, 1.0, counter(t, pool.metrics.syncObservations, "error"))
 	})
 }
 
