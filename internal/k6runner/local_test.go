@@ -266,6 +266,7 @@ func TestLocalBrowserPool(t *testing.T) {
 		require.NoError(t, err)
 		runner, err := New(RunnerOpts{Uri: k6Fake, BrowserPool: pool})
 		require.NoError(t, err)
+
 		return runner
 	}
 
@@ -412,9 +413,11 @@ func (f *fakeBrowserPool) Acquire(ctx context.Context, checkInfo CheckInfo) (str
 	}
 
 	f.acquired = append(f.acquired, checkInfo)
+
 	return f.wsURL, func(context.Context) {
 		f.mtx.Lock()
 		defer f.mtx.Unlock()
+
 		f.releases++
 	}, nil
 }
@@ -422,6 +425,7 @@ func (f *fakeBrowserPool) Acquire(ctx context.Context, checkInfo CheckInfo) (str
 func (f *fakeBrowserPool) state() (acquired []CheckInfo, releases int) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
+
 	return slices.Clone(f.acquired), f.releases
 }
 

@@ -62,6 +62,7 @@ func TestAcquire(t *testing.T) {
 
 		busy := newFakeInstance(t)
 		busy.setSession("held-by-someone-else")
+
 		free := newFakeInstance(t)
 		pool := newTestPool(t, busy, free)
 
@@ -106,6 +107,7 @@ func TestAcquire(t *testing.T) {
 
 		a := newFakeInstance(t)
 		a.setSession("held")
+
 		b := newFakeInstance(t)
 		b.setSession("held")
 		pool := newTestPool(t, a, b)
@@ -234,10 +236,12 @@ func TestRelease(t *testing.T) {
 		// session timeout reaps it (simulated here), after which it succeeds.
 		shortCtx, shortCancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
 		defer shortCancel()
+
 		_, _, err = pool.Acquire(shortCtx, testCheckInfo())
 		require.ErrorIs(t, err, ErrPoolExhausted)
 
 		fake.setSession("")
+
 		wsURL, release2, err := pool.Acquire(ctx, testCheckInfo())
 		require.NoError(t, err)
 		require.NotEmpty(t, wsURL)
@@ -252,6 +256,7 @@ func TestAcquireConcurrency(t *testing.T) {
 	pool := newTestPool(t, fakes...)
 
 	const goroutines = 10
+
 	deadline := time.Now().Add(1500 * time.Millisecond)
 
 	var (
@@ -268,15 +273,20 @@ func TestAcquireConcurrency(t *testing.T) {
 				// (reaped by the session timeout in production, but a false
 				// positive for the leak assertion below).
 				ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+
 				_, release, err := pool.Acquire(ctx, testCheckInfo())
 				if err != nil {
 					cancel()
+
 					if errors.Is(err, ErrPoolExhausted) {
 						continue
 					}
+
 					t.Errorf("unexpected acquire error: %v", err)
+
 					return
 				}
+
 				time.Sleep(time.Duration(10+rand.Intn(20)) * time.Millisecond)
 				release(t.Context())
 				cancel()
@@ -286,6 +296,7 @@ func TestAcquireConcurrency(t *testing.T) {
 			}
 		})
 	}
+
 	wg.Wait()
 
 	mtx.Lock()
@@ -298,6 +309,7 @@ func TestAcquireConcurrency(t *testing.T) {
 		require.LessOrEqual(t, fake.maxInFlight(), 1, "instance %d received concurrent acquires", i)
 		require.Empty(t, fake.session(), "instance %d leaked a session", i)
 	}
+
 	requireInvariant(t, pool)
 }
 
@@ -329,6 +341,7 @@ func TestSync(t *testing.T) {
 		// another agent's session; b is believed busy (back) but is free.
 		a := newFakeInstance(t)
 		a.setSession("held-by-someone-else")
+
 		b := newFakeInstance(t)
 		pool := newTestPool(t, a, b)
 		pool.cfg.Discover = staticFleet(hostOf(a), hostOf(b))
@@ -384,6 +397,7 @@ func TestSync(t *testing.T) {
 
 		a := newFakeInstance(t)
 		a.setSession("held-by-someone-else")
+
 		b := newFakeInstance(t)
 		pool := newTestPool(t, a, b)
 		pool.cfg.Discover = func() ([]string, error) {
@@ -400,6 +414,7 @@ func TestSync(t *testing.T) {
 		t.Parallel()
 
 		var buf bytes.Buffer
+
 		pool := newTestPool(t, newFakeInstance(t))
 		pool.logger = zerolog.New(&buf)
 
@@ -505,8 +520,10 @@ func TestMetrics(t *testing.T) {
 
 	counter := func(t *testing.T, vec *prometheus.CounterVec, result string) float64 {
 		t.Helper()
+
 		c, err := vec.GetMetricWith(prometheus.Labels{"result": result})
 		require.NoError(t, err)
+
 		return testutil.ToFloat64(c)
 	}
 
@@ -534,6 +551,7 @@ func TestMetrics(t *testing.T) {
 
 		busy := newFakeInstance(t)
 		busy.setSession("held-by-someone-else")
+
 		draining := newFakeInstance(t)
 		draining.forceAcquireStatus = http.StatusServiceUnavailable
 		free := newFakeInstance(t)
@@ -632,6 +650,7 @@ func TestMetrics(t *testing.T) {
 		free := newFakeInstance(t)
 		busy := newFakeInstance(t)
 		busy.setSession("s1")
+
 		broken := newFakeInstance(t)
 		broken.forceListStatus = http.StatusInternalServerError
 
@@ -652,6 +671,7 @@ func histogramSampleCount(t *testing.T, h prometheus.Histogram) uint64 {
 
 	var m dto.Metric
 	require.NoError(t, h.Write(&m))
+
 	return m.GetHistogram().GetSampleCount()
 }
 
@@ -695,6 +715,7 @@ func (f *fakeInstance) URL() string { return f.srv.URL }
 func (f *fakeInstance) handleAcquire(rw http.ResponseWriter, r *http.Request) {
 	f.mtx.Lock()
 	f.acquires++
+
 	f.inFlight++
 	if f.inFlight > f.maxInFlightN {
 		f.maxInFlightN = f.inFlight
@@ -718,11 +739,14 @@ func (f *fakeInstance) handleAcquire(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(f.forceAcquireStatus)
 		return
 	}
+
 	if f.badBody {
 		rw.Header().Set("Content-Type", "application/json")
 		_, _ = rw.Write([]byte("{invalid"))
+
 		return
 	}
+
 	if f.sessionID != "" {
 		rw.WriteHeader(http.StatusConflict)
 		return
@@ -730,10 +754,12 @@ func (f *fakeInstance) handleAcquire(rw http.ResponseWriter, r *http.Request) {
 
 	f.sessionCounter++
 	f.sessionID = fmt.Sprintf("session-%d", f.sessionCounter)
+
 	wsURL := fmt.Sprintf("ws://%s/proxy/%s", r.Host, f.sessionID)
 	if f.emptyWSURL {
 		wsURL = ""
 	}
+
 	rw.Header().Set("Content-Type", "application/json")
 	_, _ = fmt.Fprintf(rw, `{"id":%q,"chromiumVersion":{"webSocketDebuggerUrl":%q}}`, f.sessionID, wsURL)
 }
@@ -751,8 +777,15 @@ func (f *fakeInstance) handleList(rw http.ResponseWriter, _ *http.Request) {
 	if f.sessionID != "" {
 		sessions = append(sessions, f.sessionID)
 	}
+
+	body, err := json.Marshal(sessions)
+	if err != nil {
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	rw.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(rw).Encode(sessions)
+	_, _ = rw.Write(body)
 }
 
 func (f *fakeInstance) handleDelete(rw http.ResponseWriter, r *http.Request) {
@@ -764,40 +797,47 @@ func (f *fakeInstance) handleDelete(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
 	if id := r.PathValue("id"); id != "" && id == f.sessionID {
 		f.sessionID = ""
 		return
 	}
+
 	rw.WriteHeader(http.StatusNotFound)
 }
 
 func (f *fakeInstance) setSession(id string) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
+
 	f.sessionID = id
 }
 
 func (f *fakeInstance) session() string {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
+
 	return f.sessionID
 }
 
 func (f *fakeInstance) acquireCount() int {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
+
 	return f.acquires
 }
 
 func (f *fakeInstance) deleteCount() int {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
+
 	return f.deletes
 }
 
 func (f *fakeInstance) maxInFlight() int {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
+
 	return f.maxInFlightN
 }
 
@@ -838,12 +878,14 @@ type mutableFleet struct {
 func (m *mutableFleet) resolve() ([]string, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
+
 	return m.addrs, nil
 }
 
 func (m *mutableFleet) set(addrs ...string) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
+
 	m.addrs = addrs
 }
 
@@ -866,6 +908,7 @@ func poolOrder(p *Pool) []string {
 	for el := p.order.Front(); el != nil; el = el.Next() {
 		out = append(out, el.Value.(*instance).baseURL)
 	}
+
 	return out
 }
 
@@ -879,6 +922,7 @@ func requireInvariant(t *testing.T, p *Pool) {
 	defer p.mtx.Unlock()
 
 	require.Equal(t, p.order.Len(), len(p.elements))
+
 	for el := p.order.Front(); el != nil; el = el.Next() {
 		indexed, found := p.elements[el.Value.(*instance).baseURL]
 		require.True(t, found)

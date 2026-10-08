@@ -115,54 +115,30 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 		return nil, fmt.Errorf("cannot write temporary script file: %w", err)
 	}
 
-	// For browser checks running against a browser pool, acquire a remote
-	// browser session and hand its CDP WebSocket URL to k6 through the
-	// process environment. The acquire runs before the check timeout starts, so
-	// the wait does not shorten the k6 run when ctx leaves room for it. If no
-	// session can be acquired in time, the check fails.
-	var browserWSURL string
-	if r.usesBrowserPool(script) {
-		acquireCtx, acquireCancel := context.WithTimeout(ctx, browserAcquireTimeout(ctx, checkTimeout))
-		wsURL, release, err := r.browserPool.Acquire(acquireCtx, script.CheckInfo)
-		acquireCancel()
-		if err != nil {
-			return nil, fmt.Errorf("acquiring browser session: %w", err)
-		}
-		// Fresh context: the check context may already be done when k6 exits.
-		defer release(context.Background())
-
-		browserWSURL = wsURL
+	// Only browser checks with a browser pool configured acquire a remote
+	// session. For every other run this is a no-op: browserEnv is empty and
+	// release does nothing.
+	//
+	// The acquire runs before the check timeout starts, so the wait does not
+	// shorten the k6 run when ctx leaves room for it. If no session can be
+	// acquired in time, the check fails.
+	browserEnv, release, err := r.acquireBrowserSession(ctx, script, checkTimeout)
+	if err != nil {
+		return nil, err
 	}
+	// Fresh context: the check context may already be done when k6 exits.
+	defer release(context.Background())
 
 	var cancel context.CancelFunc
 
 	ctx, cancel = context.WithTimeout(ctx, checkTimeout)
 	defer cancel()
 
-	var configFile string
-
-	logger.Debug().
-		Bool("secretStoreIsConfigured", secretStore.IsConfigured()).
-		Str("secretStoreUrl", secretStore.Url).
-		Bool("hasSecretStoreToken", secretStore.Token != "").
-		Msg("checking secret store configuration")
-
-	if secretStore.IsConfigured() {
-		var cleanup func()
-
-		configFile, cleanup, err = createSecretConfigFile(secretStore.Url, secretStore.Token)
-		if err != nil {
-			return nil, fmt.Errorf("cannot create secret config file: %w", err)
-		}
-		defer cleanup()
-
-		logger.Debug().
-			Str("secret_config_file", configFile).
-			Str("secrets_url", secretStore.Url).
-			Msg("Using secret config file")
-	} else {
-		logger.Warn().Msg("No secret store configuration available")
+	configFile, cleanupSecrets, err := secretConfigFile(logger, secretStore)
+	if err != nil {
+		return nil, err
 	}
+	defer cleanupSecrets()
 
 	args, err := r.buildK6Args(script, k6Version.Version, metricsFn, logsFn, scriptFn, configFile, executionID)
 	if err != nil {
@@ -181,10 +157,8 @@ func (r Local) Run(ctx context.Context, script Script, secretStore SecretStore, 
 	cmd.Stdin = nil
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	cmd.Env = k6Env(os.Environ())
-	if browserWSURL != "" {
-		cmd.Env = append(cmd.Env, k6BrowserWSURLEnvVar+"="+browserWSURL)
-	}
+
+	cmd.Env = append(k6Env(os.Environ()), browserEnv...)
 
 	// k6 starts its own processes, such as a Chromium tree. Its own group lets one
 	// signal stop all of them. k6 stops getting signals sent to the agent group, but
@@ -342,6 +316,29 @@ func (r Local) usesBrowserPool(script Script) bool {
 	return r.browserPool != nil && script.CheckInfo.Type == synthetic_monitoring.CheckTypeBrowser.String()
 }
 
+// acquireBrowserSession acquires a remote browser session for a browser check
+// running against a browser pool. It returns the environment that hands the
+// session's CDP WebSocket URL to k6, and the release function to call once k6
+// exits. When the run does not use the pool, the environment is empty and
+// release is a no-op.
+func (r Local) acquireBrowserSession(
+	ctx context.Context, script Script, checkTimeout time.Duration,
+) (env []string, release func(context.Context), err error) {
+	if !r.usesBrowserPool(script) {
+		return nil, func(context.Context) {}, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, browserAcquireTimeout(ctx, checkTimeout))
+	defer cancel()
+
+	wsURL, release, err := r.browserPool.Acquire(ctx, script.CheckInfo)
+	if err != nil {
+		return nil, nil, fmt.Errorf("acquiring browser session: %w", err)
+	}
+
+	return []string{k6BrowserWSURLEnvVar + "=" + wsURL}, release, nil
+}
+
 // browserAcquireTimeout returns how long to wait for a browser session: the time
 // ctx leaves beyond the check timeout, so k6 keeps its full timeout, but at
 // least half the check timeout and at most browserAcquireTimeoutCap.
@@ -496,6 +493,35 @@ func readFileLimit(f afero.Fs, name string, limit int64, existing *bytes.Buffer)
 	}
 
 	return existing, true, nil
+}
+
+// secretConfigFile creates the k6 secret source config file when secretStore is
+// configured. Otherwise it returns an empty path and a no-op cleanup, and k6
+// runs without secrets.
+func secretConfigFile(logger zerolog.Logger, secretStore SecretStore) (configFile string, cleanup func(), err error) {
+	logger.Debug().
+		Bool("secretStoreIsConfigured", secretStore.IsConfigured()).
+		Str("secretStoreUrl", secretStore.Url).
+		Bool("hasSecretStoreToken", secretStore.Token != "").
+		Msg("checking secret store configuration")
+
+	if !secretStore.IsConfigured() {
+		logger.Warn().Msg("No secret store configuration available")
+
+		return "", func() {}, nil
+	}
+
+	configFile, cleanup, err = createSecretConfigFile(secretStore.Url, secretStore.Token)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot create secret config file: %w", err)
+	}
+
+	logger.Debug().
+		Str("secret_config_file", configFile).
+		Str("secrets_url", secretStore.Url).
+		Msg("Using secret config file")
+
+	return configFile, cleanup, nil
 }
 
 // createSecretConfigFile creates a JSON config file with the given secret store URL and token

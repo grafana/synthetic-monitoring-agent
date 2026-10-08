@@ -16,18 +16,21 @@ func stubLookups(t *testing.T, hosts map[string][]string, srvs map[string][]*net
 	t.Helper()
 
 	origHost, origSRV := lookupHost, lookupSRV
+
 	t.Cleanup(func() { lookupHost, lookupSRV = origHost, origSRV })
 
 	lookupHost = func(host string) ([]string, error) {
 		if ips, ok := hosts[host]; ok {
 			return ips, nil
 		}
+
 		return nil, &net.DNSError{Err: "no such host", Name: host, IsNotFound: true}
 	}
 	lookupSRV = func(_, _, name string) (string, []*net.SRV, error) {
 		if records, ok := srvs[name]; ok {
 			return name, records, nil
 		}
+
 		return "", nil, &net.DNSError{Err: "no such host", Name: name, IsNotFound: true}
 	}
 }

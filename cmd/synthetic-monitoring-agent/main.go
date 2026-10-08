@@ -335,25 +335,19 @@ func run(args []string, stdout io.Writer) error {
 			return err
 		}
 
-		runnerOpts := k6runner.RunnerOpts{
+		browserPool, err := buildBrowserPool(ctx, config.BrowserPool,
+			zl.With().Str("subsystem", "browser_pool").Logger(), promRegisterer)
+		if err != nil {
+			return fmt.Errorf("building browser pool: %w", err)
+		}
+
+		k6Runner, err = k6runner.New(k6runner.RunnerOpts{
 			Uri:           config.K6URI,
 			Repository:    config.K6Repository,
 			BlacklistedIP: config.K6BlacklistedIP,
 			Registerer:    promRegisterer,
-		}
-
-		if config.BrowserPool.Enabled {
-			zl.Warn().Msg("browser pool is experimental: the -browser-pool-* flags and their behavior may change or be removed in future releases")
-
-			browserPool, err := buildBrowserPool(ctx, config.BrowserPool.Addresses,
-				zl.With().Str("subsystem", "browser_pool").Logger(), promRegisterer)
-			if err != nil {
-				return fmt.Errorf("building browser pool: %w", err)
-			}
-			runnerOpts.BrowserPool = browserPool
-		}
-
-		k6Runner, err = k6runner.New(runnerOpts)
+			BrowserPool:   browserPool,
+		})
 		if err != nil {
 			return fmt.Errorf("building k6 runner: %w", err)
 		}

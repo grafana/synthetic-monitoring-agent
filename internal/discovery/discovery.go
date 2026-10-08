@@ -66,6 +66,7 @@ func NewDiscoverer(addresses []string, defaultPort int, logger zerolog.Logger) (
 			addrs []string
 			errs  []error
 		)
+
 		for _, e := range addresses {
 			resolved, err := resolveAddress(e, port)
 			if len(resolved) == 0 {
@@ -78,8 +79,10 @@ func NewDiscoverer(addresses []string, defaultPort int, logger zerolog.Logger) (
 				errs = append(errs, err)
 				continue
 			}
+
 			addrs = append(addrs, resolved...)
 		}
+
 		addrs = dedupe(addrs)
 		// Surface errors only when nothing resolved: a single failing entry
 		// (e.g. a transient DNS blip) is logged above rather than discarding the
@@ -88,6 +91,7 @@ func NewDiscoverer(addresses []string, defaultPort int, logger zerolog.Logger) (
 		if len(addrs) == 0 && len(errs) > 0 {
 			return nil, errors.Join(errs...)
 		}
+
 		return addrs, nil
 	}, nil
 }
@@ -114,6 +118,7 @@ func resolveAddress(entry, defaultPort string) ([]string, error) {
 	for _, h := range hosts {
 		addrs = append(addrs, net.JoinHostPort(h, port))
 	}
+
 	return addrs, nil
 }
 
@@ -124,9 +129,11 @@ func resolveHost(host string) ([]string, error) {
 	if name, ok := strings.CutPrefix(host, "dns+"); ok {
 		return lookupHost(name)
 	}
+
 	if name, ok := strings.CutPrefix(host, "dnssrv+"); ok {
 		return resolveSRV(name, true)
 	}
+
 	if name, ok := strings.CutPrefix(host, "dnssrvnoa+"); ok {
 		return resolveSRV(name, false)
 	}
@@ -139,10 +146,12 @@ func resolveHost(host string) ([]string, error) {
 	if err == nil {
 		return ips, nil
 	}
+
 	hosts, srvErr := resolveSRV(host, true)
 	if srvErr != nil {
 		return nil, errors.Join(err, srvErr)
 	}
+
 	return hosts, nil
 }
 
@@ -159,6 +168,7 @@ func resolveSRV(name string, resolveTargets bool) ([]string, error) {
 		hosts []string
 		errs  []error
 	)
+
 	for _, record := range records {
 		target := strings.TrimSuffix(record.Target, ".")
 		if !resolveTargets {
@@ -171,23 +181,29 @@ func resolveSRV(name string, resolveTargets bool) ([]string, error) {
 			errs = append(errs, err)
 			continue
 		}
+
 		hosts = append(hosts, ips...)
 	}
+
 	if len(hosts) == 0 && len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
+
 	return hosts, nil
 }
 
 func dedupe(in []string) []string {
 	seen := make(map[string]struct{}, len(in))
+
 	out := make([]string, 0, len(in))
 	for _, s := range in {
 		if _, ok := seen[s]; ok {
 			continue
 		}
+
 		seen[s] = struct{}{}
 		out = append(out, s)
 	}
+
 	return out
 }
