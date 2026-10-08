@@ -23,11 +23,9 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/adhoc"
-	"github.com/grafana/synthetic-monitoring-agent/internal/browser"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
-	"github.com/grafana/synthetic-monitoring-agent/internal/discovery"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -79,7 +77,7 @@ func run(args []string, stdout io.Writer) error {
 			K6URI                     string
 			K6Repository              string
 			K6BlacklistedIP           string
-			BrowserPoolAddresses      StringList
+			BrowserPool               browserPoolConfig
 			SelectedPublisher         string
 			TelemetryTimeSpan         int
 			AutoMemLimit              bool
@@ -142,7 +140,8 @@ func run(args []string, stdout io.Writer) error {
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
-	flags.Var(&config.BrowserPoolAddresses, "browser-pool-addresses", "[experimental] comma-separated external browser (crocochrome) pool instances as host[:port]; prefixes: dns+ (A/AAAA), dnssrv+ (SRV then A/AAAA), dnssrvnoa+ (SRV only); without a prefix A/AAAA then SRV; instances are addressed as http://host:port, port defaults to 8080. If set, browser checks use remote browser sessions instead of a local Chromium")
+	flags.BoolVar(&config.BrowserPool.Enabled, "browser-pool-enabled", config.BrowserPool.Enabled, "[experimental] use remote browser sessions from an external browser (crocochrome) pool for browser checks instead of a local Chromium; requires -browser-pool-addresses")
+	flags.Var(&config.BrowserPool.Addresses, "browser-pool-addresses", "[experimental] comma-separated external browser (crocochrome) pool instances as host[:port]; prefixes: dns+ (A/AAAA), dnssrv+ (SRV then A/AAAA), dnssrvnoa+ (SRV only); without a prefix A/AAAA then SRV; instances are addressed as http://host:port, port defaults to 8080; requires -browser-pool-enabled")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -184,6 +183,10 @@ func run(args []string, stdout io.Writer) error {
 		// SplitHostPort errors if the address has no port. This is intended, as omitting the port in the address is
 		// almost likely a user error that is hard to troubleshoot otherwise.
 		return fmt.Errorf("parsing GRPC api server address %q: %w", config.GrpcApiServerAddr, err)
+	}
+
+	if err := validateBrowserPoolConfig(config.BrowserPool); err != nil {
+		return err
 	}
 
 	// If the token is provided on the command line, prefer that. Otherwise
@@ -339,10 +342,10 @@ func run(args []string, stdout io.Writer) error {
 			Registerer:    promRegisterer,
 		}
 
-		if len(config.BrowserPoolAddresses) > 0 {
+		if config.BrowserPool.Enabled {
 			zl.Warn().Msg("browser pool is experimental: the -browser-pool-* flags and their behavior may change or be removed in future releases")
 
-			browserPool, err := buildBrowserPool(ctx, config.BrowserPoolAddresses,
+			browserPool, err := buildBrowserPool(ctx, config.BrowserPool.Addresses,
 				zl.With().Str("subsystem", "browser_pool").Logger(), promRegisterer)
 			if err != nil {
 				return fmt.Errorf("building browser pool: %w", err)
@@ -354,7 +357,7 @@ func run(args []string, stdout io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("building k6 runner: %w", err)
 		}
-	} else if len(config.BrowserPoolAddresses) > 0 {
+	} else if config.BrowserPool.Enabled {
 		zl.Warn().Msg("browser pool configured but the k6 feature is disabled; ignoring")
 	}
 
@@ -494,28 +497,6 @@ func signalHandler(ctx context.Context, logger zerolog.Logger) error {
 		logger.Info().Msg("shutting down")
 		return nil
 	}
-}
-
-// buildBrowserPool translates the -browser-pool-addresses flag into a running
-// browser.Pool, whose sync loop stops when ctx is cancelled. It returns the
-// k6runner interface type so a typed-nil can never reach
-// RunnerOpts.BrowserPool.
-func buildBrowserPool(
-	ctx context.Context, addresses []string, logger zerolog.Logger, registerer prometheus.Registerer,
-) (k6runner.BrowserPool, error) {
-	discoverFn, err := discovery.NewDiscoverer(addresses, browser.DefaultInstancePort, logger)
-	if err != nil {
-		return nil, fmt.Errorf("configuring browser pool discovery: %w", err)
-	}
-
-	pool, err := browser.New(ctx, browser.Config{
-		Discover: discoverFn,
-		Logger:   logger,
-	}, registerer)
-	if err != nil {
-		return nil, err
-	}
-	return pool, nil
 }
 
 func newConnectionBackoff() *backoff.Backoff {

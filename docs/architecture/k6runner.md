@@ -97,7 +97,7 @@ is logged with `severity=critical`.
 ### Remote browser sessions (browser pool)
 
 When a browser pool is configured (`RunnerOpts.BrowserPool`, from the
-`-browser-pool-addresses` flag), `Local.Run` handles browser checks differently:
+`-browser-pool-*` flags), `Local.Run` handles browser checks differently:
 before exec'ing k6 it acquires a remote browser session from the pool,
 injects the session's CDP WebSocket URL into the k6 process environment as
 `K6_BROWSER_WS_URL` (a k6 option, so the browser module connects to it instead

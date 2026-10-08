@@ -20,9 +20,10 @@ instances and hands k6 a CDP WebSocket URL to connect to, via the
 `K6_BROWSER_WS_URL` environment variable.
 
 The feature is **off by default**: it activates only when
-`-browser-pool-addresses` is set (and the `k6` feature is enabled). When off,
-browser checks run against a local Chromium exactly as before. Nothing in this
-document applies unless that flag is set.
+`-browser-pool-enabled` is set, together with `-browser-pool-addresses` (and
+the `k6` feature is enabled). When off, browser checks run against a local
+Chromium exactly as before. Nothing in this document applies unless the pool
+is enabled.
 
 This is a client-driven design: there is no allocator service. Each agent
 probes the fleet directly, and the correctness anchor is crocochrome's atomic
@@ -163,7 +164,8 @@ Namespace `sm_agent`, subsystem `browser_pool`:
 
 | Flag | Meaning |
 | --- | --- |
-| `-browser-pool-addresses` | Comma-separated `[prefix+]host[:port]` addresses resolving the fleet via DNS (`dns+`, `dnssrv+`, `dnssrvnoa+`, or no prefix; see [Sync loop](#sync-loop)). Presence enables the feature; instances are addressed as `http://host:port` (port defaults to 8080). Requires the `k6` feature |
+| `-browser-pool-enabled` | Enables the feature. Requires `-browser-pool-addresses` and the `k6` feature |
+| `-browser-pool-addresses` | Comma-separated `[prefix+]host[:port]` addresses resolving the fleet via DNS (`dns+`, `dnssrv+`, `dnssrvnoa+`, or no prefix; see [Sync loop](#sync-loop)). Instances are addressed as `http://host:port` (port defaults to 8080). Requires `-browser-pool-enabled`: setting one without the other fails at startup |
 
 The sync interval (15s) and the acquire budget
 (`min(30s, max(spare, checkTimeout/2))`, enforced by the k6 runner before the

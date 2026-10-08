@@ -66,7 +66,7 @@ flowchart LR
 - **[k6 runner](k6runner.md)** — `internal/k6runner`. Runs k6 scripts either as a local subprocess or via a remote HTTP runner.
 - **[Publisher](publisher.md)** — `internal/pusher`. Per-tenant push handlers; batches and ships to Prometheus and Loki.
 - **[Adhoc handler](adhoc.md)** — `internal/adhoc`. Separate gRPC stream for on-demand "test this check now" runs.
-- **[Browser pool client](browser-pool.md)** — `internal/browser`. Optional client for an external fleet of crocochrome instances serving remote browser sessions for browser checks. Off by default (`-browser-pool-addresses`). Consumed by the local k6 runner via the `BrowserPool` interface.
+- **[Browser pool client](browser-pool.md)** — `internal/browser`. Optional client for an external fleet of crocochrome instances serving remote browser sessions for browser checks. Off by default (`-browser-pool-enabled`). Consumed by the local k6 runner via the `BrowserPool` interface.
 
 ## Supporting components (follow-up docs)
 
