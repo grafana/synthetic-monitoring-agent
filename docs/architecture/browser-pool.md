@@ -156,7 +156,8 @@ Namespace `sm_agent`, subsystem `browser_pool`:
 | `probes_total{result="acquired"\|"busy"\|"draining"\|"error"}` | Per attempt on an instance; probes/acquires ratio reflects contention |
 | `acquire_duration_seconds` | Acquire latency histogram, success and failure |
 | `releases_total{result="ok"\|"error"}` | Sustained errors mean sessions are reclaimed by the instance session timeout instead |
-| `syncs_total{result="ok"\|"error"}` | Per tick (doubles as the loop's heartbeat); `error` = fleet resolution failed, tick reconciled known instances only |
+| `discoveries_total{result="ok"\|"empty"\|"error"}` | Per tick (doubles as the loop's heartbeat); `empty` = discovery succeeded with no instances, `error` = fleet resolution failed and the tick re-observed known instances only |
+| `sync_observations_total{result="free"\|"busy"\|"error"}` | Per instance per tick (`GET /sessions`); `error` = instance unreachable or answered badly |
 
 ## Configuration
 
@@ -176,7 +177,8 @@ are not exposed as flags.
 | All instances busy until the acquire deadline | Check fails, `acquires_total{exhausted}` | Autoscaling on fleet utilization; next scheduled run |
 | Agent dies mid-check | Session orphaned on its instance | Crocochrome session timeout (~5m) |
 | Release DELETE fails | Session leaks on the instance; agent treats it free | Next probe's 409 corrects; session timeout reclaims |
-| DNS/resolution outage | Membership frozen, `syncs_total{error}` | Reconcile of known instances continues; recovers on next successful tick |
+| DNS/resolution outage | Membership frozen, `discoveries_total{error}` | Reconcile of known instances continues; recovers on next successful tick |
+| Instance unreachable | `sync_observations_total{error}`; instance sinks to the back of the list | Probes skip it after one failure; recovers when it answers again |
 | Instance scale-down mid-session | Pod leaves DNS while draining our session | Busy instances survive pruning until released; crocochrome drains on SIGTERM |
 
 ## Testing strategy

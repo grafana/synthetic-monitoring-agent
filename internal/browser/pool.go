@@ -34,6 +34,8 @@ const DefaultInstancePort = 8080
 const (
 	metricNamespace = "sm_agent"
 	metricSubsystem = "browser_pool"
+	// resultLabel is the label every counter uses for its outcome.
+	resultLabel = "result"
 
 	defaultSyncInterval = 15 * time.Second
 
@@ -95,13 +97,14 @@ type instance struct {
 // GaugeFuncs computing from the pool state under its mutex, so they cannot
 // drift from it.
 type metrics struct {
-	acquires        *prometheus.CounterVec
-	probes          *prometheus.CounterVec
-	releases        *prometheus.CounterVec
-	syncs           *prometheus.CounterVec
-	acquireDuration prometheus.Histogram
-	instancesBusy   prometheus.GaugeFunc
-	instancesFree   prometheus.GaugeFunc
+	acquires         *prometheus.CounterVec
+	probes           *prometheus.CounterVec
+	releases         *prometheus.CounterVec
+	discoveries      *prometheus.CounterVec
+	syncObservations *prometheus.CounterVec
+	acquireDuration  prometheus.Histogram
+	instancesBusy    prometheus.GaugeFunc
+	instancesFree    prometheus.GaugeFunc
 }
 
 // sessionInfo mirrors the relevant parts of crocochrome's session creation
@@ -426,13 +429,15 @@ func (p *Pool) syncOnce(ctx context.Context) {
 	if err != nil {
 		// A resolution blip must not drop known instances: reconcile the
 		// current membership instead.
-		p.metrics.syncs.WithLabelValues("error").Inc()
+		p.metrics.discoveries.WithLabelValues("error").Inc()
 		p.logger.Warn().Err(err).Msg("resolving browser pool fleet, keeping current membership")
 		addrs = p.instanceURLs()
 	} else {
-		p.metrics.syncs.WithLabelValues("ok").Inc()
 		if len(discovered) == 0 {
+			p.metrics.discoveries.WithLabelValues("empty").Inc()
 			p.logger.Warn().Msg("browser pool fleet resolved to no instances")
+		} else {
+			p.metrics.discoveries.WithLabelValues("ok").Inc()
 		}
 		addrs = instanceBaseURLs(discovered)
 	}
@@ -449,12 +454,20 @@ func (p *Pool) syncOnce(ctx context.Context) {
 	for i, addr := range addrs {
 		wg.Go(func() {
 			free, err := p.observeInstance(ctx, addr)
-			if err != nil {
+
+			switch {
+			case err != nil:
 				// Pessimistic: an unobservable instance is deprioritized, and
 				// probing corrects the guess if it is actually free.
+				p.metrics.syncObservations.WithLabelValues("error").Inc()
 				p.logger.Debug().Err(err).Str("instance", addr).Msg("observing browser instance")
 				free = false
+			case free:
+				p.metrics.syncObservations.WithLabelValues("free").Inc()
+			default:
+				p.metrics.syncObservations.WithLabelValues("busy").Inc()
 			}
+
 			observations[i] = observation{baseURL: addr, free: free}
 		})
 	}
@@ -623,19 +636,23 @@ func registerMetrics(registerer prometheus.Registerer, p *Pool) metrics {
 	m := metrics{
 		acquires: prometheus.NewCounterVec(
 			counterOpts("acquires_total", "Total browser session acquisitions by result. \"exhausted\" means no instance became free within the acquire budget: the check failed for lack of browser capacity."),
-			[]string{"result"},
+			[]string{resultLabel},
 		),
 		probes: prometheus.NewCounterVec(
 			counterOpts("probes_total", "Total session acquire attempts on individual instances by result. The probes/acquires ratio reflects pool contention."),
-			[]string{"result"},
+			[]string{resultLabel},
 		),
 		releases: prometheus.NewCounterVec(
 			counterOpts("releases_total", "Total browser session releases by result. Sessions whose release failed are reclaimed by the instance's session timeout."),
-			[]string{"result"},
+			[]string{resultLabel},
 		),
-		syncs: prometheus.NewCounterVec(
-			counterOpts("syncs_total", "Total pool sync ticks by result. A sync errors when fleet resolution fails; it then reconciles the known instances only."),
-			[]string{"result"},
+		discoveries: prometheus.NewCounterVec(
+			counterOpts("discoveries_total", "Total fleet discoveries, one per sync tick, by result. \"empty\" means discovery succeeded with no instances; \"error\" means it failed and the tick re-observed the known instances only."),
+			[]string{resultLabel},
+		),
+		syncObservations: prometheus.NewCounterVec(
+			counterOpts("sync_observations_total", "Total instance observations (GET /sessions) during sync ticks, one per instance per tick, by result. \"error\" means the instance was unreachable or answered badly."),
+			[]string{resultLabel},
 		),
 		acquireDuration: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: metricNamespace,
@@ -661,7 +678,8 @@ func registerMetrics(registerer prometheus.Registerer, p *Pool) metrics {
 		m.acquires,
 		m.probes,
 		m.releases,
-		m.syncs,
+		m.discoveries,
+		m.syncObservations,
 		m.acquireDuration,
 		m.instancesBusy,
 		m.instancesFree,
