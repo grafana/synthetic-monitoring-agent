@@ -121,8 +121,9 @@ type sessionInfo struct {
 // date until ctx is cancelled.
 func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Pool, error) {
 	if cfg.Discover == nil {
-		return nil, errors.New("Discover is required")
+		return nil, errors.New("discover function is required")
 	}
+
 	if cfg.SyncInterval < 0 {
 		return nil, fmt.Errorf("invalid negative SyncInterval %s", cfg.SyncInterval)
 	}
@@ -130,9 +131,11 @@ func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Po
 	if cfg.SyncInterval == 0 {
 		cfg.SyncInterval = defaultSyncInterval
 	}
+
 	if cfg.HTTPClient == nil {
 		cfg.HTTPClient = &http.Client{}
 	}
+
 	if registerer == nil {
 		registerer = prometheus.NewRegistry() // Empty, unused.
 	}
@@ -263,6 +266,7 @@ func (p *Pool) claimNext() *instance {
 		// Claim the instance so concurrent Acquire calls on this agent do not
 		// race for it. Cross-agent races are resolved by crocochrome's 409.
 		inst.busy = true
+
 		return inst
 	}
 
@@ -273,6 +277,7 @@ func (p *Pool) claimNext() *instance {
 func (p *Pool) size() int {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
+
 	return p.order.Len()
 }
 
@@ -290,6 +295,7 @@ func (p *Pool) probe(ctx context.Context, baseURL string, checkInfo []byte) (wsU
 	if err != nil {
 		return "", "", fmt.Errorf("building acquire request: %w", err)
 	}
+
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := p.client.Do(req)
@@ -310,6 +316,7 @@ func (p *Pool) probe(ctx context.Context, baseURL string, checkInfo []byte) (wsU
 		default:
 			p.metrics.probes.WithLabelValues("error").Inc()
 		}
+
 		return "", "", fmt.Errorf("instance responded %d", resp.StatusCode)
 	}
 
@@ -318,6 +325,7 @@ func (p *Pool) probe(ctx context.Context, baseURL string, checkInfo []byte) (wsU
 		p.metrics.probes.WithLabelValues("error").Inc()
 		return "", "", fmt.Errorf("decoding session: %w", err)
 	}
+
 	if si.ID == "" || si.ChromiumVersion.WebSocketDebuggerURL == "" {
 		// A session may have been created even though the response is
 		// unusable: best-effort delete to avoid leaking it until the
@@ -325,11 +333,14 @@ func (p *Pool) probe(ctx context.Context, baseURL string, checkInfo []byte) (wsU
 		if si.ID != "" {
 			dctx, dcancel := context.WithTimeout(context.WithoutCancel(ctx), releaseTimeout)
 			defer dcancel()
+
 			if derr := p.deleteSession(dctx, baseURL, si.ID); derr != nil {
 				p.logger.Warn().Err(derr).Str("instance", baseURL).Msg("deleting unusable browser session")
 			}
 		}
+
 		p.metrics.probes.WithLabelValues("error").Inc()
+
 		return "", "", errors.New("session response missing id or webSocketDebuggerUrl")
 	}
 
@@ -439,6 +450,7 @@ func (p *Pool) syncOnce(ctx context.Context) {
 		} else {
 			p.metrics.discoveries.WithLabelValues("ok").Inc()
 		}
+
 		addrs = instanceBaseURLs(discovered)
 	}
 
@@ -461,6 +473,7 @@ func (p *Pool) syncOnce(ctx context.Context) {
 				// probing corrects the guess if it is actually free.
 				p.metrics.syncObservations.WithLabelValues("error").Inc()
 				p.logger.Debug().Err(err).Str("instance", addr).Msg("observing browser instance")
+
 				free = false
 			case free:
 				p.metrics.syncObservations.WithLabelValues("free").Inc()
@@ -482,6 +495,7 @@ func (p *Pool) syncOnce(ctx context.Context) {
 	for _, addr := range addrs {
 		resolved[addr] = true
 	}
+
 	p.prune(resolved)
 }
 
@@ -562,6 +576,7 @@ func (p *Pool) prune(resolved map[string]bool) {
 		if resolved[baseURL] || el.Value.(*instance).busy {
 			continue
 		}
+
 		p.order.Remove(el)
 		delete(p.elements, baseURL)
 	}
@@ -578,6 +593,7 @@ func (p *Pool) claimedCount() (busy, total int) {
 			busy++
 		}
 	}
+
 	return busy, p.order.Len()
 }
 
@@ -590,6 +606,7 @@ func (p *Pool) instanceURLs() []string {
 	for baseURL := range p.elements {
 		addrs = append(addrs, baseURL)
 	}
+
 	return addrs
 }
 

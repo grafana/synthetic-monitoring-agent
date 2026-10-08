@@ -33,13 +33,19 @@ func validateBrowserPoolConfig(cfg browserPoolConfig) error {
 }
 
 // buildBrowserPool translates the -browser-pool-* flags into a running
-// browser.Pool, whose sync loop stops when ctx is cancelled. It returns the
-// k6runner interface type so a typed-nil can never reach
-// RunnerOpts.BrowserPool.
+// browser.Pool, whose sync loop stops when ctx is cancelled. It returns nil
+// when the pool is disabled. It returns the k6runner interface type so a
+// typed-nil can never reach RunnerOpts.BrowserPool.
 func buildBrowserPool(
-	ctx context.Context, addresses []string, logger zerolog.Logger, registerer prometheus.Registerer,
+	ctx context.Context, cfg browserPoolConfig, logger zerolog.Logger, registerer prometheus.Registerer,
 ) (k6runner.BrowserPool, error) {
-	discoverFn, err := discovery.NewDiscoverer(addresses, browser.DefaultInstancePort, logger)
+	if !cfg.Enabled {
+		return nil, nil
+	}
+
+	logger.Warn().Msg("browser pool is experimental: the -browser-pool-* flags and their behavior may change or be removed in future releases")
+
+	discoverFn, err := discovery.NewDiscoverer(cfg.Addresses, browser.DefaultInstancePort, logger)
 	if err != nil {
 		return nil, fmt.Errorf("configuring browser pool discovery: %w", err)
 	}
@@ -51,5 +57,6 @@ func buildBrowserPool(
 	if err != nil {
 		return nil, err
 	}
+
 	return pool, nil
 }
