@@ -395,14 +395,25 @@ func run(args []string, stdout io.Writer) error {
 	// When clustering is disabled, the updater uses the mono node (owns everything),
 	// The updater needs the node, so it is built first; the node is started after the updater exists.
 	var (
-		clusterNode = cluster.NewMono() // passed to the updater
-		ringNode    *cluster.RingNode   // set + started only when clustering is enabled
+		clusterNode     = cluster.NewMono() // passed to the updater
+		ringNode        *cluster.RingNode   // set + started only when clustering is enabled
+		clusterNodeName string
 	)
 
 	if config.Cluster.Enabled {
 		zl.Warn().Msg("clustering is experimental: the -cluster-* flags and their behavior may change or be removed in future releases")
 
-		ringNode, err = buildClusterNode(config.Cluster, zl.With().Str("subsystem", "cluster").Logger(), promRegisterer)
+		var hostnameErr error
+
+		clusterNodeName, hostnameErr = resolveClusterNodeName(config.Cluster.NodeName, os.Hostname)
+		if hostnameErr != nil {
+			zl.Warn().
+				Err(hostnameErr).
+				Str("nodeName", clusterNodeName).
+				Msg("failed to resolve hostname; using generated cluster node name")
+		}
+
+		ringNode, err = buildClusterNode(config.Cluster, clusterNodeName, zl.With().Str("subsystem", "cluster").Logger(), promRegisterer)
 		if err != nil {
 			return err
 		}
@@ -509,6 +520,7 @@ func run(args []string, stdout io.Writer) error {
 				Publisher: publisher,
 				Interval:  config.MetricsInterval,
 				ProbeCh:   probeCh,
+				Instance:  clusterNodeName,
 			})
 
 			return metricsHandler.Run(ctx)
