@@ -814,6 +814,63 @@ LOOP:
 	}
 }
 
+func TestAdHocExecutionsCountedSeparately(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		td, tc, pusher, _ := setupTest(t)
+		t.Cleanup(td.shutdownAndWait)
+
+		cals := []sm.CostAttributionLabel{{Name: "team", Value: CalNilStringTerminator}}
+
+		// Two scheduled and one ad-hoc execution, otherwise identical.
+		pusher.AddExecution(Execution{
+			LocalTenantID: 1, CheckClass: sm.CheckClass_PROTOCOL,
+			Duration: 30 * time.Second, CostAttributionLabels: cals,
+		})
+		pusher.AddExecution(Execution{
+			LocalTenantID: 1, CheckClass: sm.CheckClass_PROTOCOL,
+			Duration: 30 * time.Second, CostAttributionLabels: cals,
+		})
+		pusher.AddExecution(Execution{
+			LocalTenantID: 1, CheckClass: sm.CheckClass_PROTOCOL,
+			Duration: 30 * time.Second, CostAttributionLabels: cals, AdHoc: true,
+		})
+
+		tc.rr = testPushResp{tr: &sm.PushTelemetryResponse{Status: &sm.Status{Code: sm.StatusCode_OK}}}
+
+		td.tickAndWait()
+
+		tc.assert(t, sm.RegionTelemetry{
+			Instance: instance,
+			RegionId: regionID,
+			Telemetry: []*sm.TenantTelemetry{
+				{
+					TenantId: 1,
+					Telemetry: []*sm.CheckClassTelemetry{
+						{
+							CheckClass:            sm.CheckClass_PROTOCOL,
+							Executions:            2,
+							Duration:              60,
+							SampledExecutions:     2,
+							CostAttributionLabels: cals,
+							Adhoc:                 false,
+						},
+						{
+							CheckClass:            sm.CheckClass_PROTOCOL,
+							Executions:            1,
+							Duration:              30,
+							SampledExecutions:     1,
+							CostAttributionLabels: cals,
+							Adhoc:                 true,
+						},
+					},
+				},
+			},
+		})
+	})
+}
+
 func getMetricFromCollector(t *testing.T, c prom.Collector) *prommodel.Metric {
 	t.Helper()
 
