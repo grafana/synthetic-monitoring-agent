@@ -17,6 +17,7 @@ import (
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -24,6 +25,7 @@ import (
 	logproto "github.com/grafana/loki/pkg/push"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
+	"github.com/grafana/synthetic-monitoring-agent/internal/cluster"
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -54,6 +56,7 @@ const (
 )
 
 const metricNamespace = "sm_agent"
+const metricSubsystem = "updater"
 
 // Backoffer defines an interface to provide backoff durations.
 //
@@ -83,6 +86,9 @@ type Updater struct {
 	probe                   *sm.Probe
 	scrapersMutex           sync.Mutex
 	scrapers                map[model.GlobalID]*scraper.Scraper
+	node                    cluster.Node
+	knownChecks             map[model.GlobalID]model.Check
+	reconcileCh             chan struct{}
 	metrics                 metrics
 	k6Runner                k6runner.Runner
 	scraperFactory          scraper.Factory
@@ -93,6 +99,7 @@ type Updater struct {
 	tenantCals              *cals.CostAttributionLabels
 	tenantLabellingMode     *labelmode.LabelMode
 	supportsProtocolSecrets bool
+	isClusterEnabled        bool
 }
 
 type apiInfo struct {
@@ -126,6 +133,7 @@ type UpdaterOptions struct {
 	Features                feature.Collection
 	K6Runner                k6runner.Runner
 	ScraperFactory          scraper.Factory
+	Node                    cluster.Node
 	TenantLimits            *limits.TenantLimits
 	SecretProvider          secrets.SecretProvider
 	Telemeter               *telemetry.Telemeter
@@ -133,114 +141,16 @@ type UpdaterOptions struct {
 	CostAttributionLabels   *cals.CostAttributionLabels
 	LabellingMode           *labelmode.LabelMode
 	SupportsProtocolSecrets bool
+	IsClusterEnabled        bool
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
-	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricNamespace,
-		Subsystem: "updater",
-		Name:      "changes_total",
-		Help:      "Total number of changes processed.",
-	}, []string{
-		"type",
-	})
-
-	if err := opts.PromRegisterer.Register(changesCounter); err != nil {
-		return nil, err
-	}
-
-	changeErrorsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricNamespace,
-		Subsystem: "updater",
-		Name:      "change_errors_total",
-		Help:      "Total number of errors during change processing.",
-	}, []string{
-		"type",
-	})
-
-	if err := opts.PromRegisterer.Register(changeErrorsCounter); err != nil {
-		return nil, err
-	}
-
-	runningScrapers := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: metricNamespace,
-		Subsystem: "updater",
-		Name:      "scrapers_total",
-		Help:      "Total number of running scrapers.",
-	}, []string{
-		"type",
-	})
-
-	if err := opts.PromRegisterer.Register(runningScrapers); err != nil {
-		return nil, err
-	}
-
-	scrapesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricNamespace,
-		Subsystem: "scraper",
-		Name:      "operations_total",
-		Help:      "Total number of scrape operations performed by type.",
-	}, []string{
-		"type",
-		"tenantId",
-		"regionId",
-	})
-
-	if err := opts.PromRegisterer.Register(scrapesCounter); err != nil {
-		return nil, err
-	}
-
-	scrapeErrorCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: metricNamespace,
-		Subsystem: "scraper",
-		Name:      "errors_total",
-		Help:      "Total number of scraper errors by type and status.",
-	}, []string{
-		"type",
-		"source",
-		"tenantId",
-		"regionId",
-	})
-
-	if err := opts.PromRegisterer.Register(scrapeErrorCounter); err != nil {
-		return nil, err
-	}
-
-	connectionStatusGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: metricNamespace,
-		Subsystem: "api_connection",
-		Name:      "status",
-		Help:      "API connection status.",
-	})
-
-	if err := opts.PromRegisterer.Register(connectionStatusGauge); err != nil {
-		return nil, err
-	}
-
-	connectionStatusGauge.Set(0)
-
-	probeInfoGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: metricNamespace,
-		Name:      "info",
-		Help:      "Agent information.",
-	}, []string{
-		"id",
-		"name",
-		"version",
-		"commit",
-		"buildstamp",
-	})
-
-	if err := opts.PromRegisterer.Register(probeInfoGauge); err != nil {
-		return nil, err
-	}
-
 	scraperFactory := scraper.New
 	if opts.ScraperFactory != nil {
 		scraperFactory = opts.ScraperFactory
 	}
 
-	return &Updater{
+	c := &Updater{
 		api: apiInfo{
 			conn: opts.Conn,
 		},
@@ -252,29 +162,32 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		probeCh:                 opts.ProbeCh,
 		IsConnected:             opts.IsConnected,
 		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
+		node:                    opts.Node,
+		knownChecks:             make(map[model.GlobalID]model.Check),
+		reconcileCh:             make(chan struct{}, 1),
 		k6Runner:                opts.K6Runner,
 		scraperFactory:          scraperFactory,
 		tenantLimits:            opts.TenantLimits,
 		tenantSecrets:           opts.SecretProvider,
 		telemeter:               opts.Telemeter,
 		supportsProtocolSecrets: opts.SupportsProtocolSecrets,
-		metrics: metrics{
-			changeErrorsCounter: changeErrorsCounter,
-			changesCounter:      changesCounter,
-			connectionStatus:    connectionStatusGauge,
-			probeInfo:           probeInfoGauge,
-			runningScrapers:     runningScrapers,
-			scrapeErrorCounter:  scrapeErrorCounter,
-			scrapesCounter:      scrapesCounter,
-		},
-		usageReporter:       opts.UsageReporter,
-		tenantCals:          opts.CostAttributionLabels,
-		tenantLabellingMode: opts.LabellingMode,
-	}, nil
+		isClusterEnabled:        opts.IsClusterEnabled,
+		usageReporter:           opts.UsageReporter,
+		tenantCals:              opts.CostAttributionLabels,
+		tenantLabellingMode:     opts.LabellingMode,
+	}
+
+	if err := c.registerMetrics(opts.PromRegisterer); err != nil {
+		return nil, fmt.Errorf("registering metrics: %w", err)
+	}
+
+	return c, nil
 }
 
 func (c *Updater) Run(ctx context.Context) error {
 	c.backoff.Reset()
+
+	go c.runReconcileLoop(ctx)
 
 	for {
 		wasConnected, err := c.loop(ctx)
@@ -394,6 +307,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		Commit:                  version.Commit(),
 		Buildstamp:              version.Buildstamp(),
 		SupportsProtocolSecrets: c.supportsProtocolSecrets,
+		IsClusterEnabled:        c.isClusterEnabled,
 	})
 	if err != nil {
 		return connected, grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
@@ -414,7 +328,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		return connected, err
 	}
 
-	c.probe = &result.Probe
+	c.setProbe(&result.Probe)
 
 	c.notifyProbeTenant()
 
@@ -470,16 +384,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		}
 	}
 
-	knownChecks := sm.ProbeState{
-		Checks: make([]sm.EntityRef, 0, len(c.scrapers)),
-	}
-
-	for cID, scraper := range c.scrapers {
-		knownChecks.Checks = append(knownChecks.Checks, sm.EntityRef{
-			Id:           int64(cID),
-			LastModified: scraper.LastModified(),
-		})
-	}
+	knownChecks := c.probeState()
 
 	cc, err := client.GetChanges(sigCtx, &knownChecks)
 	if err != nil {
@@ -527,6 +432,37 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	err = g.Wait()
 
 	return connected, errorHandler(err, "getting changes from synthetic-monitoring-api", signalFired)
+}
+
+// setProbe records the probe returned by RegisterProbe. It takes the
+// scrapersMutex because the reconcile loop reads c.probe to create scrapers.
+func (c *Updater) setProbe(p *sm.Probe) {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+
+	c.probe = p
+}
+
+// probeState returns all checks known to this agent.
+// Clustered agents connect to the API independently, so each reports the probe's complete
+// check set. Ring ownership will determines which checks each agent runs.
+// It takes the scrapersMutex because check handlers mutate c.knownChecks concurrently.
+func (c *Updater) probeState() sm.ProbeState {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+
+	state := sm.ProbeState{
+		Checks: make([]sm.EntityRef, 0, len(c.knownChecks)),
+	}
+
+	for cID, check := range c.knownChecks {
+		state.Checks = append(state.Checks, sm.EntityRef{
+			Id:           int64(cID),
+			LastModified: check.Modified,
+		})
+	}
+
+	return state
 }
 
 func (c *Updater) validateProbeCapabilities(capabilities *sm.Probe_Capabilities) error {
@@ -681,15 +617,19 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
-	if running, found := c.scrapers[check.GlobalID()]; found {
+	cid := check.GlobalID()
+
+	if existing, found := c.knownChecks[cid]; found {
 		// we can get here if the API sent us a check add twice:
 		// once during the initial connection and another right
 		// after that. The window for that is small, but it
 		// exists.
-		return fmt.Errorf("check with id %d already exists (version %s)", check.GlobalID(), running.ConfigVersion())
+		return fmt.Errorf("check with id %d already exists (version %s)", cid, existing.ConfigVersion())
 	}
 
-	return c.addAndStartScraperWithLock(ctx, check)
+	c.knownChecks[cid] = check
+
+	return c.reconcileCheckWithLock(ctx, cid)
 }
 
 func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) error {
@@ -709,24 +649,9 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) erro
 // MUST be called with the scrapersMutex lock held.
 func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check model.Check) error {
 	cid := check.GlobalID()
+	c.knownChecks[cid] = check
 
-	scraper, found := c.scrapers[cid]
-	if !found {
-		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("update request for an unknown check")
-		return c.addAndStartScraperWithLock(ctx, check)
-	}
-
-	// this is the lazy way to update the scraper: tear everything
-	// down, start it again.
-
-	scraper.Stop()
-	checkType := scraper.CheckType().String()
-
-	delete(c.scrapers, cid)
-
-	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
-
-	return c.addAndStartScraperWithLock(ctx, check)
+	return c.reconcileCheckWithLock(ctx, cid)
 }
 
 func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) error {
@@ -737,20 +662,14 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) erro
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
-	scraper, found := c.scrapers[cid]
-	if !found {
+	if _, found := c.knownChecks[cid]; !found {
 		c.logger.Warn().Int64("check_id", check.Id).Int("region_id", check.RegionId).Msg("delete request for an unknown check")
 		return errors.New("check not found")
 	}
 
-	scraper.Stop()
-	checkType := scraper.CheckType().String()
+	delete(c.knownChecks, cid)
 
-	delete(c.scrapers, cid)
-
-	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
-
-	return nil
+	return c.reconcileCheckWithLock(ctx, cid)
 }
 
 // handleFirstBatch takes a list of changes and adds them to the running set
@@ -769,36 +688,18 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) erro
 // We have to do this exactly once per reconnect. It's up to the calling code
 // to ensure this.
 func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
-	newChecks := make(map[model.GlobalID]struct{})
-
 	c.scrapersMutex.Lock()
 	defer c.scrapersMutex.Unlock()
 
-	// add checks from the provided list
+	// Rebuild the desired set from scratch. Anything the server doesn't resend
+	// in the first batch is no longer ours: it gets left out of knownChecks and
+	// reconcileAll stops its scraper as an orphan.
+	knownChecks := make(map[model.GlobalID]model.Check, len(changes.Checks))
+
 	for _, checkChange := range changes.Checks {
 		c.logger.Debug().Interface("check change", checkChange).Msg("got check change")
 
-		switch checkChange.Operation {
-		case sm.CheckOperation_CHECK_ADD:
-			var check model.Check
-			if err := check.FromSM(checkChange.Check); err != nil {
-				c.logger.Error().Err(err).Interface("check_change", checkChange).Msg("dropping check during add operation")
-				continue
-			}
-
-			if err := c.handleInitialChangeAddWithLock(ctx, check); err != nil {
-				c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
-				c.logger.Error().Err(err).Int64("check_id", check.Id).Int("region_id", check.RegionId).
-					Msg("adding check failed, dropping check")
-
-				continue
-			}
-
-			// add this to the list of checks we have seen during
-			// this operation
-			newChecks[check.GlobalID()] = struct{}{}
-
-		default:
+		if checkChange.Operation != sm.CheckOperation_CHECK_ADD {
 			// we should never hit this because the first time we
 			// connect the server will only send adds.
 			c.logger.Warn().
@@ -808,65 +709,29 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 
 			continue
 		}
-	}
 
-	// remove all the running scrapers that weren't sent with the first batch
-	for id, scraper := range c.scrapers {
-		if _, found := newChecks[id]; found {
+		var check model.Check
+		if err := check.FromSM(checkChange.Check); err != nil {
+			c.logger.Error().Err(err).Interface("check_change", checkChange).Msg("dropping check during add operation")
 			continue
 		}
 
-		cid, rid := model.GetLocalAndRegionIDs(id)
-		c.logger.Debug().
-			Int64("check_id", cid).
-			Int("region_id", rid).
-			Msg("stopping scraper during first batch handling")
+		c.metrics.changesCounter.WithLabelValues("add").Inc()
 
-		checkType := scraper.CheckType().String()
-		scraper.Stop()
+		if err := check.Validate(); err != nil {
+			c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
+			c.logger.Error().Err(err).Int64("check_id", check.Id).Int("region_id", check.RegionId).
+				Msg("adding check failed, dropping check")
 
-		delete(c.scrapers, id)
-
-		c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
-	}
-}
-
-// handleCheckUpdateWithLock the specified check to the running checks.
-//
-// It deals with the case where this check is the product of a reconnection
-// and changes the operation to an update if necessary.
-//
-// This function MUST be called with the scrapers mutex held.
-func (c *Updater) handleInitialChangeAddWithLock(ctx context.Context, check model.Check) error {
-	if running, found := c.scrapers[check.GlobalID()]; found {
-		oldVersion := running.ConfigVersion()
-		newVersion := check.ConfigVersion()
-
-		if oldVersion == newVersion {
-			// we already have this, skip
-			//
-			// XXX(mem): beware, the probe might have changed
-			return nil
+			continue
 		}
 
-		// transform this request into an update
-		c.logger.Debug().Str("old_check_version", oldVersion).Str("new_check_version", newVersion).Msg("transforming add into update")
-
-		return c.handleCheckUpdateWithLock(ctx, check)
+		knownChecks[check.GlobalID()] = check
 	}
 
-	c.metrics.changesCounter.WithLabelValues("add").Inc()
+	c.knownChecks = knownChecks
 
-	if err := check.Validate(); err != nil {
-		return err
-	}
-
-	if err := c.addAndStartScraperWithLock(ctx, check); err != nil {
-		c.metrics.changeErrorsCounter.WithLabelValues("add").Inc()
-		return err
-	}
-
-	return nil
+	c.reconcileAllWithLock(ctx)
 }
 
 func (c *Updater) handleChangeBatch(ctx context.Context, changes *sm.Changes, firstBatch bool) {
@@ -982,6 +847,250 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 	go scraper.Run(ctx)
 
 	c.metrics.runningScrapers.WithLabelValues(checkType).Inc()
+
+	return nil
+}
+
+// reconcileCheckWithLock drives a single check's scraper to the desired state:
+// the check runs if and only if it is known (present in knownChecks) and owned
+// by this node. It MUST be called with the scrapersMutex held.
+func (c *Updater) reconcileCheckWithLock(ctx context.Context, cid model.GlobalID) error {
+	if !c.node.Ready() {
+		// Buffer: the check is already recorded in knownChecks by the caller and
+		// is replayed on the next reconcileAll once Ready() flips. While not
+		// ready no scrapers have been started, so there is nothing to stop.
+		return nil
+	}
+
+	check, known := c.knownChecks[cid]
+
+	shouldRun := false
+
+	if known {
+		owned, err := c.node.IsOwner(cid)
+		if err != nil {
+			return fmt.Errorf("determining ownership of check %d: %w", cid, err)
+		}
+
+		shouldRun = owned
+	}
+
+	running, isRunning := c.scrapers[cid]
+
+	switch {
+	case shouldRun && !isRunning:
+		return c.addAndStartScraperWithLock(ctx, check)
+
+	case shouldRun && isRunning:
+		if running.ConfigVersion() == check.ConfigVersion() {
+			// already running the desired configuration
+			return nil
+		}
+		// configuration changed: tear it down and start it again.
+		c.stopScraperWithLock(cid, running)
+
+		return c.addAndStartScraperWithLock(ctx, check)
+
+	case !shouldRun && isRunning:
+		c.stopScraperWithLock(cid, running)
+	}
+
+	return nil
+}
+
+// RequestReconcile schedules a reconciliation of all checks. It is called by the
+// cluster wrapper whenever membership changes. The send is non-blocking and
+// coalescing: if a reconcile is already pending, the request is dropped because
+// the pending one will observe the latest membership anyway.
+func (c *Updater) RequestReconcile() {
+	select {
+	case c.reconcileCh <- struct{}{}:
+	default:
+		// a reconcile is already pending; coalesce
+	}
+}
+
+// runReconcileLoop drains reconcile requests and applies them one at a time,
+// behind a rate limiter so bursts of membership changes (e.g. during cluster
+// startup) settle into a bounded number of reconciliations. It runs until ctx is
+// cancelled.
+func (c *Updater) runReconcileLoop(ctx context.Context) {
+	limiter := rate.NewLimiter(rate.Every(time.Second), 1)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+
+		case <-c.reconcileCh:
+			if err := limiter.Wait(ctx); err != nil {
+				return
+			}
+
+			c.reconcileAll(ctx)
+		}
+	}
+}
+
+// reconcileAll drives every check to its desired state, starting newly-owned
+// checks and stopping checks that are no longer owned or no longer known. It is
+// idempotent and safe to call repeatedly (e.g. on every membership change).
+func (c *Updater) reconcileAll(ctx context.Context) {
+	c.scrapersMutex.Lock()
+	defer c.scrapersMutex.Unlock()
+
+	c.reconcileAllWithLock(ctx)
+}
+
+// reconcileAllWithLock is the body of reconcileAll. It MUST be called with the
+// scrapersMutex held.
+func (c *Updater) reconcileAllWithLock(ctx context.Context) {
+	reconcile := func(checkID model.GlobalID) {
+		if err := c.reconcileCheckWithLock(ctx, checkID); err != nil {
+			checkID, regionID := model.GetLocalAndRegionIDs(checkID)
+			c.logger.Error().Err(err).Int64("check_id", checkID).Int("region_id", regionID).Msg("reconciling check")
+		}
+	}
+
+	for checkID := range c.knownChecks {
+		reconcile(checkID)
+	}
+
+	// Stop scrapers for checks that are no longer known (orphans): these are not
+	// in knownChecks, so the loop above never visits them.
+	for checkID := range c.scrapers {
+		if _, known := c.knownChecks[checkID]; known {
+			continue
+		}
+
+		reconcile(checkID)
+	}
+}
+
+// stopScraperWithLock stops a running scraper and updates the bookkeeping. It
+// MUST be called with the scrapersMutex held.
+func (c *Updater) stopScraperWithLock(cid model.GlobalID, s *scraper.Scraper) {
+	checkType := s.CheckType().String()
+	s.Stop()
+	delete(c.scrapers, cid)
+	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
+}
+
+func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
+	changesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: metricSubsystem,
+		Name:      "changes_total",
+		Help:      "Total number of changes processed.",
+	}, []string{
+		"type",
+	})
+
+	changeErrorsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: metricSubsystem,
+		Name:      "change_errors_total",
+		Help:      "Total number of errors during change processing.",
+	}, []string{
+		"type",
+	})
+
+	runningScrapers := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: metricSubsystem,
+		Name:      "scrapers_total",
+		Help:      "Total number of running scrapers.",
+	}, []string{
+		"type",
+	})
+
+	scrapesCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: "scraper",
+		Name:      "operations_total",
+		Help:      "Total number of scrape operations performed by type.",
+	}, []string{
+		"type",
+		"tenantId",
+		"regionId",
+	})
+
+	scrapeErrorCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: "scraper",
+		Name:      "errors_total",
+		Help:      "Total number of scraper errors by type and status.",
+	}, []string{
+		"type",
+		"source",
+		"tenantId",
+		"regionId",
+	})
+
+	connectionStatusGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: "api_connection",
+		Name:      "status",
+		Help:      "API connection status.",
+	})
+
+	probeInfoGauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Name:      "info",
+		Help:      "Agent information.",
+	}, []string{
+		"id",
+		"name",
+		"version",
+		"commit",
+		"buildstamp",
+	})
+
+	knownChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: metricSubsystem,
+		Name:      "known_checks",
+		Help:      "Total number of checks known to the agent, owned or not.",
+	}, func() float64 {
+		c.scrapersMutex.Lock()
+		defer c.scrapersMutex.Unlock()
+
+		return float64(len(c.knownChecks))
+	})
+
+	ownedChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+		Namespace: metricNamespace,
+		Subsystem: metricSubsystem,
+		Name:      "owned_checks",
+		Help:      "Number of checks the agent owns and is currently running.",
+	}, func() float64 {
+		c.scrapersMutex.Lock()
+		defer c.scrapersMutex.Unlock()
+
+		return float64(len(c.scrapers))
+	})
+
+	for _, collector := range []prometheus.Collector{
+		changesCounter, changeErrorsCounter, runningScrapers,
+		scrapesCounter, scrapeErrorCounter, connectionStatusGauge,
+		probeInfoGauge, knownChecksGauge, ownedChecksGauge,
+	} {
+		if err := registerer.Register(collector); err != nil {
+			return err
+		}
+	}
+
+	connectionStatusGauge.Set(0)
+
+	c.metrics = metrics{
+		changeErrorsCounter: changeErrorsCounter,
+		changesCounter:      changesCounter,
+		connectionStatus:    connectionStatusGauge,
+		probeInfo:           probeInfoGauge,
+		runningScrapers:     runningScrapers,
+		scrapeErrorCounter:  scrapeErrorCounter,
+		scrapesCounter:      scrapesCounter,
+	}
 
 	return nil
 }

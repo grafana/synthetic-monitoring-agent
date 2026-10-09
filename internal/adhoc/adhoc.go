@@ -44,6 +44,7 @@ type Handler struct {
 	grpcAdhocChecksClientFactory func(conn ClientConn) (sm.AdHocChecksClient, error)
 	proberFactory                prober.ProberFactory
 	supportsProtocolSecrets      bool
+	isClusterEnabled             bool
 }
 
 // Error represents errors returned from this package.
@@ -119,6 +120,7 @@ type HandlerOpts struct {
 	K6Runner                k6runner.Runner
 	SecretProvider          secrets.SecretProvider
 	SupportsProtocolSecrets bool
+	IsClusterEnabled        bool
 
 	// these two fields exists so that tests can pass alternate
 	// implementations, they are unexported so that clients of this
@@ -167,6 +169,7 @@ func NewHandler(opts HandlerOpts) (*Handler, error) {
 		grpcAdhocChecksClientFactory: opts.grpcAdhocChecksClientFactory,
 		proberFactory:                prober.NewProberFactory(opts.K6Runner, 0, opts.Features, opts.SecretProvider),
 		supportsProtocolSecrets:      opts.SupportsProtocolSecrets,
+		isClusterEnabled:             opts.IsClusterEnabled,
 		api: apiInfo{
 			conn: opts.Conn,
 		},
@@ -335,6 +338,7 @@ func (h *Handler) loop(ctx context.Context) error {
 			Commit:                  version.Commit(),
 			Buildstamp:              version.Buildstamp(),
 			SupportsProtocolSecrets: h.supportsProtocolSecrets,
+			IsClusterEnabled:        h.isClusterEnabled,
 		},
 	)
 	if err != nil {
