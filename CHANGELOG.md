@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.66.2](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.66.1...v0.66.2) (2026-10-09)
+
+
+### Miscellaneous Chores
+
+* Remove unused code from secrets ([#2004](https://github.com/grafana/synthetic-monitoring-agent/issues/2004)) ([ab5ebdd](https://github.com/grafana/synthetic-monitoring-agent/commit/ab5ebdd3152c8f93c5062bf94bfb0172101768d5))
+
 ## [0.66.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.66.0...v0.66.1) (2026-10-01)
 
 
