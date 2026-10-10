@@ -77,6 +77,7 @@ func run(args []string, stdout io.Writer) error {
 			K6URI                     string
 			K6Repository              string
 			K6BlacklistedIP           string
+			BrowserPool               browserPoolConfig
 			SelectedPublisher         string
 			TelemetryTimeSpan         int
 			AutoMemLimit              bool
@@ -139,6 +140,8 @@ func run(args []string, stdout io.Writer) error {
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
+	flags.BoolVar(&config.BrowserPool.Enabled, "browser-pool-enabled", config.BrowserPool.Enabled, "[experimental] use remote browser sessions from an external browser (crocochrome) pool for browser checks instead of a local Chromium; requires -browser-pool-addresses")
+	flags.Var(&config.BrowserPool.Addresses, "browser-pool-addresses", "[experimental] comma-separated external browser (crocochrome) pool instances as host[:port]; prefixes: dns+ (A/AAAA), dnssrv+ (SRV then A/AAAA), dnssrvnoa+ (SRV only); without a prefix A/AAAA then SRV; instances are addressed as http://host:port, port defaults to 8080; requires -browser-pool-enabled")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -180,6 +183,10 @@ func run(args []string, stdout io.Writer) error {
 		// SplitHostPort errors if the address has no port. This is intended, as omitting the port in the address is
 		// almost likely a user error that is hard to troubleshoot otherwise.
 		return fmt.Errorf("parsing GRPC api server address %q: %w", config.GrpcApiServerAddr, err)
+	}
+
+	if err := validateBrowserPoolConfig(config.BrowserPool); err != nil {
+		return err
 	}
 
 	// If the token is provided on the command line, prefer that. Otherwise
@@ -328,15 +335,24 @@ func run(args []string, stdout io.Writer) error {
 			return err
 		}
 
+		browserPool, err := buildBrowserPool(ctx, config.BrowserPool,
+			zl.With().Str("subsystem", "browser_pool").Logger(), promRegisterer)
+		if err != nil {
+			return fmt.Errorf("building browser pool: %w", err)
+		}
+
 		k6Runner, err = k6runner.New(k6runner.RunnerOpts{
 			Uri:           config.K6URI,
 			Repository:    config.K6Repository,
 			BlacklistedIP: config.K6BlacklistedIP,
 			Registerer:    promRegisterer,
+			BrowserPool:   browserPool,
 		})
 		if err != nil {
 			return fmt.Errorf("building k6 runner: %w", err)
 		}
+	} else if config.BrowserPool.Enabled {
+		zl.Warn().Msg("browser pool configured but the k6 feature is disabled; ignoring")
 	}
 
 	tm := tenants.NewManager(

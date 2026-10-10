@@ -29,6 +29,7 @@ boot?", this is the doc.
 | `main.go`    | Flag parsing, bootstrap sequence (`run()`), `signalHandler()` for SIGTERM, cache setup, GOMEMLIMIT auto-tuning. |
 | `grpc.go`    | `dialAPIServer()` — bearer-token credentials, TLS, gRPC keep-alive parameters.  |
 | `http.go`    | HTTP `Mux`, readiness handler, `/disconnect` (sends SIGUSR1), `/logger` runtime log-level toggle, optional `/debug/pprof/*`. |
+| `browser_pool.go` | `browserPoolConfig` (the `-browser-pool-*` flags), `validateBrowserPoolConfig()` and `buildBrowserPool()`, which builds the browser pool from them. |
 | `flags.go`   | `StringList` custom flag type (comma-separated values).                         |
 | `metrics.go` | `registerMetrics()` — build-info, Go runtime, process collectors.               |
 | `secret.go`  | `Secret` string type that renders as `"<redacted>"` when logged.                |
@@ -57,7 +58,7 @@ The single entry point is `run()` in `main.go`. The sequence below mirrors
 the actual order in that function — keep it in sync if you reorder
 anything.
 
-1. **Parse flags** into a single `config` struct (`main.go` ~lines 60–138). `-dev` enables several debug toggles at once. `-features` accepts a comma-separated feature-flag list.
+1. **Parse flags** into a single `config` struct (`main.go` ~lines 60–138). `-dev` enables several debug toggles at once. `-features` accepts a comma-separated feature-flag list. The `-browser-pool-*` flags (grouped on `browserPoolConfig`, in `browser_pool.go`) are validated right after parsing: `-browser-pool-enabled` and `-browser-pool-addresses` must be set together. They are documented in [browser-pool.md](browser-pool.md).
 2. **Resolve the API token**: command line → `SM_AGENT_API_TOKEN` → `API_TOKEN`.
 3. **Set GOMEMLIMIT** based on cgroup/system memory if `-enable-auto-memlimit` is on (default). Implemented via `setupGoMemLimit()`.
 4. **Build the root `errgroup.Group`** from a cancellable context. Every long-running task is registered with `g.Go(...)`; `g.Wait()` at the end of `run()` is the agent's lifetime.
@@ -69,7 +70,7 @@ anything.
 10. **Create the readiness handler** (`NewReadynessHandler()`). The Updater calls `Set(true)` once it has registered with the API; the handler is wired into `/ready`.
 11. **Build the HTTP mux** (`NewMux()`) and start the HTTP server. The server is shut down via a separate `g.Go` that waits on `ctx.Done()` and calls `Shutdown` with a 5-second timeout.
 12. **Dial the API server** (`dialAPIServer()` in `grpc.go`). Uses bearer-token credentials and gRPC keep-alive set to `synthetic_monitoring.HealthCheckInterval` / `HealthCheckTimeout`.
-13. **Build the k6 runner** if the `k6` feature is set (it is, by default, unless `-disable-k6`). Validates `-blocked-nets` as a comma-separated list of CIDRs.
+13. **Build the k6 runner** if the `k6` feature is set (it is, by default, unless `-disable-k6`). Validates `-blocked-nets` as a comma-separated list of CIDRs. With `-browser-pool-enabled`, `buildBrowserPool` (in `browser_pool.go`) builds the browser pool, which starts its sync loop, and passes it to the runner as `RunnerOpts.BrowserPool`. If the `k6` feature is disabled, the pool flags are ignored with a warning.
 14. **Build the tenant manager**, **publisher** (selected by `-publisher`; v2 is the default), **limits**, **secret provider**, **cost attribution labels**, and **telemeter**.
 15. **Spawn the Updater**: `checks.NewUpdater(...)` + `g.Go(updater.Run)`.
 16. **Spawn the Adhoc handler**: `adhoc.NewHandler(...)` + `g.Go(handler.Run)`.
@@ -147,6 +148,7 @@ If you add a new top-level component, follow the same pattern: define an
 `cmd/synthetic-monitoring-agent` carries only unit tests — there is no
 end-to-end test of `run()` itself. The tests cover the small leaf pieces:
 
+- `browser_pool_test.go` — `validateBrowserPoolConfig` flag combinations.
 - `flags_test.go` — `StringList.Set` parsing and trimming.
 - `http_test.go` — the `readynessHandler` state machine and the `loggerHandler` request validation.
 - `secret_test.go` — `Secret.String` and `Secret.MarshalText` redaction.

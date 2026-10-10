@@ -1,12 +1,19 @@
 package k6runner
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"path/filepath"
 	"slices"
+	"sync"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreateSecretConfigFile(t *testing.T) {
@@ -237,4 +244,196 @@ func TestBuildK6RefID(t *testing.T) {
 			t.Fatal("expected error for empty executionID, got nil")
 		}
 	})
+}
+
+func TestLocalBrowserPool(t *testing.T) {
+	t.Parallel()
+
+	browserScript := func() Script {
+		return Script{
+			Script:            []byte("export default function() {}"),
+			Settings:          Settings{Timeout: 5000},
+			CheckInfo:         CheckInfo{Type: "browser", Metadata: map[string]any{"id": "123"}},
+			K6ChannelManifest: "*",
+		}
+	}
+
+	newLocalRunner := func(t *testing.T, pool BrowserPool) Runner {
+		t.Helper()
+		// The k6 fake is exec'd with the runner's temporary directory as
+		// working directory, so its path must be absolute.
+		k6Fake, err := filepath.Abs("./testdata/k6-env-fake")
+		require.NoError(t, err)
+		runner, err := New(RunnerOpts{Uri: k6Fake, BrowserPool: pool})
+		require.NoError(t, err)
+
+		return runner
+	}
+
+	t.Run("browser check acquires, injects and releases", func(t *testing.T) {
+		t.Parallel()
+
+		pool := &fakeBrowserPool{wsURL: "ws://pool-instance:8080/proxy/abc123"}
+		runner := newLocalRunner(t, pool)
+
+		rr, err := runner.Run(t.Context(), browserScript(), SecretStore{}, "exec-id")
+		require.NoError(t, err)
+
+		acquired, releases := pool.state()
+		require.Len(t, acquired, 1)
+		require.Equal(t, "browser", acquired[0].Type)
+		require.Equal(t, 1, releases)
+		// The fake k6 dumps K6_BROWSER_WS_URL into the logs: the session URL
+		// reached the k6 process environment.
+		require.Contains(t, string(rr.Logs), pool.wsURL)
+		// t.Context() has no deadline, so the acquire gets the full cap.
+		require.InDelta(t, browserAcquireTimeoutCap, pool.acquireBudget(), float64(time.Second))
+	})
+
+	t.Run("non-browser check does not use the pool", func(t *testing.T) {
+		t.Parallel()
+
+		pool := &fakeBrowserPool{wsURL: "ws://pool-instance:8080/proxy/abc123"}
+		runner := newLocalRunner(t, pool)
+
+		script := browserScript()
+		script.CheckInfo.Type = "scripted"
+
+		rr, err := runner.Run(t.Context(), script, SecretStore{}, "exec-id")
+		require.NoError(t, err)
+
+		acquired, releases := pool.state()
+		require.Empty(t, acquired)
+		require.Zero(t, releases)
+		require.Contains(t, string(rr.Logs), "browserWsUrl=none")
+	})
+
+	t.Run("acquire error fails the check", func(t *testing.T) {
+		t.Parallel()
+
+		acquireErr := errors.New("browser pool exhausted")
+		pool := &fakeBrowserPool{err: acquireErr}
+		runner := newLocalRunner(t, pool)
+
+		_, err := runner.Run(t.Context(), browserScript(), SecretStore{}, "exec-id")
+		require.ErrorIs(t, err, acquireErr)
+
+		_, releases := pool.state()
+		require.Zero(t, releases)
+	})
+
+	t.Run("release on k6 failure", func(t *testing.T) {
+		t.Parallel()
+
+		pool := &fakeBrowserPool{wsURL: "ws://pool-instance:8080/proxy/abc123"}
+		runner := newLocalRunner(t, pool)
+
+		// The K6_FAKE_FAIL marker in the script makes the fake k6 exit 1,
+		// which the runner classifies as a user error and absorbs into the
+		// RunResponse.
+		script := browserScript()
+		script.Script = []byte("// K6_FAKE_FAIL")
+
+		rr, err := runner.Run(t.Context(), script, SecretStore{}, "exec-id")
+		require.NoError(t, err)
+		require.NotEmpty(t, rr.Error)
+
+		_, releases := pool.state()
+		require.Equal(t, 1, releases)
+	})
+
+	t.Run("nil pool preserves local behavior", func(t *testing.T) {
+		t.Parallel()
+
+		runner := newLocalRunner(t, nil)
+
+		rr, err := runner.Run(t.Context(), browserScript(), SecretStore{}, "exec-id")
+		require.NoError(t, err)
+		require.Contains(t, string(rr.Logs), "browserWsUrl=none")
+	})
+}
+
+func TestBrowserAcquireTimeout(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]struct {
+		deadline     time.Duration // 0 means no deadline.
+		checkTimeout time.Duration
+		expected     time.Duration
+	}{
+		"no deadline":  {checkTimeout: 60 * time.Second, expected: browserAcquireTimeoutCap},
+		"plenty spare": {deadline: 5 * time.Minute, checkTimeout: 60 * time.Second, expected: browserAcquireTimeoutCap},
+		"some spare":   {deadline: 35 * time.Second, checkTimeout: 20 * time.Second, expected: 15 * time.Second},
+		"no spare":     {deadline: 20 * time.Second, checkTimeout: 20 * time.Second, expected: 10 * time.Second},
+		"long timeout": {deadline: 3 * time.Minute, checkTimeout: 3 * time.Minute, expected: browserAcquireTimeoutCap},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			// synctest's fake clock keeps time.Until exact.
+			synctest.Test(t, func(t *testing.T) {
+				ctx := t.Context()
+
+				if tc.deadline > 0 {
+					var cancel context.CancelFunc
+
+					ctx, cancel = context.WithTimeout(ctx, tc.deadline)
+					defer cancel()
+				}
+
+				require.Equal(t, tc.expected, browserAcquireTimeout(ctx, tc.checkTimeout))
+			})
+		})
+	}
+}
+
+// fakeBrowserPool implements BrowserPool for tests.
+type fakeBrowserPool struct {
+	wsURL string
+	err   error
+
+	mtx      sync.Mutex
+	acquired []CheckInfo
+	releases int
+	budget   time.Duration
+}
+
+func (f *fakeBrowserPool) Acquire(ctx context.Context, checkInfo CheckInfo) (string, func(context.Context), error) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	if deadline, ok := ctx.Deadline(); ok {
+		f.budget = time.Until(deadline)
+	}
+
+	if f.err != nil {
+		return "", nil, f.err
+	}
+
+	f.acquired = append(f.acquired, checkInfo)
+
+	return f.wsURL, func(context.Context) {
+		f.mtx.Lock()
+		defer f.mtx.Unlock()
+
+		f.releases++
+	}, nil
+}
+
+func (f *fakeBrowserPool) state() (acquired []CheckInfo, releases int) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	return slices.Clone(f.acquired), f.releases
+}
+
+// acquireBudget returns the time left on the acquire context when Acquire was
+// last called.
+func (f *fakeBrowserPool) acquireBudget() time.Duration {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	return f.budget
 }
