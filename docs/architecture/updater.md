@@ -51,8 +51,8 @@ flowchart LR
 `cmd/synthetic-monitoring-agent/main.go`. The options struct injects
 every collaborator: gRPC connection, logger, back-off, publisher, tenant
 and probe channels, the readiness callback, the k6 runner, a scraper
-factory, tenant limits, secret provider, telemeter, usage reporter, cost
-attribution labels, and the `SupportsProtocolSecrets` flag.
+factory, tenant limits, secret provider, telemeter, usage reporter, and cost
+attribution labels.
 
 `NewUpdater` registers all Prometheus metrics owned by the Updater itself
 *and* by every Scraper it will spawn (see
@@ -248,7 +248,7 @@ per-region cardinality.
 Tests live in `internal/checks/checks_test.go`. Patterns to be aware of:
 
 - **Table-driven** with `t.Run(name, ...)`. Most tests construct an `Updater` with the real `NewUpdater`, then drive it through mock collaborators.
-- `TestNewUpdater`, `TestNewUpdaterSupportsProtocolSecrets` — verify metric registration and option propagation.
+- `TestNewUpdater` — verifies metric registration and option propagation.
 - `TestInstallSignalHandler` — exercises the SIGUSR1 path without a real signal by cancelling the parent context and asserting the `fired` flag stays `0`.
 - `TestSleepCtx` — context-aware sleep helper.
 - `TestHandleCheckOp` — drives add/update/delete operations through the locked path and asserts scraper-map state.

@@ -71,28 +71,27 @@ type Backoffer interface {
 // running on that probe and it manages the configuration for
 // blackbox-exporter that corresponds to the collection of scrapers.
 type Updater struct {
-	api                     apiInfo
-	logger                  zerolog.Logger
-	features                feature.Collection
-	backoff                 Backoffer
-	publisher               pusher.Publisher
-	tenantCh                chan<- sm.Tenant
-	probeCh                 chan<- *sm.Probe
-	probeTenantOnce         sync.Once
-	IsConnected             func(bool)
-	probe                   *sm.Probe
-	scrapersMutex           sync.Mutex
-	scrapers                map[model.GlobalID]*scraper.Scraper
-	metrics                 metrics
-	k6Runner                k6runner.Runner
-	scraperFactory          scraper.Factory
-	tenantLimits            *limits.TenantLimits
-	tenantSecrets           secrets.SecretProvider
-	telemeter               *telemetry.Telemeter
-	usageReporter           usage.Reporter
-	tenantCals              *cals.CostAttributionLabels
-	tenantLabellingMode     *labelmode.LabelMode
-	supportsProtocolSecrets bool
+	api                 apiInfo
+	logger              zerolog.Logger
+	features            feature.Collection
+	backoff             Backoffer
+	publisher           pusher.Publisher
+	tenantCh            chan<- sm.Tenant
+	probeCh             chan<- *sm.Probe
+	probeTenantOnce     sync.Once
+	IsConnected         func(bool)
+	probe               *sm.Probe
+	scrapersMutex       sync.Mutex
+	scrapers            map[model.GlobalID]*scraper.Scraper
+	metrics             metrics
+	k6Runner            k6runner.Runner
+	scraperFactory      scraper.Factory
+	tenantLimits        *limits.TenantLimits
+	tenantSecrets       secrets.SecretProvider
+	telemeter           *telemetry.Telemeter
+	usageReporter       usage.Reporter
+	tenantCals          *cals.CostAttributionLabels
+	tenantLabellingMode *labelmode.LabelMode
 }
 
 type apiInfo struct {
@@ -115,24 +114,23 @@ type (
 )
 
 type UpdaterOptions struct {
-	Conn                    *grpc.ClientConn
-	Logger                  zerolog.Logger
-	Backoff                 Backoffer
-	Publisher               pusher.Publisher
-	TenantCh                chan<- sm.Tenant
-	ProbeCh                 chan<- *sm.Probe
-	IsConnected             func(bool)
-	PromRegisterer          prometheus.Registerer
-	Features                feature.Collection
-	K6Runner                k6runner.Runner
-	ScraperFactory          scraper.Factory
-	TenantLimits            *limits.TenantLimits
-	SecretProvider          secrets.SecretProvider
-	Telemeter               *telemetry.Telemeter
-	UsageReporter           usage.Reporter
-	CostAttributionLabels   *cals.CostAttributionLabels
-	LabellingMode           *labelmode.LabelMode
-	SupportsProtocolSecrets bool
+	Conn                  *grpc.ClientConn
+	Logger                zerolog.Logger
+	Backoff               Backoffer
+	Publisher             pusher.Publisher
+	TenantCh              chan<- sm.Tenant
+	ProbeCh               chan<- *sm.Probe
+	IsConnected           func(bool)
+	PromRegisterer        prometheus.Registerer
+	Features              feature.Collection
+	K6Runner              k6runner.Runner
+	ScraperFactory        scraper.Factory
+	TenantLimits          *limits.TenantLimits
+	SecretProvider        secrets.SecretProvider
+	Telemeter             *telemetry.Telemeter
+	UsageReporter         usage.Reporter
+	CostAttributionLabels *cals.CostAttributionLabels
+	LabellingMode         *labelmode.LabelMode
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -244,20 +242,19 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		api: apiInfo{
 			conn: opts.Conn,
 		},
-		logger:                  opts.Logger,
-		features:                opts.Features,
-		backoff:                 opts.Backoff,
-		publisher:               opts.Publisher,
-		tenantCh:                opts.TenantCh,
-		probeCh:                 opts.ProbeCh,
-		IsConnected:             opts.IsConnected,
-		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
-		k6Runner:                opts.K6Runner,
-		scraperFactory:          scraperFactory,
-		tenantLimits:            opts.TenantLimits,
-		tenantSecrets:           opts.SecretProvider,
-		telemeter:               opts.Telemeter,
-		supportsProtocolSecrets: opts.SupportsProtocolSecrets,
+		logger:         opts.Logger,
+		features:       opts.Features,
+		backoff:        opts.Backoff,
+		publisher:      opts.Publisher,
+		tenantCh:       opts.TenantCh,
+		probeCh:        opts.ProbeCh,
+		IsConnected:    opts.IsConnected,
+		scrapers:       make(map[model.GlobalID]*scraper.Scraper),
+		k6Runner:       opts.K6Runner,
+		scraperFactory: scraperFactory,
+		tenantLimits:   opts.TenantLimits,
+		tenantSecrets:  opts.SecretProvider,
+		telemeter:      opts.Telemeter,
 		metrics: metrics{
 			changeErrorsCounter: changeErrorsCounter,
 			changesCounter:      changesCounter,
@@ -393,7 +390,7 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 		Version:                 version.Short(),
 		Commit:                  version.Commit(),
 		Buildstamp:              version.Buildstamp(),
-		SupportsProtocolSecrets: c.supportsProtocolSecrets,
+		SupportsProtocolSecrets: true,
 	})
 	if err != nil {
 		return connected, grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
