@@ -27,6 +27,10 @@ spec:
             # Uncomment to listen on all interfaces. This exposes metrics and debugging endpoints to the cluster, so it
             # should only be done on trusted clusters or with network policies set in place.
             # - --listen-address=0.0.0.0:4050
+            # Uncomment to run browser checks on an external browser pool (experimental) instead of a local Chromium.
+            # See crocochrome-service.yaml and crocochrome-deployment.yaml.
+            # - --browser-pool-enabled
+            # - --browser-pool-addresses=crocochrome.synthetic-monitoring.svc.cluster.local:8080
           env:
             - name: API_TOKEN
               valueFrom:

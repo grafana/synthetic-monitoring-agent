@@ -29,6 +29,10 @@ spec:
             # Advertise the Pod IP to the other agents, instead of picking an address from the network interfaces.
             - --cluster-advertise-address=$(POD_IP)
             - --cluster-wait-for-size=2
+            # Uncomment to run browser checks on an external browser pool (experimental) instead of a local Chromium.
+            # See crocochrome-service.yaml and crocochrome-deployment.yaml.
+            # - --browser-pool-enabled
+            # - --browser-pool-addresses=crocochrome.synthetic-monitoring.svc.cluster.local:8080
           env:
             - name: POD_IP
               valueFrom:
