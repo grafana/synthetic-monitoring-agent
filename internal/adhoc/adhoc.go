@@ -71,6 +71,14 @@ type runner struct {
 	target  string
 	probe   string
 	timeout time.Duration
+
+	// The following fields are informational only: they are copied into
+	// the published result so that ad-hoc runs can be identified after
+	// the fact, and do not affect how the check is executed.
+	job             string
+	labels          []sm.Label
+	clientType      string
+	probesRequested int
 }
 
 // ClientConn represents the GRPC client connection that can be used to
@@ -488,6 +496,11 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 		target:  target,
 		probe:   h.probe.Name,
 		timeout: timeout,
+
+		job:             req.AdHocCheck.Job,
+		labels:          req.AdHocCheck.Labels,
+		clientType:      req.AdHocCheck.ClientType,
+		probesRequested: len(req.AdHocCheck.Probes),
 	}, nil
 }
 
@@ -576,11 +589,11 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		successGauge.Set(0)
 	}
 
-	if duration != 0 {
-		durationGauge.Set(duration)
-	} else {
-		durationGauge.Set(float64(time.Since(start).Microseconds()) / 1e6)
+	if duration == 0 {
+		duration = float64(time.Since(start).Microseconds()) / 1e6
 	}
+
+	durationGauge.Set(duration)
 
 	mfs, err := registry.Gather()
 
@@ -593,6 +606,9 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		Str("target", r.target).
 		Str("probe", r.probe).
 		Str("check_name", r.prober.Name()).
+		Bool("success", success).
+		Float64("duration_seconds", duration).
+		Func(r.addRunMetadata).
 		Interface("logs", logger.entries).
 		Interface("timeseries", mfs).
 		Msg("ad-hoc check done")
@@ -628,6 +644,26 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		Str("probe", r.probe).
 		Str("check_name", r.prober.Name()).
 		Msg("ad-hoc result sent to publisher")
+}
+
+// addRunMetadata adds the informational fields describing the ad-hoc run
+// to the published result, omitting the ones that are not set.
+func (r *runner) addRunMetadata(e *zerolog.Event) {
+	if r.job != "" {
+		e.Str("job", r.job)
+	}
+
+	if len(r.labels) > 0 {
+		e.Interface("labels", r.labels)
+	}
+
+	if r.clientType != "" {
+		e.Str("client_type", r.clientType)
+	}
+
+	if r.probesRequested > 0 {
+		e.Int("probes_requested", r.probesRequested)
+	}
 }
 
 type (

@@ -329,6 +329,12 @@ message AdHocCheck {
   repeated int64 probes = 5 [(gogoproto.jsontag) = "probes"]; // list of probes where this check should run
   string target = 6 [(gogoproto.jsontag) = "target"]; // endpoint that this check is targeting
   Channels channels = 7 [(gogoproto.jsontag) = "channels"]; // channels this check is assigned to
+  string job = 8 [(gogoproto.jsontag) = "job,omitempty"]; // name of job of the check being tested, informational only
+  repeated Label labels = 9 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "labels,omitempty"
+  ]; // custom labels of the check being tested, informational only
+  string clientType = 10 [(gogoproto.jsontag) = "clientType,omitempty"]; // client that requested the ad-hoc check (e.g. gcx), informational only
 }
 
 // CheckSettings provides the settings for exactly one type of check.
