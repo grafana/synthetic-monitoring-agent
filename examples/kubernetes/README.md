@@ -19,6 +19,21 @@ kubectl apply -f deployment.yaml
 
 Now you should have the agent reporting as private probe.
 
+### Clustering
+
+To run several agents for the same probe as a cluster (experimental), use [cluster-service.yaml](cluster-service.yaml)
+and [cluster-statefulset.yaml](cluster-statefulset.yaml) instead of [deployment.yaml](deployment.yaml). They reuse the
+`synthetic-monitoring` namespace and the `sm-agent-1` secret:
+
+```bash
+kubectl apply -f namespace.yaml
+kubectl apply -f secret.yaml
+kubectl apply -f cluster-service.yaml
+kubectl apply -f cluster-statefulset.yaml
+```
+
+Checkout [Private Probe docs](https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/#run-private-probes-in-a-cluster) for more details.
+
 ### Production Deployment
 
 If you are running it in production, you should pin the image to an specific version instead of `latest`,
