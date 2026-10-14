@@ -1,0 +1,16 @@
+probe:
+  apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+  existingSecret: sm-agent
+replicas: 2
+cluster:
+  enabled: true
+  waitForSize: 1
+browserPool:
+  enabled: true
+features:
+  - protocol-secrets
+crocochrome:
+  # Managed by an autoscaler.
+  replicas: null
+  podDisruptionBudget:
+    enabled: true

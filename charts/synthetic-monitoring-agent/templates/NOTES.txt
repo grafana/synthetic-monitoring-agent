@@ -1,0 +1,69 @@
+The Synthetic Monitoring agent is deploying as StatefulSet {{ include "sm-agent.fullname" . }} in namespace {{ .Release.Namespace }}.
+
+Check that the agents are running and connected:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl logs -n {{ .Release.Namespace }} {{ include "sm-agent.fullname" . }}-0
+
+The probe appears as online on the Synthetics > Probes page once an agent connects.
+{{- if .Values.cluster.enabled }}
+{{- if .Values.autoscaling.enabled }}
+
+Clustering is experimental. {{ .Values.autoscaling.minReplicas }} to {{ .Values.autoscaling.maxReplicas }} agents share the probe and split its checks,
+scaled by a HorizontalPodAutoscaler. Check that sm_agent_cluster_size equals the number of agent Pods on every agent.
+{{- else }}
+
+Clustering is experimental. {{ .Values.replicas }} agents share the probe and split its checks.
+Check that sm_agent_cluster_size equals {{ .Values.replicas }} on every agent.
+{{- end }}
+It requires an agent image with the -cluster-* flags; older images exit on startup. Refer to the chart README.
+{{- if and .Values.networkPolicy.enabled .Values.cluster.extraJoinAddresses (not .Values.networkPolicy.clusterIngressFrom) }}
+
+WARNING: cluster.extraJoinAddresses is set, but the NetworkPolicy only allows cluster traffic from this
+release's agents. Add the other agents to networkPolicy.clusterIngressFrom so they can connect.
+{{- end }}
+{{- $size := dict "name" "replicas" "value" .Values.replicas }}
+{{- if .Values.autoscaling.enabled }}
+{{- $size = dict "name" "autoscaling.minReplicas" "value" .Values.autoscaling.minReplicas }}
+{{- end }}
+{{- if and .Values.cluster.waitForSize (eq (int .Values.cluster.waitForSize) (int $size.value)) }}
+
+WARNING: cluster.waitForSize equals {{ $size.name }}. If one agent is unavailable, the others wait for
+cluster.waitTimeout before they run checks. Set it below {{ $size.name }}.
+{{- end }}
+{{- if .Values.autoscaling.enabled }}
+{{- range $target, $resource := dict "targetCPUUtilizationPercentage" "cpu" "targetMemoryUtilizationPercentage" "memory" }}
+{{- if and (index $.Values.autoscaling $target) (not (dig "requests" $resource "" ($.Values.resources | default dict))) }}
+
+WARNING: autoscaling.{{ $target }} is set, but resources.requests.{{ $resource }} isn't.
+The HPA measures utilization against requests, so it can't scale on {{ $resource }}.
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.browserPool.enabled }}
+
+The browser pool is experimental. Browser checks run on crocochrome instead of a local Chromium.
+It requires an agent image with the -browser-pool-* flags; older images exit on startup. Refer to the chart README.
+{{- if .Values.crocochrome.enabled }}
+crocochrome: Deployment {{ include "sm-agent.crocochromeName" . }}{{ if not (kindIs "invalid" .Values.crocochrome.replicas) }}, {{ .Values.crocochrome.replicas }} instances{{ end }}, one browser session per instance.
+
+crocochrome requires allowPrivilegeEscalation and the setuid, setgid, kill, chown, dac_override, and fowner
+capabilities. It meets the Pod Security "baseline" profile, but not "restricted".
+{{- if not .Values.crocochrome.networkPolicy.enabled }}
+
+WARNING: crocochrome.networkPolicy.enabled is false. The crocochrome API doesn't have authentication:
+anything that can reach port 8080 can start browser sessions in your network.
+{{- end }}
+{{- if and .Values.crocochrome.networkPolicy.enabled .Values.crocochrome.serviceMonitor.enabled (not .Values.crocochrome.networkPolicy.extraIngressFrom) }}
+
+NOTE: the crocochrome NetworkPolicy only allows the agents. Add your Prometheus Pods to
+crocochrome.networkPolicy.extraIngressFrom so they can scrape crocochrome metrics.
+{{- end }}
+{{- end }}
+{{- if eq .Values.image.variant "browser" }}
+
+NOTE: image.variant is browser, but the browser pool doesn't need Chromium in the agent image.
+You can use image.variant: standard.
+{{- end }}
+{{- end }}

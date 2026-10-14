@@ -1,0 +1,14 @@
+{{- if and (include "sm-agent.crocochromeEnabled" .) .Values.crocochrome.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "sm-agent.crocochromeName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-agent.labels" (dict "ctx" . "component" "crocochrome") | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.crocochrome.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "crocochrome") | nindent 6 }}
+{{- end }}

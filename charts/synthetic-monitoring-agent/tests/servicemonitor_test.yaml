@@ -1,0 +1,56 @@
+suite: ServiceMonitors
+templates:
+  - servicemonitor.yaml
+  - crocochrome/servicemonitor.yaml
+release:
+  name: sm
+  namespace: probes
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+  browserPool:
+    enabled: true
+  serviceMonitor:
+    enabled: true
+  crocochrome:
+    serviceMonitor:
+      enabled: true
+tests:
+  - it: creates both in the release namespace by default
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: probes
+        template: servicemonitor.yaml
+      - equal:
+          path: metadata.namespace
+          value: probes
+        template: crocochrome/servicemonitor.yaml
+  - it: moves only the agent ServiceMonitor with serviceMonitor.namespace
+    set:
+      serviceMonitor:
+        namespace: monitoring
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: monitoring
+        template: servicemonitor.yaml
+      - equal:
+          path: metadata.namespace
+          value: probes
+        template: crocochrome/servicemonitor.yaml
+  - it: moves only the crocochrome ServiceMonitor with crocochrome.serviceMonitor.namespace
+    set:
+      crocochrome:
+        serviceMonitor:
+          namespace: monitoring
+    asserts:
+      - equal:
+          path: metadata.namespace
+          value: probes
+        template: servicemonitor.yaml
+      - equal:
+          path: metadata.namespace
+          value: monitoring
+        template: crocochrome/servicemonitor.yaml

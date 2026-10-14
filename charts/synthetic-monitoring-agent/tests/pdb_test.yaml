@@ -1,0 +1,46 @@
+suite: agent PodDisruptionBudget
+templates:
+  - pdb.yaml
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+tests:
+  - it: isn't created for a single agent
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: isn't created for a single agent even when enabled
+    set:
+      podDisruptionBudget:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: is created by default for a cluster
+    set:
+      replicas: 3
+      cluster:
+        enabled: true
+    asserts:
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - equal:
+          path: spec.unhealthyPodEvictionPolicy
+          value: AlwaysAllow
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: agent
+  - it: can be turned off for a cluster
+    set:
+      replicas: 3
+      cluster:
+        enabled: true
+      podDisruptionBudget:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

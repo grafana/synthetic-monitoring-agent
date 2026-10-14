@@ -1,0 +1,42 @@
+# Turns on every optional resource, so lint and schema checks render all templates.
+probe:
+  apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+  apiToken: test-token
+replicas: 3
+cluster:
+  enabled: true
+  waitForSize: 2
+  extraJoinAddresses:
+    - sm-agent-headless.other-namespace.svc.cluster.local
+autoscaling:
+  enabled: true
+browserPool:
+  enabled: true
+networkPolicy:
+  metricsIngressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+  clusterIngressFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: other-namespace
+serviceMonitor:
+  enabled: true
+crocochrome:
+  podDisruptionBudget:
+    enabled: true
+  serviceMonitor:
+    enabled: true
+  networkPolicy:
+    extraIngressFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: monitoring
+extraObjects:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: '{{ include "sm-agent.fullname" . }}-extra'
+    data:
+      key: value

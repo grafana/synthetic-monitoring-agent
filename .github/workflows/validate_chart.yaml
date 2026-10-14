@@ -1,0 +1,78 @@
+name: validate Helm chart
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - charts/**
+      - .github/workflows/validate_chart.yaml
+
+permissions:
+  contents: none
+  packages: none
+
+env:
+  CHART_DIR: charts/synthetic-monitoring-agent
+  # The minimum Kubernetes version in Chart.yaml kubeVersion.
+  KUBE_VERSION: 1.27.0
+  KUBECONFORM_VERSION: v0.8.0
+  KUBECONFORM_SHA256: 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
+
+jobs:
+  validate_chart:
+    name: validate chart
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v3.18.4
+
+      - name: install kubeconform
+        run: |
+          curl -sSLo kubeconform.tar.gz "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          echo "${KUBECONFORM_SHA256}  kubeconform.tar.gz" | sha256sum --check
+          tar -xzf kubeconform.tar.gz kubeconform
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: check the chart version was bumped
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if ! base=$(git show "origin/${BASE_REF}:${CHART_DIR}/Chart.yaml" 2> /dev/null); then
+            echo "The chart doesn't exist on ${BASE_REF} yet"
+            exit 0
+          fi
+          old=$(yq '.version' <<< "${base}")
+          new=$(yq '.version' "${CHART_DIR}/Chart.yaml")
+          if [ "${old}" = "${new}" ]; then
+            echo "::error file=${CHART_DIR}/Chart.yaml::bump the chart version: ${new} is already on ${BASE_REF}, and the release workflow skips existing versions"
+            exit 1
+          fi
+
+      - name: lint and check the rendered manifests
+        run: |
+          for values in "${CHART_DIR}"/ci/*.yaml; do
+            echo "::group::${values}"
+            helm lint --strict "${CHART_DIR}" -f "${values}"
+            # ServiceMonitor is a CRD, which kubeconform has no schema for.
+            helm template sm-agent "${CHART_DIR}" -f "${values}" --kube-version "${KUBE_VERSION}" |
+              kubeconform -strict -summary -kubernetes-version "${KUBE_VERSION}" -skip ServiceMonitor
+            echo "::endgroup::"
+          done
+
+      - name: unit tests
+        run: |
+          helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.1.2
+          helm unittest "${CHART_DIR}"

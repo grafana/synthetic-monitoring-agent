@@ -1,0 +1,124 @@
+suite: browser pool
+templates:
+  - statefulset.yaml
+  - crocochrome/deployment.yaml
+  - crocochrome/service.yaml
+  - crocochrome/networkpolicy.yaml
+release:
+  name: sm
+  namespace: probes
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+tests:
+  - it: doesn't deploy crocochrome by default
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: crocochrome/deployment.yaml
+      - hasDocuments:
+          count: 0
+        template: crocochrome/service.yaml
+  - it: points the agents to the crocochrome headless Service
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --browser-pool-enabled
+        template: statefulset.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --browser-pool-addresses=sm-synthetic-monitoring-agent-crocochrome.probes.svc.cluster.local:8080
+        template: statefulset.yaml
+      - equal:
+          path: spec.clusterIP
+          value: None
+        template: crocochrome/service.yaml
+  - it: deploys crocochrome with the production settings
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 320
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/grafana/crocochrome:v0.13.0
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir.medium
+          value: Memory
+  - it: only lets the agents reach crocochrome
+    template: crocochrome/networkpolicy.yaml
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/component"]
+          value: agent
+      - equal:
+          path: spec.policyTypes
+          value: [Ingress]
+  - it: uses external addresses without deploying crocochrome
+    set:
+      browserPool:
+        enabled: true
+        externalAddresses: [dns+crocochrome.browsers.svc.cluster.local:8080]
+      crocochrome:
+        enabled: false
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --browser-pool-addresses=dns+crocochrome.browsers.svc.cluster.local:8080
+        template: statefulset.yaml
+      - hasDocuments:
+          count: 0
+        template: crocochrome/deployment.yaml
+  - it: leaves the replica count to an autoscaler
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+      crocochrome:
+        replicas: null
+    asserts:
+      - notExists:
+          path: spec.replicas
+  - it: marks crocochrome ready once its port accepts connections
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe
+          value:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+  - it: overrides the crocochrome probes
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+      crocochrome:
+        readinessProbe: null
+        livenessProbe:
+          tcpSocket:
+            port: http
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http

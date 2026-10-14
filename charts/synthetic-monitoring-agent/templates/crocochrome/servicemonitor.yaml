@@ -1,0 +1,28 @@
+{{- if and (include "sm-agent.crocochromeEnabled" .) .Values.crocochrome.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "sm-agent.crocochromeName" . }}
+  namespace: {{ default .Release.Namespace .Values.crocochrome.serviceMonitor.namespace }}
+  labels:
+    {{- include "sm-agent.labels" (dict "ctx" . "component" "crocochrome") | nindent 4 }}
+    {{- with .Values.crocochrome.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "crocochrome") | nindent 6 }}
+  endpoints:
+    - port: http
+      path: /metrics
+      {{- with .Values.crocochrome.serviceMonitor.interval }}
+      interval: {{ . }}
+      {{- end }}
+      {{- with .Values.crocochrome.serviceMonitor.scrapeTimeout }}
+      scrapeTimeout: {{ . }}
+      {{- end }}
+{{- end }}

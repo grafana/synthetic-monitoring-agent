@@ -1,0 +1,157 @@
+suite: agent
+templates:
+  - statefulset.yaml
+  - secret.yaml
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+tests:
+  - it: renders a single agent with the default args
+    template: statefulset.yaml
+    chart:
+      appVersion: v9.9.9
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --api-server-address=synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+            - --listen-address=0.0.0.0:4050
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: grafana/synthetic-monitoring-agent:v9.9.9
+  - it: reads the token from the chart Secret, never from args
+    template: statefulset.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: RELEASE-NAME-synthetic-monitoring-agent
+                key: api-token
+  - it: creates the Secret from probe.apiToken
+    template: secret.yaml
+    asserts:
+      - equal:
+          path: stringData.api-token
+          value: test-token
+  - it: uses an existing Secret instead of creating one
+    set:
+      probe:
+        apiToken: ""
+        existingSecret: my-secret
+        existingSecretKey: token
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: secret.yaml
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: API_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: my-secret
+                key: token
+        template: statefulset.yaml
+  - it: maps every optional value to its flag
+    template: statefulset.yaml
+    set:
+      probe:
+        apiInsecure: true
+      logging:
+        verbose: true
+        debug: true
+      features: [protocol-secrets, experimental-dns-prober]
+      k6:
+        disabled: true
+        blockedNets: ""
+        uri: /usr/local/bin/k6
+        repository: /opt/k6
+      memory:
+        autoMemLimit: false
+        memLimitRatio: 0.8
+      cache:
+        type: memcached
+        localCapacity: 500
+        localTTL: 10m
+        memcachedServers: [memcached-0:11211, memcached-1:11211]
+      usageReports:
+        enabled: false
+      telemetry:
+        push: true
+        timeSpan: 10
+        metricsPushInterval: 2m
+      debugEndpoints:
+        changeLogLevel: true
+        disconnect: true
+        pprof: true
+        blockProfileRate: 100
+        mutexProfileFraction: 10
+      extraArgs: [--some-new-flag]
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --api-server-address=synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+            - --listen-address=0.0.0.0:4050
+            - --api-insecure
+            - --verbose
+            - --debug
+            - --features=protocol-secrets,experimental-dns-prober
+            - --disable-k6
+            - --blocked-nets=
+            - --k6-uri=/usr/local/bin/k6
+            - --k6-repository=/opt/k6
+            - --enable-auto-memlimit=false
+            - --memlimit-ratio=0.8
+            - --cache-type=memcached
+            - --cache-local-capacity=500
+            - --cache-local-ttl=10m
+            - --memcached-servers=memcached-0:11211,memcached-1:11211
+            - --disable-usage-reports
+            - --experimental-push-telemetry
+            - --telemetry-time-span=10
+            - --metrics-push-interval=2m
+            - --enable-change-log-level
+            - --enable-disconnect
+            - --enable-pprof
+            - --block-profile-rate=100
+            - --mutex-profile-fraction=10
+            - --some-new-flag
+  - it: uses the browser image and mounts its home directory
+    template: statefulset.yaml
+    chart:
+      appVersion: v9.9.9
+    set:
+      image:
+        variant: browser
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: grafana/synthetic-monitoring-agent:v9.9.9-browser
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: tmp
+            subPath: home-sm
+            mountPath: /home/sm
+  - it: passes feature flags the chart doesn't know through extraArgs
+    template: statefulset.yaml
+    set:
+      features: [protocol-secrets]
+      extraArgs: [--features=new-flag]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --features=protocol-secrets
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --features=new-flag

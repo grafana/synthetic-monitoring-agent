@@ -1,0 +1,26 @@
+# Headless Service for the StatefulSet. With clustering, agents use its DNS name to find each other.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sm-agent.headlessName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-agent.labels" (dict "ctx" . "component" "agent") | nindent 4 }}
+spec:
+  clusterIP: None
+  # Starting agents must find peers that aren't Ready yet, instead of each starting as a single-node cluster.
+  publishNotReadyAddresses: true
+  selector:
+    {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "agent") | nindent 4 }}
+  ports:
+    {{- if .Values.cluster.enabled }}
+    - name: gossip
+      port: {{ .Values.cluster.listenPort }}
+      targetPort: gossip
+      protocol: TCP
+    {{- else }}
+    - name: http-metrics
+      port: {{ .Values.listenPort }}
+      targetPort: http-metrics
+      protocol: TCP
+    {{- end }}
