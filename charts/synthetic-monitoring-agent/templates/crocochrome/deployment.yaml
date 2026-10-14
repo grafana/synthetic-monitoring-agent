@@ -1,0 +1,96 @@
+{{- if include "sm-agent.crocochromeEnabled" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sm-agent.crocochromeName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-agent.labels" (dict "ctx" . "component" "crocochrome" "version" .Values.browserPool.crocochrome.image.tag) | nindent 4 }}
+spec:
+  {{- if not (kindIs "invalid" .Values.browserPool.crocochrome.replicas) }}
+  replicas: {{ .Values.browserPool.crocochrome.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "crocochrome") | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.browserPool.crocochrome.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "crocochrome") | nindent 8 }}
+        {{- with .Values.browserPool.crocochrome.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "sm-agent.crocochromeServiceAccountName" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.browserPool.crocochrome.terminationGracePeriodSeconds }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.browserPool.crocochrome.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with include "sm-agent.crocochromePodSecurityContext" . }}
+      securityContext:
+        {{- . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: crocochrome
+          image: {{ include "sm-agent.crocochromeImage" . }}
+          imagePullPolicy: {{ .Values.browserPool.crocochrome.image.pullPolicy }}
+          {{- with .Values.browserPool.crocochrome.extraArgs }}
+          args:
+            {{- range . }}
+            - {{ . | quote }}
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          {{- with .Values.browserPool.crocochrome.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.browserPool.crocochrome.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- include "sm-agent.crocochromeSecurityContext" . | nindent 12 }}
+          {{- with .Values.browserPool.crocochrome.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: chromium-tmp
+              mountPath: /chromium-tmp
+      volumes:
+        - name: chromium-tmp
+          emptyDir:
+            medium: Memory
+            {{- with .Values.browserPool.crocochrome.tmpSizeLimit }}
+            sizeLimit: {{ . }}
+            {{- end }}
+      {{- with .Values.browserPool.crocochrome.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.browserPool.crocochrome.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.browserPool.crocochrome.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.browserPool.crocochrome.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

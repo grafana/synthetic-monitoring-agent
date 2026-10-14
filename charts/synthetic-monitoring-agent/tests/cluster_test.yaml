@@ -1,0 +1,106 @@
+suite: cluster
+templates:
+  - deployment.yaml
+  - service-headless.yaml
+  - networkpolicy.yaml
+release:
+  name: sm
+  namespace: probes
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+  replicas: 3
+  cluster:
+    enabled: true
+    waitForSize: 2
+tests:
+  - it: wires the cluster flags to the headless Service and Pod IP
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.template.spec.containers[0].args
+          value:
+            - --api-server-address=synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+            - --listen-address=0.0.0.0:4050
+            - --cluster-enabled
+            - --cluster-name=sm-synthetic-monitoring-agent
+            - --cluster-listen-port=7946
+            - --cluster-join-addresses=sm-synthetic-monitoring-agent-headless.probes.svc.cluster.local
+            - --cluster-advertise-address=$(POD_IP)
+            - --cluster-wait-for-size=2
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          content:
+            name: gossip
+            containerPort: 7946
+            protocol: TCP
+  - it: honors the cluster overrides
+    template: deployment.yaml
+    set:
+      cluster:
+        name: probe-eu
+        listenPort: 7000
+        waitTimeout: 5m
+        rejoinInterval: 30s
+        advertiseAddress: 10.0.0.10
+        extraJoinAddresses: [dns+other-agents.probes.svc.cluster.local]
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cluster-name=probe-eu
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cluster-listen-port=7000
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cluster-join-addresses=sm-synthetic-monitoring-agent-headless.probes.svc.cluster.local,dns+other-agents.probes.svc.cluster.local
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cluster-advertise-address=10.0.0.10
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cluster-wait-timeout=5m
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --cluster-rejoin-interval=30s
+  - it: publishes not-ready agents in the headless Service
+    template: service-headless.yaml
+    asserts:
+      - equal:
+          path: spec.publishNotReadyAddresses
+          value: true
+      - equal:
+          path: spec.ports[0].name
+          value: gossip
+  - it: doesn't render the headless Service without clustering
+    template: service-headless.yaml
+    set:
+      replicas: 1
+      cluster:
+        enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: only allows cluster traffic between agents
+    template: networkpolicy.yaml
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.ingress[1].ports[0].port
+          value: gossip
+      - equal:
+          path: spec.ingress[1].from[0].podSelector.matchLabels["app.kubernetes.io/component"]
+          value: agent

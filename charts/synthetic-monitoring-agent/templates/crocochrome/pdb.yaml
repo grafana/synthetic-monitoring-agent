@@ -1,0 +1,16 @@
+{{- if and (include "sm-agent.crocochromeEnabled" .) .Values.browserPool.crocochrome.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "sm-agent.crocochromeName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-agent.labels" (dict "ctx" . "component" "crocochrome" "version" .Values.browserPool.crocochrome.image.tag) | nindent 4 }}
+spec:
+  maxUnavailable: {{ .Values.browserPool.crocochrome.podDisruptionBudget.maxUnavailable }}
+  # Instances that aren't Ready can always be evicted, so a crash-looping instance doesn't block node drains.
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "crocochrome") | nindent 6 }}
+{{- end }}

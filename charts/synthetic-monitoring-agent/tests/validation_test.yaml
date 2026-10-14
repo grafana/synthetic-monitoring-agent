@@ -1,0 +1,189 @@
+suite: validation
+templates:
+  - deployment.yaml
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+tests:
+  - it: requires the API server address
+    set:
+      probe:
+        apiServerAddress: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: probe.apiServerAddress is required, for example synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+  - it: requires a port in the API server address
+    set:
+      probe:
+        apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net
+    asserts:
+      - failedTemplate:
+          errorMessage: probe.apiServerAddress must include a port, for example synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+  - it: requires a token
+    set:
+      probe:
+        apiToken: ""
+    asserts:
+      - failedTemplate:
+          errorMessage: set probe.apiToken or probe.existingSecret
+  - it: rejects several agents without clustering
+    set:
+      replicas: 2
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicas above 1 require cluster.enabled: without clustering, every agent runs every check of the probe"
+  - it: rejects waitForSize above replicas
+    set:
+      replicas: 2
+      cluster:
+        enabled: true
+        waitForSize: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: cluster.waitForSize can't be greater than replicas, or agents never run checks until cluster.waitTimeout
+  - it: rejects a short grace period with clustering
+    set:
+      cluster:
+        enabled: true
+      terminationGracePeriodSeconds: 5
+    asserts:
+      - failedTemplate:
+          errorMessage: terminationGracePeriodSeconds must be above 5 with clustering, so agents can hand over their checks
+  - it: rejects the browser pool with k6 disabled
+    set:
+      browserPool:
+        enabled: true
+      k6:
+        disabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "browserPool.enabled requires k6: set k6.disabled to false"
+  - it: rejects the browser pool with a remote k6 runner
+    set:
+      browserPool:
+        enabled: true
+      k6:
+        uri: http://k6-runner:8080
+    asserts:
+      - failedTemplate:
+          errorMessage: browserPool.enabled doesn't work with a remote k6 runner (k6.uri)
+  - it: rejects the browser pool without browsers
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          enabled: false
+    asserts:
+      - failedTemplate:
+          errorMessage: browserPool.enabled requires browserPool.crocochrome.enabled or browserPool.externalAddresses
+  - it: rejects app.kubernetes.io/name in podLabels
+    set:
+      podLabels:
+        app.kubernetes.io/name: wrong
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels can't set app.kubernetes.io/name: the chart uses it in selectors"
+  - it: rejects app.kubernetes.io/instance in podLabels
+    set:
+      podLabels:
+        app.kubernetes.io/instance: wrong
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels can't set app.kubernetes.io/instance: the chart uses it in selectors"
+  - it: rejects app.kubernetes.io/component in podLabels
+    set:
+      podLabels:
+        app.kubernetes.io/component: wrong
+    asserts:
+      - failedTemplate:
+          errorMessage: "podLabels can't set app.kubernetes.io/component: the chart uses it in selectors"
+  - it: rejects app.kubernetes.io/name in browserPool.crocochrome.podLabels
+    set:
+      browserPool:
+        crocochrome:
+          podLabels:
+            app.kubernetes.io/name: wrong
+    asserts:
+      - failedTemplate:
+          errorMessage: "browserPool.crocochrome.podLabels can't set app.kubernetes.io/name: the chart uses it in selectors"
+  - it: rejects app.kubernetes.io/instance in browserPool.crocochrome.podLabels
+    set:
+      browserPool:
+        crocochrome:
+          podLabels:
+            app.kubernetes.io/instance: wrong
+    asserts:
+      - failedTemplate:
+          errorMessage: "browserPool.crocochrome.podLabels can't set app.kubernetes.io/instance: the chart uses it in selectors"
+  - it: rejects app.kubernetes.io/component in browserPool.crocochrome.podLabels
+    set:
+      browserPool:
+        crocochrome:
+          podLabels:
+            app.kubernetes.io/component: wrong
+    asserts:
+      - failedTemplate:
+          errorMessage: "browserPool.crocochrome.podLabels can't set app.kubernetes.io/component: the chart uses it in selectors"
+  - it: accepts Pod labels the chart doesn't use in selectors
+    set:
+      podLabels:
+        team: synthetic-monitoring
+        app.kubernetes.io/part-of: monitoring
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.team
+          value: synthetic-monitoring
+      - equal:
+          path: spec.template.metadata.labels["app.kubernetes.io/component"]
+          value: agent
+  - it: rejects autoscaling without clustering
+    set:
+      autoscaling:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "autoscaling.enabled requires cluster.enabled: without clustering, every agent runs every check of the probe"
+  - it: rejects autoscaling below 2 agents
+    set:
+      cluster:
+        enabled: true
+      autoscaling:
+        enabled: true
+        minReplicas: 1
+    asserts:
+      - failedTemplate:
+          errorMessage: autoscaling.minReplicas must be at least 2
+  - it: rejects maxReplicas below minReplicas
+    set:
+      cluster:
+        enabled: true
+      autoscaling:
+        enabled: true
+        minReplicas: 4
+        maxReplicas: 3
+    asserts:
+      - failedTemplate:
+          errorMessage: autoscaling.maxReplicas can't be less than autoscaling.minReplicas
+  - it: rejects autoscaling without targets
+    set:
+      cluster:
+        enabled: true
+      autoscaling:
+        enabled: true
+        targetCPUUtilizationPercentage: null
+        targetMemoryUtilizationPercentage: null
+    asserts:
+      - failedTemplate:
+          errorMessage: autoscaling requires targetCPUUtilizationPercentage or targetMemoryUtilizationPercentage
+  - it: rejects waitForSize above minReplicas when autoscaling
+    set:
+      replicas: 5
+      cluster:
+        enabled: true
+        waitForSize: 3
+      autoscaling:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: cluster.waitForSize can't be greater than autoscaling.minReplicas, or agents never run checks until cluster.waitTimeout

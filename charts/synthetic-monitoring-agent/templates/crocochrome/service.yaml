@@ -1,0 +1,19 @@
+{{- if include "sm-agent.crocochromeEnabled" . }}
+# Headless, so that agents can reach each crocochrome instance individually.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sm-agent.crocochromeName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-agent.labels" (dict "ctx" . "component" "crocochrome" "version" .Values.browserPool.crocochrome.image.tag) | nindent 4 }}
+spec:
+  clusterIP: None
+  selector:
+    {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "crocochrome" "version" .Values.browserPool.crocochrome.image.tag) | nindent 4 }}
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
+{{- end }}

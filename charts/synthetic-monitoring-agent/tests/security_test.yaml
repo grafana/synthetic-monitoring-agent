@@ -1,0 +1,159 @@
+suite: security contexts
+templates:
+  - deployment.yaml
+  - crocochrome/deployment.yaml
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+  browserPool:
+    enabled: true
+tests:
+  - it: sets the security context the agent image requires
+    template: deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 12345
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: [NET_RAW]
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 12345
+            seccompProfile:
+              type: RuntimeDefault
+  - it: adds extra agent fields without changing the required ones
+    template: deployment.yaml
+    set:
+      extraPodSecurityContext:
+        fsGroup: 2000
+        seLinuxOptions:
+          level: s0:c123,c456
+      extraSecurityContext:
+        allowPrivilegeEscalation: true
+        runAsUser: 0
+        capabilities:
+          add: [SYS_ADMIN]
+        seccompProfile:
+          type: Localhost
+          localhostProfile: sm.json
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext
+          value:
+            fsGroup: 2000
+            seLinuxOptions:
+              level: s0:c123,c456
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: [NET_RAW]
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 12345
+            seccompProfile:
+              type: Localhost
+              localhostProfile: sm.json
+  - it: sets the security context the crocochrome image requires
+    template: crocochrome/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.securityContext
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: true
+            capabilities:
+              add: [SETUID, SETGID, KILL, CHOWN, DAC_OVERRIDE, FOWNER]
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsGroup: 6666
+            runAsNonRoot: true
+            runAsUser: 6666
+            seccompProfile:
+              type: RuntimeDefault
+  - it: adds extra crocochrome fields without changing the required ones
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        crocochrome:
+          extraSecurityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: [SETUID]
+            runAsUser: 1000
+            runAsGroup: 1000
+            seLinuxOptions:
+              level: s0:c1
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: true
+            capabilities:
+              add: [SETUID, SETGID, KILL, CHOWN, DAC_OVERRIDE, FOWNER]
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsGroup: 6666
+            runAsNonRoot: true
+            runAsUser: 6666
+            seccompProfile:
+              type: RuntimeDefault
+            seLinuxOptions:
+              level: s0:c1
+  - it: sets the security context the unprivileged crocochrome image requires
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        crocochrome:
+          unprivileged: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+  - it: lets the unprivileged crocochrome image set a user, but not the required fields
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        crocochrome:
+          unprivileged: true
+          extraSecurityContext:
+            allowPrivilegeEscalation: true
+            capabilities:
+              add: [SETUID]
+            readOnlyRootFilesystem: false
+            runAsUser: 123456
+            runAsGroup: 0
+            seccompProfile:
+              type: Localhost
+              localhostProfile: crocochrome.json
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext
+          value:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            readOnlyRootFilesystem: true
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 123456
+            seccompProfile:
+              type: Localhost
+              localhostProfile: crocochrome.json
