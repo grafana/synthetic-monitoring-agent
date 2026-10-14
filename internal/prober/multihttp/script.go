@@ -70,6 +70,18 @@ func performVariableExpansion(in string) string {
 	return s.String()
 }
 
+// expandAssertionField renders a user-supplied assertion field as a JavaScript
+// expression. Fields without any ${variable} reference keep their plain string
+// literal form, so the scripts generated for checks that don't use variables
+// are unchanged.
+func expandAssertionField(in string) string {
+	if !userVariables.MatchString(in) {
+		return `"` + template.JSEscapeString(in) + `"`
+	}
+
+	return performVariableExpansion(in)
+}
+
 // Query params must be appended to a URL that has already been created.
 // urlVarName is the variable name to reference when appending params.
 func buildQueryParams(urlVarName string, req *sm.MultiHttpEntryRequest) []string {
@@ -226,6 +238,10 @@ func (c assertionCondition) Name(w *strings.Builder, subject, value string) {
 }
 
 func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
+	// The value may reference variables, in which case it is emitted as an
+	// expression that resolves them at run time rather than a string literal.
+	expr := expandAssertionField(value)
+
 	switch sm.MultiHttpEntryAssertionConditionVariant(c) {
 	case sm.MultiHttpEntryAssertionConditionVariant_NOT_CONTAINS:
 		w.WriteRune('!')
@@ -233,27 +249,26 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 
 	case sm.MultiHttpEntryAssertionConditionVariant_CONTAINS, sm.MultiHttpEntryAssertionConditionVariant_DEFAULT_CONDITION:
 		w.WriteString(subject)
-		w.WriteString(`.includes("`)
-		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`")`)
+		w.WriteString(`.includes(`)
+		w.WriteString(expr)
+		w.WriteString(`)`)
 
 	case sm.MultiHttpEntryAssertionConditionVariant_EQUALS:
 		w.WriteString(subject)
-		w.WriteString(` === "`)
-		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`"`)
+		w.WriteString(` === `)
+		w.WriteString(expr)
 
 	case sm.MultiHttpEntryAssertionConditionVariant_STARTS_WITH:
 		w.WriteString(subject)
-		w.WriteString(`.startsWith("`)
-		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`")`)
+		w.WriteString(`.startsWith(`)
+		w.WriteString(expr)
+		w.WriteString(`)`)
 
 	case sm.MultiHttpEntryAssertionConditionVariant_ENDS_WITH:
 		w.WriteString(subject)
-		w.WriteString(`.endsWith("`)
-		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`")`)
+		w.WriteString(`.endsWith(`)
+		w.WriteString(expr)
+		w.WriteString(`)`)
 	}
 }
 
@@ -293,9 +308,9 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 				b.WriteString(`);`)
 			} else {
 				// Expression provided, search for a matching header.
-				b.WriteString(`return assertHeader(response.headers, "`)
-				b.WriteString(template.JSEscapeString(assertion.Expression))
-				b.WriteString(`", `)
+				b.WriteString(`return assertHeader(response.headers, `)
+				b.WriteString(expandAssertionField(assertion.Expression))
+				b.WriteString(`, `)
 				b.WriteString(`v => `)
 				cond.Render(&b, "value", assertion.Value)
 				cond.Render(&assertionDescriptor, "value", assertion.Value)
@@ -314,29 +329,29 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 	case sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE:
 		cond := assertionCondition(assertion.Condition)
 		cond.Name(&b, assertion.Expression, assertion.Value)
-		b.WriteString(`": response => jsonpath.query(response.json(), "`)
-		b.WriteString(template.JSEscapeString(assertion.Expression))
-		b.WriteString(`").some(values => `)
+		b.WriteString(`": response => jsonpath.query(response.json(), `)
+		b.WriteString(expandAssertionField(assertion.Expression))
+		b.WriteString(`).some(values => `)
 		cond.Render(&b, `values`, assertion.Value)
 		cond.Render(&assertionDescriptor, `values`, assertion.Value)
 		b.WriteString(`)`)
 
 	case sm.MultiHttpEntryAssertionType_JSON_PATH_ASSERTION:
 		b.WriteString(template.JSEscapeString(assertion.Expression))
-		b.WriteString(` exists": response => jsonpath.query(response.json(), "`)
-		b.WriteString(template.JSEscapeString(assertion.Expression))
+		b.WriteString(` exists": response => jsonpath.query(response.json(), `)
+		b.WriteString(expandAssertionField(assertion.Expression))
 		assertionDescriptor.WriteString(`JsonPath expression `)
 		assertionDescriptor.WriteString(assertion.Expression)
-		b.WriteString(`").length > 0`)
+		b.WriteString(`).length > 0`)
 
 	case sm.MultiHttpEntryAssertionType_REGEX_ASSERTION:
 		switch assertion.Subject {
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY, sm.MultiHttpEntryAssertionSubjectVariant_DEFAULT_SUBJECT:
 			b.WriteString(`body matches /`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`/": response => { const expr = new RegExp("`)
-			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`"); `)
+			b.WriteString(`/": response => { const expr = new RegExp(`)
+			b.WriteString(expandAssertionField(assertion.Expression))
+			b.WriteString(`); `)
 			b.WriteString(`return expr.test(response.body); }`)
 			assertionDescriptor.WriteString("Body matches")
 			assertionDescriptor.WriteString(assertion.Expression)
@@ -344,9 +359,9 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
 			b.WriteString(`headers matches /`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`/": response => { const expr = new RegExp("`)
-			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`"); `)
+			b.WriteString(`/": response => { const expr = new RegExp(`)
+			b.WriteString(expandAssertionField(assertion.Expression))
+			b.WriteString(`); `)
 			b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
 			b.WriteString(`return !!values.find(value => expr.test(value)); }`)
 			assertionDescriptor.WriteString("Headers match")
@@ -355,9 +370,9 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:
 			b.WriteString(`status matches /`)
 			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`/": response => { const expr = new RegExp("`)
-			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`"); `)
+			b.WriteString(`/": response => { const expr = new RegExp(`)
+			b.WriteString(expandAssertionField(assertion.Expression))
+			b.WriteString(`); `)
 			b.WriteString(`return expr.test(response.status.toString()); }`)
 			assertionDescriptor.WriteString("Status matches")
 			assertionDescriptor.WriteString(assertion.Expression)
