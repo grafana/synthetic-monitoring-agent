@@ -433,10 +433,12 @@ func (r *RingNode) startReadinessDeadline() {
 
 	r.deadline = time.AfterFunc(r.waitTimeout, func() {
 		r.mu.Lock()
+
 		becameReady := r.readyState == stateNotReady
 		if becameReady {
 			r.readyState = stateDeadlinePassed
 		}
+
 		r.mu.Unlock()
 
 		if becameReady && r.onChange != nil {
