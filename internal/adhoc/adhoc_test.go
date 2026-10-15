@@ -1,10 +1,12 @@
 package adhoc
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -387,6 +389,7 @@ type testClient struct {
 	logger              zerolog.Logger
 	registerProbeError  error
 	getAdhocChecksError error
+	recvError           error
 	registerProbeHook   func(*sm.ProbeInfo)
 }
 
@@ -418,9 +421,10 @@ func (c *testClient) RegisterProbe(ctx context.Context, in *sm.ProbeInfo, opts .
 }
 
 type testGetAdhocChecksClient struct {
-	count  int
-	logger zerolog.Logger
-	ctx    context.Context
+	count     int
+	logger    zerolog.Logger
+	ctx       context.Context
+	recvError error
 }
 
 func (c *testClient) GetAdHocChecks(ctx context.Context, in *sm.Void, opts ...grpc.CallOption) (sm.AdHocChecks_GetAdHocChecksClient, error) {
@@ -430,11 +434,16 @@ func (c *testClient) GetAdHocChecks(ctx context.Context, in *sm.Void, opts ...gr
 		return nil, c.getAdhocChecksError
 	}
 
-	return &testGetAdhocChecksClient{logger: c.logger, ctx: ctx}, nil
+	return &testGetAdhocChecksClient{logger: c.logger, ctx: ctx, recvError: c.recvError}, nil
 }
 
 func (c *testGetAdhocChecksClient) Recv() (*sm.AdHocRequest, error) {
 	c.logger.Info().Str("func", "Recv").Caller(0).Send()
+
+	if c.recvError != nil {
+		return nil, c.recvError
+	}
+
 	c.count++
 
 	switch c.count {
@@ -560,6 +569,66 @@ func TestIdleTimeoutHandling(t *testing.T) {
 	case <-publishCh:
 		t.Fail()
 	default:
+	}
+}
+
+func TestStreamRecvErrorHandling(t *testing.T) {
+	features := feature.NewCollection()
+	require.NoError(t, features.Set("adhoc"))
+
+	testcases := map[string]struct {
+		recvError   error
+		expectNoise bool
+	}{
+		"idle timeout": {
+			recvError:   newGrpcTestError(codes.Unavailable, "unexpected HTTP status code received from server: 504 (Gateway Timeout); transport: received unexpected content-type \"text/html\""),
+			expectNoise: false,
+		},
+		"internal": {
+			recvError:   newGrpcTestError(codes.Internal, "internal error"),
+			expectNoise: true,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			var logs bytes.Buffer
+
+			logger := zerolog.New(&logs)
+			registrations := 0
+
+			opts := HandlerOpts{
+				Conn:           &grpcTestConn{},
+				Logger:         logger,
+				Publisher:      channelPublisher(make(chan pusher.Payload)),
+				Backoff:        timeoutBackoff{},
+				TenantCh:       make(chan sm.Tenant),
+				PromRegisterer: prometheus.NewPedanticRegistry(),
+				Features:       features,
+				grpcAdhocChecksClientFactory: func(conn ClientConn) (sm.AdHocChecksClient, error) {
+					return &testClient{
+						logger:            logger,
+						recvError:         tc.recvError,
+						registerProbeHook: func(*sm.ProbeInfo) { registrations++ },
+					}, nil
+				},
+			}
+
+			h, err := NewHandler(opts)
+			require.NoError(t, err)
+			require.NotNil(t, h)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+			defer cancel()
+
+			_ = h.Run(ctx)
+
+			require.Greater(t, registrations, 1, "the handler should reconnect after the stream breaks")
+
+			noisy := strings.Contains(logs.String(), `"level":"error"`) ||
+				strings.Contains(logs.String(), `"level":"warn"`)
+			require.Equal(t, tc.expectNoise, noisy, logs.String())
+		})
 	}
 }
 
