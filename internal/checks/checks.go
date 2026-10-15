@@ -875,24 +875,24 @@ func (c *Updater) reconcileCheckWithLock(ctx context.Context, cid model.GlobalID
 		shouldRun = owned
 	}
 
-	running, isRunning := c.scrapers[cid]
+	scraper, isRunning := c.scrapers[cid]
 
 	switch {
 	case shouldRun && !isRunning:
 		return c.addAndStartScraperWithLock(ctx, check)
 
 	case shouldRun && isRunning:
-		if running.ConfigVersion() == check.ConfigVersion() {
+		if scraper.ConfigVersion() == check.ConfigVersion() {
 			// already running the desired configuration
 			return nil
 		}
 		// configuration changed: tear it down and start it again.
-		c.stopScraperWithLock(cid, running)
+		c.stopScraperWithLock(cid, scraper)
 
 		return c.addAndStartScraperWithLock(ctx, check)
 
 	case !shouldRun && isRunning:
-		c.stopScraperWithLock(cid, running)
+		c.stopScraperWithLock(cid, scraper)
 	}
 
 	return nil

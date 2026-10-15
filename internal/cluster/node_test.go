@@ -185,6 +185,32 @@ func TestRingNodeReadyDeadline(t *testing.T) {
 	})
 }
 
+// TestRingNodeReadyBeforeDeadline verifies that reaching the minimum before the
+// wait-timeout elapses makes the deadline a no-op: it must not fire onChange.
+func TestRingNodeReadyBeforeDeadline(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		changed := make(chan struct{}, 4)
+		s := shard.Ring(512)
+		n := &RingNode{
+			sharder:        s,
+			minClusterSize: 3,
+			waitTimeout:    20 * time.Millisecond,
+			onChange:       func() { changed <- struct{}{} },
+		}
+
+		n.startReadinessDeadline()
+
+		s.SetPeers(participants("a", "a", "b", "c"))
+		n.updateReadyState()
+		require.True(t, n.Ready(), "must be ready once the minimum is reached")
+
+		time.Sleep(n.waitTimeout)
+		synctest.Wait()
+
+		require.Empty(t, changed, "deadline must not fire onChange when already ready")
+	})
+}
+
 // TestRingNodeReadyNoDeadline verifies that a zero wait-timeout disables the
 // fail-open deadline: the node stays not ready until the minimum is reached.
 func TestRingNodeReadyNoDeadline(t *testing.T) {

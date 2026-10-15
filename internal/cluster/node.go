@@ -68,6 +68,10 @@ const (
 // poorly.
 const tokensPerNode = 512
 
+// singleOwner is the number of owners requested per check (RF=1): every check
+// is run by exactly one node. IsOwner relies on it to inspect only owners[0].
+const singleOwner = 1
+
 // metricNamespace is the Prometheus namespace for cluster metrics, matching the
 // rest of the agent.
 const metricNamespace = "sm_agent"
@@ -198,7 +202,7 @@ func (r *RingNode) Metrics() prometheus.Collector { return r.node.Metrics() }
 
 // IsOwner reports whether the local node owns the check.
 func (r *RingNode) IsOwner(globalID model.GlobalID) (bool, error) {
-	owners, err := r.sharder.Lookup(keyOf(globalID), 1, shard.OpReadWrite)
+	owners, err := r.sharder.Lookup(keyOf(globalID), singleOwner, shard.OpReadWrite)
 	if err != nil {
 		return false, err
 	}
@@ -429,12 +433,13 @@ func (r *RingNode) startReadinessDeadline() {
 
 	r.deadline = time.AfterFunc(r.waitTimeout, func() {
 		r.mu.Lock()
-		if r.readyState == stateNotReady {
+		becameReady := r.readyState == stateNotReady
+		if becameReady {
 			r.readyState = stateDeadlinePassed
 		}
 		r.mu.Unlock()
 
-		if r.onChange != nil {
+		if becameReady && r.onChange != nil {
 			r.onChange()
 		}
 	})
