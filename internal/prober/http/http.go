@@ -219,8 +219,7 @@ func resolveSecretValue(ctx context.Context, value string, secretStore secrets.S
 		return value, nil
 	}
 
-	// Create a resolver that only handles secrets (no variables)
-	resolver := interpolation.NewResolver(nil, secretStore, tenantID, logger, secretManagerEnabled)
+	resolver := interpolation.NewResolver(secretStore, tenantID, logger, secretManagerEnabled)
 
 	return resolver.Resolve(ctx, value)
 }

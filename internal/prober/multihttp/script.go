@@ -5,10 +5,10 @@ import (
 	"embed"
 	"encoding/base64"
 	"fmt"
-	"regexp"
 	"strings"
 	"text/template"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
@@ -16,59 +16,6 @@ import (
 //
 //go:embed script.tmpl
 var templateFS embed.FS
-
-var userVariables = regexp.MustCompile(`\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}`)
-
-func performVariableExpansion(in string) string {
-	if len(in) == 0 {
-		return `''`
-	}
-
-	var s strings.Builder
-
-	buf := []byte(in)
-	locs := userVariables.FindAllSubmatchIndex(buf, -1)
-
-	p := 0
-
-	for _, loc := range locs {
-		if len(loc) < 4 { // put the bounds checker at ease
-			panic("unexpected result while building URL")
-		}
-
-		if s.Len() > 0 {
-			s.WriteRune('+')
-		}
-
-		if pre := buf[p:loc[0]]; len(pre) > 0 {
-			s.WriteRune('\'')
-			template.JSEscape(&s, pre)
-			s.WriteRune('\'')
-			s.WriteRune('+')
-		}
-
-		s.WriteString(`vars['`)
-		// Because of the capture in the regular expression, the result
-		// has two indices that represent the matched substring, and
-		// two more indices that represent the capture group.
-		s.Write(buf[loc[2]:loc[3]])
-		s.WriteString(`']`)
-
-		p = loc[1]
-	}
-
-	if len(buf[p:]) > 0 {
-		if s.Len() > 0 {
-			s.WriteRune('+')
-		}
-
-		s.WriteRune('\'')
-		template.JSEscape(&s, buf[p:])
-		s.WriteRune('\'')
-	}
-
-	return s.String()
-}
 
 // Query params must be appended to a URL that has already been created.
 // urlVarName is the variable name to reference when appending params.
@@ -80,9 +27,9 @@ func buildQueryParams(urlVarName string, req *sm.MultiHttpEntryRequest) []string
 		buf.Reset()
 		buf.WriteString(urlVarName)
 		buf.WriteString(".searchParams.append(")
-		buf.WriteString(performVariableExpansion(field.Name))
+		buf.WriteString(interpolation.ExpandVariablesToJS(field.Name))
 		buf.WriteString(", ")
-		buf.WriteString(performVariableExpansion(field.Value))
+		buf.WriteString(interpolation.ExpandVariablesToJS(field.Value))
 		buf.WriteString(")")
 		out = append(out, buf.String())
 	}
@@ -117,7 +64,7 @@ func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []st
 	default:
 		var buf strings.Builder
 
-		matches := userVariables.FindAllString(string(body.Payload), -1)
+		matches := interpolation.FindVariableRefs(string(body.Payload))
 		parsedMatches := make(map[string]struct{})
 		out := make([]string, 0, len(matches))
 
@@ -187,7 +134,7 @@ func buildHeaders(headers []*sm.HttpHeader, body *sm.HttpRequestBody) string {
 		buf.WriteRune('"')
 		buf.WriteString(template.JSEscapeString(header.Name))
 		buf.WriteString(`":`)
-		buf.WriteString(performVariableExpansion(header.Value))
+		buf.WriteString(interpolation.ExpandVariablesToJS(header.Value))
 
 		comma = ","
 	}
@@ -443,7 +390,7 @@ func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
 			"buildBody":           buildBody,
 			"buildChecks":         buildChecks,
 			"buildHeaders":        buildHeaders,
-			"buildUrl":            performVariableExpansion,
+			"buildUrl":            interpolation.ExpandVariablesToJS,
 			"buildQueryParams":    buildQueryParams,
 			"buildVars":           buildVars,
 			"interpolateBodyVars": interpolateBodyVariables,
