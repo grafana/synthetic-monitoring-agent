@@ -946,6 +946,7 @@ func TestReconcileAllFirstBatch(t *testing.T) {
 		require.False(t, scraperExists(u, orphanID))
 		require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
 
+		cancel()
 		synctest.Wait()
 	})
 }
@@ -1066,6 +1067,7 @@ func TestReconcileReadyGate(t *testing.T) {
 		require.True(t, scraperExists(u, cid))
 		require.Equal(t, 1.0, testutil.ToFloat64(u.metrics.runningScrapers))
 
+		cancel()
 		synctest.Wait()
 	})
 }
