@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/checks"
+	"github.com/grafana/synthetic-monitoring-agent/internal/cluster"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/http"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
@@ -90,6 +92,8 @@ func run(args []string, stdout io.Writer) error {
 			EnableProtocolSecrets     bool
 			PushTelemetry             bool
 			MetricsInterval           time.Duration
+
+			Cluster clusterConfig
 		}{
 			GrpcApiServerAddr:         "localhost:4031",
 			HttpListenAddr:            "localhost:4050",
@@ -106,6 +110,11 @@ func run(args []string, stdout io.Writer) error {
 			MetricsInterval:           time.Minute,
 			PprofBlockProfileRate:     1_000_000,
 			PprofMutexProfileFraction: 100,
+			Cluster: clusterConfig{
+				ListenPort:             cluster.DefaultListenPort,
+				MinimumSizeWaitTimeout: cluster.DefaultMinimumSizeWaitTimeout,
+				RejoinInterval:         cluster.DefaultRejoinInterval,
+			},
 		}
 	)
 
@@ -139,6 +148,17 @@ func run(args []string, stdout io.Writer) error {
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
+
+	flags.BoolVar(&config.Cluster.Enabled, "cluster-enabled", config.Cluster.Enabled, "[experimental] form a gossip cluster so checks are split across agents (each check runs on one owning agent)")
+	flags.StringVar(&config.Cluster.NodeName, "cluster-node-name", config.Cluster.NodeName, "[experimental] unique, stable name for this node in the cluster (default: hostname)")
+	flags.StringVar(&config.Cluster.AdvertiseAddress, "cluster-advertise-address", config.Cluster.AdvertiseAddress, "[experimental] address other nodes use to reach this one, host[:port]; the port defaults to cluster-listen-port (default: resolved from cluster-advertise-interfaces)")
+	flags.Var(&config.Cluster.AdvertiseInterfaces, "cluster-advertise-interfaces", "[experimental] interfaces to pick the advertise address from when cluster-advertise-address is unset (default: eth0,en0)")
+	flags.IntVar(&config.Cluster.ListenPort, "cluster-listen-port", config.Cluster.ListenPort, "[experimental] port for gossip traffic (plaintext HTTP/2)")
+	flags.StringVar(&config.Cluster.Label, "cluster-name", config.Cluster.Label, "[experimental] name to prevent nodes without this identifier from joining the cluster")
+	flags.Var(&config.Cluster.JoinAddresses, "cluster-join-addresses", "[experimental] comma-separated peers to join as host[:port]; prefixes: dns+ (A/AAAA), dnssrv+ (SRV then A/AAAA), dnssrvnoa+ (SRV only); without a prefix A/AAAA then SRV; the port defaults to cluster-listen-port")
+	flags.IntVar(&config.Cluster.MinimumSize, "cluster-wait-for-size", config.Cluster.MinimumSize, "[experimental] wait for the cluster to reach this many nodes (incl. self) before running checks; 0 or 1 disables waiting")
+	flags.DurationVar(&config.Cluster.MinimumSizeWaitTimeout, "cluster-wait-timeout", config.Cluster.MinimumSizeWaitTimeout, "[experimental] maximum time to wait for cluster-wait-for-size before running checks anyway (fail-open); 0 waits forever")
+	flags.DurationVar(&config.Cluster.RejoinInterval, "cluster-rejoin-interval", config.Cluster.RejoinInterval, "[experimental] how often to re-resolve peers and re-join, healing split-brain (e.g. nodes that bootstrapped alone); 0 disables rejoining")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -371,6 +391,25 @@ func run(args []string, stdout io.Writer) error {
 
 	probeCh := make(chan *synthetic_monitoring.Probe, 1)
 
+	// Build the cluster node.
+	// When clustering is disabled, the updater uses the mono node (owns everything),
+	// The updater needs the node, so it is built first; the node is started after the updater exists.
+	var (
+		clusterNode = cluster.NewMono() // passed to the updater
+		ringNode    *cluster.RingNode   // set + started only when clustering is enabled
+	)
+
+	if config.Cluster.Enabled {
+		zl.Warn().Msg("clustering is experimental: the -cluster-* flags and their behavior may change or be removed in future releases")
+
+		ringNode, err = buildClusterNode(config.Cluster, zl.With().Str("subsystem", "cluster").Logger(), promRegisterer)
+		if err != nil {
+			return err
+		}
+
+		clusterNode = ringNode
+	}
+
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
 		Conn:                    conn,
 		Logger:                  zl.With().Str("subsystem", "updater").Logger(),
@@ -390,9 +429,51 @@ func run(args []string, stdout io.Writer) error {
 		CostAttributionLabels:   cals,
 		LabellingMode:           labelmode.New(tm),
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		IsClusterEnabled:        config.Cluster.Enabled,
+		Node:                    clusterNode,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
+	}
+
+	// Start the cluster node.
+	// Wire membership changes to the updater's reconcile trigger, bring up the
+	// gossip transport and join the ring.
+	if config.Cluster.Enabled {
+		// Dedicated plaintext-HTTP/2 listener for gossip, isolated from the
+		// metrics/health server. Mirrors the httpServer Serve/Shutdown pair above.
+		route, handler := ringNode.Handler()
+		gossipServer := cluster.NewGossipServer(route, handler)
+
+		gossipListener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", net.JoinHostPort("", strconv.Itoa(config.Cluster.ListenPort)))
+		if err != nil {
+			return fmt.Errorf("listening for cluster gossip: %w", err)
+		}
+
+		g.Go(func() error {
+			<-ctx.Done()
+
+			timeoutCtx, timeoutCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer timeoutCancel()
+
+			return gossipServer.Shutdown(timeoutCtx)
+		})
+
+		g.Go(func() error {
+			return gossipServer.Run(gossipListener)
+		})
+
+		// On shutdown, leave the cluster gracefully: announce departure so peers
+		// take over, then leave. context.Background() lets the drain window govern,
+		// bounded by the node's drain timeout.
+		g.Go(func() error {
+			<-ctx.Done()
+			return ringNode.Stop(context.Background())
+		})
+
+		g.Go(func() error {
+			return ringNode.Start(ctx, checksUpdater.RequestReconcile)
+		})
 	}
 
 	g.Go(func() error {
@@ -410,6 +491,7 @@ func run(args []string, stdout io.Writer) error {
 		K6Runner:                k6Runner,
 		SecretProvider:          secretProvider,
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
+		IsClusterEnabled:        config.Cluster.Enabled,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create ad-hoc checks handler: %w", err)

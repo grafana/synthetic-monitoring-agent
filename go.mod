@@ -34,6 +34,7 @@ require (
 	github.com/felixge/httpsnoop v1.1.0
 	github.com/go-kit/log v0.2.1
 	github.com/gogo/status v1.1.1
+	github.com/grafana/ckit v0.0.0-20251024151910-87043f5a3cf7
 	github.com/grafana/gsm-api-go-client v0.3.5
 	github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96
 	github.com/jpillora/backoff v1.0.0
@@ -46,6 +47,7 @@ require (
 	github.com/spf13/afero v1.15.0
 	github.com/tdewolff/parse/v2 v2.8.16
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba
+	golang.org/x/time v0.15.0
 	gopkg.in/yaml.v3 v3.0.1
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.78
 )
@@ -55,14 +57,25 @@ require (
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
+	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/goterm v1.0.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
+	github.com/google/btree v1.1.3 // indirect
 	github.com/google/cel-go v0.30.0 // indirect
 	github.com/grafana/regexp v0.0.0-20250905093917-f7b3be9d1853 // indirect
+	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-immutable-radix v1.3.1 // indirect
+	github.com/hashicorp/go-metrics v0.6.0 // indirect
+	github.com/hashicorp/go-msgpack v0.5.5 // indirect
+	github.com/hashicorp/go-msgpack/v2 v2.1.1 // indirect
+	github.com/hashicorp/go-multierror v1.1.1 // indirect
+	github.com/hashicorp/go-sockaddr v1.0.0 // indirect
+	github.com/hashicorp/golang-lru v1.0.2 // indirect
+	github.com/hashicorp/memberlist v0.5.3 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.23 // indirect
@@ -72,6 +85,8 @@ require (
 	github.com/prometheus/procfs v0.21.1 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.1 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
+	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect

@@ -1,0 +1,205 @@
+package discovery
+
+import (
+	"errors"
+	"fmt"
+	"net"
+	"strconv"
+	"strings"
+
+	"github.com/rs/zerolog"
+)
+
+// DiscoverFn resolves the current set of peer addresses the node should try to
+// join. It is called once at startup and then re-invoked periodically so the
+// caller picks up scale-ups and restarted peers; periodic re-invocation
+// recovers on the next tick.
+type DiscoverFn func() ([]string, error)
+
+// Lookup functions used for resolution; replaced in tests.
+var (
+	lookupHost = net.LookupHost
+	lookupSRV  = net.LookupSRV
+)
+
+// NewDiscoverer builds a DiscoverFn from join addresses. With none set the
+// DiscoverFn returns no peers and the node bootstraps its own cluster.
+//
+// joinAddresses are [prefix+]host[:port] entries. Each is resolved
+// independently and the results are unioned and de-duplicated. A literal IP is
+// passed through; a name is resolved according to its prefix:
+//
+//   - dns+name: A/AAAA records.
+//   - dnssrv+name: SRV records, each target then resolved as A/AAAA.
+//   - dnssrvnoa+name: SRV records, targets used as-is.
+//   - no prefix: A/AAAA records, falling back to SRV (then A/AAAA) when the
+//     name has none. This is how a headless Service is resolved: the Service
+//     name resolves to the set of ready pod IPs.
+//
+// Addresses without a port are joined with defaultPort. SRV record ports are
+// ignored: every peer is expected to listen on the same port.
+//
+// An entry that resolves to no addresses, whether from a lookup error or an
+// empty result, is logged as a warning and skipped; the DiscoverFn returns an
+// error only when nothing resolves.
+//
+// TODO: consider supporting go-discover providers (k8s, AWS, GCE, Azure, ...)
+// as an alternative to join addresses.
+func NewDiscoverer(joinAddresses []string, defaultPort int, logger zerolog.Logger) (DiscoverFn, error) {
+	port := strconv.Itoa(defaultPort)
+
+	// Validate ports up front: memberlist silently drops a peer with a bad port
+	// as long as another peer joins.
+	for _, e := range joinAddresses {
+		if _, p, err := net.SplitHostPort(strings.TrimSpace(e)); err == nil {
+			if n, err := strconv.ParseUint(p, 10, 16); err != nil || n == 0 {
+				return nil, fmt.Errorf("discovery: invalid port in join address %q", e)
+			}
+		}
+	}
+
+	return func() ([]string, error) {
+		var (
+			addrs []string
+			errs  []error
+		)
+
+		for _, e := range joinAddresses {
+			resolved, err := resolveJoinAddress(e, port)
+			if len(resolved) == 0 {
+				// A failing entry should not discard the addresses found by the
+				// others. Log a warning instead.
+				logger.Warn().Err(err).Str("address", e).Msg("address did not resolve")
+			}
+
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+
+			addrs = append(addrs, resolved...)
+		}
+
+		addrs = dedupe(addrs)
+		// Surface errors only when nothing resolved: a single failing entry
+		// (e.g. a transient DNS blip) is logged above rather than discarding the
+		// addresses found by the others, and periodic re-invocation recovers on
+		// the next tick.
+		if len(addrs) == 0 && len(errs) > 0 {
+			return nil, errors.Join(errs...)
+		}
+
+		return addrs, nil
+	}, nil
+}
+
+// resolveJoinAddress resolves a [prefix+]host[:port] join address to peer
+// addresses, each joined with the entry's port, or defaultPort if it has none.
+func resolveJoinAddress(entry, defaultPort string) ([]string, error) {
+	entry = strings.TrimSpace(entry)
+
+	host, port, err := net.SplitHostPort(entry)
+	if err != nil {
+		// No port component; treat the whole entry as the host. Trim brackets
+		// from an IPv6 address like "[::1]": JoinHostPort adds its own.
+		host, port = strings.Trim(entry, "[]"), defaultPort
+	}
+
+	hosts, err := resolveHost(host)
+	if err != nil {
+		return nil, fmt.Errorf("discovery: resolving %q: %w", entry, err)
+	}
+
+	addrs := make([]string, 0, len(hosts))
+	for _, h := range hosts {
+		addrs = append(addrs, net.JoinHostPort(h, port))
+	}
+
+	return addrs, nil
+}
+
+// resolveHost resolves a join address host according to its prefix (see
+// NewDiscoverer). Expanding all records is what makes a headless Service name
+// resolve to all of its backing pod addresses.
+func resolveHost(host string) ([]string, error) {
+	if name, ok := strings.CutPrefix(host, "dns+"); ok {
+		return lookupHost(name)
+	}
+
+	if name, ok := strings.CutPrefix(host, "dnssrv+"); ok {
+		return resolveSRV(name, true)
+	}
+
+	if name, ok := strings.CutPrefix(host, "dnssrvnoa+"); ok {
+		return resolveSRV(name, false)
+	}
+
+	if net.ParseIP(host) != nil {
+		return []string{host}, nil
+	}
+
+	ips, err := lookupHost(host)
+	if err == nil {
+		return ips, nil
+	}
+
+	hosts, srvErr := resolveSRV(host, true)
+	if srvErr != nil {
+		return nil, errors.Join(err, srvErr)
+	}
+
+	return hosts, nil
+}
+
+// resolveSRV looks up the SRV records for name and returns their targets,
+// resolved to A/AAAA records when resolveTargets is set. Targets that fail to
+// resolve are skipped; an error is returned only when none resolve.
+func resolveSRV(name string, resolveTargets bool) ([]string, error) {
+	_, records, err := lookupSRV("", "", name)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		hosts []string
+		errs  []error
+	)
+
+	for _, record := range records {
+		target := strings.TrimSuffix(record.Target, ".")
+		if !resolveTargets {
+			hosts = append(hosts, target)
+			continue
+		}
+
+		ips, err := lookupHost(target)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		hosts = append(hosts, ips...)
+	}
+
+	if len(hosts) == 0 && len(errs) > 0 {
+		return nil, errors.Join(errs...)
+	}
+
+	return hosts, nil
+}
+
+func dedupe(in []string) []string {
+	seen := make(map[string]struct{}, len(in))
+
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if _, ok := seen[s]; ok {
+			continue
+		}
+
+		seen[s] = struct{}{}
+		out = append(out, s)
+	}
+
+	return out
+}

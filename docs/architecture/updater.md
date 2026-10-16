@@ -140,6 +140,14 @@ see [cmd.md](cmd.md).
 
 ## Change handling
 
+> **Clustering note.** Every handler below first records the change in
+> `knownChecks` (the durable desired state), then routes through
+> `reconcileCheckWithLock`, which decides start/stop/restart based on
+> ownership and readiness. When clustering is disabled the injected
+> `monoNode` owns everything and is always ready, so the behaviour reduces to
+> exactly what the bullets describe. See
+> [Check ownership and reconciliation](#check-ownership-and-reconciliation).
+
 ### First batch
 
 The first batch after each reconnect is special. The server only sends
@@ -176,6 +184,37 @@ check type at all?". Currently it gates `CheckTypeScripted` and
 permanently enabled today, the gate stays in place so the pattern is
 easy to extend. If you add a new check type that should be conditional,
 this is the place.
+
+## Check ownership and reconciliation
+
+When the agent runs in a cluster, it is sent the **full** check set for its
+ring but should only run the checks it owns (RF=1). The Updater handles this
+through a small set of pieces, all guarded by `scrapersMutex`:
+
+- **`knownChecks` is the durable desired state.** `map[GlobalID]model.Check` of
+  every check received, owned or not. Handlers write it *before* any gate, so a
+  deferral never loses a change — it is replayed later.
+- **`reconcileCheckWithLock(cid)`** is the single decision point. It consults
+  `node.Ready()` (buffer if the ring hasn't converged — leave scrapers untouched)
+  and `node.IsOwner(cid)`, then drives the one check to its desired state: start
+  if owned-and-known and not running, restart if the `ConfigVersion` changed, stop
+  if no longer owned or no longer known. Starts go through
+  `addAndStartScraperWithLock`, stops through `stopScraperWithLock`.
+- **`reconcileAll()`** re-runs `reconcileCheckWithLock` over `knownChecks` (and
+  stops orphaned scrapers). It is idempotent and is what membership changes
+  trigger. `handleFirstBatch` resets `knownChecks` to the batch and calls it, so
+  an orphan is a check that is *not in the batch OR not owned*.
+- **Observer → reconcile loop.** The cluster node calls
+  `Updater.RequestReconcile` on every participant-set change. That does a
+  non-blocking send to a buffered `reconcileCh` (coalescing); a single drain
+  goroutine (`runReconcileLoop`, behind a `rate.Limiter`) calls `reconcileAll()`.
+  This debounces startup churn and keeps reconciliation serialized off the gossip
+  goroutine.
+
+The `node cluster.Node` is injected via `UpdaterOptions.Node`; it defaults to
+`cluster.NewMono()` (owns everything, always ready), which is why all of the
+above is inert unless `-cluster-enabled` is set. The ring side — ownership
+hashing, convergence, drain — lives in [cluster.md](cluster.md).
 
 ## Error classification
 
