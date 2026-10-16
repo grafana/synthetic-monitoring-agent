@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.67.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.66.1...v0.67.0) (2026-10-16)
+
+
+### Features
+
+* Experimental agent clustering ([#2022](https://github.com/grafana/synthetic-monitoring-agent/issues/2022)) ([f3cacab](https://github.com/grafana/synthetic-monitoring-agent/commit/f3cacabec118a7e9b0e052abe13e69b2d0e85dd8))
+
+
+### Miscellaneous Chores
+
+* Refactor variable expansion, no change in behaviour ([#2003](https://github.com/grafana/synthetic-monitoring-agent/issues/2003)) ([f773145](https://github.com/grafana/synthetic-monitoring-agent/commit/f7731458574bdee16c5a598859899888ba1f1a39))
+* Remove unused code from secrets ([#2004](https://github.com/grafana/synthetic-monitoring-agent/issues/2004)) ([ab5ebdd](https://github.com/grafana/synthetic-monitoring-agent/commit/ab5ebdd3152c8f93c5062bf94bfb0172101768d5))
+* Stop scrapers before cluster reconcile tests return ([#2040](https://github.com/grafana/synthetic-monitoring-agent/issues/2040)) ([9392326](https://github.com/grafana/synthetic-monitoring-agent/commit/93923262fdd3068f4808ac6e80be95edd37dfd84))
+
 ## [0.66.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.66.0...v0.66.1) (2026-10-01)
 
 
