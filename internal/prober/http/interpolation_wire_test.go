@@ -21,9 +21,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The secret names and values these tests share. The values are deliberately
-// distinct from the references, so that a passthrough and a resolution can never
-// be mistaken for each other.
+// Secrets shared by these tests. Each value differs from its reference, so a
+// resolved value never looks like a reference sent as text.
 const (
 	wireTokenName  = "api-token"
 	wireTokenRef   = "${secrets.api-token}"
@@ -41,12 +40,9 @@ type capturedRequest struct {
 	header http.Header
 }
 
-// requestRecorder is a probe target that keeps the requests it receives, so that
-// a test can assert on the exact bytes the prober put on the wire.
-//
-// The testserver package cannot be used for this. It validates the request
-// method and echoes response headers, and it drops the inbound ones, which are
-// the only thing of interest here.
+// requestRecorder is a probe target that keeps the requests it receives, so a
+// test can check the exact headers the prober sent. The testserver package drops
+// request headers, so it does not work here.
 type requestRecorder struct {
 	*httptest.Server
 
@@ -83,22 +79,8 @@ func basicAuthHeader(username, password string) string {
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
 }
 
-// TestInterpolationOnTheWire asserts the exact credential bytes the agent sends
-// to the target, for each combination of credential value and
-// HttpSettings.SecretManagerEnabled.
-//
-// The existing tests in this package cover resolveSecretValue and
-// buildPrometheusHTTPClientConfig in isolation. This one goes through NewProber
-// and Probe and reads the request off a recording target, so it also covers the
-// wiring in between: which settings fields feed the resolver, how the resolved
-// value reaches the Prometheus HTTP client, and what happens to the request when
-// resolution fails.
-//
-// The nested and dollar-only cases are worth keeping. SecretRegex is unanchored,
-// so a stray "${" earlier in a value does not prevent a well-formed reference
-// later in it, and a "$" that does not open a placeholder is never special.
-// Both properties are easy to break while every well-formed input still
-// resolves.
+// TestInterpolationOnTheWire runs a full probe against a recording target and
+// checks the credentials the target received, for each shape of value.
 func TestInterpolationOnTheWire(t *testing.T) {
 	secretStore := testhelper.NewMockSecretProvider(map[string]string{
 		wireTokenName:    wireTokenValue,
@@ -118,43 +100,26 @@ func TestInterpolationOnTheWire(t *testing.T) {
 		wantAuthorization string
 		wantHeader        map[string]string
 		wantFailure       bool
-		wantLogContains   string
+		// wantLogContains is the error on failure, or the secret name on success.
+		wantLogContains string
 	}{
-		"plaintext bearer token, flag off": {
+		"plaintext bearer token": {
 			settings: sm.HttpSettings{
 				BearerToken: "plain-token",
 			},
 			wantAuthorization: "Bearer plain-token",
 		},
 
-		"plaintext bearer token, flag on": {
-			settings: sm.HttpSettings{
-				BearerToken:          "plain-token",
-				SecretManagerEnabled: true,
-			},
-			wantAuthorization: "Bearer plain-token",
-		},
-
-		"secret reference in bearer token, flag on": {
-			settings: sm.HttpSettings{
-				BearerToken:          wireTokenRef,
-				SecretManagerEnabled: true,
-			},
-			wantAuthorization: "Bearer " + wireTokenValue,
-		},
-
-		// With the flag off nothing is interpolated, so the reference reaches
-		// the target as written.
-		"secret reference in bearer token, flag off": {
+		"secret reference in bearer token": {
 			settings: sm.HttpSettings{
 				BearerToken: wireTokenRef,
 			},
-			wantAuthorization: "Bearer " + wireTokenRef,
+			wantAuthorization: "Bearer " + wireTokenValue,
+			wantLogContains:   wireTokenName,
 		},
 
-		"plaintext basic auth password, flag on": {
+		"plaintext basic auth password": {
 			settings: sm.HttpSettings{
-				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: wireUsername,
 					Password: "plain-password",
@@ -163,31 +128,19 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			wantAuthorization: basicAuthHeader(wireUsername, "plain-password"),
 		},
 
-		"secret reference in basic auth password, flag on": {
+		"secret reference in basic auth password": {
 			settings: sm.HttpSettings{
-				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: wireUsername,
 					Password: wirePasswordRef,
 				},
 			},
 			wantAuthorization: basicAuthHeader(wireUsername, wirePasswordValue),
+			wantLogContains:   wirePasswordName,
 		},
 
-		// As above, for the other credential field.
-		"secret reference in basic auth password, flag off": {
+		"secret reference surrounded by literal text": {
 			settings: sm.HttpSettings{
-				BasicAuth: &sm.BasicAuth{
-					Username: wireUsername,
-					Password: wirePasswordRef,
-				},
-			},
-			wantAuthorization: basicAuthHeader(wireUsername, wirePasswordRef),
-		},
-
-		"secret reference surrounded by literal text, flag on": {
-			settings: sm.HttpSettings{
-				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: wireUsername,
 					Password: "prefix-" + wirePasswordRef + "-suffix",
@@ -196,9 +149,8 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			wantAuthorization: basicAuthHeader(wireUsername, "prefix-"+wirePasswordValue+"-suffix"),
 		},
 
-		"two secret references in one value, flag on": {
+		"two secret references in one value": {
 			settings: sm.HttpSettings{
-				SecretManagerEnabled: true,
 				BasicAuth: &sm.BasicAuth{
 					Username: wireUsername,
 					Password: wireTokenRef + ":" + wirePasswordRef,
@@ -207,130 +159,102 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			wantAuthorization: basicAuthHeader(wireUsername, wireTokenValue+":"+wirePasswordValue),
 		},
 
-		// An unterminated "${" before a well-formed reference does not prevent
-		// the reference from resolving, and is carried through as literal text.
-		"secret reference after an unterminated placeholder, flag on": {
+		// A stray "${" stays as text and does not stop the reference after it.
+		"secret reference after an unterminated placeholder": {
 			settings: sm.HttpSettings{
-				BearerToken:          "prefix ${ " + wireTokenRef + " suffix",
-				SecretManagerEnabled: true,
+				BearerToken: "prefix ${ " + wireTokenRef + " suffix",
 			},
 			wantAuthorization: "Bearer prefix ${ " + wireTokenValue + " suffix",
 		},
 
-		// The same when the reference sits inside the unterminated placeholder
-		// rather than after it.
-		"secret reference nested in an unterminated placeholder, flag on": {
+		"secret reference nested in an unterminated placeholder": {
 			settings: sm.HttpSettings{
-				BearerToken:          "${" + wireTokenRef,
-				SecretManagerEnabled: true,
+				BearerToken: "${" + wireTokenRef,
 			},
 			wantAuthorization: "Bearer ${" + wireTokenValue,
 		},
 
-		// The resolver only ever expands ${secrets.name}, so the literal
-		// "secrets." prefix is the only thing that is meaningful here and a
-		// bare ${name} is left alone.
-		"variable syntax is not interpolated, flag on": {
+		// Only ${secrets.name} is resolved. A bare ${name} stays as is.
+		"variable syntax is not interpolated": {
 			settings: sm.HttpSettings{
-				BearerToken:          "${api-token}",
-				SecretManagerEnabled: true,
+				BearerToken: "${api-token}",
 			},
 			wantAuthorization: "Bearer ${api-token}",
 		},
 
-		// A "$" that does not open a "${...}" placeholder is never special, and
-		// "$$" has no meaning either, so a check configuration may hold a
-		// literal dollar anywhere.
-		"dollar without a placeholder, flag on": {
+		// A "$" outside "${...}" is plain text, and so is "$$".
+		"dollar without a placeholder": {
 			settings: sm.HttpSettings{
-				BearerToken:          "cost: $5.00",
-				SecretManagerEnabled: true,
+				BearerToken: "cost: $5.00",
 			},
 			wantAuthorization: "Bearer cost: $5.00",
 		},
 
-		"unbraced dollar name, flag on": {
+		"unbraced dollar name": {
 			settings: sm.HttpSettings{
-				BearerToken:          "$api-token",
-				SecretManagerEnabled: true,
+				BearerToken: "$api-token",
 			},
 			wantAuthorization: "Bearer $api-token",
 		},
 
-		"doubled dollar, flag on": {
+		"doubled dollar": {
 			settings: sm.HttpSettings{
-				BearerToken:          "$${api-token}",
-				SecretManagerEnabled: true,
+				BearerToken: "$${api-token}",
 			},
 			wantAuthorization: "Bearer $${api-token}",
 		},
 
-		// Custom headers are not one of the fields the agent resolves, so a
-		// reference in a header value reaches the target as written regardless
-		// of the flag.
-		"secret reference in a custom header, flag on": {
+		// Custom headers are never resolved, so the reference is sent as text.
+		"secret reference in a custom header": {
 			settings: sm.HttpSettings{
-				Headers:              []string{"X-Api-Key: " + wireTokenRef},
-				SecretManagerEnabled: true,
+				Headers: []string{"X-Api-Key: " + wireTokenRef},
 			},
 			wantHeader: map[string]string{"X-Api-Key": wireTokenRef},
 		},
 
-		// A name that matches SecretRegex but fails isValidSecretName is a hard
-		// error rather than a skip, so this pair is worth reading together: the
-		// same value is inert with the flag off and fatal with it on.
-		"invalid secret name, flag off": {
+		"invalid secret name": {
 			settings: sm.HttpSettings{
 				BearerToken: "${secrets.My_Token}",
 			},
-			wantAuthorization: "Bearer ${secrets.My_Token}",
+			wantFailure:     true,
+			wantLogContains: "invalid secret name",
 		},
 
-		"invalid secret name, flag on": {
+		"empty secret name": {
 			settings: sm.HttpSettings{
-				BearerToken:          "${secrets.My_Token}",
-				SecretManagerEnabled: true,
+				BearerToken: "${secrets.}",
 			},
 			wantFailure:     true,
 			wantLogContains: "invalid secret name",
 		},
 
-		"empty secret name, flag on": {
+		"unknown secret": {
 			settings: sm.HttpSettings{
-				BearerToken:          "${secrets.}",
-				SecretManagerEnabled: true,
-			},
-			wantFailure:     true,
-			wantLogContains: "invalid secret name",
-		},
-
-		"unknown secret, flag on": {
-			settings: sm.HttpSettings{
-				BearerToken:          "${secrets.does-not-exist}",
-				SecretManagerEnabled: true,
+				BearerToken: "${secrets.does-not-exist}",
 			},
 			wantFailure:     true,
 			wantLogContains: "secret not found",
 		},
 
-		// A well-formed name whose secret does not exist. Nothing is looked up
-		// with the flag off, so this is a passthrough rather than the lookup
-		// failure the case above it produces.
-		"unknown secret, flag off": {
+		"secret store unavailable": {
 			settings: sm.HttpSettings{
-				BearerToken: "${secrets.does-not-exist}",
-			},
-			wantAuthorization: "Bearer ${secrets.does-not-exist}",
-		},
-
-		"secret store unavailable, flag on": {
-			settings: sm.HttpSettings{
-				BearerToken:          wireTokenRef,
-				SecretManagerEnabled: true,
+				BearerToken: wireTokenRef,
 			},
 			secretStore:     failingStore,
 			wantFailure:     true,
 			wantLogContains: "no secret store configured",
+		},
+
+		// The error must name the field that failed.
+		"unknown secret in basic auth password": {
+			settings: sm.HttpSettings{
+				BasicAuth: &sm.BasicAuth{
+					Username: wireUsername,
+					Password: "${secrets.does-not-exist}",
+				},
+			},
+			wantFailure:     true,
+			wantLogContains: "failed to resolve basic auth password",
 		},
 	}
 
@@ -365,10 +289,8 @@ func TestInterpolationOnTheWire(t *testing.T) {
 				},
 			}
 
-			// A resolution failure is reported through the logger handed to
-			// NewProber, not through the check's own log stream, so that is the
-			// one the failure cases have to capture. Wiring the buffer into
-			// Probe's logger instead makes the assertion silently never fire.
+			// Resolution errors go to the logger passed to NewProber, not to the
+			// one passed to Probe.
 			var logs testhelper.LogBuffer
 
 			prober, err := NewProber(ctx, check, zerolog.New(&logs), http.Header{}, store)
@@ -395,6 +317,15 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			require.True(t, success)
 			require.Len(t, requests, 1)
 
+			// Without this, an empty log would pass the leak check below.
+			if tc.wantLogContains != "" {
+				require.Contains(t, logs.String(), tc.wantLogContains)
+			}
+
+			// Secret values must never reach the logs.
+			require.NotContains(t, logs.String(), wireTokenValue)
+			require.NotContains(t, logs.String(), wirePasswordValue)
+
 			// Exact equality, never Contains: "Bearer ${secrets.api-token}" and
 			// "Bearer resolved-token-value" both contain "Bearer".
 			require.Equal(t, tc.wantAuthorization, requests[0].header.Get("Authorization"))
@@ -406,24 +337,16 @@ func TestInterpolationOnTheWire(t *testing.T) {
 	}
 }
 
-// The TLS test fixtures. Byte-identity is what matters, so these do not need to
-// be parseable certificates.
+// TLS fixtures. Only the bytes matter, so they are not real certificates.
 const (
 	wireCACertPEM     = "-----BEGIN CERTIFICATE-----\nCA_CERT_CONTENT\n-----END CERTIFICATE-----\n"
 	wireClientCertPEM = "-----BEGIN CERTIFICATE-----\nCLIENT_CERT_CONTENT\n-----END CERTIFICATE-----\n"
 	wireClientKeyPEM  = "-----BEGIN PRIVATE KEY-----\nCLIENT_KEY_CONTENT\n-----END PRIVATE KEY-----\n"
 )
 
-// TestInterpolationInTLSMaterial covers the three TLS fields, which go through
-// the same resolver as the two credential fields.
-//
-// It stops one level short of the wire on purpose. tls.SMtoProm writes each
-// resolved field to a temporary file and hands blackbox exporter the path, so
-// observing the material on the wire would need an unstarted TLS server, client
-// certificate verification and a read of r.TLS.PeerCertificates. Reading the
-// file back pins the same bytes in three lines. It complements
-// TestBuildTLSConfig_WithSecrets, which asserts that a path was produced but not
-// what landed in it.
+// TestInterpolationInTLSMaterial checks what lands in the temp files the TLS
+// config points to. Checking on the wire would need a full mTLS server for the
+// same result.
 func TestInterpolationInTLSMaterial(t *testing.T) {
 	secretStore := testhelper.NewMockSecretProvider(map[string]string{
 		"ca-cert":     wireCACertPEM,
@@ -438,9 +361,8 @@ func TestInterpolationInTLSMaterial(t *testing.T) {
 		wantClientKey  string
 		wantError      string
 	}{
-		"secret reference in CA cert, flag on": {
+		"secret reference in CA cert": {
 			settings: sm.HttpSettings{
-				SecretManagerEnabled: true,
 				TlsConfig: &sm.TLSConfig{
 					CACert: []byte("${secrets.ca-cert}"),
 				},
@@ -448,29 +370,7 @@ func TestInterpolationInTLSMaterial(t *testing.T) {
 			wantCACert: wireCACertPEM,
 		},
 
-		// With the flag off nothing is interpolated here either.
-		"secret reference in CA cert, flag off": {
-			settings: sm.HttpSettings{
-				TlsConfig: &sm.TLSConfig{
-					CACert: []byte("${secrets.ca-cert}"),
-				},
-			},
-			wantCACert: "${secrets.ca-cert}",
-		},
-
-		// A PEM blob holds no placeholder, so it is written out byte for byte
-		// whether the flag is set or not.
-		"plaintext PEM in CA cert, flag on": {
-			settings: sm.HttpSettings{
-				SecretManagerEnabled: true,
-				TlsConfig: &sm.TLSConfig{
-					CACert: []byte(wireCACertPEM),
-				},
-			},
-			wantCACert: wireCACertPEM,
-		},
-
-		"plaintext PEM in CA cert, flag off": {
+		"plaintext PEM in CA cert": {
 			settings: sm.HttpSettings{
 				TlsConfig: &sm.TLSConfig{
 					CACert: []byte(wireCACertPEM),
@@ -479,9 +379,8 @@ func TestInterpolationInTLSMaterial(t *testing.T) {
 			wantCACert: wireCACertPEM,
 		},
 
-		"secret references in client cert and key, flag on": {
+		"secret references in client cert and key": {
 			settings: sm.HttpSettings{
-				SecretManagerEnabled: true,
 				TlsConfig: &sm.TLSConfig{
 					ClientCert: []byte("${secrets.client-cert}"),
 					ClientKey:  []byte("${secrets.client-key}"),
@@ -491,9 +390,8 @@ func TestInterpolationInTLSMaterial(t *testing.T) {
 			wantClientKey:  wireClientKeyPEM,
 		},
 
-		"invalid secret name in CA cert, flag on": {
+		"invalid secret name in CA cert": {
 			settings: sm.HttpSettings{
-				SecretManagerEnabled: true,
 				TlsConfig: &sm.TLSConfig{
 					CACert: []byte("${secrets.My_CA}"),
 				},
@@ -501,14 +399,32 @@ func TestInterpolationInTLSMaterial(t *testing.T) {
 			wantError: "invalid secret name",
 		},
 
-		"unknown secret in CA cert, flag on": {
+		"unknown secret in CA cert": {
 			settings: sm.HttpSettings{
-				SecretManagerEnabled: true,
 				TlsConfig: &sm.TLSConfig{
 					CACert: []byte("${secrets.does-not-exist}"),
 				},
 			},
 			wantError: "secret not found",
+		},
+
+		// The error must name the field that failed.
+		"unknown secret in client cert": {
+			settings: sm.HttpSettings{
+				TlsConfig: &sm.TLSConfig{
+					ClientCert: []byte("${secrets.does-not-exist}"),
+				},
+			},
+			wantError: "failed to resolve client cert",
+		},
+
+		"unknown secret in client key": {
+			settings: sm.HttpSettings{
+				TlsConfig: &sm.TLSConfig{
+					ClientKey: []byte("${secrets.does-not-exist}"),
+				},
+			},
+			wantError: "failed to resolve client key",
 		},
 	}
 
@@ -535,13 +451,22 @@ func TestInterpolationInTLSMaterial(t *testing.T) {
 
 			settings := tc.settings
 
+			var logs testhelper.LogBuffer
+
 			cfg, err := buildPrometheusHTTPClientConfig(
 				ctx,
 				&settings,
-				testhelper.NewTestLogger(),
+				zerolog.New(&logs),
 				secretStore,
 				model.GlobalID(1),
 			)
+
+			// TLS material must never reach the logs. Match the PEM body, not the
+			// whole fixture: zerolog escapes the newlines, so the whole fixture
+			// would never match even when it leaks.
+			require.NotContains(t, logs.String(), "CA_CERT_CONTENT")
+			require.NotContains(t, logs.String(), "CLIENT_CERT_CONTENT")
+			require.NotContains(t, logs.String(), "CLIENT_KEY_CONTENT")
 
 			if tc.wantError != "" {
 				require.ErrorContains(t, err, tc.wantError)
