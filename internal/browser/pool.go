@@ -69,10 +69,10 @@ type Config struct {
 // browser sessions from it. A single Pool is shared by all concurrent check
 // executions; all state updates are serialized under its mutex.
 type Pool struct {
-	cfg     Config
-	client  *http.Client
-	logger  zerolog.Logger
-	metrics metrics
+	client   *http.Client
+	logger   zerolog.Logger
+	discover discovery.DiscoverFn
+	metrics  metrics
 
 	mtx sync.Mutex
 	// order is a self-organizing list of *instance: the instance at the front
@@ -141,7 +141,7 @@ func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Po
 	}
 
 	p := &Pool{
-		cfg:      cfg,
+		discover: cfg.Discover,
 		client:   cfg.HTTPClient,
 		logger:   cfg.Logger,
 		order:    list.New(),
@@ -150,7 +150,7 @@ func New(ctx context.Context, cfg Config, registerer prometheus.Registerer) (*Po
 
 	p.metrics = registerMetrics(registerer, p)
 
-	go p.sync(ctx)
+	go p.sync(ctx, cfg.SyncInterval)
 
 	return p, nil
 }
@@ -408,14 +408,14 @@ func (p *Pool) deleteSession(ctx context.Context, baseURL, sessionID string) err
 // sync drives the periodic sync loop until ctx is cancelled. It is started by
 // New and runs one sync immediately, so membership is populated as soon as
 // the pool is constructed rather than after the first interval.
-func (p *Pool) sync(ctx context.Context) {
+func (p *Pool) sync(ctx context.Context, interval time.Duration) {
 	if ctx.Err() != nil {
 		return
 	}
 
 	p.syncOnce(ctx)
 
-	ticker := time.NewTicker(p.cfg.SyncInterval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -436,7 +436,7 @@ func (p *Pool) sync(ctx context.Context) {
 func (p *Pool) syncOnce(ctx context.Context) {
 	var addrs []string
 
-	discovered, err := p.cfg.Discover()
+	discovered, err := p.discover()
 	if err != nil {
 		// A resolution blip must not drop known instances: reconcile the
 		// current membership instead.
