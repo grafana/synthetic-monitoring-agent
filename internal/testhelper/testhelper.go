@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
@@ -220,7 +221,7 @@ func (m *MockSecretProvider) GetSecretValue(ctx context.Context, tenantID model.
 		return value, nil
 	}
 
-	return "", errors.New("secret not found")
+	return "", secrets.ErrSecretNotFound
 }
 
 // CommonTestSetup returns commonly used test values for context, logger, and tenant ID
