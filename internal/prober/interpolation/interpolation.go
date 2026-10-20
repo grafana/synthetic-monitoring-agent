@@ -73,7 +73,7 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 
 		// Validate secret name follows Kubernetes DNS subdomain naming convention
 		if !isValidSecretName(secretName) {
-			return "", fmt.Errorf("invalid secret name '%s': must follow Kubernetes DNS subdomain naming convention", secretName)
+			return "", fmt.Errorf("invalid secret name '%s': use up to 253 lowercase letters, digits, '-' and '.', starting and ending with a letter or digit", secretName)
 		}
 
 		secretMatches = append(secretMatches, secretMatch{
@@ -116,7 +116,7 @@ func (r *Resolver) resolveSecret(ctx context.Context, name string) (string, erro
 
 	secretValue, err := r.secretProvider.GetSecretValue(ctx, r.tenantID, name)
 	if err != nil {
-		return "", fmt.Errorf("failed to get secret '%s' from GSM: %w", name, err)
+		return "", fmt.Errorf("secret '%s': %w", name, err)
 	}
 
 	return secretValue, nil

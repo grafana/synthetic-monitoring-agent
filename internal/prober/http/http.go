@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
@@ -27,6 +28,17 @@ import (
 )
 
 var errUnsupportedCheck = errors.New("unsupported check")
+
+// secretResolutionError marks a ${secrets.*} reference that did not resolve.
+// buildProbeConfig also fails on a proxy URL, on TLS material and on OAuth2
+// settings, and only the secret failures are written to the check logs.
+type secretResolutionError struct {
+	err error
+}
+
+func (e secretResolutionError) Error() string { return e.err.Error() }
+
+func (e secretResolutionError) Unwrap() error { return e.err }
 
 type Prober struct {
 	// Raw settings and dependencies for runtime secret resolution
@@ -83,7 +95,21 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	// Resolve secrets and build complete config at probe time
 	probeConfig, err := p.buildProbeConfig(ctx)
 	if err != nil {
-		p.logger.Error().Err(err).Msg("failed to resolve secrets for HTTP probe")
+		// Two audiences for one failure. The operator reads the agent's own
+		// logger, where the rest of this probe already reports. The check owner
+		// reads the check's log stream, and they are the only one who can fix a
+		// reference that does not resolve, so leaving them a bare "Check failed"
+		// gave them less to go on than any other way a check can fail.
+		p.logger.Error().Err(err).Msg("failed to build config for HTTP probe")
+
+		// Only a secret failure goes to the check owner. The other failures
+		// carry text that is not safe to ship to the tenant - url.Parse puts the
+		// whole raw proxy URL in its error, user:password@ included.
+		var secretErr secretResolutionError
+		if errors.As(err, &secretErr) {
+			_ = level.Error(l).Log("msg", "Could not resolve a secret referenced by this check", "err", err)
+		}
+
 		return false, 0
 	}
 
@@ -104,7 +130,7 @@ func (p Prober) buildProbeConfig(ctx context.Context) (config.Module, error) {
 		p.tenantID,
 	)
 	if err != nil {
-		return cfg, fmt.Errorf("failed to build HTTP client config: %w", err)
+		return cfg, err
 	}
 
 	cfg.HTTP.HTTPClientConfig = httpClientConfig
@@ -217,7 +243,12 @@ func resolveSecretValue(ctx context.Context, value string, secretStore secrets.S
 
 	resolver := interpolation.NewResolver(secretStore, tenantID, logger)
 
-	return resolver.Resolve(ctx, value)
+	resolved, err := resolver.Resolve(ctx, value)
+	if err != nil {
+		return "", secretResolutionError{err: err}
+	}
+
+	return resolved, nil
 }
 
 // resolveSecretBytes is resolveSecretValue for []byte. A value with no reference is returned as
