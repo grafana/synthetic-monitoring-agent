@@ -589,7 +589,7 @@ func TestResolveSecretValue(t *testing.T) {
 			// Use mock secret store directly
 			secretStore := mockSecretStore
 
-			actual, err := resolveSecretValue(ctx, tc.input, secretStore, tenantID, logger)
+			actual, err := resolveSecretValue(ctx, "bearer token", tc.input, secretStore, tenantID, logger)
 
 			if tc.expectError {
 				require.Error(t, err)
