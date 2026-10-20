@@ -2,6 +2,7 @@ package interpolation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -23,6 +24,23 @@ const SecretRefPrefix = "${secrets."
 // HasSecretRef reports whether value may hold a ${secrets.name} reference.
 func HasSecretRef(value string) bool {
 	return strings.Contains(value, SecretRefPrefix)
+}
+
+// ErrInvalidSecretName is returned by Resolve for a reference whose name is not a valid secret name.
+var ErrInvalidSecretName = errors.New("invalid secret name: use up to 253 lowercase letters, digits, '-' and '.', starting and ending with a letter or digit")
+
+// ResolveError is returned by Resolve when the secret behind a valid reference cannot be fetched.
+type ResolveError struct {
+	Name string
+	Err  error
+}
+
+func (e *ResolveError) Error() string {
+	return fmt.Sprintf("secret '%s': %v", e.Name, e.Err)
+}
+
+func (e *ResolveError) Unwrap() error {
+	return e.Err
 }
 
 // SecretProvider defines the interface for resolving secrets
@@ -73,7 +91,7 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 
 		// Validate secret name follows Kubernetes DNS subdomain naming convention
 		if !isValidSecretName(secretName) {
-			return "", fmt.Errorf("invalid secret name '%s': must follow Kubernetes DNS subdomain naming convention", secretName)
+			return "", ErrInvalidSecretName
 		}
 
 		secretMatches = append(secretMatches, secretMatch{
@@ -116,7 +134,7 @@ func (r *Resolver) resolveSecret(ctx context.Context, name string) (string, erro
 
 	secretValue, err := r.secretProvider.GetSecretValue(ctx, r.tenantID, name)
 	if err != nil {
-		return "", fmt.Errorf("failed to get secret '%s' from GSM: %w", name, err)
+		return "", &ResolveError{Name: name, Err: err}
 	}
 
 	return secretValue, nil

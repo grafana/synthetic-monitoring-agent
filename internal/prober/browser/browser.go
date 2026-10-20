@@ -27,7 +27,7 @@ type Prober struct {
 	logger           zerolog.Logger
 	module           Module
 	processor        *k6runner.Processor
-	secretsRetriever func(context.Context) (k6runner.SecretStore, error)
+	secretsRetriever k6runner.SecretStoreRetriever
 }
 
 func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, store secrets.SecretProvider) (Prober, error) {
@@ -68,7 +68,7 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 
 	p.processor = processor
 	p.logger = logger
-	p.secretsRetriever = newCredentialsRetriever(store, check.GlobalTenantID(), p.logger)
+	p.secretsRetriever = k6runner.NewSecretStoreRetriever(store, check.GlobalTenantID(), p.logger)
 
 	return p, nil
 }
@@ -78,7 +78,7 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (bool, float64) {
-	secretStore, err := p.secretsRetriever(ctx)
+	secretStore, err := p.secretsRetriever(ctx, logger)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("failed to retrieve secret store")
 		return false, 0
@@ -91,44 +91,4 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	}
 
 	return success, duration.Seconds()
-}
-
-// TODO(mem): This should probably be in the k6runner package.
-func newCredentialsRetriever(provider secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) func(context.Context) (k6runner.SecretStore, error) {
-	return func(ctx context.Context) (k6runner.SecretStore, error) {
-		var store k6runner.SecretStore
-
-		logger.Debug().
-			Int64("tenantId", int64(tenantID)).
-			Msg("credentials retriever: getting secret credentials")
-
-		credentials, err := provider.GetSecretCredentials(ctx, tenantID)
-		if err != nil {
-			logger.Error().
-				Err(err).
-				Int64("tenantId", int64(tenantID)).
-				Msg("credentials retriever: failed to get secret credentials")
-
-			return store, err
-		}
-
-		if credentials != nil {
-			store = k6runner.SecretStore{
-				Url:   credentials.Url,
-				Token: credentials.Token,
-			}
-			logger.Debug().
-				Int64("tenantId", int64(tenantID)).
-				Str("secretStoreUrl", credentials.Url).
-				Bool("hasSecretStoreToken", credentials.Token != "").
-				Float64("secretStoreExpiry", credentials.Expiry).
-				Msg("credentials retriever: secret store configured")
-		} else {
-			logger.Debug().
-				Int64("tenantId", int64(tenantID)).
-				Msg("credentials retriever: no secret store configuration")
-		}
-
-		return store, nil
-	}
 }

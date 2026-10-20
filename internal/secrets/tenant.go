@@ -2,8 +2,10 @@ package secrets
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/patrickmn/go-cache"
@@ -12,6 +14,33 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
+
+var (
+	ErrNoSecretStore           = ownerReason("no secret store is configured for this stack")
+	ErrSecretNotFound          = ownerReason("the secret does not exist")
+	ErrSecretStoreUnavailable  = ownerReason("the secret store is unavailable")
+	ErrSecretStoreUnauthorized = ownerReason("the secret store rejected the agent's access token")
+	ErrSecretStoreBadResponse  = ownerReason("the secret store returned an unexpected response")
+)
+
+type ownerReasonError struct {
+	reason string
+}
+
+func (e *ownerReasonError) Error() string { return e.reason }
+
+func ownerReason(reason string) error {
+	return &ownerReasonError{reason: reason}
+}
+
+// OwnerReason returns the reason why secret could not be fetched without exposing sensitive information.
+func OwnerReason(err error) string {
+	if reasonErr, ok := errors.AsType[*ownerReasonError](err); ok {
+		return reasonErr.reason
+	}
+
+	return "the secret could not be fetched"
+}
 
 type SecretProvider interface {
 	GetSecretCredentials(ctx context.Context, tenantID model.GlobalID) (*sm.SecretStore, error)
@@ -70,7 +99,7 @@ func (sp *secretProvider) GetSecretCredentials(ctx context.Context, tenantID mod
 	})
 	if err != nil {
 		sp.logger.Warn().Err(err).Int64("tenantId", int64(tenantID)).Msg("failed to get tenant")
-		return nil, err
+		return nil, fmt.Errorf("%w: could not load the secret store configuration: %w", ErrSecretStoreUnavailable, err)
 	}
 
 	return tenant.SecretStore, nil
@@ -103,30 +132,37 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 	// Get the secret store configuration for this tenant
 	secretStore, err := sp.GetSecretCredentials(ctx, tenantID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get secret store credentials: %w", err)
+		return "", err
 	}
 
 	if secretStore == nil {
-		return "", fmt.Errorf("no secret store configured for tenant %d", tenantID)
+		return "", ErrNoSecretStore
 	}
 
 	// Create GSM client
 	client, err := sp.gsmClientFactory.CreateClient(secretStore.Url, secretStore.Token)
 	if err != nil {
-		return "", fmt.Errorf("failed to create GSM client: %w", err)
+		return "", fmt.Errorf("%w: %w", ErrSecretStoreUnavailable, err)
 	}
 
 	// Get the decrypted secret value
 	resp, err := client.DecryptSecretByIdWithResponse(ctx, secretKey)
 	if err != nil {
 		// Network error or client error - leave cache unchanged
+		reason, msg := ErrSecretStoreUnavailable, "network error fetching secret, leaving cache unchanged"
+
+		// The HTTP client reports almost every transport failure as a *url.Error
+		if _, ok := errors.AsType[*url.Error](err); !ok {
+			reason, msg = ErrSecretStoreBadResponse, "unreadable response from GSM, leaving cache unchanged"
+		}
+
 		sp.logger.Warn().
 			Err(err).
 			Int64("tenantId", int64(tenantID)).
 			Str("secretKey", secretKey).
-			Msg("network error fetching secret, leaving cache unchanged")
+			Msg(msg)
 
-		return "", fmt.Errorf("failed to contact GSM for secret '%s': %w", secretKey, err)
+		return "", fmt.Errorf("%w: %w", reason, err)
 	}
 
 	// Handle different status codes
@@ -134,7 +170,7 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 	case http.StatusOK:
 		// Success - update cache and return value
 		if resp.JSON200 == nil {
-			return "", fmt.Errorf("empty response from GSM for secret %s", secretKey)
+			return "", fmt.Errorf("%w: status 200 with content type %q", ErrSecretStoreBadResponse, resp.HTTPResponse.Header.Get("Content-Type"))
 		}
 
 		secretValue := resp.JSON200.Plaintext
@@ -156,7 +192,7 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Str("secretKey", secretKey).
 			Msg("secret not found in GSM, removed from cache")
 
-		return "", fmt.Errorf("secret '%s' not found in GSM (404)", secretKey)
+		return "", ErrSecretNotFound
 
 	case http.StatusUnauthorized:
 		// Auth issue - remove from cache (credentials may have changed)
@@ -167,7 +203,7 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Str("secretKey", secretKey).
 			Msg("unauthorized accessing secret in GSM, removed from cache")
 
-		return "", fmt.Errorf("unauthorized to access secret '%s' in GSM (401)", secretKey)
+		return "", ErrSecretStoreUnauthorized
 
 	default:
 		// 5xx or other errors - leave cache unchanged
@@ -179,6 +215,11 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Str("secretKey", secretKey).
 			Msg("GSM returned error status, leaving cache unchanged")
 
-		return "", fmt.Errorf("GSM returned status %d for secret '%s'", statusCode, secretKey)
+		reason := ErrSecretStoreBadResponse
+		if statusCode >= http.StatusInternalServerError {
+			reason = ErrSecretStoreUnavailable
+		}
+
+		return "", fmt.Errorf("%w: status %d", reason, statusCode)
 	}
 }

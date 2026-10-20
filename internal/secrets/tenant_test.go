@@ -2,7 +2,11 @@ package secrets
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -89,8 +93,7 @@ func TestSecretProvider_GetSecretValue_NoSecretStore(t *testing.T) {
 	sp := NewSecretProvider(tenantProvider, time.Minute, logger)
 
 	_, err := sp.GetSecretValue(context.Background(), model.GlobalID(123), "test-secret")
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "no secret store configured")
+	require.ErrorIs(t, err, ErrNoSecretStore)
 }
 
 func TestSecretProvider_GetSecretValue_EmptyURLAndToken(t *testing.T) {
@@ -104,17 +107,17 @@ func TestSecretProvider_GetSecretValue_EmptyURLAndToken(t *testing.T) {
 		"empty URL": {
 			url:   "",
 			token: "test-token",
-			error: "GSM URL cannot be empty",
+			error: "the secret store URL is not configured",
 		},
 		"empty token": {
 			url:   "https://test-gsm.com",
 			token: "",
-			error: "GSM token cannot be empty",
+			error: "the secret store token is not configured",
 		},
 		"both empty": {
 			url:   "",
 			token: "",
-			error: "GSM URL cannot be empty",
+			error: "the secret store URL is not configured",
 		},
 	}
 
@@ -135,6 +138,122 @@ func TestSecretProvider_GetSecretValue_EmptyURLAndToken(t *testing.T) {
 			_, err := sp.GetSecretValue(context.Background(), model.GlobalID(123), "test-secret")
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tc.error)
+		})
+	}
+}
+
+func TestSecretProvider_GetSecretValue_Failures(t *testing.T) {
+	logger := zerolog.New(io.Discard)
+
+	status := func(code int) http.HandlerFunc {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(code)
+		}
+	}
+
+	respond := func(contentType, body string) http.HandlerFunc {
+		return func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", contentType)
+			_, _ = io.WriteString(w, body)
+		}
+	}
+
+	testcases := map[string]struct {
+		handler    http.Handler
+		tenantErr  error
+		want       error
+		wantDetail string
+	}{
+		"secret not found": {
+			handler: status(http.StatusNotFound),
+			want:    ErrSecretNotFound,
+		},
+		"token rejected": {
+			handler: status(http.StatusUnauthorized),
+			want:    ErrSecretStoreUnauthorized,
+		},
+		"server error": {
+			handler:    status(http.StatusServiceUnavailable),
+			want:       ErrSecretStoreUnavailable,
+			wantDetail: "status 503",
+		},
+		"unexpected status": {
+			handler:    status(http.StatusBadRequest),
+			want:       ErrSecretStoreBadResponse,
+			wantDetail: "status 400",
+		},
+		"malformed JSON": {
+			handler:    respond("application/json", "{"),
+			want:       ErrSecretStoreBadResponse,
+			wantDetail: "unexpected end of JSON input",
+		},
+		"not JSON": {
+			handler:    respond("text/plain", "plaintext"),
+			want:       ErrSecretStoreBadResponse,
+			wantDetail: `content type "text/plain"`,
+		},
+		"store unreachable": {
+			want:       ErrSecretStoreUnavailable,
+			wantDetail: "/secrets/test-secret/decrypt",
+		},
+		"tenant API unavailable": {
+			handler:    status(http.StatusOK),
+			tenantErr:  errors.New("rpc error: code = Unavailable"),
+			want:       ErrSecretStoreUnavailable,
+			wantDetail: "rpc error: code = Unavailable",
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			var server *httptest.Server
+			if tc.handler != nil {
+				server = httptest.NewServer(tc.handler)
+				t.Cleanup(server.Close)
+			} else {
+				server = httptest.NewServer(http.NotFoundHandler())
+				server.Close()
+			}
+
+			tenantProvider := &mockTenantProvider{
+				tenant: &sm.Tenant{
+					Id: 123,
+					SecretStore: &sm.SecretStore{
+						Url:   server.URL,
+						Token: "test-token",
+					},
+				},
+				err: tc.tenantErr,
+			}
+
+			sp := NewSecretProvider(tenantProvider, time.Minute, logger)
+
+			_, err := sp.GetSecretValue(context.Background(), model.GlobalID(123), "test-secret")
+			require.ErrorIs(t, err, tc.want)
+			require.Contains(t, err.Error(), tc.wantDetail)
+			require.Equal(t, tc.want.Error(), OwnerReason(err))
+		})
+	}
+}
+
+func TestOwnerReason(t *testing.T) {
+	testcases := map[string]struct {
+		err  error
+		want string
+	}{
+		"reason = not found": {
+			err:  fmt.Errorf("secret 'x': %w", ErrSecretNotFound),
+			want: ErrSecretNotFound.Error(),
+		},
+		"reason = other": {
+			err:  errors.New(`get "https://gsm.internal/secrets/x/decrypt": dial tcp`),
+			want: "the secret could not be fetched",
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tc.want, OwnerReason(tc.err))
 		})
 	}
 }

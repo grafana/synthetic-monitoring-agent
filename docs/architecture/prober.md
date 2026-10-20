@@ -140,6 +140,24 @@ CA cert, client cert and client key. This happens for every check. The
 with no `${secrets.` in it is passed through as is and never hits the
 secret store, so checks without secrets only pay for a substring check.
 
+A reference that does not resolve fails the run before any request is
+sent. The agent log gets the whole error. The check logs get the field,
+the secret name and a fixed reason from `secrets.OwnerReason`, never the
+error text, because that text comes from the secret store and SM API
+clients and carries the secret store URL and transport detail. An
+invalid name is reported without the name, since the pattern captures
+everything up to the next `}` and a literal credential can contain
+`${secrets.`.
+
+Some reasons are for the check owner to fix: a secret that does not
+exist, an invalid name, a stack with no secret store. A secret store
+that is unavailable, rejects the agent's token or sends a response the
+client cannot read is a problem on the Grafana side, and the reason
+tells the owner that their check is not at fault. Other
+errors while building the client config, such as a bad proxy URL, go to
+the agent log only. Proxy URL errors leave out the URL, because it can
+carry `user:password@`.
+
 DNS is special: the project keeps an in-tree fork at
 `prober/dns/internal/bbe` because the upstream DNS prober is missing a
 behaviour change (see the PR link in `dns/internal/bbe/prober/dns.go`).
@@ -166,6 +184,10 @@ responsibility is *script preparation*:
 - **scripted**: the user supplies the script verbatim.
 - **browser**: a small wrapper script around the user's browser-test code.
 - **multihttp**: the user supplies a *list of HTTP requests* with assertions; `multihttp/script.go` renders a k6 script from `script.tmpl` plus optional `interpolation/` substitutions. If you change the rendered script, update the golden tests in `multihttp/script_test.go`.
+
+Each run first loads the stack's secret store configuration from the SM
+API, which the script needs to fetch secrets. When that fails, the run
+fails, and the check logs get a fixed reason from `secrets.OwnerReason`.
 
 ## Design details
 
