@@ -1,6 +1,6 @@
 module github.com/grafana/synthetic-monitoring-agent
 
-go 1.26.0
+go 1.26.10
 
 require (
 	github.com/go-kit/kit v0.13.0
