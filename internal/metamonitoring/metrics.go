@@ -27,7 +27,6 @@ type HandlerOpts struct {
 	TenantID  model.GlobalID
 	Interval  time.Duration
 	ProbeCh   chan *synthetic_monitoring.Probe
-	Instance  string
 }
 
 type metricsHandler struct {
@@ -36,7 +35,6 @@ type metricsHandler struct {
 	publisher pusher.Publisher
 	tenantID  model.GlobalID
 	probeName string
-	instance  string
 	interval  time.Duration
 	probeCh   chan *synthetic_monitoring.Probe
 }
@@ -57,7 +55,6 @@ func NewHandler(opts HandlerOpts) Handler {
 		interval:  interval,
 		probeCh:   opts.ProbeCh,
 		tenantID:  opts.TenantID,
-		instance:  opts.Instance,
 	}
 }
 
@@ -72,12 +69,7 @@ func (m *metricsHandler) Run(ctx context.Context) error {
 	ticker := time.NewTicker(m.interval)
 	defer ticker.Stop()
 
-	loggerContext := m.logger.With().Int64("tenantID", int64(m.tenantID))
-	if m.instance != "" {
-		loggerContext = loggerContext.Str("instance", m.instance)
-	}
-
-	m.logger = loggerContext.Logger()
+	m.logger = m.logger.With().Int64("tenantID", int64(m.tenantID)).Logger()
 	m.logger.Info().Msg("starting to report metrics")
 
 	for {
@@ -112,7 +104,7 @@ func (m *metricsHandler) reportUsage() error {
 
 	now := time.Now()
 
-	ts := mfsToTimeseries(now, mfs, m.probeName, m.instance)
+	ts := mfsToTimeseries(now, mfs, m.probeName)
 	if len(ts) == 0 {
 		return nil
 	}
@@ -125,7 +117,7 @@ func (m *metricsHandler) reportUsage() error {
 	return nil
 }
 
-func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily, probeName, instance string) []prompb.TimeSeries {
+func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily, probeName string) []prompb.TimeSeries {
 	stamp := t.UnixNano() / 1e6
 
 	var ts []prompb.TimeSeries
@@ -136,14 +128,10 @@ func mfsToTimeseries(t time.Time, mfs []*dto.MetricFamily, probeName, instance s
 
 		for _, metric := range mf.GetMetric() {
 			ml := metric.GetLabel()
-			labels := make([]prompb.Label, 0, 2+len(ml))
+			labels := make([]prompb.Label, 0, 1+len(ml))
 			labels = append(labels, prompb.Label{Name: "__name__", Value: name})
 
 			labels = append(labels, prompb.Label{Name: "probe", Value: probeName})
-			if instance != "" {
-				labels = append(labels, prompb.Label{Name: "instance", Value: instance})
-			}
-
 			for _, l := range ml {
 				labels = append(labels, prompb.Label{Name: l.GetName(), Value: l.GetValue()})
 			}
