@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.67.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.66.1...v0.67.0) (2026-10-22)
+
+
+### Features
+
+* Experimental agent clustering ([#2022](https://github.com/grafana/synthetic-monitoring-agent/issues/2022)) ([f3cacab](https://github.com/grafana/synthetic-monitoring-agent/commit/f3cacabec118a7e9b0e052abe13e69b2d0e85dd8))
+* Include metamonitoring instance label on cluster mode ([#2024](https://github.com/grafana/synthetic-monitoring-agent/issues/2024)) ([25c6e85](https://github.com/grafana/synthetic-monitoring-agent/commit/25c6e85430fc499b4e2e6bce6aa2dff798b2e645))
+* Revert experimental clustering ([#2048](https://github.com/grafana/synthetic-monitoring-agent/issues/2048)) ([7273066](https://github.com/grafana/synthetic-monitoring-agent/commit/7273066e7a89da7fd560e5ace1e4fb343dba929c))
+
+
+### Fixes
+
+* Distrust compromised eMudhra intermediates in browser image ([#2055](https://github.com/grafana/synthetic-monitoring-agent/issues/2055)) ([dddd7d1](https://github.com/grafana/synthetic-monitoring-agent/commit/dddd7d1061a957ad00604783d99ef4735bcd1878))
+* Upgrade ca-certificates-bundle to drop distrusted eMudhra roots (CVE-2026-111943) ([#2053](https://github.com/grafana/synthetic-monitoring-agent/issues/2053)) ([990ae3b](https://github.com/grafana/synthetic-monitoring-agent/commit/990ae3ba749d5d22d756125de23d7d5348284ad5))
+
+
+### Miscellaneous Chores
+
+* Build with Go 1.26.10 (CVE-2026-111943) ([#2047](https://github.com/grafana/synthetic-monitoring-agent/issues/2047)) ([bb023af](https://github.com/grafana/synthetic-monitoring-agent/commit/bb023af70a9b5d45906b2fbb0dad8bfe8c931716))
+* Refactor variable expansion, no change in behaviour ([#2003](https://github.com/grafana/synthetic-monitoring-agent/issues/2003)) ([f773145](https://github.com/grafana/synthetic-monitoring-agent/commit/f7731458574bdee16c5a598859899888ba1f1a39))
+* Remove unused code from secrets ([#2004](https://github.com/grafana/synthetic-monitoring-agent/issues/2004)) ([ab5ebdd](https://github.com/grafana/synthetic-monitoring-agent/commit/ab5ebdd3152c8f93c5062bf94bfb0172101768d5))
+* Stop scrapers before cluster reconcile tests return ([#2040](https://github.com/grafana/synthetic-monitoring-agent/issues/2040)) ([9392326](https://github.com/grafana/synthetic-monitoring-agent/commit/93923262fdd3068f4808ac6e80be95edd37dfd84))
+* Update dependency grafana/xk6-sm-v1 to v1.1.17 ([#2049](https://github.com/grafana/synthetic-monitoring-agent/issues/2049)) ([cb64bcd](https://github.com/grafana/synthetic-monitoring-agent/commit/cb64bcdc918957e451b86fe6673743d17df0ddb5))
+* Update dependency grafana/xk6-sm-v2 to v2.0.11 ([#2050](https://github.com/grafana/synthetic-monitoring-agent/issues/2050)) ([1a1cc40](https://github.com/grafana/synthetic-monitoring-agent/commit/1a1cc40837ba75468f25bcbd91ce481a94dc4c6f))
+* Update docker:dind Docker digest to 3e5756e ([#2021](https://github.com/grafana/synthetic-monitoring-agent/issues/2021)) ([aebc168](https://github.com/grafana/synthetic-monitoring-agent/commit/aebc168536e8ea6aa1f2febc4da1792beb1a19c2))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.48.1 ([#2042](https://github.com/grafana/synthetic-monitoring-agent/issues/2042)) ([0f3b3ed](https://github.com/grafana/synthetic-monitoring-agent/commit/0f3b3ed33e275bfa80b96eeffc1020f64752418c))
+* Update module cel.dev/expr to v0.25.3 ([#2037](https://github.com/grafana/synthetic-monitoring-agent/issues/2037)) ([bec3f2d](https://github.com/grafana/synthetic-monitoring-agent/commit/bec3f2d4e71f6227539a5e79aed01de3e32e9d8d))
+* Update module github.com/grafana/gsm-api-go-client to v0.3.6 ([#2033](https://github.com/grafana/synthetic-monitoring-agent/issues/2033)) ([56bf4d1](https://github.com/grafana/synthetic-monitoring-agent/commit/56bf4d116010f0c46e979a733fd816a6313339a5))
+* Update module github.com/mattn/go-colorable to v0.1.16 ([#2039](https://github.com/grafana/synthetic-monitoring-agent/issues/2039)) ([374a5dd](https://github.com/grafana/synthetic-monitoring-agent/commit/374a5dd49fc04af98090d8aa35a325dcda2b8cd2))
+* Update module golang.org/x/net to v0.60.0 [SECURITY] ([#2028](https://github.com/grafana/synthetic-monitoring-agent/issues/2028)) ([7b1fffc](https://github.com/grafana/synthetic-monitoring-agent/commit/7b1fffc0ac2f7213fe8c04ca3722afcff46a95c9))
+
 ## [0.66.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.66.0...v0.66.1) (2026-10-01)
 
 
