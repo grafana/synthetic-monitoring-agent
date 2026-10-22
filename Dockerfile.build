@@ -46,6 +46,10 @@ COPY --from=release --chown=sm:sm /usr/libexec/sm-k6/k6-v2 /usr/libexec/sm-k6/k6
 COPY --from=release /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh /usr/local/lib/synthetic-monitoring-agent/pre-stop.sh
 COPY --from=release /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
+# Chromium uses its own root store rather than the system bundle, so distrust
+# the compromised eMudhra roots (CVE-2026-111943) through a managed policy.
+COPY scripts/chromium-policies/emsign-distrust.json /etc/chromium/policies/managed/emsign-distrust.json
+
 # Removing any file with setuid bit set, such as /usr/lib/chromium/chrome-sandbox,
 # which is used for chromium sandboxing.
 RUN find / -type f -perm -4000 -delete
