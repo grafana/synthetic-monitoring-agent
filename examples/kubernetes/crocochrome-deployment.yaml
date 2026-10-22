@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crocochrome
+  namespace: synthetic-monitoring
+spec:
+  # Each crocochrome instance runs one browser session at a time. Scale replicas to at least the peak number of
+  # browser checks running concurrently.
+  replicas: 3
+  selector:
+    matchLabels:
+      name: crocochrome
+  template:
+    metadata:
+      labels:
+        name: crocochrome
+    spec:
+      # On shutdown, crocochrome waits for its active session to finish, up to the 5m session timeout.
+      terminationGracePeriodSeconds: 320
+      containers:
+        - name: crocochrome
+          image: ghcr.io/grafana/crocochrome:v0.13.0
+          ports:
+            - containerPort: 8080
+              name: http
+          securityContext:
+            # https://github.com/grafana/crocochrome/blob/main/doc/capabilities.md
+            # crocochrome runs Chromium as a different, unprivileged user. The crocochrome binary gets the capabilities
+            # it needs for that from file capabilities, which requires allowPrivilegeEscalation to be true. All of the
+            # following capabilities must be added, or the container fails to start.
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: true
+            capabilities:
+              add:
+                - setuid # Needed to run Chromium as a different user.
+                - setgid # Needed to run Chromium as a different group.
+                - kill # Needed to stop Chromium processes.
+                - chown # Needed to hand the session temporary directory to the Chromium user.
+                - dac_override # Needed to remove the files Chromium leaves in the temporary directory.
+                - fowner # Needed, with dac_override, to remove the files Chromium leaves in the temporary directory.
+              drop:
+                - all
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1000Mi
+            limits:
+              cpu: 1000m
+              memory: 1000Mi
+          volumeMounts:
+            - name: chromium-tmp
+              mountPath: /chromium-tmp
+      volumes:
+        - name: chromium-tmp
+          emptyDir:
+            medium: Memory
