@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sm-agent
+  namespace: synthetic-monitoring
+spec:
+  serviceName: sm-agent-cluster
+  replicas: 3
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      name: sm-agent
+  template:
+    metadata:
+      labels:
+        name: sm-agent
+    spec:
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: agent
+          image: grafana/synthetic-monitoring-agent:latest
+          args:
+            - --api-server-address=$(API_SERVER)
+            - --api-token=$(API_TOKEN)
+            - --verbose=true
+            - --cluster-enabled
+            - --cluster-join-addresses=sm-agent-cluster.synthetic-monitoring.svc.cluster.local
+            - --cluster-wait-for-size=2
+          env:
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  key: api-token
+                  name: sm-agent-1
+            - name: API_SERVER
+              valueFrom:
+                secretKeyRef:
+                  key: api-server
+                  name: sm-agent-1
+          ports:
+            - containerPort: 4050
+              name: http-metrics
+            - containerPort: 7946
+              name: gossip
+          securityContext:
+            capabilities:
+              add:
+                - NET_RAW # Needed for ICMP (ping and traceroute) checks.
+              drop:
+                - all
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 12345
+          resources:
+            requests:
+              cpu: 200m
+              memory: 500Mi
+          volumeMounts:
+            - name: tmp
+              subPath: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
