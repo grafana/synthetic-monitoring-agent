@@ -205,8 +205,8 @@ github.com/mattn/go-isatty v0.0.23/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI
 github.com/matttproud/golang_protobuf_extensions v1.0.1/go.mod h1:D8He9yQNgCq6Z5Ld7szi9bcBfOoFv/3dc6xSMkL2PC0=
 github.com/maypok86/otter/v2 v2.3.0 h1:8H8AVVFUSzJwIegKwv1uF5aGitTY+AIrtktg7OcLs8w=
 github.com/maypok86/otter/v2 v2.3.0/go.mod h1:XgIdlpmL6jYz882/CAx1E4C1ukfgDKSaw4mWq59+7l8=
-github.com/mccutchen/go-httpbin/v2 v2.25.0 h1:YpPBoAIKYIyyPEwXZkEqBVIKwon02TK7CELwAkt1mLU=
-github.com/mccutchen/go-httpbin/v2 v2.25.0/go.mod h1:8hkN5rHf0QvJYEovZ8u/Dudtqyj6Z5gxQaW7scQfT0Y=
+github.com/mccutchen/go-httpbin/v2 v2.26.0 h1:JbKBrX9F9wjwXedIJkWe+jjYRjysHZrWKgJRPDSIxVw=
+github.com/mccutchen/go-httpbin/v2 v2.26.0/go.mod h1:PR9NFmKJa0IaTgK4XD7IWBLvO6lPe/JOcPqzKDgsOVM=
 github.com/miekg/dns v1.1.73 h1:uhT8nJxmTrPJYClxVxTCX+CVn6qnzSiybRk72Z6DgrE=
 github.com/miekg/dns v1.1.73/go.mod h1:RW2Obtfd5NZHvOFe3zYG0W8koWOQtAzyHaLo8vASBuQ=
 github.com/mmcloughlin/geohash v0.10.0 h1:9w1HchfDfdeLc+jFEf/04D27KP7E2QmpDu52wPbJWRE=
