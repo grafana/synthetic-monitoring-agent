@@ -294,7 +294,8 @@ func TestStop(t *testing.T) {
 
 	go func() { _ = srv.Run(lis) }()
 
-	require.NoError(t, r.join())
+	_, err = r.join()
+	require.NoError(t, err)
 	require.NoError(t, r.setParticipant(context.Background()))
 
 	ctx, cancel := context.WithTimeout(context.Background(), window)
@@ -360,12 +361,14 @@ func TestJoinResolveFailure(t *testing.T) {
 	go func() { _ = srv.Run(lis) }()
 
 	// Discovery fails, but join falls back to a single-node bootstrap.
-	require.NoError(t, r.join())
+	merged, err := r.join()
+	require.NoError(t, err)
+	require.False(t, merged)
 	require.Equal(t, 1.0, counterValue(t, reg, "sm_agent_cluster_peer_resolve_failures_total"))
 }
 
 // TestStartRejoinDisabled verifies that with a zero RejoinInterval, Start
-// discovers peers only on join and still blocks until ctx is cancelled.
+// still blocks until ctx is cancelled.
 func TestStartRejoinDisabled(t *testing.T) {
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -392,10 +395,9 @@ func TestStartRejoinDisabled(t *testing.T) {
 	errc := make(chan error, 1)
 	go func() { errc <- r.Start(ctx, func() {}) }()
 
-	require.Eventually(t, func() bool { return calls.Load() == 1 }, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return calls.Load() >= 1 }, time.Second, 10*time.Millisecond)
 	require.Never(t, func() bool { return len(errc) > 0 }, 100*time.Millisecond, 10*time.Millisecond,
 		"Start must block until ctx is cancelled")
-	require.Equal(t, int32(1), calls.Load())
 
 	cancel()
 	require.NoError(t, <-errc)
