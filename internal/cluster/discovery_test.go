@@ -9,6 +9,8 @@ import (
 )
 
 func TestAdvertiseAddress_JoinsPort(t *testing.T) {
+	t.Parallel()
+
 	addr, err := AdvertiseAddress(nil, 7946)
 	if err != nil {
 		// No usable interface in this environment (e.g. CI without eth0/en0).
