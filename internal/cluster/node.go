@@ -24,6 +24,23 @@ const DefaultListenPort = 7946
 // DefaultRejoinInterval is the recommended RingConfig.RejoinInterval.
 const DefaultRejoinInterval = 60 * time.Second
 
+// When the initial join leaves the node in a single-node ring (discovery failed,
+// found no peers, the join failed, or only this node was reachable), the node
+// retries the join on a short exponential backoff before handing over to the
+// rejoin loop. This shortens the window in which a node that started alone owns
+// every check from up to RejoinInterval to seconds, covering startup races such
+// as peers not yet being reachable or DNS not yet resolving them.
+const (
+	// initialJoinBackoff is the wait before the first initial-join retry; it
+	// doubles after every failed attempt.
+	initialJoinBackoff = 1 * time.Second
+	// maxInitialJoinBackoff caps the wait between initial-join retries.
+	maxInitialJoinBackoff = 8 * time.Second
+	// initialJoinMaxElapsed bounds how long the node keeps retrying the initial
+	// join before handing over to the rejoin loop.
+	initialJoinMaxElapsed = 30 * time.Second
+)
+
 // DefaultMinimumSizeWaitTimeout is the recommended
 // RingConfig.MinimumSizeWaitTimeout. After it elapses without reaching the
 // minimum cluster size, the node becomes ready anyway (fail-open).
@@ -137,11 +154,13 @@ type RingConfig struct {
 	Client *http.Client
 	// Logger records join/rejoin failures. The zero value is a silent no-op.
 	Logger zerolog.Logger
-	// Discover resolves the peers to join. It is called by Join at startup and
-	// re-invoked on every RejoinInterval.
+	// Discover resolves the peers to join. It is called by Start at startup, by
+	// the initial-join retry if the node bootstrapped alone, and on every
+	// RejoinInterval.
 	Discover discovery.DiscoverFn
 	// RejoinInterval is how often the node re-resolves peers and re-joins, healing
-	// split-brain (e.g. nodes that bootstrapped alone). Zero disables rejoining.
+	// split-brain (e.g. nodes that bootstrapped alone). Zero disables rejoining;
+	// the short initial-join retry still runs.
 	RejoinInterval time.Duration
 	// MinimumClusterSize is the number of peers (including this node) the ring
 	// must reach before Ready reports true. Zero or one makes the node ready
@@ -228,7 +247,8 @@ func (r *RingNode) Ready() bool {
 
 // Start registers onChange (invoked whenever the set of participant peers
 // changes; may be nil), joins the cluster, becomes a participant (eligible to
-// own checks), and then runs the periodic rejoin loop, if enabled, until ctx is
+// own checks), retries the initial join on a short backoff if it bootstrapped
+// alone, and then runs the periodic rejoin loop, if enabled, until ctx is
 // cancelled. It blocks; run it under errgroup.Go. Serve Handler() before calling Start.
 func (r *RingNode) Start(ctx context.Context, onChange func()) error {
 	r.logger.Info().
@@ -242,12 +262,17 @@ func (r *RingNode) Start(ctx context.Context, onChange func()) error {
 	// ckit invokes handleMembershipChange on every join/leave.
 	r.node.Observe(reconcileObserver(r.handleMembershipChange))
 
-	if err := r.join(); err != nil {
+	merged, err := r.join()
+	if err != nil {
 		return err
 	}
 
 	if err := r.setParticipant(ctx); err != nil {
 		return err
+	}
+
+	if !merged {
+		r.retryInitialJoin(ctx)
 	}
 
 	if r.rejoinInterval > 0 {
@@ -259,25 +284,26 @@ func (r *RingNode) Start(ctx context.Context, onChange func()) error {
 	return nil
 }
 
-// join resolves peers via the configured DiscoverFn and joins the cluster. If
-// discovery fails or returns no peers, the node bootstraps a single-node
-// cluster; the rejoin loop folds in peers once discovery succeeds, since ckit's
-// Start is additive. Failures are logged and counted but not propagated: the
+// join resolves peers via the configured DiscoverFn and joins the cluster,
+// reporting whether it merged, i.e. learned of at least one other peer. If
+// discovery fails, returns no peers, or only this node was reachable, the node
+// runs as a single-node cluster; the initial-join retry and the rejoin loop fold
+// in peers once discovery succeeds, since ckit's Start is additive. Failures are logged and counted but not propagated: the
 // bootstrap fallback keeps the agent running (fail-open), at the cost of briefly
 // owning every check until it rejoins.
-func (r *RingNode) join() error {
+func (r *RingNode) join() (merged bool, err error) {
 	peers, err := r.resolvePeers()
 	if err != nil {
 		r.metrics.resolveFailures.Inc()
 		r.logger.Warn().Err(err).Msg("peer discovery failed; bootstrapping single-node ring")
 
-		return r.node.Start(nil)
+		return false, r.node.Start(nil)
 	}
 
 	if len(peers) == 0 {
 		r.logger.Info().Msg("no peers discovered; bootstrapping single-node ring")
 
-		return r.node.Start(nil)
+		return false, r.node.Start(nil)
 	}
 
 	if err := r.node.Start(peers); err != nil {
@@ -286,12 +312,82 @@ func (r *RingNode) join() error {
 			"joining discovered peers failed; bootstrapping single-node ring and retrying",
 		)
 
-		return r.node.Start(nil)
+		return false, r.node.Start(nil)
+	}
+
+	// Start succeeds if any address answers, including this node's own, so it
+	// only merged if it now knows a peer besides itself (Peers includes self).
+	if len(r.node.Peers()) <= 1 {
+		r.logPeers(zerolog.InfoLevel, "only this node was reachable; bootstrapping single-node ring", peers)
+
+		return false, nil
 	}
 
 	r.logPeers(zerolog.InfoLevel, "joined cluster", peers)
 
-	return nil
+	return true, nil
+}
+
+// retryInitialJoin retries the join of a node that bootstrapped alone, waiting
+// initialJoinBackoff between attempts, doubling up to maxInitialJoinBackoff. It
+// returns on the first merge, once initialJoinMaxElapsed has elapsed (handing
+// over to the rejoin loop), or when ctx is cancelled.
+func (r *RingNode) retryInitialJoin(ctx context.Context) {
+	backoff := initialJoinBackoff
+	deadline := time.Now().Add(initialJoinMaxElapsed)
+
+	timer := time.NewTimer(backoff)
+	defer timer.Stop()
+
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+
+		if peers, merged := r.attemptRejoin(); merged {
+			r.logPeers(zerolog.WarnLevel, "joined cluster after single-node bootstrap", peers)
+
+			return
+		}
+
+		backoff = min(backoff*2, maxInitialJoinBackoff)
+		timer.Reset(backoff)
+	}
+}
+
+// attemptRejoin resolves peers and joins them, reporting the peers and whether
+// it merged, i.e. learned of at least one other peer. Failures are counted and
+// logged at debug level, since they are expected while peers are still starting
+// up.
+func (r *RingNode) attemptRejoin() (peers []string, merged bool) {
+	peers, err := r.resolvePeers()
+	if err != nil {
+		r.metrics.resolveFailures.Inc()
+		r.logger.Debug().Err(err).Msg("peer discovery failed during initial join retry")
+
+		return nil, false
+	}
+
+	if len(peers) == 0 {
+		return nil, false
+	}
+
+	if err := r.node.Start(peers); err != nil {
+		r.metrics.joinFailures.Inc()
+		r.logger.Debug().Err(err).Strs("peers", peers).Msg("joining discovered peers failed during initial join retry")
+
+		return peers, false
+	}
+
+	if len(r.node.Peers()) <= 1 {
+		r.logger.Debug().Strs("peers", peers).Msg("only this node was reachable during initial join retry")
+
+		return peers, false
+	}
+
+	return peers, true
 }
 
 // rejoinLoop periodically re-resolves peers and re-joins to heal split-brain,

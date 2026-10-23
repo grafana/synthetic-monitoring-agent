@@ -2,10 +2,13 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
@@ -271,4 +274,72 @@ func TestRingClusterHandoverOnLeave(t *testing.T) {
 				"check %d owned by departed node must hand over to a survivor", id)
 		}
 	}
+}
+
+// TestRingClusterFastInitialMerge verifies that a node whose initial discovery
+// fails bootstraps alone and then merges with its peer through the initial-join
+// retry, well before the first RejoinInterval tick. Its first retry reaches only
+// itself, which must not count as a merge.
+func TestRingClusterFastInitialMerge(t *testing.T) {
+	if testing.Short() {
+		t.Skip("multi-node gossip convergence test; skipped under -short")
+	}
+
+	ctx := t.Context()
+	lis := newLoopbackListeners(t, 2)
+
+	// node-0 discovers no peers, so only node-1 can bring the two together.
+	a := startNode(t, ctx, "node-0", lis[0], nil, 1)
+
+	var calls atomic.Int32
+
+	reg := prometheus.NewRegistry()
+
+	b, err := NewRingNode(RingConfig{
+		Name:          "node-1",
+		AdvertiseAddr: lis[1].Addr().String(),
+		Client:        NewGossipClient(),
+		Discover: func() ([]string, error) {
+			switch calls.Add(1) {
+			case 1:
+				return nil, errors.New("discovery not ready")
+			case 2:
+				return []string{lis[1].Addr().String()}, nil
+			default:
+				return []string{lis[1].Addr().String(), a.addr}, nil
+			}
+		},
+		RejoinInterval: time.Minute,
+	}, reg)
+	require.NoError(t, err)
+
+	route, h := b.Handler()
+
+	srv := NewGossipServer(route, h)
+	go func() { _ = srv.Run(lis[1]) }()
+
+	bctx, cancel := context.WithCancel(ctx)
+
+	errc := make(chan error, 1)
+	go func() { errc <- b.Start(bctx, func() {}) }()
+
+	t.Cleanup(func() {
+		cancel()
+
+		_ = srv.Shutdown(context.Background())
+
+		select {
+		case err := <-errc:
+			if err != nil && !isContextErr(err) {
+				t.Errorf("node node-1 Start returned unexpected error: %v", err)
+			}
+		case <-time.After(time.Second):
+		}
+	})
+
+	require.Eventually(t, func() bool {
+		return len(a.node.sharder.Peers()) == 2 && len(b.sharder.Peers()) == 2
+	}, convergeTimeout, convergeTick, "nodes did not merge through the initial-join retry")
+
+	require.Equal(t, 1.0, counterValue(t, reg, "sm_agent_cluster_peer_resolve_failures_total"))
 }
