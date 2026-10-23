@@ -23,6 +23,8 @@ import (
 )
 
 func TestMonoNode(t *testing.T) {
+	t.Parallel()
+
 	n := NewMono()
 
 	require.True(t, n.Ready())
@@ -38,6 +40,8 @@ func TestMonoNode(t *testing.T) {
 // and metrics. It does not start gossip; multi-node behavior is covered by the
 // integration test (item 14).
 func TestNewRingNode(t *testing.T) {
+	t.Parallel()
+
 	r, err := NewRingNode(RingConfig{
 		Name:          "test-node",
 		AdvertiseAddr: "127.0.0.1:7946",
@@ -58,6 +62,8 @@ func TestNewRingNode(t *testing.T) {
 // TestRingNodeSingleConsistentOwner asserts RF=1 (exactly one owner) and that
 // every agent independently agrees on who that owner is.
 func TestRingNodeSingleConsistentOwner(t *testing.T) {
+	t.Parallel()
+
 	cluster := ringCluster("a", "b", "c")
 
 	for id := model.GlobalID(1); id <= 500; id++ {
@@ -77,6 +83,8 @@ func TestRingNodeSingleConsistentOwner(t *testing.T) {
 }
 
 func TestRingNodeDeterministic(t *testing.T) {
+	t.Parallel()
+
 	n := ringCluster("a", "b", "c")["a"]
 
 	for id := model.GlobalID(1); id <= 200; id++ {
@@ -92,6 +100,8 @@ func TestRingNodeDeterministic(t *testing.T) {
 }
 
 func TestRingNodeDistribution(t *testing.T) {
+	t.Parallel()
+
 	names := []string{"a", "b", "c"}
 	cluster := ringCluster(names...)
 
@@ -125,6 +135,8 @@ func TestRingNodeDistribution(t *testing.T) {
 }
 
 func TestRingNodeNoEligiblePeers(t *testing.T) {
+	t.Parallel()
+
 	n := &RingNode{sharder: shard.Ring(512)} // no peers set
 
 	_, err := n.IsOwner(1)
@@ -134,6 +146,8 @@ func TestRingNodeNoEligiblePeers(t *testing.T) {
 // TestRingNodeReadyFailOpen verifies that a trivially-small minimum cluster
 // size makes the node ready immediately (a lone agent runs everything).
 func TestRingNodeReadyFailOpen(t *testing.T) {
+	t.Parallel()
+
 	for _, min := range []int{0, 1} {
 		n := &RingNode{sharder: shard.Ring(512), minClusterSize: min}
 		require.Truef(t, n.Ready(), "minClusterSize %d must be ready immediately", min)
@@ -143,6 +157,8 @@ func TestRingNodeReadyFailOpen(t *testing.T) {
 // TestRingNodeReadyLatches verifies the node becomes ready once it reaches the
 // minimum cluster size and stays ready even if peers later drop below it.
 func TestRingNodeReadyLatches(t *testing.T) {
+	t.Parallel()
+
 	s := shard.Ring(512)
 	n := &RingNode{sharder: s, minClusterSize: 3}
 
@@ -162,6 +178,8 @@ func TestRingNodeReadyLatches(t *testing.T) {
 // never reached, the wait-timeout makes the node ready and fires onChange once.
 // It runs under synctest so the deadline fires on the fake clock, deterministically.
 func TestRingNodeReadyDeadline(t *testing.T) {
+	t.Parallel()
+
 	synctest.Test(t, func(t *testing.T) {
 		changed := make(chan struct{}, 4)
 		n := &RingNode{
@@ -188,6 +206,8 @@ func TestRingNodeReadyDeadline(t *testing.T) {
 // TestRingNodeReadyBeforeDeadline verifies that reaching the minimum before the
 // wait-timeout elapses makes the deadline a no-op: it must not fire onChange.
 func TestRingNodeReadyBeforeDeadline(t *testing.T) {
+	t.Parallel()
+
 	synctest.Test(t, func(t *testing.T) {
 		changed := make(chan struct{}, 4)
 		s := shard.Ring(512)
@@ -214,6 +234,8 @@ func TestRingNodeReadyBeforeDeadline(t *testing.T) {
 // TestRingNodeReadyNoDeadline verifies that a zero wait-timeout disables the
 // fail-open deadline: the node stays not ready until the minimum is reached.
 func TestRingNodeReadyNoDeadline(t *testing.T) {
+	t.Parallel()
+
 	synctest.Test(t, func(t *testing.T) {
 		changed := make(chan struct{}, 4)
 		s := shard.Ring(512)
@@ -242,6 +264,8 @@ func TestRingNodeReadyNoDeadline(t *testing.T) {
 // change, the observer stays registered, and viewer churn is filtered out (the
 // reason we wrap with ParticipantObserver).
 func TestReconcileObserver(t *testing.T) {
+	t.Parallel()
+
 	calls := 0
 	obs := reconcileObserver(func() { calls++ })
 
@@ -266,6 +290,8 @@ func TestReconcileObserver(t *testing.T) {
 // TestReconcileObserverNilOnChange verifies the observer tolerates a nil
 // onChange without panicking.
 func TestReconcileObserverNilOnChange(t *testing.T) {
+	t.Parallel()
+
 	obs := reconcileObserver(nil)
 	require.True(t, obs.NotifyPeersChanged(participants("a", "a")))
 }
@@ -275,6 +301,8 @@ func TestReconcileObserverNilOnChange(t *testing.T) {
 // The caller's ctx bounds the window, keeping the test well under drainTimeout.
 // Multi-node handover is covered by the integration test (item 14).
 func TestStop(t *testing.T) {
+	t.Parallel()
+
 	const window = 50 * time.Millisecond
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -315,6 +343,8 @@ func TestStop(t *testing.T) {
 // TestRingNodeMetrics verifies the cluster size and ring-ready gauges registered
 // by NewRingNode reflect the live ring state.
 func TestRingNodeMetrics(t *testing.T) {
+	t.Parallel()
+
 	reg := prometheus.NewRegistry()
 
 	r, err := NewRingNode(RingConfig{
@@ -340,6 +370,8 @@ func TestRingNodeMetrics(t *testing.T) {
 // TestJoinResolveFailure verifies that a peer-discovery failure on join is
 // counted and recovered by bootstrapping a single-node ring (fail-open).
 func TestJoinResolveFailure(t *testing.T) {
+	t.Parallel()
+
 	reg := prometheus.NewRegistry()
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -370,6 +402,8 @@ func TestJoinResolveFailure(t *testing.T) {
 // TestStartRejoinDisabled verifies that with a zero RejoinInterval, Start
 // still blocks until ctx is cancelled.
 func TestStartRejoinDisabled(t *testing.T) {
+	t.Parallel()
+
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
@@ -406,6 +440,8 @@ func TestStartRejoinDisabled(t *testing.T) {
 // TestLogPeersTruncates verifies that logPeers reports the full peer count but
 // lists at most maxPeersToLog peers.
 func TestLogPeersTruncates(t *testing.T) {
+	t.Parallel()
+
 	var logs bytes.Buffer
 
 	r := &RingNode{logger: zerolog.New(&logs), minClusterSize: 3}
