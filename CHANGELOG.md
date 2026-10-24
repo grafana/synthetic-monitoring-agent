@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.68.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.67.0...v0.68.0) (2026-10-24)
+
+
+### Features
+
+* Add experimental agent clustering ([#2056](https://github.com/grafana/synthetic-monitoring-agent/issues/2056)) ([d007089](https://github.com/grafana/synthetic-monitoring-agent/commit/d0070895bc4f81af471695cac8aed2e2eaf32e59))
+
+
+### Miscellaneous Chores
+
+* Update actions/download-artifact digest to 9000827 ([#2031](https://github.com/grafana/synthetic-monitoring-agent/issues/2031)) ([4c351b9](https://github.com/grafana/synthetic-monitoring-agent/commit/4c351b99020d2dea0db053fff57af170f200ce96))
+* Update actions/upload-artifact digest to cf430e0 ([#2032](https://github.com/grafana/synthetic-monitoring-agent/issues/2032)) ([d258026](https://github.com/grafana/synthetic-monitoring-agent/commit/d2580266f843e1d8c8980f782e0bae6330c6ee1d))
+* Update alpine Docker tag to v3.24.3 [SECURITY] ([#2058](https://github.com/grafana/synthetic-monitoring-agent/issues/2058)) ([c1efcd6](https://github.com/grafana/synthetic-monitoring-agent/commit/c1efcd6678d1ea84dfb1998beea277722e71f4bc))
+* Update docker:dind Docker digest to 9e79b87 ([#2051](https://github.com/grafana/synthetic-monitoring-agent/issues/2051)) ([a045222](https://github.com/grafana/synthetic-monitoring-agent/commit/a0452228e2f47e192dcf50ce9b931d0a3a0f2ba6))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine Docker tag to v155.0.8059.84-r0-3.24.3 ([#2059](https://github.com/grafana/synthetic-monitoring-agent/issues/2059)) ([62fb8b6](https://github.com/grafana/synthetic-monitoring-agent/commit/62fb8b672f450ff8dfa890ccd002bbcc7cf02a92))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v1.49.0 ([#2060](https://github.com/grafana/synthetic-monitoring-agent/issues/2060)) ([8912ce9](https://github.com/grafana/synthetic-monitoring-agent/commit/8912ce9e595c20e0fb9154a42f2c089ad0b992ca))
+* Update golang.org/x/exp digest to f0251eb ([#2041](https://github.com/grafana/synthetic-monitoring-agent/issues/2041)) ([48abc9a](https://github.com/grafana/synthetic-monitoring-agent/commit/48abc9acbf7ebda29f2c1622941a25b164715298))
+* Update module github.com/andybalholm/brotli to v1.2.6 ([#2038](https://github.com/grafana/synthetic-monitoring-agent/issues/2038)) ([63ba22a](https://github.com/grafana/synthetic-monitoring-agent/commit/63ba22ae755498a82230766f0a112b5a8274e970))
+* Update module github.com/hashicorp/go-msgpack/v2 to v2.1.5 ([#2043](https://github.com/grafana/synthetic-monitoring-agent/issues/2043)) ([665f26e](https://github.com/grafana/synthetic-monitoring-agent/commit/665f26edd99c7d35e1c75711cd8ca2a343752fab))
+* Update module github.com/hashicorp/go-sockaddr to v1.0.7 ([#2044](https://github.com/grafana/synthetic-monitoring-agent/issues/2044)) ([1f31c88](https://github.com/grafana/synthetic-monitoring-agent/commit/1f31c88405470e47df6c656c1b3dd17162827b56))
+* Update module github.com/mattn/go-isatty to v0.0.24 ([#2045](https://github.com/grafana/synthetic-monitoring-agent/issues/2045)) ([5256aa0](https://github.com/grafana/synthetic-monitoring-agent/commit/5256aa04f36ea9e4ea5e336f497620363fb2bb78))
+* Update module github.com/maypok86/otter/v2 to v2.4.0 ([#2064](https://github.com/grafana/synthetic-monitoring-agent/issues/2064)) ([2cf6f12](https://github.com/grafana/synthetic-monitoring-agent/commit/2cf6f121b60f5c7ea2992135e43ef2cd9b560e23))
+* Update module github.com/mccutchen/go-httpbin/v2 to v2.26.0 ([#2052](https://github.com/grafana/synthetic-monitoring-agent/issues/2052)) ([6470524](https://github.com/grafana/synthetic-monitoring-agent/commit/647052417c7ce22681e9b8030bab64070c4fdc1d))
+* Update module github.com/tdewolff/parse/v2 to v2.8.19 ([#2046](https://github.com/grafana/synthetic-monitoring-agent/issues/2046)) ([465a9a4](https://github.com/grafana/synthetic-monitoring-agent/commit/465a9a4b0e455358bb0a081115dc753c98ceb552))
+* Update module golang.org/x/sync to v0.24.0 ([#2030](https://github.com/grafana/synthetic-monitoring-agent/issues/2030)) ([09fae56](https://github.com/grafana/synthetic-monitoring-agent/commit/09fae56e8331866a4161a01878cb8e98f86768bd))
+
 ## [0.67.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.66.1...v0.67.0) (2026-10-22)
 
 
