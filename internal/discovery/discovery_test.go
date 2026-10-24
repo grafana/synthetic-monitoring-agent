@@ -35,7 +35,7 @@ func stubLookups(t *testing.T, hosts map[string][]string, srvs map[string][]*net
 	}
 }
 
-func TestNewDiscoverer_NoPeers(t *testing.T) {
+func TestNewDiscoverer_NoAddresses(t *testing.T) {
 	discover, err := NewDiscoverer(nil, 7946, zerolog.Nop())
 	require.NoError(t, err)
 
@@ -44,7 +44,7 @@ func TestNewDiscoverer_NoPeers(t *testing.T) {
 	require.Empty(t, addrs)
 }
 
-func TestNewDiscoverer_RejectsInvalidJoinPort(t *testing.T) {
+func TestNewDiscoverer_RejectsInvalidPort(t *testing.T) {
 	for _, entry := range []string{
 		"10.0.0.1:",      // empty port
 		"10.0.0.1:0",     // zero port
@@ -58,7 +58,7 @@ func TestNewDiscoverer_RejectsInvalidJoinPort(t *testing.T) {
 	}
 }
 
-func TestJoinAddresses_StaticAddressesAndDedupe(t *testing.T) {
+func TestStaticAddresses_Dedupe(t *testing.T) {
 	discover, err := NewDiscoverer([]string{
 		"10.0.0.1:7946",
 		"10.0.0.2:7946",
@@ -71,7 +71,7 @@ func TestJoinAddresses_StaticAddressesAndDedupe(t *testing.T) {
 	require.Equal(t, []string{"10.0.0.1:7946", "10.0.0.2:7946"}, addrs)
 }
 
-func TestJoinAddresses_PartialFailure(t *testing.T) {
+func TestStaticAddresses_PartialFailure(t *testing.T) {
 	stubLookups(t,
 		map[string][]string{"sm-agent": {"10.0.0.1"}},
 		map[string][]*net.SRV{"empty-srv": {}},
@@ -79,8 +79,8 @@ func TestJoinAddresses_PartialFailure(t *testing.T) {
 
 	var logs bytes.Buffer
 
-	// One failing entry does not discard the peers found by the others, and
-	// is logged.
+	// One failing entry does not discard the addresses found by the others,
+	// and is logged.
 	discover, err := NewDiscoverer([]string{"sm-agent", "no-such-host"}, 7946, zerolog.New(&logs))
 	require.NoError(t, err)
 
@@ -121,7 +121,7 @@ func TestJoinAddresses_PartialFailure(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestResolveJoinAddress(t *testing.T) {
+func TestResolveAddress(t *testing.T) {
 	stubLookups(t,
 		map[string][]string{
 			"sm-agent":      {"10.0.0.1", "10.0.0.2"},
@@ -157,14 +157,14 @@ func TestResolveJoinAddress(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			actual, err := resolveJoinAddress(tc.entry, "7946")
+			actual, err := resolveAddress(tc.entry, "7946")
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
 }
 
-func TestResolveJoinAddress_Errors(t *testing.T) {
+func TestResolveAddress_Errors(t *testing.T) {
 	stubLookups(t, nil, map[string][]*net.SRV{"srv-only": {{Target: "sm-agent-0.sm."}}})
 
 	for _, entry := range []string{
@@ -173,7 +173,7 @@ func TestResolveJoinAddress_Errors(t *testing.T) {
 		"dnssrv+no-such",  // no SRV records
 		"dnssrv+srv-only", // SRV target does not resolve
 	} {
-		_, err := resolveJoinAddress(entry, "7946")
+		_, err := resolveAddress(entry, "7946")
 		require.Errorf(t, err, "entry %q", entry)
 	}
 }
