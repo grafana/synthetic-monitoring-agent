@@ -47,7 +47,7 @@ require (
 	github.com/spf13/afero v1.15.0
 	github.com/tdewolff/parse/v2 v2.8.19
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
-	golang.org/x/time v0.15.0
+	golang.org/x/time v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.78
 )
