@@ -45,7 +45,7 @@ require (
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
 	github.com/spf13/afero v1.15.0
-	github.com/tdewolff/parse/v2 v2.8.19
+	github.com/tdewolff/parse/v2 v2.8.20
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
 	golang.org/x/time v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -88,7 +88,7 @@ require (
 	github.com/quic-go/quic-go v0.64.1 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
