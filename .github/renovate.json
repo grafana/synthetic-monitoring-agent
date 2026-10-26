@@ -28,6 +28,28 @@
         "grafana/xk6-sm-v2"
       ],
       "allowedVersions": ">=2.0.0 <3.0.0"
+    },
+    {
+      "matchDepNames": [
+        "grafana/synthetic-monitoring-agent",
+        "ghcr.io/grafana/crocochrome"
+      ],
+      "matchFileNames": [
+        "charts/synthetic-monitoring-agent/Chart.yaml",
+        "charts/synthetic-monitoring-agent/values.yaml"
+      ],
+      "pinDigests": false,
+      "bumpVersions": [
+        {
+          "filePatterns": [
+            "charts/synthetic-monitoring-agent/Chart.yaml"
+          ],
+          "matchStrings": [
+            "(^|\\n)version: (?<version>\\S+)"
+          ],
+          "bumpType": "patch"
+        }
+      ]
     }
   ],
   "customManagers": [
@@ -59,6 +81,17 @@
       ],
       "matchStrings": [
         "K6_V2_VERSION=(?<currentValue>\\S+)"
+      ]
+    },
+    {
+      "customType": "regex",
+      "depNameTemplate": "grafana/synthetic-monitoring-agent",
+      "datasourceTemplate": "docker",
+      "managerFilePatterns": [
+        "charts/synthetic-monitoring-agent/Chart.yaml"
+      ],
+      "matchStrings": [
+        "appVersion: \"(?<currentValue>[^\"]+)\""
       ]
     }
   ]

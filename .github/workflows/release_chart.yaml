@@ -1,0 +1,23 @@
+name: release Helm chart
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - charts/synthetic-monitoring-agent/Chart.yaml
+
+permissions: {}
+
+jobs:
+  release_chart:
+    uses: grafana/helm-charts/.github/workflows/update-helm-repo.yaml@80d6bc92a4669c4dd3e834df8f0abbafee74ffa4 # main
+    permissions:
+      contents: write # Needed to create the release and push the tag
+      id-token: write # Needed for the GitHub App token
+      packages: write # Needed to push the chart to GHCR
+    with:
+      charts_dir: charts
+      cr_configfile: charts/cr.yaml
+      ct_configfile: charts/ct.yaml
+      github_app: sm-release-app

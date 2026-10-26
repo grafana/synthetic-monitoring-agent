@@ -1,0 +1,24 @@
+#!/bin/sh
+#
+# Lints the chart and validates the rendered manifests with kubeconform, for all the values files in the chart's ci
+# directory.
+#
+# Usage: lint-chart
+
+set -eu
+
+chart_dir=${CHART_DIR:-charts/synthetic-monitoring-agent}
+# The minimum Kubernetes version in Chart.yaml kubeVersion.
+kube_version=${KUBE_VERSION:-1.27.0}
+
+toplevel=$(git rev-parse --show-toplevel)
+cd "$toplevel"
+
+for values in "${chart_dir}"/ci/*.yaml; do
+	echo "::group::${values}"
+	helm lint --strict "${chart_dir}" -f "${values}"
+	# ServiceMonitor is a CRD, which kubeconform has no schema for.
+	helm template sm-agent "${chart_dir}" -f "${values}" --kube-version "${kube_version}" |
+		kubeconform -strict -summary -kubernetes-version "${kube_version}" -skip ServiceMonitor
+	echo "::endgroup::"
+done

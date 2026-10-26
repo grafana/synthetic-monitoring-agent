@@ -1,0 +1,44 @@
+#!/bin/sh
+#
+# Checks that the agent image supports every flag the chart passes, for all the values files in the chart's ci
+# directory. A published chart must work with the agent release in appVersion, so the image defaults to that release.
+# An appVersion that isn't released fails at the image pull.
+#
+# Usage: check-chart-flags [image]
+
+set -eu
+
+chart_dir=${CHART_DIR:-charts/synthetic-monitoring-agent}
+
+toplevel=$(git rev-parse --show-toplevel)
+cd "$toplevel"
+
+app_version=$(yq '.appVersion' "${chart_dir}/Chart.yaml")
+image=${1:-grafana/synthetic-monitoring-agent:${app_version}}
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "${tmpdir}"' EXIT
+
+if ! docker image inspect "${image}" > /dev/null 2>&1; then
+	docker pull --quiet "${image}"
+fi
+
+docker run --rm "${image}" -help > "${tmpdir}/agent-help.txt" 2>&1
+sed -nE 's/^[[:space:]]+-([a-z0-9-]+).*/\1/p' "${tmpdir}/agent-help.txt" | sort -u > "${tmpdir}/agent-flags.txt"
+
+for values in "${chart_dir}"/ci/*.yaml; do
+	helm template sm-agent "${chart_dir}" -f "${values}" |
+		yq 'select(.kind == "Deployment" and .metadata.labels."app.kubernetes.io/component" == "agent") | .spec.template.spec.containers[] | select(.name == "agent") | .args[]'
+done | sed -E 's/^--?([a-z0-9-]+).*/\1/' | sort -u > "${tmpdir}/chart-flags.txt"
+
+if [ ! -s "${tmpdir}/chart-flags.txt" ]; then
+	echo "::error file=${chart_dir}/templates/deployment.yaml::found no agent flags in the rendered chart"
+	exit 1
+fi
+
+missing=$(comm -23 "${tmpdir}/chart-flags.txt" "${tmpdir}/agent-flags.txt" | paste -sd ',' - | sed 's/,/, /g')
+
+if [ -n "${missing}" ]; then
+	echo "::error file=${chart_dir}/Chart.yaml::${image} doesn't have these flags the chart passes: ${missing}"
+	exit 1
+fi

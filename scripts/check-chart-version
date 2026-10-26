@@ -1,0 +1,42 @@
+#!/bin/sh
+#
+# Fails if a pull request changes the chart but not its version in Chart.yaml. The release workflow skips versions that
+# are already released, so a chart change without a new version would never be published.
+#
+# Passes if the chart doesn't exist on the base branch yet, or if the pull request doesn't change the published chart.
+# Compares against origin/<base-ref>, which must be fetched.
+#
+# Usage: check-chart-version <base-ref>
+
+set -eu
+
+chart_dir=${CHART_DIR:-charts/synthetic-monitoring-agent}
+
+if [ "$#" -ne 1 ]; then
+	echo "Usage: $0 <base-ref>"
+	exit 1
+fi
+
+base_ref=$1
+
+toplevel=$(git rev-parse --show-toplevel)
+cd "$toplevel"
+
+if ! base=$(git show "origin/${base_ref}:${chart_dir}/Chart.yaml" 2> /dev/null); then
+	echo "The chart doesn't exist on ${base_ref} yet"
+	exit 0
+fi
+
+# tests and ci are in .helmignore, so they aren't part of the published chart.
+if git diff --quiet "origin/${base_ref}" -- "${chart_dir}" ":(exclude)${chart_dir}/tests" ":(exclude)${chart_dir}/ci"; then
+	echo "The chart doesn't change compared to ${base_ref}"
+	exit 0
+fi
+
+old=$(printf '%s\n' "${base}" | yq '.version')
+new=$(yq '.version' "${chart_dir}/Chart.yaml")
+
+if [ "${old}" = "${new}" ]; then
+	echo "::error file=${chart_dir}/Chart.yaml::bump the chart version: ${new} is already on ${base_ref}, and the release workflow skips existing versions"
+	exit 1
+fi

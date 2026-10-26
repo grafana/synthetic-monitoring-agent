@@ -31,6 +31,23 @@ packageRules:
       - "grafana/xk6-sm-v2"
     allowedVersions: ">=2.0.0 <3.0.0"
 
+  - # Bump the chart version with its default images, so the chart release
+    # workflow publishes the update. Don't pin digests: the chart appends
+    # suffixes (-browser, -unprivileged) to these tags.
+    matchDepNames:
+      - "grafana/synthetic-monitoring-agent"
+      - "ghcr.io/grafana/crocochrome"
+    matchFileNames:
+      - "charts/synthetic-monitoring-agent/Chart.yaml"
+      - "charts/synthetic-monitoring-agent/values.yaml"
+    pinDigests: false
+    bumpVersions:
+      - filePatterns:
+          - "charts/synthetic-monitoring-agent/Chart.yaml"
+        matchStrings:
+          - "(^|\\n)version: (?<version>\\S+)"
+        bumpType: "patch"
+
 customManagers:
   - customType: "regex"
     depNameTemplate: "grafana/xk6-sm-v1"
@@ -55,3 +72,11 @@ customManagers:
       - "**/*.mk"
     matchStrings:
       - "K6_V2_VERSION=(?<currentValue>\\S+)"
+
+  - customType: "regex"
+    depNameTemplate: "grafana/synthetic-monitoring-agent"
+    datasourceTemplate: "docker"
+    managerFilePatterns:
+      - "charts/synthetic-monitoring-agent/Chart.yaml"
+    matchStrings:
+      - "appVersion: \"(?<currentValue>[^\"]+)\""
