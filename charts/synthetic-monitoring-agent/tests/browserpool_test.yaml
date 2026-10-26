@@ -1,0 +1,248 @@
+suite: browser pool
+templates:
+  - deployment.yaml
+  - secret.yaml
+  - crocochrome/deployment.yaml
+  - crocochrome/service.yaml
+  - crocochrome/networkpolicy.yaml
+  - crocochrome/serviceaccount.yaml
+  - crocochrome/pdb.yaml
+release:
+  name: sm
+  namespace: probes
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+tests:
+  - it: doesn't deploy crocochrome by default
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: crocochrome/deployment.yaml
+      - hasDocuments:
+          count: 0
+        template: crocochrome/service.yaml
+  - it: points the agents to the crocochrome headless Service
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --browser-pool-enabled
+        template: deployment.yaml
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --browser-pool-addresses=sm-synthetic-monitoring-agent-crocochrome.probes.svc.cluster.local:8080
+        template: deployment.yaml
+      - equal:
+          path: spec.clusterIP
+          value: None
+        template: crocochrome/service.yaml
+  # The selector can't change on an existing Deployment, so changing it breaks helm upgrade.
+  - it: keeps the crocochrome selector stable across upgrades
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: synthetic-monitoring-agent
+            app.kubernetes.io/instance: sm
+            app.kubernetes.io/component: crocochrome
+  - it: deploys crocochrome with the production settings
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - equal:
+          path: spec.template.spec.terminationGracePeriodSeconds
+          value: 320
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/grafana/crocochrome:v0.13.0
+      - equal:
+          path: spec.template.spec.volumes[0].emptyDir.medium
+          value: Memory
+  - it: renders large replica counts without exponents
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          replicas: 1000000
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1000000
+  - it: uses the unprivileged crocochrome image
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          unprivileged: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: ghcr.io/grafana/crocochrome:v0.13.0-unprivileged
+  - it: only lets the agents reach crocochrome
+    template: crocochrome/networkpolicy.yaml
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/component"]
+          value: agent
+      - equal:
+          path: spec.policyTypes
+          value: [Ingress]
+  - it: leaves the replica count to an autoscaler
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          replicas: null
+    asserts:
+      - notExists:
+          path: spec.replicas
+  - it: marks crocochrome ready once its port accepts connections
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe
+          value:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+      - notExists:
+          path: spec.template.spec.containers[0].livenessProbe
+  - it: overrides the crocochrome probes
+    template: crocochrome/deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          readinessProbe: null
+          livenessProbe:
+            tcpSocket:
+              port: http
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].readinessProbe
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.tcpSocket.port
+          value: http
+  - it: labels crocochrome with its own version
+    chart:
+      appVersion: v9.9.9
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/version"]
+          value: v0.13.0
+        template: crocochrome/deployment.yaml
+      - equal:
+          path: metadata.labels["app.kubernetes.io/version"]
+          value: v0.13.0
+        template: crocochrome/service.yaml
+      - equal:
+          path: metadata.labels["app.kubernetes.io/version"]
+          value: v9.9.9
+        template: deployment.yaml
+  - it: creates a crocochrome ServiceAccount without a token
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          serviceAccount:
+            annotations:
+              example.com/role: browsers
+    asserts:
+      - equal:
+          path: metadata.name
+          value: sm-synthetic-monitoring-agent-crocochrome
+        template: crocochrome/serviceaccount.yaml
+      - equal:
+          path: automountServiceAccountToken
+          value: false
+        template: crocochrome/serviceaccount.yaml
+      - equal:
+          path: metadata.annotations["example.com/role"]
+          value: browsers
+        template: crocochrome/serviceaccount.yaml
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: sm-synthetic-monitoring-agent-crocochrome
+        template: crocochrome/deployment.yaml
+  - it: uses a custom crocochrome ServiceAccount name
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          serviceAccount:
+            name: browsers
+    asserts:
+      - equal:
+          path: metadata.name
+          value: browsers
+        template: crocochrome/serviceaccount.yaml
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: browsers
+        template: crocochrome/deployment.yaml
+  - it: uses an existing crocochrome ServiceAccount
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          serviceAccount:
+            create: false
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: crocochrome/serviceaccount.yaml
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: default
+        template: crocochrome/deployment.yaml
+  - it: doesn't create a crocochrome PodDisruptionBudget by default
+    template: crocochrome/pdb.yaml
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: lets crocochrome instances that aren't Ready be evicted
+    template: crocochrome/pdb.yaml
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          podDisruptionBudget:
+            enabled: true
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - equal:
+          path: spec.unhealthyPodEvictionPolicy
+          value: AlwaysAllow
+      - equal:
+          path: spec.selector.matchLabels["app.kubernetes.io/component"]
+          value: crocochrome

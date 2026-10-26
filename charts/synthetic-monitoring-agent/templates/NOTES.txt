@@ -1,0 +1,70 @@
+The Synthetic Monitoring agent is deploying as Deployment {{ include "sm-agent.fullname" . }} in namespace {{ .Release.Namespace }}.
+
+Check that the agents are running and connected:
+
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "sm-agent.fullname" . }}
+
+The probe appears as online on the Synthetics > Probes page once an agent connects.
+{{- if .Values.cluster.enabled }}
+{{- if .Values.autoscaling.enabled }}
+
+Clustering is experimental. {{ .Values.autoscaling.minReplicas }} to {{ .Values.autoscaling.maxReplicas }} agents share the probe and split its checks,
+scaled by a HorizontalPodAutoscaler. Check that sm_agent_cluster_size equals the number of agent Pods on every agent.
+{{- else }}
+
+Clustering is experimental. {{ .Values.replicas }} agents share the probe and split its checks.
+Check that sm_agent_cluster_size equals {{ .Values.replicas }} on every agent.
+{{- end }}
+It requires an agent image with the -cluster-* flags; older images exit on startup. Refer to the chart README.
+{{- $size := dict "name" "replicas" "value" .Values.replicas }}
+{{- if .Values.autoscaling.enabled }}
+{{- $size = dict "name" "autoscaling.minReplicas" "value" .Values.autoscaling.minReplicas }}
+{{- end }}
+{{- if and .Values.cluster.waitForSize (eq (int .Values.cluster.waitForSize) (int $size.value)) }}
+
+WARNING: cluster.waitForSize equals {{ $size.name }}. If one agent is unavailable, the others wait for
+cluster.waitTimeout before they run checks. Set it below {{ $size.name }}.
+{{- end }}
+{{- if .Values.autoscaling.enabled }}
+{{- range $target, $resource := dict "targetCPUUtilizationPercentage" "cpu" "targetMemoryUtilizationPercentage" "memory" }}
+{{- if and (index $.Values.autoscaling $target) (not (dig "requests" $resource "" ($.Values.resources | default dict))) }}
+
+WARNING: autoscaling.{{ $target }} is set, but resources.requests.{{ $resource }} isn't.
+The HPA measures utilization against requests, so it can't scale on {{ $resource }}.
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.browserPool.enabled }}
+
+The browser pool is experimental. Browser checks run on crocochrome instead of a local Chromium.
+It requires an agent image with the -browser-pool-* flags; older images exit on startup. Refer to the chart README.
+crocochrome: Deployment {{ include "sm-agent.crocochromeName" . }}{{ if not (kindIs "invalid" .Values.browserPool.crocochrome.replicas) }}, {{ .Values.browserPool.crocochrome.replicas }} instances{{ end }}, one browser session per instance.
+
+{{- if .Values.browserPool.crocochrome.unprivileged }}
+
+crocochrome uses the unprivileged image, which meets the Pod Security "restricted" profile. Chromium runs as the
+same user as crocochrome, so it isn't isolated from it. Use it only if you trust the check scripts and the pages they load.
+{{- else }}
+
+crocochrome requires allowPrivilegeEscalation and the SETUID, SETGID, KILL, CHOWN, DAC_OVERRIDE, and FOWNER
+capabilities. It meets the Pod Security "baseline" profile, but not "restricted". To meet "restricted", set
+browserPool.crocochrome.unprivileged, which trades away Chromium's isolation from crocochrome. Refer to the chart README.
+{{- end }}
+{{- if not .Values.browserPool.crocochrome.networkPolicy.enabled }}
+
+WARNING: browserPool.crocochrome.networkPolicy.enabled is false. The crocochrome API doesn't have authentication:
+anything that can reach port 8080 can start browser sessions in your network.
+{{- end }}
+{{- if and .Values.browserPool.crocochrome.networkPolicy.enabled (not .Values.browserPool.crocochrome.networkPolicy.extraIngressFrom) }}
+
+NOTE: the crocochrome NetworkPolicy only allows the agents. To scrape crocochrome metrics, with the ServiceMonitor or
+any other scraper, add the scraper's Pods to browserPool.crocochrome.networkPolicy.extraIngressFrom.
+{{- end }}
+{{- if eq .Values.image.variant "browser" }}
+
+NOTE: image.variant is browser, but the browser pool doesn't need Chromium in the agent image.
+You can use image.variant: standard.
+{{- end }}
+{{- end }}

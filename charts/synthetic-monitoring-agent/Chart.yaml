@@ -1,0 +1,19 @@
+apiVersion: v2
+name: synthetic-monitoring-agent
+description: Grafana Synthetic Monitoring agent, to run private probes on Kubernetes.
+type: application
+version: 2.0.0
+appVersion: "v0.66.1"
+kubeVersion: ">=1.27.0-0"
+home: https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/
+icon: https://raw.githubusercontent.com/grafana/grafana/main/public/img/grafana_icon.svg
+sources:
+  - https://github.com/grafana/synthetic-monitoring-agent
+  - https://github.com/grafana/crocochrome
+keywords:
+  - grafana
+  - synthetic-monitoring
+  - private-probe
+maintainers:
+  - name: grafana/synthetic-monitoring-be
+    url: https://github.com/orgs/grafana/teams/synthetic-monitoring-be

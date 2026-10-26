@@ -1,0 +1,106 @@
+suite: agent HorizontalPodAutoscaler
+templates:
+  - hpa.yaml
+  - deployment.yaml
+  - secret.yaml
+release:
+  name: sm
+  namespace: probes
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+  cluster:
+    enabled: true
+tests:
+  - it: isn't created by default
+    template: hpa.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: scales the Deployment on CPU and memory, and scales down slowly
+    template: hpa.yaml
+    set:
+      autoscaling:
+        enabled: true
+    asserts:
+      - equal:
+          path: spec.scaleTargetRef
+          value:
+            apiVersion: apps/v1
+            kind: Deployment
+            name: sm-synthetic-monitoring-agent
+      - equal:
+          path: spec.minReplicas
+          value: 2
+      - equal:
+          path: spec.maxReplicas
+          value: 5
+      - equal:
+          path: spec.metrics
+          value:
+            - type: Resource
+              resource:
+                name: cpu
+                target:
+                  type: Utilization
+                  averageUtilization: 70
+            - type: Resource
+              resource:
+                name: memory
+                target:
+                  type: Utilization
+                  averageUtilization: 70
+      - equal:
+          path: spec.behavior
+          value:
+            scaleDown:
+              stabilizationWindowSeconds: 600
+              policies:
+                - type: Pods
+                  value: 1
+                  periodSeconds: 300
+  - it: removes a target set to null
+    template: hpa.yaml
+    set:
+      autoscaling:
+        enabled: true
+        targetMemoryUtilizationPercentage: null
+    asserts:
+      - lengthEqual:
+          path: spec.metrics
+          count: 1
+      - equal:
+          path: spec.metrics[0].resource.name
+          value: cpu
+  - it: replaces the default behavior
+    template: hpa.yaml
+    set:
+      autoscaling:
+        enabled: true
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 60
+    asserts:
+      - equal:
+          path: spec.behavior
+          value:
+            scaleUp:
+              stabilizationWindowSeconds: 60
+  - it: leaves the number of agents to the HPA
+    template: deployment.yaml
+    set:
+      replicas: 3
+      autoscaling:
+        enabled: true
+    asserts:
+      - notExists:
+          path: spec.replicas
+  - it: keeps replicas without autoscaling
+    template: deployment.yaml
+    set:
+      replicas: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
