@@ -1,0 +1,61 @@
+suite: resource names
+templates:
+  - deployment.yaml
+  - secret.yaml
+  - service-headless.yaml
+  - crocochrome/deployment.yaml
+  - crocochrome/service.yaml
+  - crocochrome/serviceaccount.yaml
+release:
+  name: sm
+  namespace: probes
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+  replicas: 3
+  cluster:
+    enabled: true
+  browserPool:
+    enabled: true
+tests:
+  - it: keeps the suffixes when fullnameOverride is 63 characters
+    set:
+      fullnameOverride: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    asserts:
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        template: deployment.yaml
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-headless
+        template: service-headless.yaml
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-crocochrome
+        template: crocochrome/deployment.yaml
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-crocochrome
+        template: crocochrome/service.yaml
+      - equal:
+          path: metadata.name
+          value: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-crocochrome
+        template: crocochrome/serviceaccount.yaml
+  - it: keeps the suffixes when the release name is long
+    release:
+      name: a-release-name-that-is-forty-characters
+    asserts:
+      - equal:
+          path: metadata.name
+          value: a-release-name-that-is-forty-characters-synthetic-monitoring-ag
+        template: deployment.yaml
+      - equal:
+          path: metadata.name
+          value: a-release-name-that-is-forty-characters-synthetic-moni-headless
+        template: service-headless.yaml
+      - equal:
+          path: metadata.name
+          value: a-release-name-that-is-forty-characters-synthetic-m-crocochrome
+        template: crocochrome/deployment.yaml

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "sm-agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-agent.labels" (dict "ctx" . "component" "agent") | nindent 4 }}
+    sm-agent.grafana.com/service: metrics
+  {{- with .Values.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "agent") | nindent 4 }}
+  ports:
+    - name: http-metrics
+      port: {{ .Values.listenPort }}
+      targetPort: http-metrics
+      protocol: TCP

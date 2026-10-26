@@ -1,0 +1,33 @@
+{{- if and (include "sm-agent.browserPoolEnabled" .) .Values.browserPool.crocochrome.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "sm-agent.crocochromeName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sm-agent.labels" (dict "ctx" . "component" "crocochrome" "version" .Values.browserPool.crocochrome.image.tag) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "crocochrome") | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.browserPool.crocochrome.networkPolicy.egress }}
+    - Egress
+    {{- end }}
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+      from:
+        - podSelector:
+            matchLabels:
+              {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "agent") | nindent 14 }}
+        {{- with .Values.browserPool.crocochrome.networkPolicy.extraIngressFrom }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+  {{- with .Values.browserPool.crocochrome.networkPolicy.egress }}
+  egress:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
