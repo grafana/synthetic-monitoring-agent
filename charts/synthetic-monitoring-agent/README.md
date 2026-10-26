@@ -310,7 +310,14 @@ Version 2.0.0 is a new chart. It replaces the `synthetic-monitoring-agent` 1.x c
 Every change to the chart needs a new `version` in [Chart.yaml](Chart.yaml): a release is published when a new version
 reaches `main`. Bump `appVersion` after testing the chart with a new agent release.
 
+The checks CI runs are also make targets. They need [helm](https://helm.sh), the
+[helm-unittest](https://github.com/helm-unittest/helm-unittest) plugin, [kubeconform](https://github.com/yannh/kubeconform),
+[yq](https://github.com/mikefarah/yq) and Docker:
+
 ```bash
-helm lint charts/synthetic-monitoring-agent -f charts/synthetic-monitoring-agent/ci/cluster-browser-pool-values.yaml
-helm unittest charts/synthetic-monitoring-agent
+make chart                # all of the below
+make chart-lint           # helm lint and kubeconform, for every values file in ci/
+make chart-test           # helm unittest
+make chart-check-flags    # the appVersion agent image supports every flag the chart passes
+make chart-check-flags AGENT_IMAGE=<image>   # check against another agent image, such as a local build
 ```
