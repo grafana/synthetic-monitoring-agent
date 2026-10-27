@@ -1,3 +1,5 @@
+// Package discovery resolves the addresses of a fleet's members, such as
+// cluster peers or browser pool instances.
 package discovery
 
 import (
@@ -10,10 +12,10 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// DiscoverFn resolves the current set of peer addresses the node should try to
-// join. It is called once at startup and then re-invoked periodically so the
-// caller picks up scale-ups and restarted peers; periodic re-invocation
-// recovers on the next tick.
+// DiscoverFn returns the current addresses (host:port) of a fleet's members.
+// Callers may invoke it repeatedly to pick up membership changes, such as
+// scale-ups and restarted members; a failed invocation can be retried on the
+// next one.
 type DiscoverFn func() ([]string, error)
 
 // Lookup functions used for resolution; replaced in tests.
@@ -22,10 +24,11 @@ var (
 	lookupSRV  = net.LookupSRV
 )
 
-// NewDiscoverer builds a DiscoverFn from join addresses. With none set the
-// DiscoverFn returns no peers and the node bootstraps its own cluster.
+// NewDiscoverer builds a DiscoverFn from static addresses. With none set the
+// DiscoverFn returns no addresses, and what that means is up to the caller
+// (e.g. a cluster node bootstraps a new cluster).
 //
-// joinAddresses are [prefix+]host[:port] entries. Each is resolved
+// addresses are [prefix+]host[:port] entries. Each is resolved
 // independently and the results are unioned and de-duplicated. A literal IP is
 // passed through; a name is resolved according to its prefix:
 //
@@ -37,23 +40,23 @@ var (
 //     name resolves to the set of ready pod IPs.
 //
 // Addresses without a port are joined with defaultPort. SRV record ports are
-// ignored: every peer is expected to listen on the same port.
+// ignored: every member is expected to listen on the same port.
 //
 // An entry that resolves to no addresses, whether from a lookup error or an
 // empty result, is logged as a warning and skipped; the DiscoverFn returns an
 // error only when nothing resolves.
 //
 // TODO: consider supporting go-discover providers (k8s, AWS, GCE, Azure, ...)
-// as an alternative to join addresses.
-func NewDiscoverer(joinAddresses []string, defaultPort int, logger zerolog.Logger) (DiscoverFn, error) {
+// as an alternative to static addresses.
+func NewDiscoverer(addresses []string, defaultPort int, logger zerolog.Logger) (DiscoverFn, error) {
 	port := strconv.Itoa(defaultPort)
 
-	// Validate ports up front: memberlist silently drops a peer with a bad port
-	// as long as another peer joins.
-	for _, e := range joinAddresses {
+	// Validate ports up front so a typo fails fast at startup, rather than
+	// producing an unreachable address that callers may skip without notice.
+	for _, e := range addresses {
 		if _, p, err := net.SplitHostPort(strings.TrimSpace(e)); err == nil {
 			if n, err := strconv.ParseUint(p, 10, 16); err != nil || n == 0 {
-				return nil, fmt.Errorf("discovery: invalid port in join address %q", e)
+				return nil, fmt.Errorf("discovery: invalid port in address %q", e)
 			}
 		}
 	}
@@ -64,8 +67,8 @@ func NewDiscoverer(joinAddresses []string, defaultPort int, logger zerolog.Logge
 			errs  []error
 		)
 
-		for _, e := range joinAddresses {
-			resolved, err := resolveJoinAddress(e, port)
+		for _, e := range addresses {
+			resolved, err := resolveAddress(e, port)
 			if len(resolved) == 0 {
 				// A failing entry should not discard the addresses found by the
 				// others. Log a warning instead.
@@ -93,9 +96,10 @@ func NewDiscoverer(joinAddresses []string, defaultPort int, logger zerolog.Logge
 	}, nil
 }
 
-// resolveJoinAddress resolves a [prefix+]host[:port] join address to peer
-// addresses, each joined with the entry's port, or defaultPort if it has none.
-func resolveJoinAddress(entry, defaultPort string) ([]string, error) {
+// resolveAddress resolves a [prefix+]host[:port] address to the member
+// addresses it expands to, each joined with the entry's port, or defaultPort if
+// it has none.
+func resolveAddress(entry, defaultPort string) ([]string, error) {
 	entry = strings.TrimSpace(entry)
 
 	host, port, err := net.SplitHostPort(entry)
@@ -118,7 +122,7 @@ func resolveJoinAddress(entry, defaultPort string) ([]string, error) {
 	return addrs, nil
 }
 
-// resolveHost resolves a join address host according to its prefix (see
+// resolveHost resolves an address host according to its prefix (see
 // NewDiscoverer). Expanding all records is what makes a headless Service name
 // resolve to all of its backing pod addresses.
 func resolveHost(host string) ([]string, error) {

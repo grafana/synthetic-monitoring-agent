@@ -94,6 +94,30 @@ k6-backed probers refuse to build).
 The temp directory is removed via `defer`; if cleanup fails the error
 is logged with `severity=critical`.
 
+### Remote browser sessions (browser pool)
+
+When a browser pool is configured (`RunnerOpts.BrowserPool`, from the
+`-browser-pool-*` flags), `Local.Run` handles browser checks differently:
+before exec'ing k6 it acquires a remote browser session from the pool,
+injects the session's CDP WebSocket URL into the k6 process environment as
+`K6_BROWSER_WS_URL` (a k6 option, so the browser module connects to it instead
+of launching a local Chromium), and releases the session when the run ends —
+on every exit path, via `defer`.
+
+The acquire runs before the check timeout starts. Its budget is the time the
+incoming context leaves beyond the check timeout (bounded by the check frequency
+for scheduled checks, and by timeout + 20s for ad-hoc ones), but at least half
+the check timeout and at most 30s: `min(30s, max(spare, checkTimeout/2))`. So k6
+keeps its full timeout when the frequency leaves room for the wait, and keeps at
+least half of it otherwise.
+
+If no session can be acquired within the budget, the check fails; there is no
+local-Chromium fallback. The pool is only supported with the local runner:
+`New` rejects it together with a remote (`http(s)`) `-k6-uri`. The
+`BrowserPool` interface is defined in this
+package and satisfied structurally by `*browser.Pool` — see
+[browser-pool.md](browser-pool.md).
+
 ## HTTP execution
 
 `HttpRunner.Run` (`http.go`):
@@ -213,6 +237,8 @@ Update this document when you:
 - Change the retry / back-off / grace-time behaviour in `HttpRunner`.
 - Add or rename an error code in `error.go`.
 - Change the secret-store wiring (config file format, request body).
+- Change the browser-pool integration (`BrowserPool` interface, acquire
+  budget, `K6_BROWSER_WS_URL` injection).
 - Touch the `k6-fake` testdata in a way that changes its observable output.
 - Change the metrics published under `HTTPMetrics`.
 - Add new flags to the k6 invocation (`env.go`).
