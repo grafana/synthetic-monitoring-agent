@@ -93,13 +93,15 @@ and grouped onto the `clusterConfig` struct; `buildClusterNode`
 | `-cluster-join-addresses`        | list     | `[]`                                | Comma-separated `host[:port]` peers, resolved via DNS (see [Peer discovery](#deployment-topology)). |
 | `-cluster-wait-for-size`         | int      | `0`                                 | Wait for the cluster to reach this many nodes (incl. self) before running checks; `0` or `1` disables waiting. |
 | `-cluster-wait-timeout`          | duration | `60s` (`DefaultMinimumSizeWaitTimeout`) | Maximum time to wait for `-cluster-wait-for-size` before running checks anyway (fail-open); `0` waits forever. |
-| `-cluster-rejoin-interval`       | duration | `60s` (`DefaultRejoinInterval`)     | How often to re-resolve peers and re-join, healing split-brain (e.g. nodes that bootstrapped alone); `0` disables rejoining. |
+| `-cluster-rejoin-interval`       | duration | `60s` (`DefaultRejoinInterval`)     | How often to re-resolve peers and re-join, healing split-brain (e.g. nodes that bootstrapped alone); `0` disables rejoining, though the [initial-join retry](#deployment-topology) still runs. |
 
 The 60s defaults of `-cluster-wait-timeout` and `-cluster-rejoin-interval` are
 the flags' own defaults, taken from constants in `internal/cluster/node.go`. A
 literal `0` disables the feature: `-cluster-wait-timeout=0` makes the node wait
 until `-cluster-wait-for-size` is reached, and `-cluster-rejoin-interval=0`
-only discovers peers at startup, relying on gossip afterwards.
+only discovers peers at startup (the join plus, if the node bootstrapped alone,
+the short [initial-join retry](#deployment-topology)), relying on gossip
+afterwards.
 
 ## Deployment topology
 
@@ -133,6 +135,25 @@ is an interchangeable ring member:
   additive) to heal split-brain, since gossip never merges disjoint clusters:
   e.g. nodes that bootstrapped alone because discovery returned no peers at
   startup, or a partition that outlived memberlist's dead-node gossip.
+
+  On startup, if the first join fails or does not merge, the node bootstraps
+  alone (fail-open: it runs checks immediately, subject to
+  `-cluster-wait-for-size`) and then retries the join on
+  a short exponential backoff (`1s` doubling up to `8s`, for about `30s`;
+  constants in `node.go`) before falling back to the `-cluster-rejoin-interval`
+  loop. This shortens the window in which a node that started alone owns every
+  check from up to `-cluster-rejoin-interval` to seconds. The retry runs even
+  with `-cluster-rejoin-interval=0`. Failed attempts are logged at debug level
+  and counted in the resolve/join failure metrics (attempts that find no peers
+  are neither); a merge during the retry logs
+  `joined cluster after single-node bootstrap` at warn level.
+  A join counts as merged only if the node learned of at least one peer other
+  than itself: memberlist reports a join as successful if any address answers,
+  and discovery can return the node's own address (e.g. a headless `Service`
+  with `publishNotReadyAddresses`), so reaching only itself is not a merge. It
+  is not counted as a join failure either; the node keeps running alone and
+  logs `only this node was reachable; bootstrapping single-node ring` at info
+  level on the first join (debug level during the retry).
 - **Cluster isolation.** Set `-cluster-name` to a per-region/per-tenant value so
   two distinct rings sharing a network never merge.
 

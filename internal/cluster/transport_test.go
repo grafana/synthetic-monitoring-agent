@@ -13,6 +13,8 @@ import (
 // unencrypted HTTP/2 end-to-end against the server built by NewGossipServer,
 // the property ckit's gossip transport requires.
 func TestGossipTransport(t *testing.T) {
+	t.Parallel()
+
 	const route = "/api/v1/ckit/transport/"
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

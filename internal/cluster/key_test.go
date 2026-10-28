@@ -22,18 +22,24 @@ var goldenKeys = map[model.GlobalID]shard.Key{
 }
 
 func TestKeyOfGolden(t *testing.T) {
+	t.Parallel()
+
 	for id, want := range goldenKeys {
 		require.Equalf(t, want, keyOf(id), "key encoding changed for id %d", id)
 	}
 }
 
 func TestKeyOfDeterministic(t *testing.T) {
+	t.Parallel()
+
 	for _, id := range []model.GlobalID{0, 1, -1, 42, 1000001} {
 		require.Equal(t, keyOf(id), keyOf(id), "keyOf must be deterministic for id %d", id)
 	}
 }
 
 func TestKeyOfDistinct(t *testing.T) {
+	t.Parallel()
+
 	seen := make(map[shard.Key]model.GlobalID)
 
 	for _, id := range []model.GlobalID{0, 1, 2, 42, 1000001, 9999999} {
