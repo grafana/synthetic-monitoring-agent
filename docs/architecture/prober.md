@@ -33,7 +33,7 @@ scripted/browser/multihttp checks.
 | `scripted/`                         | k6-backed scripted check.                                    |
 | `browser/`                          | k6-backed browser check.                                     |
 | `multihttp/`                        | k6-backed MultiHTTP; generates a k6 script from assertions (`script.go`, `script.tmpl`). |
-| `interpolation/`                    | Helpers for substituting check-config values into request payloads (used by MultiHTTP). |
+| `interpolation/`                    | `${secrets.<name>}` resolution for HTTP checks (`Resolver`), and variable expansion into generated k6 scripts for MultiHTTP. |
 | `logger/`                           | The `logger.Logger` interface the prober contract uses to emit log lines. |
 
 ## How it fits in
@@ -132,6 +132,13 @@ These wrap `github.com/prometheus/blackbox_exporter/prober`. The
 per-type file translates the SM `Check` configuration into a
 blackbox-exporter `config.Module` and calls the upstream
 `ProbeHTTP` / `ProbeDNS` / `ProbeTCP` / `ProbeGRPC` function.
+
+HTTP also resolves `${secrets.<name>}` references while building the
+client config: in the bearer token, the basic auth password, and the TLS
+CA cert, client cert and client key. This happens for every check. The
+`secretManagerEnabled` field in the check settings is ignored. A value
+with no `${secrets.` in it is passed through as is and never hits the
+secret store, so checks without secrets only pay for a substring check.
 
 DNS is special: the project keeps an in-tree fork at
 `prober/dns/internal/bbe` because the upstream DNS prober is missing a
