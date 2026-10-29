@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -807,7 +810,7 @@ func TestSettingsToScript(t *testing.T) {
 
 	require.NoError(t, settings.Validate())
 
-	actual, err := settingsToScript(settings)
+	actual, err := settingsToScript(settings, true)
 	require.NoError(t, err)
 	require.NotEmpty(t, actual)
 
@@ -833,7 +836,7 @@ func TestSettingsToScript(t *testing.T) {
 			require.NoError(t, err)
 
 			logger := testhelper.Logger(t)
-			prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store)
+			prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store, true)
 			require.NoError(t, err)
 
 			reg := prometheus.NewPedanticRegistry()
@@ -850,6 +853,156 @@ func TestSettingsToScript(t *testing.T) {
 
 			require.True(t, success)
 			require.NotEqual(t, 0, duration)
+		})
+	}
+}
+
+// TestScriptImports checks that a generated script imports k6/encoding and
+// jsonpath exactly when its code uses them. A missing import makes every run of
+// the check fail with a ReferenceError; an unused one costs CPU on every run.
+//
+// Besides the golden fixtures, it covers each assertion type, subject and
+// condition (with and without an expression), each variable type and each body
+// shape, taking the enum values from the generated protobuf code so that a new
+// value is covered without changing this test.
+func TestScriptImports(t *testing.T) {
+	newSettings := func(entry *sm.MultiHttpEntry) *sm.MultiHttpSettings {
+		if entry.Request == nil {
+			entry.Request = &sm.MultiHttpEntryRequest{Method: sm.HttpMethod_GET, Url: "http://example.org/"}
+		}
+
+		return &sm.MultiHttpSettings{Entries: []*sm.MultiHttpEntry{entry}}
+	}
+
+	testcases := goldenScriptTestcases()
+
+	var all []*sm.MultiHttpEntry
+
+	for typ := range sm.MultiHttpEntryAssertionType_name {
+		for subject := range sm.MultiHttpEntryAssertionSubjectVariant_name {
+			for condition := range sm.MultiHttpEntryAssertionConditionVariant_name {
+				for _, expression := range []string{"", "$.foo"} {
+					assertion := &sm.MultiHttpEntryAssertion{
+						Type:       sm.MultiHttpEntryAssertionType(typ),
+						Subject:    sm.MultiHttpEntryAssertionSubjectVariant(subject),
+						Condition:  sm.MultiHttpEntryAssertionConditionVariant(condition),
+						Expression: expression,
+						Value:      "bar",
+					}
+					name := strings.Join([]string{
+						"assertion",
+						assertion.Type.String(),
+						assertion.Subject.String(),
+						assertion.Condition.String(),
+						strconv.FormatBool(expression != ""),
+					}, "/")
+					entry := &sm.MultiHttpEntry{Assertions: []*sm.MultiHttpEntryAssertion{assertion}}
+					testcases[name] = newSettings(entry)
+					all = append(all, entry)
+				}
+			}
+		}
+	}
+
+	for typ := range sm.MultiHttpEntryVariableType_name {
+		variable := &sm.MultiHttpEntryVariable{
+			Type:       sm.MultiHttpEntryVariableType(typ),
+			Name:       "foo",
+			Expression: "$.foo",
+		}
+		entry := &sm.MultiHttpEntry{Variables: []*sm.MultiHttpEntryVariable{variable}}
+		testcases["variable/"+variable.Type.String()] = newSettings(entry)
+		all = append(all, entry)
+	}
+
+	for name, body := range map[string]*sm.HttpRequestBody{
+		"nil":     nil,
+		"empty":   {ContentType: "text/plain"},
+		"payload": {ContentType: "text/plain", Payload: []byte("foo")},
+	} {
+		entry := &sm.MultiHttpEntry{
+			Request: &sm.MultiHttpEntryRequest{Method: sm.HttpMethod_POST, Url: "http://example.org/", Body: body},
+		}
+		testcases["body/"+name] = newSettings(entry)
+		all = append(all, entry)
+	}
+
+	testcases["all"] = &sm.MultiHttpSettings{Entries: all}
+
+	modules := map[string]struct {
+		importLine string
+		usage      *regexp.Regexp
+	}{
+		"encoding": {
+			importLine: "import encoding from 'k6/encoding';",
+			usage:      regexp.MustCompile(`\bencoding\.`),
+		},
+		"jsonpath": {
+			importLine: "import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js';",
+			usage:      regexp.MustCompile(`\bjsonpath\.`),
+		},
+	}
+
+	for name, settings := range testcases {
+		t.Run(name, func(t *testing.T) {
+			script, err := settingsToScript(settings, true)
+			require.NoError(t, err)
+
+			var imports, code []string
+
+			for _, line := range strings.Split(string(script), "\n") {
+				if strings.HasPrefix(line, "import ") {
+					imports = append(imports, line)
+				} else {
+					code = append(code, line)
+				}
+			}
+
+			body := strings.Join(code, "\n")
+
+			for module, m := range modules {
+				used := m.usage.MatchString(body)
+				require.Equalf(t, used, slices.Contains(imports, m.importLine),
+					"module %s: used=%t, imports=%q", module, used, imports)
+			}
+		})
+	}
+}
+
+// TestScriptImportsDisabled checks that with lean imports off every
+// script keeps the full import block, including k6/execution, and differs from
+// the lean-imports script only in that block.
+func TestScriptImportsDisabled(t *testing.T) {
+	const (
+		header = "import http from 'k6/http';\n" +
+			"import { check, fail } from 'k6';\n" +
+			"import { test } from 'k6/execution';\n" +
+			"// TODO(mem): conditionally import these modules\n" +
+			"// - import encoding if base64 decoding is required\n" +
+			"// - import jsonpath if there are json assertions\n" +
+			"import encoding from 'k6/encoding';\n" +
+			"import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js';\n" +
+			"import { URL } from 'https://jslib.k6.io/url/1.0.0/index.js';\n"
+		urlImport = "import { URL } from 'https://jslib.k6.io/url/1.0.0/index.js';\n"
+	)
+
+	for name, settings := range goldenScriptTestcases() {
+		t.Run(name, func(t *testing.T) {
+			off, err := settingsToScript(settings, false)
+			require.NoError(t, err)
+
+			on, err := settingsToScript(settings, true)
+			require.NoError(t, err)
+
+			require.True(t, strings.HasPrefix(string(off), header), "unexpected imports:\n%s", off)
+
+			_, offRest, found := strings.Cut(string(off), urlImport)
+			require.True(t, found)
+
+			_, onRest, found := strings.Cut(string(on), urlImport)
+			require.True(t, found)
+
+			require.Equal(t, onRest, offRest)
 		})
 	}
 }
