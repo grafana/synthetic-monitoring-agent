@@ -34,6 +34,23 @@ kubectl apply -f cluster-deployment.yaml
 
 Checkout [Private Probe docs](https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/#run-private-probes-in-a-cluster) for more details.
 
+### Browser pool
+
+To run browser checks on an external pool of [crocochrome](https://github.com/grafana/crocochrome) instances
+(experimental) instead of a local Chromium, deploy [crocochrome-service.yaml](crocochrome-service.yaml) and
+[crocochrome-deployment.yaml](crocochrome-deployment.yaml), then uncomment the `--browser-pool-*` arguments in
+[deployment.yaml](deployment.yaml) or [cluster-deployment.yaml](cluster-deployment.yaml):
+
+```bash
+kubectl apply -f namespace.yaml
+kubectl apply -f secret.yaml
+kubectl apply -f crocochrome-service.yaml
+kubectl apply -f crocochrome-deployment.yaml
+kubectl apply -f deployment.yaml
+```
+
+Checkout [Private Probe docs](https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/#run-browser-checks-on-a-browser-pool) for more details.
+
 ### Production Deployment
 
 If you are running it in production, you should pin the image to an specific version instead of `latest`,
