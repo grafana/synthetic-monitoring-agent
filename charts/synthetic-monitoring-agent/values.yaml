@@ -1,159 +1,173 @@
 # Values left as null use the agent's own default, and the chart doesn't pass the corresponding flag.
 
+# -- Overrides the chart name in resource names.
 nameOverride: ""
+# -- Overrides the full resource name prefix.
 fullnameOverride: ""
 
-# Kubernetes cluster domain, used to build the DNS names of the headless Services.
+# -- Kubernetes cluster domain, used to build the DNS names of the headless Services.
 clusterDomain: cluster.local
 
 probe:
-  # Synthetic Monitoring API server address, as host:port, for example synthetic-monitoring-grpc-eu-west-3.grafana.net:443.
+  # -- Synthetic Monitoring API server address, as host:port, for example synthetic-monitoring-grpc-eu-west-3.grafana.net:443.
   # Refer to https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/#probe-api-server-url
   # Required.
   apiServerAddress: ""
-  # Probe Authentication Token. The chart stores it in a Secret. Prefer existingSecret in production.
+  # -- Probe Authentication Token. The chart stores it in a Secret. Prefer existingSecret in production.
   apiToken: ""
-  # Name of an existing Secret that holds the Probe Authentication Token. Takes precedence over apiToken.
+  # -- Name of an existing Secret that holds the Probe Authentication Token. Takes precedence over apiToken.
   existingSecret: ""
-  # Key of the token in existingSecret.
+  # -- Key of the token in existingSecret.
   existingSecretKey: api-token
-  # Don't use TLS for the connection to the API server (-api-insecure).
+  # -- Don't use TLS for the connection to the API server (-api-insecure).
   apiInsecure: false
 
 logging:
-  # -verbose
+  # -- Enable verbose logging (-verbose).
   verbose: false
-  # -debug, which also enables verbose logging.
+  # -- Enable debug logging (-debug), which also enables verbose logging.
   debug: false
 
-# Optional agent feature flags (-features).
+# -- Optional agent feature flags (-features).
 # The agent ignores unknown names without a warning. k6 and traceroute are always enabled.
 features: []
 
-# Port for the agent's HTTP server, which serves /metrics, /ready and the optional debug endpoints. The chart makes the
+# -- Port for the agent's HTTP server, which serves /metrics, /ready and the optional debug endpoints. The chart makes the
 # agent listen on all interfaces so that probes and metrics scraping work.
 listenPort: 4050
 
 k6:
-  # Disable k6 checks (scripted, multi-step and browser checks) on this probe (-disable-k6).
+  # -- Disable k6 checks (scripted, multi-step and browser checks) on this probe (-disable-k6).
   disabled: false
-  # CIDR ranges that k6 checks can't reach (-blocked-nets). The agent default is 10.0.0.0/8. Set to "" to allow every
+  # -- CIDR ranges that k6 checks can't reach (-blocked-nets). The agent default is 10.0.0.0/8. Set to "" to allow every
   # range.
   blockedNets: null
-  # Path or URI of a k6 binary or a remote k6 runner (-k6-uri). Not compatible with the browser pool when it's an
+  # -- Path or URI of a k6 binary or a remote k6 runner (-k6-uri). Not compatible with the browser pool when it's an
   # http(s) URI.
   uri: null
-  # Directory containing k6 binaries (-k6-repository).
+  # -- Directory containing k6 binaries (-k6-repository).
   repository: null
 
 memory:
-  # Set GOMEMLIMIT from the container memory limit (-enable-auto-memlimit). Agent default: true.
+  # -- Set GOMEMLIMIT from the container memory limit (-enable-auto-memlimit). Agent default: true.
   autoMemLimit: null
-  # Fraction of the memory limit used for GOMEMLIMIT (-memlimit-ratio). Agent default: 0.9.
+  # -- Fraction of the memory limit used for GOMEMLIMIT (-memlimit-ratio). Agent default: 0.9.
   memLimitRatio: null
 
 cache:
-  # auto, memcached, local, or noop (-cache-type). Agent default: auto.
+  # -- auto, memcached, local, or noop (-cache-type). Agent default: auto.
   type: null
-  # Maximum number of items in the local cache (-cache-local-capacity).
+  # -- Maximum number of items in the local cache (-cache-local-capacity).
   localCapacity: null
-  # Default TTL of local cache items, for example 5m (-cache-local-ttl).
+  # -- Default TTL of local cache items, for example 5m (-cache-local-ttl).
   localTTL: null
-  # memcached servers, as host:port (-memcached-servers).
+  # -- memcached servers, as host:port (-memcached-servers).
   memcachedServers: []
 
 usageReports:
-  # Send anonymous usage reports. Set to false to pass -disable-usage-reports.
+  # -- Send anonymous usage reports. Set to false to pass -disable-usage-reports.
   enabled: true
 
 telemetry:
-  # Push telemetry to the probe's tenant databases (-experimental-push-telemetry).
+  # -- Push telemetry to the probe's tenant databases (-experimental-push-telemetry).
   push: false
-  # Minutes between telemetry pushes per tenant (-telemetry-time-span).
+  # -- Minutes between telemetry pushes per tenant (-telemetry-time-span).
   timeSpan: null
-  # Interval between internal metrics pushes, for example 1m (-metrics-push-interval).
+  # -- Interval between internal metrics pushes, for example 1m (-metrics-push-interval).
   metricsPushInterval: null
 
-# Debug endpoints served on listenPort. Only enable them on trusted networks.
+# -- Debug endpoints served on listenPort. Only enable them on trusted networks.
 debugEndpoints:
-  # /logger, to change the log level at runtime (-enable-change-log-level).
+  # -- /logger, to change the log level at runtime (-enable-change-log-level).
   changeLogLevel: false
-  # /disconnect, to disconnect the agent from the API (-enable-disconnect).
+  # -- /disconnect, to disconnect the agent from the API (-enable-disconnect).
   disconnect: false
-  # /debug/pprof (-enable-pprof).
+  # -- /debug/pprof (-enable-pprof).
   pprof: false
-  # -block-profile-rate and -mutex-profile-fraction, used only with pprof.
+  # -- Block profile rate (-block-profile-rate), used only with pprof.
   blockProfileRate: null
+  # -- Mutex profile fraction (-mutex-profile-fraction), used only with pprof.
   mutexProfileFraction: null
 
-# Run several agents for the same probe as a cluster (experimental). Every agent uses the same token.
+# -- Run several agents for the same probe as a cluster (experimental). Every agent uses the same token.
 # Refer to https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/#run-private-probes-in-a-cluster
 cluster:
+  # -- Run the agents as a cluster (-cluster-enabled).
   enabled: false
-  # Cluster name (-cluster-name). Agents with a different name can't join. Defaults to the release full name.
+  # -- Cluster name (-cluster-name). Agents with a different name can't join. Defaults to the release full name.
   name: ""
-  # Port for cluster traffic (-cluster-listen-port).
+  # -- Port for cluster traffic (-cluster-listen-port).
   listenPort: 7946
-  # Number of agents the cluster must reach before an agent runs checks (-cluster-wait-for-size). Keep it below
+  # -- Number of agents the cluster must reach before an agent runs checks (-cluster-wait-for-size). Keep it below
   # replicas. 0 disables waiting.
   waitForSize: 0
-  # Maximum time to wait for waitForSize (-cluster-wait-timeout). Agent default: 60s.
+  # -- Maximum time to wait for waitForSize (-cluster-wait-timeout). Agent default: 60s.
   waitTimeout: null
-  # How often agents rejoin the peers they find (-cluster-rejoin-interval). Agent default: 60s.
+  # -- How often agents rejoin the peers they find (-cluster-rejoin-interval). Agent default: 60s.
   rejoinInterval: null
-  # Address other agents use to reach this one (-cluster-advertise-address). Defaults to the Pod IP.
+  # -- Address other agents use to reach this one (-cluster-advertise-address). Defaults to the Pod IP.
   advertiseAddress: ""
 
-# Run browser checks on a crocochrome browser pool instead of a local Chromium (experimental).
+# -- Run browser checks on a crocochrome browser pool instead of a local Chromium (experimental).
 # Refer to https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/#run-browser-checks-on-a-browser-pool
+# @default -- See the browserPool.* values.
 browserPool:
+  # -- Pass the crocochrome headless Service to the agents (-browser-pool-enabled and -browser-pool-addresses) and deploy the fleet.
   enabled: false
-  # crocochrome fleet deployed with the release.
+  # -- crocochrome fleet deployed with the release.
+  # @default -- See the browserPool.crocochrome.* values.
   crocochrome:
-    # Use the unprivileged crocochrome image (tag suffix -unprivileged) instead of the hardened one.
-    # - Hardened (false): crocochrome runs Chromium as a different user, so a compromised Chromium can't interfere
-    #   with crocochrome. Needs allowPrivilegeEscalation and six capabilities: meets Pod Security "baseline", not
-    #   "restricted".
-    # - Unprivileged (true): needs no capabilities or privilege escalation, and meets "restricted". Chromium runs as
-    #   the same user as crocochrome, so a compromised Chromium can kill or trace crocochrome and leave files for later
-    #   sessions. Use it only if you trust the check scripts and the pages they load.
-    # Refer to https://github.com/grafana/crocochrome/blob/main/doc/capabilities.md
+    # -- Use the unprivileged crocochrome image (tag suffix -unprivileged) instead of the hardened one. The hardened image
+    # runs Chromium as a different user, so a compromised Chromium can't interfere with crocochrome. It needs
+    # allowPrivilegeEscalation and six capabilities, and meets Pod Security "baseline", not "restricted". The
+    # unprivileged image needs no capabilities or privilege escalation, and meets "restricted". Chromium then runs as the
+    # same user as crocochrome, so a compromised Chromium can kill or trace crocochrome and leave files for later
+    # sessions. Use it only if you trust the check scripts and the pages they load. Refer to
+    # https://github.com/grafana/crocochrome/blob/main/doc/capabilities.md
     unprivileged: false
     image:
       # renovate: datasource=docker depName=ghcr.io/grafana/crocochrome
       repository: ghcr.io/grafana/crocochrome
+      # -- crocochrome image tag.
       tag: v0.13.0
+      # -- crocochrome image pull policy.
       pullPolicy: IfNotPresent
-    # Each instance runs one browser session at a time. Run at least as many as the peak number of browser checks
+    # -- Each instance runs one browser session at a time. Run at least as many as the peak number of browser checks
     # running at the same time. Set to null when an autoscaler, such as KEDA, manages the number of instances, so that
     # helm upgrade doesn't reset it.
     replicas: 3
-    # ServiceAccount for the crocochrome Pods, separate from the agent's, so that identities given to the agent, such as
+    # -- ServiceAccount for the crocochrome Pods, separate from the agent's, so that identities given to the agent, such as
     # cloud IAM annotations, don't reach the browsers running check scripts. Its token is never mounted.
     serviceAccount:
+      # -- Create a ServiceAccount for crocochrome.
       create: true
-      # Defaults to the crocochrome full name when create is true, and to "default" otherwise.
+      # -- Defaults to the crocochrome full name when create is true, and to "default" otherwise.
       name: ""
+      # -- Annotations for the crocochrome ServiceAccount.
       annotations: {}
-    # crocochrome waits for its active session to finish on shutdown, up to its 5 minute session timeout.
+    # -- crocochrome waits for its active session to finish on shutdown, up to its 5 minute session timeout.
     terminationGracePeriodSeconds: 320
+    # -- Extra crocochrome arguments.
     extraArgs: []
+    # -- Annotations for the crocochrome Pods.
     podAnnotations: {}
-    # Can't set app.kubernetes.io/name, app.kubernetes.io/instance or app.kubernetes.io/component: the chart uses them
+    # -- Can't set app.kubernetes.io/name, app.kubernetes.io/instance or app.kubernetes.io/component: the chart uses them
     # in selectors.
     podLabels: {}
-    # crocochrome has no health endpoint, so readiness checks that its port accepts connections.
+    # -- crocochrome has no health endpoint, so readiness checks that its port accepts connections.
     readinessProbe:
       tcpSocket:
         port: http
       periodSeconds: 5
+    # -- Liveness probe for crocochrome. Disabled when empty.
     livenessProbe: {}
-    # The chart sets the security context the crocochrome image requires, depending on unprivileged. The seccompProfile
+    # -- The chart sets the security context the crocochrome image requires, depending on unprivileged. The seccompProfile
     # defaults to RuntimeDefault.
     # Use these to add fields, such as seLinuxOptions. They can't change the required fields: the root filesystem,
     # privilege escalation, capabilities, and, for the hardened image, the user.
     extraPodSecurityContext: {}
     extraSecurityContext: {}
+    # -- crocochrome resource requests and limits.
     resources:
       requests:
         cpu: 500m
@@ -161,80 +175,102 @@ browserPool:
       limits:
         cpu: 1000m
         memory: 1000Mi
-    # Chromium writes temporary files to an in-memory volume, which counts toward the memory limit.
+    # -- Chromium writes temporary files to an in-memory volume, which counts toward the memory limit.
     tmpSizeLimit: ""
+    # -- crocochrome node selector.
     nodeSelector: {}
+    # -- crocochrome tolerations.
     tolerations: []
+    # -- crocochrome affinity.
     affinity: {}
+    # -- crocochrome topology spread constraints.
     topologySpreadConstraints: []
+    # -- crocochrome priority class.
     priorityClassName: ""
-    # The crocochrome API doesn't have authentication. This NetworkPolicy only allows the agents to reach it.
+    # -- The crocochrome API doesn't have authentication. This NetworkPolicy only allows the agents to reach it.
     networkPolicy:
+      # -- Create the crocochrome NetworkPolicy.
       enabled: true
-      # Additional ingress sources for port 8080, for example Prometheus. The same port serves the crocochrome API.
+      # -- Additional ingress sources for port 8080, for example Prometheus. The same port serves the crocochrome API.
       extraIngressFrom: []
-      # Egress rules. When empty, the policy doesn't restrict egress.
+      # -- Egress rules. When empty, the policy doesn't restrict egress.
       egress: []
     podDisruptionBudget:
+      # -- Create a PodDisruptionBudget for crocochrome.
       enabled: false
+      # -- Maximum number of crocochrome instances evicted at a time.
       maxUnavailable: 1
     serviceMonitor:
+      # -- Create a Prometheus Operator ServiceMonitor for crocochrome.
       enabled: false
-      # Defaults to the release namespace.
+      # -- Defaults to the release namespace.
       namespace: ""
+      # -- Extra labels for the ServiceMonitor.
       labels: {}
+      # -- Scrape interval. Defaults to the Prometheus one.
       interval: ""
+      # -- Scrape timeout. Defaults to the Prometheus one.
       scrapeTimeout: ""
 
-# Number of agents. With clustering disabled, keep it at 1: every agent runs every check of the probe.
+# -- Number of agents. With clustering disabled, keep it at 1: every agent runs every check of the probe.
 replicas: 1
 
-# HorizontalPodAutoscaler for the agents. Requires cluster.enabled. The HPA owns the number of agents, and replicas is
+# -- HorizontalPodAutoscaler for the agents. Requires cluster.enabled. The HPA owns the number of agents, and replicas is
 # ignored. Every scale event moves checks between agents, and moved checks run again straight away. Refer to the README
 # before enabling it, especially if the probe runs browser checks without the browser pool.
 autoscaling:
+  # -- Create the HorizontalPodAutoscaler.
   enabled: false
-  # Size the minimum for peak load: the HPA reacts too slowly to absorb bursts of checks.
+  # -- Size the minimum for peak load: the HPA reacts too slowly to absorb bursts of checks.
   minReplicas: 2
+  # -- Maximum number of agents.
   maxReplicas: 5
-  # Utilization targets, as a percentage of resources.requests. The HPA uses whichever needs more agents. Set a target
+  # -- Utilization targets, as a percentage of resources.requests. The HPA uses whichever needs more agents. Set a target
   # to null to remove it.
   targetCPUUtilizationPercentage: 70
   targetMemoryUtilizationPercentage: 70
-  # HPA behavior. When empty, the chart scales down slowly: after 10 minutes of lower usage, and one agent every 5
+  # -- HPA behavior. When empty, the chart scales down slowly: after 10 minutes of lower usage, and one agent every 5
   # minutes at most. Scale-up uses the Kubernetes default.
   behavior: {}
 
 image:
+  # -- Agent image repository.
   repository: grafana/synthetic-monitoring-agent
-  # Defaults to the chart appVersion.
+  # -- Defaults to the chart appVersion.
   tag: ""
-  # standard, or browser to use the image with Chromium (tag suffix -browser). Not needed with the browser pool.
+  # -- standard, or browser to use the image with Chromium (tag suffix -browser). Not needed with the browser pool.
   variant: standard
+  # -- Agent image pull policy.
   pullPolicy: IfNotPresent
 
+# -- Secrets used to pull the images.
 imagePullSecrets: []
 
 serviceAccount:
+  # -- Create a ServiceAccount for the agents.
   create: true
+  # -- ServiceAccount name. Defaults to the release full name when create is true, and to "default" otherwise.
   name: ""
+  # -- Annotations for the ServiceAccount, for example cloud IAM roles.
   annotations: {}
+  # -- Mount the ServiceAccount token in the agent Pods. The agent doesn't use the Kubernetes API.
   automountServiceAccountToken: false
 
+# -- Annotations for the agent Pods.
 podAnnotations: {}
-# Can't set app.kubernetes.io/name, app.kubernetes.io/instance or app.kubernetes.io/component: the chart uses them in
+# -- Can't set app.kubernetes.io/name, app.kubernetes.io/instance or app.kubernetes.io/component: the chart uses them in
 # selectors.
 podLabels: {}
 
-# The chart sets the security context the agent image requires: non-root user 12345, read-only root filesystem, no
+# -- The chart sets the security context the agent image requires: non-root user 12345, read-only root filesystem, no
 # privilege escalation, and only the NET_RAW capability, needed for ping and traceroute checks. "baseline"
 # doesn't allow NET_RAW, so it needs the Pod Security "privileged" profile.
 # Use these to add fields, such as seLinuxOptions or a seccompProfile. They can't change the required fields.
 extraPodSecurityContext: {}
 extraSecurityContext: {}
 
-# The agent sets GOMEMLIMIT from the memory limit (memory.autoMemLimit), and from the node's memory when there is no
-# limit.
+# -- Agent resource requests and limits. The agent sets GOMEMLIMIT from the memory limit (memory.autoMemLimit), and from
+# the node's memory when there is no limit.
 resources:
   requests:
     cpu: 200m
@@ -242,60 +278,83 @@ resources:
   limits:
     memory: 1Gi
 
+# -- Agent readiness probe.
 readinessProbe:
   httpGet:
     path: /ready
     port: http-metrics
 
+# -- Agent liveness probe.
 livenessProbe:
   httpGet:
     path: /
     port: http-metrics
 
-# With clustering, keep it above 5 seconds so an agent can hand over its checks before it stops.
+# -- With clustering, keep it above 5 seconds so an agent can hand over its checks before it stops.
 terminationGracePeriodSeconds: 30
 
-# Container lifecycle hooks, for example a preStop hook.
+# -- Container lifecycle hooks, for example a preStop hook.
 lifecycle: {}
 
+# -- Agent priority class.
 priorityClassName: ""
+# -- Agent node selector.
 nodeSelector: {}
+# -- Agent tolerations.
 tolerations: []
+# -- Agent affinity.
 affinity: {}
+# -- Agent topology spread constraints.
 topologySpreadConstraints: []
+# -- Agent Pod host aliases.
 hostAliases: []
 
+# -- Any other agent flag.
 extraArgs: []
+# -- Extra environment variables for the agent container.
 extraEnv: []
+# -- Extra volumes for the agent Pods.
 extraVolumes: []
+# -- Extra volume mounts for the agent container.
 extraVolumeMounts: []
 
 service:
+  # -- Service type for the agents.
   type: ClusterIP
+  # -- Annotations for the Service.
   annotations: {}
 
 podDisruptionBudget:
-  # Limits voluntary evictions, such as node drains, to maxUnavailable agents at a time. Only applies with
+  # -- Limits voluntary evictions, such as node drains, to maxUnavailable agents at a time. Only applies with
   # cluster.enabled: a single agent can't be protected.
   enabled: true
+  # -- Maximum number of agents evicted at a time.
   maxUnavailable: 1
 
-# Optional NetworkPolicy for the agent Pods. Cluster traffic is plaintext HTTP/2 without authentication: cluster.name
+# -- Optional NetworkPolicy for the agent Pods. Cluster traffic is plaintext HTTP/2 without authentication: cluster.name
 # only prevents accidental merges. The policy allows cluster traffic only from the agents of this release, and metrics
 # scraping from extraIngressFrom. It needs a CNI that enforces NetworkPolicies.
 networkPolicy:
+  # -- Create the NetworkPolicy.
   enabled: false
-  # Sources allowed to reach listenPort, which serves /metrics and the debug endpoints. Any source when empty.
+  # -- Sources allowed to reach listenPort, which serves /metrics and the debug endpoints. Any source when empty.
   extraIngressFrom: []
 
 serviceMonitor:
+  # -- Create a Prometheus Operator ServiceMonitor for the agents.
   enabled: false
+  # -- ServiceMonitor namespace. Defaults to the release namespace.
   namespace: ""
+  # -- Extra labels for the ServiceMonitor.
   labels: {}
+  # -- Scrape interval. Defaults to the Prometheus one.
   interval: ""
+  # -- Scrape timeout. Defaults to the Prometheus one.
   scrapeTimeout: ""
+  # -- Relabeling rules applied to the targets.
   relabelings: []
+  # -- Relabeling rules applied to the scraped metrics.
   metricRelabelings: []
 
-# Extra manifests to deploy with the release. Strings are rendered with tpl.
+# -- Extra manifests to deploy with the release. Strings are rendered with tpl.
 extraObjects: []

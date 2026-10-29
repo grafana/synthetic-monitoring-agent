@@ -57,6 +57,9 @@ jobs:
       - name: check the agent supports the chart's flags
         run: ./scripts/check-chart-flags
 
+      - name: check the README is up to date
+        run: make chart-check-docs
+
       - name: unit tests
         run: |
           helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.1.2
