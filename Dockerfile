@@ -38,6 +38,15 @@ ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
 # additionally installs Chromium to support browser checks.
 FROM ghcr.io/grafana/chromium-swiftshader-alpine:155.0.8059.84-r0-3.24.3@sha256:df15b44385bedaf4591bb80739b40cb77e1c254e4be8ca9c65aa54c863fbeed8 AS with-browser
 RUN apk --no-cache add --repository community tini
+
+# The agent gets NET_RAW from its file capability. In the release image it's the entrypoint, so that's enough. Here
+# tini starts it, and under no_new_privs (e.g. allowPrivilegeEscalation: false in Kubernetes) the agent can only keep
+# capabilities tini already has. Give tini NET_RAW in its permitted set only (+p), so it can pass the capability on
+# without having it active itself.
+RUN apk --no-cache add --virtual .setcap libcap && \
+	setcap cap_net_raw=+p "$(command -v tini)" && \
+	apk del .setcap
+
 RUN adduser -D -u 12345 -g 12345 sm
 
 COPY --from=release --chown=sm:sm /usr/local/bin/synthetic-monitoring-agent /usr/local/bin/synthetic-monitoring-agent
