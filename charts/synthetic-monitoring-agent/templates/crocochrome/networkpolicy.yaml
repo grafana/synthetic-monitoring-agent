@@ -17,7 +17,7 @@ spec:
     {{- end }}
   ingress:
     - ports:
-        - port: http
+        - port: {{ .Values.browserPool.crocochrome.portName }}
           protocol: TCP
       from:
         - podSelector:

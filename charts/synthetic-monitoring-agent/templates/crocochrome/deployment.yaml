@@ -50,16 +50,16 @@ spec:
             {{- end }}
           {{- end }}
           ports:
-            - name: http
+            - name: {{ .Values.browserPool.crocochrome.portName }}
               containerPort: 8080
               protocol: TCP
           {{- with .Values.browserPool.crocochrome.readinessProbe }}
           readinessProbe:
-            {{- toYaml . | nindent 12 }}
+            {{- tpl (toYaml .) $ | nindent 12 }}
           {{- end }}
           {{- with .Values.browserPool.crocochrome.livenessProbe }}
           livenessProbe:
-            {{- toYaml . | nindent 12 }}
+            {{- tpl (toYaml .) $ | nindent 12 }}
           {{- end }}
           securityContext:
             {{- include "sm-agent.crocochromeSecurityContext" . | nindent 12 }}

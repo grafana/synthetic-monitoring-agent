@@ -15,7 +15,7 @@ spec:
   selector:
     {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "agent") | nindent 4 }}
   ports:
-    - name: http-metrics
+    - name: {{ .Values.listenPortName }}
       port: {{ .Values.listenPort }}
-      targetPort: http-metrics
+      targetPort: {{ .Values.listenPortName }}
       protocol: TCP

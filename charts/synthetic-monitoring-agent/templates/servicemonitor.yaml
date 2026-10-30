@@ -22,7 +22,7 @@ spec:
         operator: In
         values: [metrics]
   endpoints:
-    - port: http-metrics
+    - port: {{ .Values.listenPortName }}
       path: /metrics
       {{- with .Values.serviceMonitor.interval }}
       interval: {{ . }}

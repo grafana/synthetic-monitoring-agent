@@ -12,8 +12,8 @@ spec:
   selector:
     {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "crocochrome" "version" .Values.browserPool.crocochrome.image.tag) | nindent 4 }}
   ports:
-    - name: http
+    - name: {{ .Values.browserPool.crocochrome.portName }}
       port: 8080
-      targetPort: http
+      targetPort: {{ .Values.browserPool.crocochrome.portName }}
       protocol: TCP
 {{- end }}

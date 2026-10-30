@@ -17,7 +17,7 @@ spec:
     matchLabels:
       {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "crocochrome") | nindent 6 }}
   endpoints:
-    - port: http
+    - port: {{ .Values.browserPool.crocochrome.portName }}
       path: /metrics
       {{- with .Values.browserPool.crocochrome.serviceMonitor.interval }}
       interval: {{ . }}
