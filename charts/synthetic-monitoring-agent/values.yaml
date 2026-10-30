@@ -36,6 +36,10 @@ features: []
 # agent listen on all interfaces so that probes and metrics scraping work.
 listenPort: 4050
 
+# -- Name of the container port for listenPort. The Service, the ServiceMonitor, the NetworkPolicy and the default probes
+# use it.
+listenPortName: http-metrics
+
 k6:
   # -- Disable k6 checks (scripted, multi-step and browser checks) on this probe (-disable-k6).
   disabled: false
@@ -98,6 +102,8 @@ cluster:
   name: ""
   # -- Port for cluster traffic (-cluster-listen-port).
   listenPort: 7946
+  # -- Name of the container port for cluster traffic. Must differ from listenPortName.
+  listenPortName: gossip
   # -- Number of agents the cluster must reach before an agent runs checks (-cluster-wait-for-size). Keep it below
   # replicas. 0 disables waiting.
   waitForSize: 0
@@ -154,10 +160,13 @@ browserPool:
     # -- Can't set app.kubernetes.io/name, app.kubernetes.io/instance or app.kubernetes.io/component: the chart uses them
     # in selectors.
     podLabels: {}
-    # -- crocochrome has no health endpoint, so readiness checks that its port accepts connections.
+    # -- Name of the crocochrome container port. The same port serves the session API and /metrics.
+    portName: http
+    # -- crocochrome has no health endpoint, so readiness checks that its port accepts connections. The default probe
+    # follows portName.
     readinessProbe:
       tcpSocket:
-        port: http
+        port: "{{ .Values.browserPool.crocochrome.portName }}"
       periodSeconds: 5
     # -- Liveness probe for crocochrome. Disabled when empty.
     livenessProbe: {}
@@ -282,13 +291,13 @@ resources:
 readinessProbe:
   httpGet:
     path: /ready
-    port: http-metrics
+    port: "{{ .Values.listenPortName }}"
 
 # -- Agent liveness probe.
 livenessProbe:
   httpGet:
     path: /
-    port: http-metrics
+    port: "{{ .Values.listenPortName }}"
 
 # -- With clustering, keep it above 5 seconds so an agent can hand over its checks before it stops.
 terminationGracePeriodSeconds: 30

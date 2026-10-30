@@ -277,6 +277,9 @@ Validate values that the agent would reject or silently ignore.
 {{- end }}
 {{- end }}
 {{- end }}
+{{- if and .Values.cluster.enabled (eq .Values.listenPortName .Values.cluster.listenPortName) }}
+{{- fail "listenPortName and cluster.listenPortName must differ: container port names are unique in a pod" }}
+{{- end }}
 {{- if and (not .Values.cluster.enabled) (gt (int .Values.replicas) 1) }}
 {{- fail "replicas above 1 require cluster.enabled: without clustering, every agent runs every check of the probe" }}
 {{- end }}

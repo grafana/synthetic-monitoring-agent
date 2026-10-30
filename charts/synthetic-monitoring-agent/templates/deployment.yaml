@@ -70,21 +70,21 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           ports:
-            - name: http-metrics
+            - name: {{ .Values.listenPortName }}
               containerPort: {{ .Values.listenPort }}
               protocol: TCP
             {{- if .Values.cluster.enabled }}
-            - name: gossip
+            - name: {{ .Values.cluster.listenPortName }}
               containerPort: {{ .Values.cluster.listenPort }}
               protocol: TCP
             {{- end }}
           {{- with .Values.readinessProbe }}
           readinessProbe:
-            {{- toYaml . | nindent 12 }}
+            {{- tpl (toYaml .) $ | nindent 12 }}
           {{- end }}
           {{- with .Values.livenessProbe }}
           livenessProbe:
-            {{- toYaml . | nindent 12 }}
+            {{- tpl (toYaml .) $ | nindent 12 }}
           {{- end }}
           {{- with .Values.lifecycle }}
           lifecycle:

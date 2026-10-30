@@ -298,8 +298,9 @@ flag a value sets.
 | browserPool.crocochrome.podDisruptionBudget.enabled | bool | `false` | Create a PodDisruptionBudget for crocochrome. |
 | browserPool.crocochrome.podDisruptionBudget.maxUnavailable | int | `1` | Maximum number of crocochrome instances evicted at a time. |
 | browserPool.crocochrome.podLabels | object | `{}` | Can't set app.kubernetes.io/name, app.kubernetes.io/instance or app.kubernetes.io/component: the chart uses them in selectors. |
+| browserPool.crocochrome.portName | string | `"http"` | Name of the crocochrome container port. The same port serves the session API and /metrics. |
 | browserPool.crocochrome.priorityClassName | string | `""` | crocochrome priority class. |
-| browserPool.crocochrome.readinessProbe | object | `{"periodSeconds":5,"tcpSocket":{"port":"http"}}` | crocochrome has no health endpoint, so readiness checks that its port accepts connections. |
+| browserPool.crocochrome.readinessProbe | object | `{"periodSeconds":5,"tcpSocket":{"port":"{{ .Values.browserPool.crocochrome.portName }}"}}` | crocochrome has no health endpoint, so readiness checks that its port accepts connections. The default probe follows portName. |
 | browserPool.crocochrome.replicas | int | `3` | Each instance runs one browser session at a time. Run at least as many as the peak number of browser checks running at the same time. Set to null when an autoscaler, such as KEDA, manages the number of instances, so that helm upgrade doesn't reset it. |
 | browserPool.crocochrome.resources | object | `{"limits":{"cpu":"1000m","memory":"1000Mi"},"requests":{"cpu":"500m","memory":"1000Mi"}}` | crocochrome resource requests and limits. |
 | browserPool.crocochrome.serviceAccount | object | `{"annotations":{},"create":true,"name":""}` | ServiceAccount for the crocochrome Pods, separate from the agent's, so that identities given to the agent, such as cloud IAM annotations, don't reach the browsers running check scripts. Its token is never mounted. |
@@ -321,10 +322,11 @@ flag a value sets.
 | cache.localTTL | string | `nil` | Default TTL of local cache items, for example 5m (-cache-local-ttl). |
 | cache.memcachedServers | list | `[]` | memcached servers, as host:port (-memcached-servers). |
 | cache.type | string | `nil` | auto, memcached, local, or noop (-cache-type). Agent default: auto. |
-| cluster | object | `{"advertiseAddress":"","enabled":false,"listenPort":7946,"name":"","rejoinInterval":null,"waitForSize":0,"waitTimeout":null}` | Run several agents for the same probe as a cluster (experimental). Every agent uses the same token. Refer to https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/#run-private-probes-in-a-cluster |
+| cluster | object | `{"advertiseAddress":"","enabled":false,"listenPort":7946,"listenPortName":"gossip","name":"","rejoinInterval":null,"waitForSize":0,"waitTimeout":null}` | Run several agents for the same probe as a cluster (experimental). Every agent uses the same token. Refer to https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/#run-private-probes-in-a-cluster |
 | cluster.advertiseAddress | string | `""` | Address other agents use to reach this one (-cluster-advertise-address). Defaults to the Pod IP. |
 | cluster.enabled | bool | `false` | Run the agents as a cluster (-cluster-enabled). |
 | cluster.listenPort | int | `7946` | Port for cluster traffic (-cluster-listen-port). |
+| cluster.listenPortName | string | `"gossip"` | Name of the container port for cluster traffic. Must differ from listenPortName. |
 | cluster.name | string | `""` | Cluster name (-cluster-name). Agents with a different name can't join. Defaults to the release full name. |
 | cluster.rejoinInterval | string | `nil` | How often agents rejoin the peers they find (-cluster-rejoin-interval). Agent default: 60s. |
 | cluster.waitForSize | int | `0` | Number of agents the cluster must reach before an agent runs checks (-cluster-wait-for-size). Keep it below replicas. 0 disables waiting. |
@@ -357,7 +359,8 @@ flag a value sets.
 | k6.uri | string | `nil` | Path or URI of a k6 binary or a remote k6 runner (-k6-uri). Not compatible with the browser pool when it's an http(s) URI. |
 | lifecycle | object | `{}` | Container lifecycle hooks, for example a preStop hook. |
 | listenPort | int | `4050` | Port for the agent's HTTP server, which serves /metrics, /ready and the optional debug endpoints. The chart makes the agent listen on all interfaces so that probes and metrics scraping work. |
-| livenessProbe | object | `{"httpGet":{"path":"/","port":"http-metrics"}}` | Agent liveness probe. |
+| listenPortName | string | `"http-metrics"` | Name of the container port for listenPort. The Service, the ServiceMonitor, the NetworkPolicy and the default probes use it. |
+| livenessProbe | object | `{"httpGet":{"path":"/","port":"{{ .Values.listenPortName }}"}}` | Agent liveness probe. |
 | logging.debug | bool | `false` | Enable debug logging (-debug), which also enables verbose logging. |
 | logging.verbose | bool | `false` | Enable verbose logging (-verbose). |
 | memory.autoMemLimit | string | `nil` | Set GOMEMLIMIT from the container memory limit (-enable-auto-memlimit). Agent default: true. |
@@ -377,7 +380,7 @@ flag a value sets.
 | probe.apiToken | string | `""` | Probe Authentication Token. The chart stores it in a Secret. Prefer existingSecret in production. |
 | probe.existingSecret | string | `""` | Name of an existing Secret that holds the Probe Authentication Token. Takes precedence over apiToken. |
 | probe.existingSecretKey | string | `"api-token"` | Key of the token in existingSecret. |
-| readinessProbe | object | `{"httpGet":{"path":"/ready","port":"http-metrics"}}` | Agent readiness probe. |
+| readinessProbe | object | `{"httpGet":{"path":"/ready","port":"{{ .Values.listenPortName }}"}}` | Agent readiness probe. |
 | replicas | int | `1` | Number of agents. With clustering disabled, keep it at 1: every agent runs every check of the probe. |
 | resources | object | `{"limits":{"memory":"1Gi"},"requests":{"cpu":"200m","memory":"500Mi"}}` | Agent resource requests and limits. The agent sets GOMEMLIMIT from the memory limit (memory.autoMemLimit), and from the node's memory when there is no limit. |
 | service.annotations | object | `{}` | Annotations for the Service. |

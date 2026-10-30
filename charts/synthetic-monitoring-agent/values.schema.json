@@ -61,6 +61,12 @@
       "minimum": 1,
       "maximum": 65535
     },
+    "listenPortName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 15,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
     "k6": {
       "type": "object",
       "additionalProperties": false,
@@ -215,6 +221,12 @@
           "minimum": 1,
           "maximum": 65535
         },
+        "listenPortName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 15,
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
         "waitForSize": {
           "type": "integer",
           "minimum": 0
@@ -276,6 +288,12 @@
                 "null"
               ],
               "minimum": 0
+            },
+            "portName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 15,
+              "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
             },
             "serviceAccount": {
               "type": "object",

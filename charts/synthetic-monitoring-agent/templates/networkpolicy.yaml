@@ -14,7 +14,7 @@ spec:
     - Ingress
   ingress:
     - ports:
-        - port: http-metrics
+        - port: {{ .Values.listenPortName }}
           protocol: TCP
       {{- with .Values.networkPolicy.extraIngressFrom }}
       from:
@@ -22,7 +22,7 @@ spec:
       {{- end }}
     {{- if .Values.cluster.enabled }}
     - ports:
-        - port: gossip
+        - port: {{ .Values.cluster.listenPortName }}
           protocol: TCP
       from:
         - podSelector:

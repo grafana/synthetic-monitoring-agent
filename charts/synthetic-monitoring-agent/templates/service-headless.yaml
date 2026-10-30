@@ -14,8 +14,8 @@ spec:
   selector:
     {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "agent") | nindent 4 }}
   ports:
-    - name: gossip
+    - name: {{ .Values.cluster.listenPortName }}
       port: {{ .Values.cluster.listenPort }}
-      targetPort: gossip
+      targetPort: {{ .Values.cluster.listenPortName }}
       protocol: TCP
 {{- end }}
