@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.69.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.68.0...v0.69.0) (2026-10-31)
+
+
+### Features
+
+* Add browser pool ([#2027](https://github.com/grafana/synthetic-monitoring-agent/issues/2027)) ([613c238](https://github.com/grafana/synthetic-monitoring-agent/commit/613c238307e8d85fbd5d204fcdc862afe5aa8593))
+* Add initial cluster join backoff ([#2086](https://github.com/grafana/synthetic-monitoring-agent/issues/2086)) ([a2dc493](https://github.com/grafana/synthetic-monitoring-agent/commit/a2dc49328561f5f358c1aff55f6538bc4a0c0130))
+* Resolve secret references in HTTP checks without an opt-in switch ([#2005](https://github.com/grafana/synthetic-monitoring-agent/issues/2005)) ([beab08a](https://github.com/grafana/synthetic-monitoring-agent/commit/beab08a03e97bb10aee3168522f7ad639b102d08))
+
+
+### Fixes
+
+* Keep NET_RAW for the agent in the browser image with no_new_privs ([#2094](https://github.com/grafana/synthetic-monitoring-agent/issues/2094)) ([933d81e](https://github.com/grafana/synthetic-monitoring-agent/commit/933d81e86c0e0c1fe90c11077a79af93c84f07c6))
+
+
+### Miscellaneous Chores
+
+* Update module github.com/andybalholm/brotli to v1.2.7 ([#2089](https://github.com/grafana/synthetic-monitoring-agent/issues/2089)) ([671b59f](https://github.com/grafana/synthetic-monitoring-agent/commit/671b59fa1180c50eaacde9ec00fe39bcb4ab0988))
+* Update module golang.org/x/net to v0.62.0 [SECURITY] ([#2093](https://github.com/grafana/synthetic-monitoring-agent/issues/2093)) ([4ff5b9e](https://github.com/grafana/synthetic-monitoring-agent/commit/4ff5b9e95d589167b0625d72661d7ead1fb85e33))
+* Update module google.golang.org/grpc to v1.85.0 ([#2097](https://github.com/grafana/synthetic-monitoring-agent/issues/2097)) ([bfca469](https://github.com/grafana/synthetic-monitoring-agent/commit/bfca469ced4e0b8a1175bd033f85a18cb4134f6a))
+
 ## [0.68.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.67.0...v0.68.0) (2026-10-26)
 
 
