@@ -132,7 +132,18 @@ func newSpawnerRunner(t *testing.T) (Runner, string) {
 		"ORPHAN_PIDFILE='" + pidFile + "'\n" +
 		"export ORPHAN_PIDFILE\n" +
 		"exec '" + fakePath + "' \"$@\"\n"
-	require.NoError(t, os.WriteFile(k6Path, []byte(wrapper), 0o755))
+
+	// Tests run in parallel, so another goroutine can fork while the file is open for
+	// writing. That child keeps a copy of the descriptor until it execs, and exec of
+	// the file fails with ETXTBSY meanwhile. Holding ForkLock keeps forks out, see
+	// https://github.com/golang/go/issues/22315.
+	syscall.ForkLock.RLock()
+
+	err = os.WriteFile(k6Path, []byte(wrapper), 0o755)
+
+	syscall.ForkLock.RUnlock()
+
+	require.NoError(t, err)
 
 	runner, err := New(RunnerOpts{Uri: k6Path})
 	require.NoError(t, err)
