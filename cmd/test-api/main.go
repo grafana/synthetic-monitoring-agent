@@ -68,12 +68,22 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
+	adHocChecksServer, err := grpc.NewAdHocChecksServer(grpc.AdHocChecksServerOpts{
+		Logger: zl.With().Str("subsystem", "adhoc_checks_server").Logger(),
+		Db:     db,
+	})
+	if err != nil {
+		zl.Error().Err(err).Msg("cannot create ad-hoc checks server")
+		return err
+	}
+
 	grpcServer, err := grpc.NewServer(ctx, &grpc.Opts{
-		Logger:        zl.With().Str("subsystem", "grpc").Logger(),
-		ListenAddr:    *grpcListenAddr,
-		ChecksServer:  checksServer,
-		TenantsServer: tenantsServer,
-		Db:            db,
+		Logger:            zl.With().Str("subsystem", "grpc").Logger(),
+		ListenAddr:        *grpcListenAddr,
+		ChecksServer:      checksServer,
+		TenantsServer:     tenantsServer,
+		AdHocChecksServer: adHocChecksServer,
+		Db:                db,
 	})
 	if err != nil {
 		zl.Error().Err(err).Msg("cannot create GRPC server")
