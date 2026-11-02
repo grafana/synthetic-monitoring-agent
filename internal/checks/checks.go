@@ -110,6 +110,8 @@ type metrics struct {
 	changeErrorsCounter *prometheus.CounterVec
 	changesCounter      *prometheus.CounterVec
 	connectionStatus    prometheus.Gauge
+	knownChecks         prometheus.Gauge
+	ownedChecks         prometheus.Gauge
 	probeInfo           *prometheus.GaugeVec
 	runningScrapers     *prometheus.GaugeVec
 	scrapeErrorCounter  *prometheus.CounterVec
@@ -628,6 +630,7 @@ func (c *Updater) handleCheckAdd(ctx context.Context, check model.Check) error {
 	}
 
 	c.knownChecks[cid] = check
+	c.updateCheckGaugesWithLock()
 
 	return c.reconcileCheckWithLock(ctx, cid)
 }
@@ -650,6 +653,7 @@ func (c *Updater) handleCheckUpdate(ctx context.Context, check model.Check) erro
 func (c *Updater) handleCheckUpdateWithLock(ctx context.Context, check model.Check) error {
 	cid := check.GlobalID()
 	c.knownChecks[cid] = check
+	c.updateCheckGaugesWithLock()
 
 	return c.reconcileCheckWithLock(ctx, cid)
 }
@@ -668,6 +672,7 @@ func (c *Updater) handleCheckDelete(ctx context.Context, check model.Check) erro
 	}
 
 	delete(c.knownChecks, cid)
+	c.updateCheckGaugesWithLock()
 
 	return c.reconcileCheckWithLock(ctx, cid)
 }
@@ -730,6 +735,7 @@ func (c *Updater) handleFirstBatch(ctx context.Context, changes *sm.Changes) {
 	}
 
 	c.knownChecks = knownChecks
+	c.updateCheckGaugesWithLock()
 
 	c.reconcileAllWithLock(ctx)
 }
@@ -843,6 +849,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 	}
 
 	c.scrapers[check.GlobalID()] = scraper
+	c.updateCheckGaugesWithLock()
 
 	go scraper.Run(ctx)
 
@@ -973,7 +980,15 @@ func (c *Updater) stopScraperWithLock(cid model.GlobalID, s *scraper.Scraper) {
 	checkType := s.CheckType().String()
 	s.Stop()
 	delete(c.scrapers, cid)
+	c.updateCheckGaugesWithLock()
 	c.metrics.runningScrapers.WithLabelValues(checkType).Dec()
+}
+
+// updateCheckGaugesWithLock refreshes the known/owned check gauges.
+// It MUST be called with the scrapersMutex held.
+func (c *Updater) updateCheckGaugesWithLock() {
+	c.metrics.knownChecks.Set(float64(len(c.knownChecks)))
+	c.metrics.ownedChecks.Set(float64(len(c.scrapers)))
 }
 
 func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
@@ -1046,28 +1061,18 @@ func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
 		"buildstamp",
 	})
 
-	knownChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+	knownChecksGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: metricNamespace,
 		Subsystem: metricSubsystem,
 		Name:      "known_checks",
 		Help:      "Total number of checks known to the agent, owned or not.",
-	}, func() float64 {
-		c.scrapersMutex.Lock()
-		defer c.scrapersMutex.Unlock()
-
-		return float64(len(c.knownChecks))
 	})
 
-	ownedChecksGauge := prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+	ownedChecksGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: metricNamespace,
 		Subsystem: metricSubsystem,
 		Name:      "owned_checks",
 		Help:      "Number of checks the agent owns and is currently running.",
-	}, func() float64 {
-		c.scrapersMutex.Lock()
-		defer c.scrapersMutex.Unlock()
-
-		return float64(len(c.scrapers))
 	})
 
 	for _, collector := range []prometheus.Collector{
@@ -1086,6 +1091,8 @@ func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
 		changeErrorsCounter: changeErrorsCounter,
 		changesCounter:      changesCounter,
 		connectionStatus:    connectionStatusGauge,
+		knownChecks:         knownChecksGauge,
+		ownedChecks:         ownedChecksGauge,
 		probeInfo:           probeInfoGauge,
 		runningScrapers:     runningScrapers,
 		scrapeErrorCounter:  scrapeErrorCounter,

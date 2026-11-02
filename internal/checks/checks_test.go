@@ -1250,8 +1250,59 @@ func TestCheckCountGauges(t *testing.T) {
 		require.Equal(t, 2.0, gaugeValue(t, reg, "sm_agent_updater_known_checks"))
 		require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_updater_owned_checks"))
 
+		// Deleting a check removes it from the known set.
+		require.NoError(t, u.handleCheckDelete(ctx, notOwned))
+		require.Equal(t, 1.0, gaugeValue(t, reg, "sm_agent_updater_known_checks"))
+		require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_updater_owned_checks"))
+
+		// Re-owning the remaining check starts it again.
+		node.setOwned(ownedID, true)
+		u.reconcileAll(ctx)
+		require.Equal(t, 1.0, gaugeValue(t, reg, "sm_agent_updater_known_checks"))
+		require.Equal(t, 1.0, gaugeValue(t, reg, "sm_agent_updater_owned_checks"))
+
+		// An empty first batch replaces the known set and stops the orphan.
+		u.handleFirstBatch(ctx, &sm.Changes{})
+		require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_updater_known_checks"))
+		require.Equal(t, 0.0, gaugeValue(t, reg, "sm_agent_updater_owned_checks"))
+
 		synctest.Wait()
 	})
+}
+
+// TestGatherDoesNotBlockOnScrapersMutex guards against metric callbacks that
+// take scrapersMutex. The updater calls into MetricVecs while holding that
+// mutex, so a Gather that waits on it can deadlock the agent.
+func TestGatherDoesNotBlockOnScrapersMutex(t *testing.T) {
+	reg := prometheus.NewPedanticRegistry()
+
+	u, err := NewUpdater(UpdaterOptions{
+		Conn:           new(grpc.ClientConn),
+		PromRegisterer: reg,
+		Publisher:      channelPublisher(make(chan pusher.Payload, 100)),
+		TenantCh:       make(chan<- sm.Tenant),
+		Logger:         testhelper.Logger(t),
+		ScraperFactory: testScraperFactory,
+		Node:           newFakeNode(),
+	})
+	require.NoError(t, err)
+
+	u.scrapersMutex.Lock()
+	defer u.scrapersMutex.Unlock()
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := reg.Gather()
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Gather blocked on scrapersMutex")
+	}
 }
 
 func gaugeValue(t *testing.T, g prometheus.Gatherer, name string) float64 {
