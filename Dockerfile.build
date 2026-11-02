@@ -36,7 +36,7 @@ ENTRYPOINT ["/usr/local/bin/synthetic-monitoring-agent"]
 
 # Browser release copies the setup from the base agent and
 # additionally installs Chromium to support browser checks.
-FROM ghcr.io/grafana/chromium-swiftshader-alpine:155.0.8059.84-r0-3.24.3@sha256:df15b44385bedaf4591bb80739b40cb77e1c254e4be8ca9c65aa54c863fbeed8 AS with-browser
+FROM ghcr.io/grafana/chromium-swiftshader-alpine:155.0.8059.84-r0-3.24.3@sha256:2c01a3e673c206c30130c37cf30709512fd050205bf60fa605b2398d90c74d84 AS with-browser
 RUN apk --no-cache add --repository community tini
 
 # The agent gets NET_RAW from its file capability. In the release image it's the entrypoint, so that's enough. Here
