@@ -439,6 +439,7 @@
 		"probe_ssl_last_chain_expiry_timestamp_seconds": ["config_version", "instance", "job", "probe"],
 		"probe_ssl_last_chain_info": ["config_version", "fingerprint_sha256", "instance", "issuer", "job", "probe", "serialnumber", "subject", "subjectalternative"],
 		"probe_success": ["config_version", "instance", "job", "probe"],
+		"probe_tls_cipher_info": ["cipher", "config_version", "instance", "job", "probe"],
 		"probe_tls_version_info": ["config_version", "instance", "job", "probe", "version"],
 		"sm_check_info": ["check_name", "config_version", "frequency", "geohash", "instance", "job", "probe", "region"]
 	},
@@ -458,6 +459,7 @@
 		"probe_ssl_last_chain_expiry_timestamp_seconds": ["config_version", "instance", "job", "probe"],
 		"probe_ssl_last_chain_info": ["config_version", "fingerprint_sha256", "instance", "issuer", "job", "probe", "serialnumber", "subject", "subjectalternative"],
 		"probe_success": ["config_version", "instance", "job", "probe"],
+		"probe_tls_cipher_info": ["cipher", "config_version", "instance", "job", "probe"],
 		"probe_tls_version_info": ["config_version", "instance", "job", "probe", "version"],
 		"sm_check_info": ["check_name", "config_version", "frequency", "geohash", "instance", "job", "probe", "region"]
 	}
