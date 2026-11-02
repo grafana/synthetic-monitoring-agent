@@ -27,18 +27,6 @@ only on two questions — "do I own this check?" (`IsOwner`) and "has the ring
 converged enough to trust that answer?" (`Ready`). The Updater consumes that
 interface; see [updater.md](updater.md).
 
-## Prerequisite (read this first)
-
-> Clustering relies on a **server-side change that is not in this repository**:
-> the upstream `GetChanges` stream must broadcast the **same full check set to
-> every agent in a ring**. Today the API tailors the stream per probe, so each
-> agent only sees checks already assigned to it.
->
-> Without that upstream change, the ring has nothing to partition — every agent
-> sees a different, pre-filtered set, and ownership decisions are a no-op or
-> wrong. This work is tracked separately. Do not enable clustering in production
-> until the upstream feed delivers the full ring set.
-
 ## Where it lives
 
 `internal/cluster/`
