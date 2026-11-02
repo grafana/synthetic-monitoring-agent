@@ -95,6 +95,7 @@ func run(args []string, stdout io.Writer) error {
 			MetricsInterval           time.Duration
 
 			Cluster clusterConfig
+			Fleet   fleetConfig
 		}{
 			GrpcApiServerAddr:         "localhost:4031",
 			HttpListenAddr:            "localhost:4050",
@@ -162,6 +163,9 @@ func run(args []string, stdout io.Writer) error {
 	flags.IntVar(&config.Cluster.MinimumSize, "cluster-wait-for-size", config.Cluster.MinimumSize, "[experimental] wait for the cluster to reach this many nodes (incl. self) before running checks; 0 or 1 disables waiting")
 	flags.DurationVar(&config.Cluster.MinimumSizeWaitTimeout, "cluster-wait-timeout", config.Cluster.MinimumSizeWaitTimeout, "[experimental] maximum time to wait for cluster-wait-for-size before running checks anyway (fail-open); 0 waits forever")
 	flags.DurationVar(&config.Cluster.RejoinInterval, "cluster-rejoin-interval", config.Cluster.RejoinInterval, "[experimental] how often to re-resolve peers and re-join, healing split-brain (e.g. nodes that bootstrapped alone); 0 disables rejoining")
+	flags.StringVar(&config.Fleet.URL, "fm-url", config.Fleet.URL, "[experimental] Grafana Fleet Management URL; enables registering the probe with Fleet Management over OpAMP (env GCLOUD_FM_URL)")
+	flags.StringVar(&config.Fleet.InstanceID, "fm-instance-id", config.Fleet.InstanceID, "[experimental] Grafana Cloud instance ID used to authenticate with Fleet Management (env GCLOUD_INSTANCE_ID); the token is read from GCLOUD_RW_API_KEY")
+	flags.StringVar(&config.Fleet.StateDir, "fm-state-dir", config.Fleet.StateDir, "[experimental] directory where the Fleet Management instance UID is stored, so the probe keeps its identity across restarts")
 
 	if err := flags.Parse(args[1:]); err != nil {
 		return err
@@ -224,6 +228,8 @@ func run(args []string, stdout io.Writer) error {
 	if config.ApiToken == "" {
 		return fmt.Errorf("invalid API token")
 	}
+
+	config.Fleet.fromEnv()
 
 	baseCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -407,6 +413,41 @@ func run(args []string, stdout io.Writer) error {
 
 	probeCh := make(chan *synthetic_monitoring.Probe, 1)
 
+	// updaterProbeCh is where the updater sends the registered probe.
+	updaterProbeCh := probeCh
+
+	// isConnected is called by the updater every time the API connection goes up or down.
+	isConnected := readynessHandler.Set
+
+	if config.Fleet.enabled() {
+		zl.Warn().Msg("fleet management registration is experimental: the -fm-* flags and their behavior may change or be removed in future releases")
+
+		fleetAgent, err := buildFleetAgent(config.Fleet, zl.With().Str("subsystem", "fleet").Logger())
+		if err != nil {
+			return fmt.Errorf("configuring fleet management: %w", err)
+		}
+
+		isConnected = func(connected bool) {
+			readynessHandler.Set(connected)
+			fleetAgent.SetConnected(connected)
+		}
+
+		// The updater sends the registered probe once. Forward it to the
+		// fleet agent and, if telemetry push is enabled, to metamonitoring.
+		updaterProbeCh = make(chan *synthetic_monitoring.Probe, 1)
+
+		var metamonitoringProbeCh chan *synthetic_monitoring.Probe
+		if config.PushTelemetry {
+			metamonitoringProbeCh = probeCh
+		}
+
+		go teeProbe(updaterProbeCh, metamonitoringProbeCh, fleetAgent.SetProbe)
+
+		g.Go(func() error {
+			return fleetAgent.Run(ctx)
+		})
+	}
+
 	// Build the cluster node.
 	// When clustering is disabled, the updater uses the mono node (owns everything),
 	// The updater needs the node, so it is built first; the node is started after the updater exists.
@@ -443,8 +484,8 @@ func run(args []string, stdout io.Writer) error {
 		Backoff:                 newConnectionBackoff(),
 		Publisher:               publisher,
 		TenantCh:                tenantCh,
-		ProbeCh:                 probeCh,
-		IsConnected:             readynessHandler.Set,
+		ProbeCh:                 updaterProbeCh,
+		IsConnected:             isConnected,
 		PromRegisterer:          promRegisterer,
 		Features:                features,
 		K6Runner:                k6Runner,

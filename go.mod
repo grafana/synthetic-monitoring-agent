@@ -40,6 +40,7 @@ require (
 	github.com/jpillora/backoff v1.1.0
 	github.com/maypok86/otter/v2 v2.4.0
 	github.com/mccutchen/go-httpbin/v2 v2.26.0
+	github.com/open-telemetry/opamp-go v0.25.0
 	github.com/patrickmn/go-cache v2.1.0+incompatible
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
@@ -60,8 +61,10 @@ require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buger/goterm v1.0.4 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dennwc/varint v1.0.0 // indirect
+	github.com/elastic/proxy-connect-dialer-go v0.1.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
