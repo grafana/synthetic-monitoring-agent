@@ -326,10 +326,14 @@ func TestStop(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, r.setParticipant(context.Background()))
 
+	// Take start before creating the context: the window's timer starts
+	// ticking when the context is created, so reading the clock afterwards
+	// would let any scheduling delay in between shrink the measured elapsed
+	// time below the window.
+	start := time.Now()
+
 	ctx, cancel := context.WithTimeout(context.Background(), window)
 	defer cancel()
-
-	start := time.Now()
 
 	require.NoError(t, r.Stop(ctx))
 
