@@ -300,44 +300,57 @@ func TestReconcileObserverNilOnChange(t *testing.T) {
 // departure, keeps running through the drain window, then leaves the cluster.
 // The caller's ctx bounds the window, keeping the test well under drainTimeout.
 // Multi-node handover is covered by the integration test (item 14).
+//
+// The test runs in a synctest bubble so the drain window elapses on a fake
+// clock: the bounds are asserted exactly and independently of scheduling. No
+// gossip server is started because a lone node has no peers to talk to, and
+// real network I/O would stop the fake clock from advancing.
 func TestStop(t *testing.T) {
 	t.Parallel()
 
-	const window = 50 * time.Millisecond
+	synctest.Test(t, func(t *testing.T) {
+		const window = 50 * time.Millisecond
 
-	lis, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
+		r, err := NewRingNode(RingConfig{
+			Name:          "stop-node",
+			AdvertiseAddr: "127.0.0.1:1",
+			Client:        NewGossipClient(),
+		}, nil)
+		require.NoError(t, err)
 
-	r, err := NewRingNode(RingConfig{
-		Name:          "stop-node",
-		AdvertiseAddr: lis.Addr().String(),
-		Client:        NewGossipClient(),
-	}, nil)
-	require.NoError(t, err)
+		_, err = r.join()
+		require.NoError(t, err)
+		require.NoError(t, r.setParticipant(context.Background()))
 
-	route, h := r.Handler()
+		ctx, cancel := context.WithTimeout(context.Background(), window)
+		defer cancel()
 
-	srv := NewGossipServer(route, h)
-	defer func() { _ = srv.Shutdown(context.Background()) }()
+		var (
+			stopErr error
+			stopped atomic.Bool
+		)
 
-	go func() { _ = srv.Run(lis) }()
+		start := time.Now()
 
-	_, err = r.join()
-	require.NoError(t, err)
-	require.NoError(t, r.setParticipant(context.Background()))
+		go func() {
+			stopErr = r.Stop(ctx)
 
-	ctx, cancel := context.WithTimeout(context.Background(), window)
-	defer cancel()
+			stopped.Store(true)
+		}()
 
-	start := time.Now()
+		// Stop must keep running through the drain window before leaving.
+		time.Sleep(window - time.Nanosecond)
+		synctest.Wait()
+		require.False(t, stopped.Load(), "Stop returned before the drain window elapsed")
 
-	require.NoError(t, r.Stop(ctx))
+		time.Sleep(time.Nanosecond)
+		synctest.Wait()
+		require.True(t, stopped.Load(), "Stop did not return once the drain window elapsed")
+		require.NoError(t, stopErr)
 
-	elapsed := time.Since(start)
-	require.GreaterOrEqual(t, elapsed, window,
-		"Stop must keep running through the drain window before leaving")
-	require.Less(t, elapsed, drainTimeout,
-		"ctx must bound the drain window")
+		// The caller's ctx must bound the drain window, not drainTimeout.
+		require.Equal(t, window, time.Since(start))
+	})
 }
 
 // TestRingNodeMetrics verifies the cluster size and ring-ready gauges registered
