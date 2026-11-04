@@ -30,6 +30,7 @@ require (
 	github.com/KimMachineGun/automemlimit v0.7.5
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
+	github.com/alicebob/miniredis/v2 v2.40.0
 	github.com/bradfitz/gomemcache v0.0.0-20260422231931-4d751bb6e37c
 	github.com/felixge/httpsnoop v1.1.0
 	github.com/go-kit/log v0.2.1
@@ -44,6 +45,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
+	github.com/redis/go-redis/v9 v9.21.0
 	github.com/spf13/afero v1.15.0
 	github.com/tdewolff/parse/v2 v2.8.20
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
@@ -88,6 +90,7 @@ require (
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.64.1 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
