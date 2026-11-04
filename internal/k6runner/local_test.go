@@ -108,6 +108,7 @@ func TestBuildK6Args(t *testing.T) {
 		blacklistedIP string
 		configFile    string
 		executionID   string
+		httpDebug     string
 		wantArgs      []string
 		wantAbsent    []string
 	}{
@@ -197,11 +198,34 @@ func TestBuildK6Args(t *testing.T) {
 				"--log-ns-timestamps",
 			},
 		},
+		"http debug off by default": {
+			k6Version:  "v2.3.0",
+			wantAbsent: []string{"--http-debug", "--http-debug=full"},
+		},
+		"http debug headers": {
+			k6Version:  "v2.3.0",
+			httpDebug:  HTTPDebugHeaders,
+			wantArgs:   []string{"--http-debug"},
+			wantAbsent: []string{"--http-debug=full"},
+		},
+		"http debug full": {
+			k6Version:  "v2.3.0",
+			httpDebug:  HTTPDebugFull,
+			wantArgs:   []string{"--http-debug=full"},
+			wantAbsent: []string{"--http-debug"},
+		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			r := Local{blacklistedIP: tt.blacklistedIP}
+
+			if tt.httpDebug != "" {
+				r.httpDebug = new(HTTPDebug)
+				if err := r.httpDebug.Set(tt.httpDebug); err != nil {
+					t.Fatal(err)
+				}
+			}
 
 			args, err := r.buildK6Args(tt.script, semver.MustParse(tt.k6Version), tt.metricsFn, tt.logsFn, tt.scriptFn, tt.configFile, tt.executionID)
 			if err != nil {

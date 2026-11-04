@@ -127,6 +127,8 @@ type RunnerOpts struct {
 	// typed-nil makes the runner treat the pool as configured and panic on
 	// the first browser check.
 	BrowserPool BrowserPool
+	// HTTPDebug, if set, controls k6's --http-debug option for local runs.
+	HTTPDebug *HTTPDebug
 }
 
 func New(opts RunnerOpts) (Runner, error) {
@@ -168,6 +170,7 @@ func New(opts RunnerOpts) (Runner, error) {
 			blacklistedIP: opts.BlacklistedIP,
 			fs:            afero.NewOsFs(),
 			browserPool:   opts.BrowserPool,
+			httpDebug:     opts.HTTPDebug,
 		}
 	}
 

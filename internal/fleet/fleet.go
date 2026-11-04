@@ -2,8 +2,9 @@
 // so that the probe shows up in the Fleet Management collector inventory with
 // its attributes and health.
 //
-// This is a proof of concept: the agent only reports status. It does not
-// accept remote configuration, packages or commands from the server.
+// This is a proof of concept: the agent reports status, and accepts a small
+// allowlist of settings as remote configuration (see remoteconfig.go). It
+// does not accept packages or commands from the server.
 package fleet
 
 import (
@@ -59,6 +60,8 @@ type Opts struct {
 	// UID is generated on every start, which makes the probe show up as a new
 	// collector each time.
 	StateDir string
+	// K6HTTPDebug, if set, is changed by the k6_http_debug remote setting.
+	K6HTTPDebug K6HTTPDebug
 }
 
 // Agent reports the probe's identity and health to Fleet Management.
@@ -76,6 +79,14 @@ type Agent struct {
 	client    client.OpAMPClient
 	connected bool
 	probe     *sm.Probe
+
+	// Remote configuration state, guarded by rcMu.
+	stateDir     string
+	defaultLevel zerolog.Level
+	k6HTTPDebug  K6HTTPDebug
+	rcMu         sync.Mutex
+	rcHash       []byte
+	applied      remoteSettings
 }
 
 // New validates the options and loads (or creates) the instance UID.
@@ -111,6 +122,10 @@ func New(opts Opts) (*Agent, error) {
 		header:    http.Header{"Authorization": []string{"Basic " + auth}},
 		uid:       uid,
 		startTime: time.Now(),
+
+		stateDir:     opts.StateDir,
+		defaultLevel: zerolog.GlobalLevel(),
+		k6HTTPDebug:  opts.K6HTTPDebug,
 	}, nil
 }
 
@@ -128,7 +143,10 @@ func (a *Agent) Run(ctx context.Context) error {
 
 	capabilities := protobufs.AgentCapabilities_AgentCapabilities_ReportsStatus |
 		protobufs.AgentCapabilities_AgentCapabilities_ReportsHealth |
-		protobufs.AgentCapabilities_AgentCapabilities_ReportsHeartbeat
+		protobufs.AgentCapabilities_AgentCapabilities_ReportsHeartbeat |
+		protobufs.AgentCapabilities_AgentCapabilities_AcceptsRemoteConfig |
+		protobufs.AgentCapabilities_AgentCapabilities_ReportsRemoteConfig |
+		protobufs.AgentCapabilities_AgentCapabilities_ReportsEffectiveConfig
 	if err := c.SetCapabilities(&capabilities); err != nil {
 		a.mu.Unlock()
 		return fmt.Errorf("setting agent capabilities: %w", err)
@@ -158,6 +176,17 @@ func (a *Agent) Run(ctx context.Context) error {
 			},
 			OnError: func(_ context.Context, resp *protobufs.ServerErrorResponse) {
 				a.logger.Warn().Str("error", resp.GetErrorMessage()).Msg("fleet management returned an error")
+			},
+			OnMessage: func(ctx context.Context, msg *types.MessageData) {
+				if msg.RemoteConfig != nil {
+					a.handleRemoteConfig(ctx, c, msg.RemoteConfig)
+				}
+			},
+			GetEffectiveConfig: func(context.Context) (*protobufs.EffectiveConfig, error) {
+				a.rcMu.Lock()
+				defer a.rcMu.Unlock()
+
+				return a.effectiveConfig()
 			},
 		},
 	})
@@ -220,6 +249,13 @@ func (a *Agent) description() *protobufs.AgentDescription {
 	nonIdentifying := []*protobufs.KeyValue{
 		stringKV("os.type", runtime.GOOS),
 		stringKV("host.arch", runtime.GOARCH),
+		// Reported so that changes made through remote config are visible
+		// in the Fleet Management inventory.
+		stringKV("sm.agent.log_level", zerolog.GlobalLevel().String()),
+	}
+
+	if a.k6HTTPDebug != nil {
+		nonIdentifying = append(nonIdentifying, stringKV("sm.agent.k6_http_debug", a.k6HTTPDebug.Get()))
 	}
 
 	if hostname, err := os.Hostname(); err == nil {

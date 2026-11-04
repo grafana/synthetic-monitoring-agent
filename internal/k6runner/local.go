@@ -52,6 +52,8 @@ type Local struct {
 	// browserPool, if non-nil, provides remote browser sessions for browser
 	// checks. When nil, k6 launches Chromium locally as usual.
 	browserPool BrowserPool
+	// httpDebug, if non-nil, adds k6's --http-debug option to each run.
+	httpDebug *HTTPDebug
 }
 
 func (r Local) WithLogger(logger *zerolog.Logger) Runner {
@@ -392,6 +394,8 @@ func (r Local) buildK6Args(script Script, k6Version *semver.Version, metricsFn, 
 	if k6Version.Major() >= 2 {
 		args = append(args, "--log-ns-timestamps")
 	}
+
+	args = append(args, r.httpDebug.args()...)
 
 	// Add secretStore configuration if available
 	if configFile != "" {

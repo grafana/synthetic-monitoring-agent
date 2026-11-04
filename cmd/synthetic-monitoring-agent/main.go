@@ -354,7 +354,10 @@ func run(args []string, stdout io.Writer) error {
 	}
 	defer conn.Close()
 
-	var k6Runner k6runner.Runner
+	var (
+		k6Runner  k6runner.Runner
+		httpDebug *k6runner.HTTPDebug // only set when k6 is enabled
+	)
 
 	if features.IsSet(feature.K6) {
 		if err := validateCIDRs(config.K6BlacklistedIP); err != nil {
@@ -367,12 +370,15 @@ func run(args []string, stdout io.Writer) error {
 			return fmt.Errorf("building browser pool: %w", err)
 		}
 
+		httpDebug = new(k6runner.HTTPDebug)
+
 		k6Runner, err = k6runner.New(k6runner.RunnerOpts{
 			Uri:           config.K6URI,
 			Repository:    config.K6Repository,
 			BlacklistedIP: config.K6BlacklistedIP,
 			Registerer:    promRegisterer,
 			BrowserPool:   browserPool,
+			HTTPDebug:     httpDebug,
 		})
 		if err != nil {
 			return fmt.Errorf("building k6 runner: %w", err)
@@ -422,7 +428,7 @@ func run(args []string, stdout io.Writer) error {
 	if config.Fleet.enabled() {
 		zl.Warn().Msg("fleet management registration is experimental: the -fm-* flags and their behavior may change or be removed in future releases")
 
-		fleetAgent, err := buildFleetAgent(config.Fleet, zl.With().Str("subsystem", "fleet").Logger())
+		fleetAgent, err := buildFleetAgent(config.Fleet, zl.With().Str("subsystem", "fleet").Logger(), httpDebug)
 		if err != nil {
 			return fmt.Errorf("configuring fleet management: %w", err)
 		}
