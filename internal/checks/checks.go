@@ -24,6 +24,7 @@ import (
 
 	logproto "github.com/grafana/loki/pkg/push"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cluster"
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
@@ -55,8 +56,10 @@ const (
 	errTransportClosing    = TransientError("transport closing")
 )
 
-const metricNamespace = "sm_agent"
-const metricSubsystem = "updater"
+const (
+	metricNamespace = "sm_agent"
+	metricSubsystem = "updater"
+)
 
 // Backoffer defines an interface to provide backoff durations.
 //
@@ -100,6 +103,7 @@ type Updater struct {
 	tenantLabellingMode     *labelmode.LabelMode
 	supportsProtocolSecrets bool
 	isClusterEnabled        bool
+	scraperCache            cache.Cache
 }
 
 type apiInfo struct {
@@ -144,12 +148,20 @@ type UpdaterOptions struct {
 	LabellingMode           *labelmode.LabelMode
 	SupportsProtocolSecrets bool
 	IsClusterEnabled        bool
+	// ScraperCache is where scrapers persist their state across restarts and
+	// migrations. Passing nil means a NoopCache will be used.
+	ScraperCache cache.Cache
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	scraperFactory := scraper.New
 	if opts.ScraperFactory != nil {
 		scraperFactory = opts.ScraperFactory
+	}
+
+	scraperCache := opts.ScraperCache
+	if scraperCache == nil {
+		scraperCache = cache.NewNoop(opts.Logger)
 	}
 
 	c := &Updater{
@@ -177,6 +189,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		usageReporter:           opts.UsageReporter,
 		tenantCals:              opts.CostAttributionLabels,
 		tenantLabellingMode:     opts.LabellingMode,
+		scraperCache:            scraperCache,
 	}
 
 	if err := c.registerMetrics(opts.PromRegisterer); err != nil {

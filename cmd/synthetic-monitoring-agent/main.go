@@ -90,6 +90,7 @@ func run(args []string, stdout io.Writer) error {
 			CacheLocalCapacity        int
 			CacheLocalTTL             time.Duration
 			MemcachedServers          StringList
+			CacheScrapers             bool
 			EnableProtocolSecrets     bool
 			PushTelemetry             bool
 			MetricsInterval           time.Duration
@@ -147,6 +148,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.IntVar(&config.CacheLocalCapacity, "cache-local-capacity", config.CacheLocalCapacity, "maximum number of items in local cache")
 	flags.DurationVar(&config.CacheLocalTTL, "cache-local-ttl", config.CacheLocalTTL, "default TTL for local cache items")
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
+	flags.BoolVar(&config.CacheScrapers, "cache-scrapers", config.CacheScrapers, "[experimental] persist scraper state in the agent cache (see -cache-type) so scrapers resume their cadence after a restart or migration; needs a backend shared across restarts such as memcached, local and noop caches cannot carry state")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
 	flags.BoolVar(&config.BrowserPool.Enabled, "browser-pool-enabled", config.BrowserPool.Enabled, "[experimental] use remote browser sessions from an external browser (crocochrome) pool for browser checks instead of a local Chromium; requires -browser-pool-addresses")
@@ -282,7 +284,7 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	cacheClient, err := setupCache(
+	cacheClient, cacheKind, err := setupCache(
 		ctx,
 		config.CacheType,
 		config.MemcachedServers,
@@ -293,6 +295,10 @@ func run(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+
+	scraperCache := selectScraperCache(
+		config.CacheScrapers, cacheClient, cacheKind, zl.With().Str("subsystem", "scraper_cache").Logger(),
+	)
 
 	// to know if probe is connected to API
 	readynessHandler := NewReadynessHandler()
@@ -458,6 +464,7 @@ func run(args []string, stdout io.Writer) error {
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
 		IsClusterEnabled:        config.Cluster.Enabled,
 		Node:                    clusterNode,
+		ScraperCache:            scraperCache,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
@@ -643,9 +650,11 @@ func setupGoMemLimit(ratio float64) error {
 	return nil
 }
 
-func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) (cache.Cache, error) {
+// setupCache builds the agent cache and reports the backend it resolved to,
+// which can differ from cacheType through auto mode and fallbacks.
+func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) (cache.Cache, cache.Kind, error) {
 	// Determine effective cache type with auto mode logic:
-	// auto + servers provided -> memcached -> local -> noop
+	// auto + servers provided -> memcached (a client that cannot be built is fatal)
 	// auto + no servers -> local -> noop
 	effectiveType := cacheType
 	if cacheType == cache.KindAuto {
@@ -660,7 +669,10 @@ func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []st
 	case cache.KindMemcached:
 		if len(memcachedServers) == 0 {
 			logger.Warn().Msg("memcached type selected but no servers configured, falling back to local cache")
-			return setupLocalCache(localCapacity, localTTL, logger), nil
+
+			local, kind := setupLocalCache(localCapacity, localTTL, logger)
+
+			return local, kind, nil
 		}
 
 		cacheConfig := cache.MemcachedConfig{
@@ -676,32 +688,36 @@ func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []st
 				Strs("servers", memcachedServers).
 				Msg("failed to initialize memcached cache")
 
-			return nil, fmt.Errorf("failed to initialize memcached client: %w", err)
+			return nil, "", fmt.Errorf("failed to initialize memcached client: %w", err)
 		}
 
 		logger.Info().
 			Strs("servers", memcachedServers).
 			Msg("memcached cache initialized")
 
-		return cacheClient, nil
+		return cacheClient, cache.KindMemcached, nil
 
 	case cache.KindLocal:
-		return setupLocalCache(localCapacity, localTTL, logger), nil
+		local, kind := setupLocalCache(localCapacity, localTTL, logger)
+
+		return local, kind, nil
 
 	case cache.KindNoop:
 		logger.Debug().Msg("noop cache selected")
-		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger()), nil
+		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger()), cache.KindNoop, nil
 
 	default:
 		logger.Warn().
 			Stringer("type", effectiveType).
 			Msg("unknown cache type, falling back to local cache")
 
-		return setupLocalCache(localCapacity, localTTL, logger), nil
+		local, kind := setupLocalCache(localCapacity, localTTL, logger)
+
+		return local, kind, nil
 	}
 }
 
-func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) cache.Cache {
+func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) (cache.Cache, cache.Kind) {
 	localConfig := cache.LocalConfig{
 		MaxCapacity:     capacity,
 		InitialCapacity: capacity / 10, // 10% of max as initial capacity
@@ -717,7 +733,7 @@ func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) ca
 			Dur("ttl", ttl).
 			Msg("failed to initialize local cache, using noop cache")
 
-		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger())
+		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger()), cache.KindNoop
 	}
 
 	logger.Info().
@@ -725,5 +741,28 @@ func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) ca
 		Dur("ttl", ttl).
 		Msg("local cache initialized")
 
-	return localCache
+	return localCache, cache.KindLocal
+}
+
+// selectScraperCache picks the cache scrapers persist their state in. With
+// -cache-scrapers off it is a dedicated noop, so scraper code can use it
+// unconditionally. With the flag on it is the agent's own cache, shared with
+// the tenants manager (the same client instance, not a copy; the two never
+// share keys). The warnings flag backends that defeat the purpose, since a
+// cache that does not outlive the process cannot carry state across a restart.
+func selectScraperCache(enabled bool, agentCache cache.Cache, agentKind cache.Kind, logger zerolog.Logger) cache.Cache {
+	if !enabled {
+		return cache.NewNoop(logger)
+	}
+
+	switch agentKind {
+	case cache.KindLocal:
+		logger.Warn().Msg("-cache-scrapers is set but the agent cache is in-process; scraper state will not survive a restart")
+	case cache.KindNoop:
+		logger.Warn().Msg("-cache-scrapers is set but the agent cache is a no-op; scraper state is not cached")
+	default:
+		logger.Info().Stringer("backend", agentKind).Msg("scraper cache enabled")
+	}
+
+	return agentCache
 }
