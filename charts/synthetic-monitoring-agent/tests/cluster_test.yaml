@@ -22,6 +22,13 @@ tests:
           path: spec.replicas
           value: 3
       - equal:
+          path: spec.strategy
+          value:
+            type: RollingUpdate
+            rollingUpdate:
+              maxSurge: 1
+              maxUnavailable: 0
+      - equal:
           path: spec.template.spec.containers[0].args
           value:
             - --api-server-address=synthetic-monitoring-grpc-eu-west-3.grafana.net:443

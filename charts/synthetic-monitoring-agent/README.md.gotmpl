@@ -71,6 +71,15 @@ cluster name to the release full name, the prefix of every resource name. Every 
 probe token. `replicas` above 1 requires `cluster.enabled`, because without clustering every agent runs every check of
 the probe.
 
+Upgrades replace clustered agents one at a time. A single agent is stopped before its replacement starts, because the
+API accepts only one connection per probe from an agent without clustering. The probe is offline while the agent
+restarts.
+
+> [!WARNING]
+> To switch a single agent to a cluster, upgrade with `replicas: 0` first, then with the cluster values. A direct
+> `helm upgrade` never completes: the API rejects the clustered agents while the single agent is connected, so they
+> don't become ready and the single agent is never stopped. The probe is offline between the two upgrades.
+
 ### Cluster security
 
 Cluster traffic is plaintext HTTP/2, and agents don't authenticate each other: `cluster.name` only prevents accidental

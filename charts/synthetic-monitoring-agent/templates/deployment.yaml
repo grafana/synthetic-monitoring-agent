@@ -10,12 +10,19 @@ spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicas }}
   {{- end }}
+  {{- if .Values.cluster.enabled }}
   # Start the new agent before stopping an old one, so a rollout never runs fewer agents than replicas.
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 0
+  {{- else }}
+  # The API accepts one connection per probe from an agent without clustering, so the new agent can only connect after
+  # the old one stops.
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "sm-agent.selectorLabels" (dict "ctx" . "component" "agent") | nindent 6 }}
