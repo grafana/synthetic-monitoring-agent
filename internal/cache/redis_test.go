@@ -361,3 +361,14 @@ func TestRedisOptionsSentinel(t *testing.T) {
 		require.Equal(t, DefaultTimeout, opts.WriteTimeout)
 	})
 }
+
+func TestNewRedisClientRejectsClusterShape(t *testing.T) {
+	// go-redis builds a Redis Cluster client for several addresses without a
+	// sentinel master name; this package supports standalone and sentinel only.
+	_, err := NewRedisClient(t.Context(), RedisConfig{
+		Addrs:  []string{"127.0.0.1:6379", "127.0.0.1:6380"},
+		Logger: testLogger(),
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "sentinel master name")
+}

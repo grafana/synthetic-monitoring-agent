@@ -37,6 +37,9 @@ type RedisClient struct {
 	logger zerolog.Logger
 }
 
+// KindRedis names the Redis backend. It is a valid -cache-type value so the
+// tenants cache can move to Redis later, but until that wiring exists the
+// agent refuses it at startup instead of falling back to another backend.
 const KindRedis Kind = "redis"
 
 // Ensure RedisClient implements Cache interface at compile time
@@ -66,6 +69,12 @@ func NewRedisClient(ctx context.Context, cfg RedisConfig) (*RedisClient, error) 
 	}
 
 	cfg.Addrs = addrs
+
+	// NewUniversalClient treats several addresses without a master name as a
+	// Redis Cluster; this client supports a standalone server or sentinel only.
+	if cfg.MasterName == "" && len(cfg.Addrs) > 1 {
+		return nil, fmt.Errorf("%d redis addresses given without a sentinel master name; Redis Cluster is not supported", len(cfg.Addrs))
+	}
 
 	opts := redisOptions(cfg)
 	rdb := redis.NewUniversalClient(opts)

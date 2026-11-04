@@ -692,6 +692,11 @@ func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []st
 		logger.Debug().Msg("noop cache selected")
 		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger()), nil
 
+	case cache.KindRedis:
+		// Accepted by the flag so the tenants cache can migrate later; refusing
+		// here beats silently running on a different backend than configured.
+		return nil, fmt.Errorf("cache type %q is not supported for the tenants cache yet", effectiveType)
+
 	default:
 		logger.Warn().
 			Stringer("type", effectiveType).
