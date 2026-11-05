@@ -55,7 +55,7 @@ func TestNewUpdaterScraperCache(t *testing.T) {
 
 		u, err := NewUpdater(opts)
 		require.NoError(t, err)
-		require.IsType(t, scraper.NoopStateWriter{}, u.stateWriter)
+		require.IsType(t, scraper.NoopStateCache{}, u.stateCache)
 		require.Empty(t, cacheMetricNames(t, opts.PromRegisterer.(prometheus.Gatherer)))
 	})
 
@@ -66,8 +66,8 @@ func TestNewUpdaterScraperCache(t *testing.T) {
 
 		u, err := NewUpdater(opts)
 		require.NoError(t, err)
-		require.NotNil(t, u.stateWriter)
-		require.IsType(t, scraper.NewStateWriter(opts.ScraperCache, prometheus.NewPedanticRegistry(), opts.Logger), u.stateWriter)
+		require.NotNil(t, u.stateCache)
+		require.IsType(t, scraper.NewStateCache(opts.ScraperCache, prometheus.NewPedanticRegistry(), opts.Logger), u.stateCache)
 		require.ElementsMatch(t,
 			[]string{metricPrefix + "record_bytes", metricPrefix + "writes_total"},
 			cacheMetricNames(t, opts.PromRegisterer.(prometheus.Gatherer)),

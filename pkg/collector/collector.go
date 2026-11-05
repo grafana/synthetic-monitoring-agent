@@ -86,7 +86,7 @@ func New(ctx context.Context, check sm.Check, probe sm.Probe, supplied Probe, co
 		Telemeter:             noopTelemeter{},
 		CostAttributionLabels: noopTenantCals{},
 		LabellingMode:         staticLabellingMode{mode: opts.labelMode},
-		StateWriter:           scraper.NoopStateWriter{},
+		StateCache:            scraper.NoopStateCache{},
 	})
 	if err != nil {
 		cancel()

@@ -80,7 +80,7 @@ func stateTestSeries() TimeSeries {
 	}
 }
 
-func writesFor(w *stateWriter, result string) float64 {
+func writesFor(w *stateCache, result string) float64 {
 	return testutil.ToFloat64(w.metrics.writes.WithLabelValues(result))
 }
 
@@ -144,15 +144,15 @@ func TestStatePayloadRoundTrip(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestNoopStateWriter(t *testing.T) {
-	var w StateWriter = NoopStateWriter{}
+func TestNoopStateCache(t *testing.T) {
+	var w StateCache = NoopStateCache{}
 
 	// Nothing to assert beyond "returns": the noop has no store, no metrics
 	// and no registry to register them with.
 	w.Store(context.Background(), stateTestCheck(t, 5*time.Minute), time.Now().Add(5*time.Minute), stateTestSeries())
 }
 
-func TestStateWriterStore(t *testing.T) {
+func TestStateCacheStore(t *testing.T) {
 	type testcase struct {
 		frequency   time.Duration
 		firedAtAgo  time.Duration
@@ -185,7 +185,7 @@ func TestStateWriterStore(t *testing.T) {
 			store := &fakeStateStore{err: tc.storeErr}
 
 			reg := prometheus.NewPedanticRegistry()
-			w := newStateWriter(store, reg, zerolog.Nop())
+			w := newStateCache(store, reg, zerolog.Nop())
 
 			check := stateTestCheck(t, tc.frequency)
 			series := stateTestSeries()

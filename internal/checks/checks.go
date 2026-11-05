@@ -103,7 +103,7 @@ type Updater struct {
 	tenantLabellingMode     *labelmode.LabelMode
 	supportsProtocolSecrets bool
 	isClusterEnabled        bool
-	stateWriter             scraper.StateWriter
+	stateCache              scraper.StateCache
 }
 
 type apiInfo struct {
@@ -162,14 +162,14 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		scraperFactory = opts.ScraperFactory
 	}
 
-	var stateWriter scraper.StateWriter = scraper.NoopStateWriter{}
+	var stateCache scraper.StateCache = scraper.NoopStateCache{}
 
 	if opts.CacheScrapers {
 		if opts.ScraperCache == nil {
 			return nil, errScraperCacheRequired
 		}
 
-		stateWriter = scraper.NewStateWriter(
+		stateCache = scraper.NewStateCache(
 			opts.ScraperCache, opts.PromRegisterer, opts.Logger.With().Str("subsystem", "scraper_cache").Logger(),
 		)
 	}
@@ -199,7 +199,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		usageReporter:           opts.UsageReporter,
 		tenantCals:              opts.CostAttributionLabels,
 		tenantLabellingMode:     opts.LabellingMode,
-		stateWriter:             stateWriter,
+		stateCache:              stateCache,
 	}
 
 	if err := c.registerMetrics(opts.PromRegisterer); err != nil {
@@ -866,7 +866,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		metrics,
 		c.k6Runner,
 		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals, c.tenantLabellingMode,
-		c.stateWriter,
+		c.stateCache,
 	)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
