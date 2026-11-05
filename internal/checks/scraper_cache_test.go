@@ -17,11 +17,11 @@ import (
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
-type testStateWriter struct{}
+type testStateCache struct{}
 
-func (*testStateWriter) Store(context.Context, model.Check, time.Time, scraper.TimeSeries) {}
+func (*testStateCache) Store(context.Context, model.Check, time.Time, scraper.TimeSeries) {}
 
-func TestNewUpdaterStateWriter(t *testing.T) {
+func TestNewUpdaterStateCache(t *testing.T) {
 	base := func(t *testing.T) UpdaterOptions {
 		t.Helper()
 
@@ -38,17 +38,17 @@ func TestNewUpdaterStateWriter(t *testing.T) {
 	t.Run("unset hands scrapers a noop writer", func(t *testing.T) {
 		u, err := NewUpdater(base(t))
 		require.NoError(t, err)
-		require.IsType(t, scraper.NoopStateWriter{}, u.stateWriter)
+		require.IsType(t, scraper.NoopStateCache{}, u.stateCache)
 	})
 
 	t.Run("set hands scrapers the caller's writer", func(t *testing.T) {
-		writer := &testStateWriter{}
+		writer := &testStateCache{}
 
 		opts := base(t)
-		opts.StateWriter = writer
+		opts.StateCache = writer
 
 		u, err := NewUpdater(opts)
 		require.NoError(t, err)
-		require.Same(t, writer, u.stateWriter)
+		require.Same(t, writer, u.stateCache)
 	})
 }

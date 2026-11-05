@@ -61,23 +61,23 @@ func newStateDecoder() *zstd.Decoder {
 	return dec
 }
 
-// StateWriter persists a scraper's state for its successor. A scraper calls
+// StateCache persists a scraper's state for its successor. A scraper calls
 // Store after every execution it is eligible for and never asks whether
 // anything is listening: an agent without a scraper cache hands out a
-// NoopStateWriter, so the decision is made once, where the cache is configured.
-type StateWriter interface {
+// NoopStateCache, so the decision is made once, where the cache is configured.
+type StateCache interface {
 	// Store records the payload published for check together with nextFire,
 	// the check's next regular tick.
 	Store(ctx context.Context, check model.Check, nextFire time.Time, ts TimeSeries)
 }
 
-// NoopStateWriter is the StateWriter of an agent that does not cache scraper
+// NoopStateCache is the StateCache of an agent that does not cache scraper
 // state. It registers no metrics and costs nothing per call.
-type NoopStateWriter struct{}
+type NoopStateCache struct{}
 
-func (NoopStateWriter) Store(context.Context, model.Check, time.Time, TimeSeries) {}
+func (NoopStateCache) Store(context.Context, model.Check, time.Time, TimeSeries) {}
 
-// stateWriter persists scraper state in a cache shared across restarts and
+// stateCache persists scraper state in a cache shared across restarts and
 // reports each outcome as a metric.
 //
 // Store is synchronous by design. It runs on the scraper's own goroutine after
@@ -88,7 +88,7 @@ func (NoopStateWriter) Store(context.Context, model.Check, time.Time, TimeSeries
 // client does not watch it.
 // Every scraper is already a goroutine, so this costs no new ones; concurrency is
 // naturally bounded by the number of scrapers finishing in the same window.
-type stateWriter struct {
+type stateCache struct {
 	store StateStore
 	// A single encoder and decoder serve all the scrapers. EncodeAll and DecodeAll are
 	// safe for concurrent use; with WithEncoderConcurrency(1) concurrent encodes
@@ -98,38 +98,38 @@ type stateWriter struct {
 	// number of scrapers.
 	encoder *zstd.Encoder
 	decoder *zstd.Decoder
-	metrics stateWriterMetrics
+	metrics stateCacheMetrics
 	logger  zerolog.Logger
 }
 
-type stateWriterMetrics struct {
+type stateCacheMetrics struct {
 	writes      *prometheus.CounterVec
 	recordBytes prometheus.Histogram
 }
 
-// NewStateWriter returns a writer backed by store, which must not be nil, and
+// NewStateCache returns a writer backed by store, which must not be nil, and
 // registers its metrics with reg.
-func NewStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) *stateWriter {
-	return &stateWriter{
+func NewStateCache(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) *stateCache {
+	return &stateCache{
 		store:   store,
 		encoder: newStateEncoder(),
 		decoder: newStateDecoder(),
-		metrics: newStateWriterMetrics(reg),
+		metrics: newStateCacheMetrics(reg),
 		logger:  logger,
 	}
 }
 
-func (w *stateWriter) encode(ts TimeSeries) ([]byte, error) {
+func (c *stateCache) encode(ts TimeSeries) ([]byte, error) {
 	data, err := (&prompb.WriteRequest{Timeseries: ts}).Marshal()
 	if err != nil {
 		return nil, fmt.Errorf("marshaling write request: %w", err)
 	}
 
-	return w.encoder.EncodeAll(data, nil), nil
+	return c.encoder.EncodeAll(data, nil), nil
 }
 
-func (w *stateWriter) decode(b []byte) (TimeSeries, error) {
-	data, err := w.decoder.DecodeAll(b, nil)
+func (c *stateCache) decode(b []byte) (TimeSeries, error) {
+	data, err := c.decoder.DecodeAll(b, nil)
 	if err != nil {
 		return nil, fmt.Errorf("decompressing write request: %w", err)
 	}
@@ -143,8 +143,8 @@ func (w *stateWriter) decode(b []byte) (TimeSeries, error) {
 	return req.Timeseries, nil
 }
 
-func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
-	m := stateWriterMetrics{
+func newStateCacheMetrics(reg prometheus.Registerer) stateCacheMetrics {
+	m := stateCacheMetrics{
 		writes: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "sm_agent",
 			Subsystem: "scraper_cache",
@@ -174,39 +174,39 @@ func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
 // Whether a check's state is worth persisting at all is the scraper's decision
 // (see Scraper.persistState); Store only skips records whose TTL is already
 // non-positive.
-func (w *stateWriter) Store(ctx context.Context, check model.Check, nextFire time.Time, ts TimeSeries) {
+func (c *stateCache) Store(ctx context.Context, check model.Check, nextFire time.Time, ts TimeSeries) {
 	// Not an error: a record that would already have expired cannot help a
 	// successor, and a zero expiration would mean "keep forever" to the cache.
 	ttl := time.Until(nextFire.Add(stateSlack))
 	if ttl <= 0 {
-		w.metrics.writes.WithLabelValues(stateResultSkippedExpired).Inc()
+		c.metrics.writes.WithLabelValues(stateResultSkippedExpired).Inc()
 
 		return
 	}
 
 	key := stateKey(check)
 
-	payload, err := w.encode(ts)
+	payload, err := c.encode(ts)
 	if err != nil {
-		w.metrics.writes.WithLabelValues(stateResultError).Inc()
-		w.logger.Warn().Err(err).Str("key", key).Msg("encoding scraper state")
+		c.metrics.writes.WithLabelValues(stateResultError).Inc()
+		c.logger.Warn().Err(err).Str("key", key).Msg("encoding scraper state")
 
 		return
 	}
 
-	w.metrics.recordBytes.Observe(float64(len(payload)))
+	c.metrics.recordBytes.Observe(float64(len(payload)))
 
 	record := StateRecord{
 		NextFire: nextFire,
 		Payload:  payload,
 	}
 
-	if err := w.store.Set(ctx, key, record, ttl); err != nil {
-		w.metrics.writes.WithLabelValues(stateResultError).Inc()
-		w.logger.Warn().Err(err).Str("key", key).Msg("storing scraper state")
+	if err := c.store.Set(ctx, key, record, ttl); err != nil {
+		c.metrics.writes.WithLabelValues(stateResultError).Inc()
+		c.logger.Warn().Err(err).Str("key", key).Msg("storing scraper state")
 
 		return
 	}
 
-	w.metrics.writes.WithLabelValues(stateResultOK).Inc()
+	c.metrics.writes.WithLabelValues(stateResultOK).Inc()
 }

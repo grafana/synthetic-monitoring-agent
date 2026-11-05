@@ -80,7 +80,7 @@ func stateTestSeries() TimeSeries {
 	}
 }
 
-func writesFor(w *stateWriter, result string) float64 {
+func writesFor(w *stateCache, result string) float64 {
 	return testutil.ToFloat64(w.metrics.writes.WithLabelValues(result))
 }
 
@@ -130,7 +130,7 @@ func TestStateKey(t *testing.T) {
 }
 
 func TestStatePayloadRoundTrip(t *testing.T) {
-	w := NewStateWriter(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	w := NewStateCache(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
 	in := stateTestSeries()
 
 	encoded, err := w.encode(in)
@@ -145,15 +145,15 @@ func TestStatePayloadRoundTrip(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestNoopStateWriter(t *testing.T) {
-	var w StateWriter = NoopStateWriter{}
+func TestNoopStateCache(t *testing.T) {
+	var w StateCache = NoopStateCache{}
 
 	// Nothing to assert beyond "returns": the noop has no store, no metrics
 	// and no registry to register them with.
 	w.Store(context.Background(), stateTestCheck(t, 5*time.Minute), time.Now().Add(5*time.Minute), stateTestSeries())
 }
 
-func TestStateWriterStore(t *testing.T) {
+func TestStateCacheStore(t *testing.T) {
 	type testcase struct {
 		frequency   time.Duration
 		firedAtAgo  time.Duration
@@ -186,7 +186,7 @@ func TestStateWriterStore(t *testing.T) {
 			store := &fakeStateStore{err: tc.storeErr}
 
 			reg := prometheus.NewPedanticRegistry()
-			w := NewStateWriter(store, reg, zerolog.Nop())
+			w := NewStateCache(store, reg, zerolog.Nop())
 
 			check := stateTestCheck(t, tc.frequency)
 			series := stateTestSeries()
@@ -269,7 +269,7 @@ func benchStateSeries(b *testing.B, target int) (TimeSeries, int) {
 }
 
 func BenchmarkEncodeStatePayload(b *testing.B) {
-	w := NewStateWriter(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	w := NewStateCache(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
 
 	for _, bc := range benchPayloadSizes {
 		b.Run(bc.name, func(b *testing.B) {
@@ -311,7 +311,7 @@ func BenchmarkEncodeStatePayload(b *testing.B) {
 }
 
 func BenchmarkDecodeStatePayload(b *testing.B) {
-	w := NewStateWriter(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	w := NewStateCache(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
 
 	for _, bc := range benchPayloadSizes {
 		b.Run(bc.name, func(b *testing.B) {

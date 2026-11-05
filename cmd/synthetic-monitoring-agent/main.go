@@ -291,7 +291,7 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	stateWriter := newScraperStateWriter(config.CacheScrapers, cacheClient, promRegisterer, zl)
+	stateCache := newScraperStateCache(config.CacheScrapers, cacheClient, promRegisterer, zl)
 
 	// to know if probe is connected to API
 	readynessHandler := NewReadynessHandler()
@@ -456,7 +456,7 @@ func run(args []string, stdout io.Writer) error {
 		LabellingMode:         labelmode.New(tm),
 		IsClusterEnabled:      config.Cluster.Enabled,
 		Node:                  clusterNode,
-		StateWriter:           stateWriter,
+		StateCache:            stateCache,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
@@ -642,21 +642,21 @@ func setupGoMemLimit(ratio float64) error {
 	return nil
 }
 
-// newScraperStateWriter returns what scrapers persist their state with: a
+// newScraperStateCache returns what scrapers persist their state with: a
 // writer backed by the agent cache when -cache-scrapers is set and that cache
 // outlives the agent, a no-op otherwise.
-func newScraperStateWriter(enabled bool, agentCache cache.Cache, reg prometheus.Registerer, logger zerolog.Logger) scraper.StateWriter {
+func newScraperStateCache(enabled bool, agentCache cache.Cache, reg prometheus.Registerer, logger zerolog.Logger) scraper.StateCache {
 	if !enabled {
-		return scraper.NoopStateWriter{}
+		return scraper.NoopStateCache{}
 	}
 
 	if !agentCache.Durable() {
 		logger.Warn().Msg("-cache-scrapers needs a cache that outlives the agent (memcached); scraper state caching disabled")
 
-		return scraper.NoopStateWriter{}
+		return scraper.NoopStateCache{}
 	}
 
-	return scraper.NewStateWriter(agentCache, reg, logger.With().Str("subsystem", "scraper_cache").Logger())
+	return scraper.NewStateCache(agentCache, reg, logger.With().Str("subsystem", "scraper_cache").Logger())
 }
 
 func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) (cache.Cache, error) {
