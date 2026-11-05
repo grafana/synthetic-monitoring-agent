@@ -66,7 +66,10 @@ func TestNewUpdaterScraperCache(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, u.stateCache.Enabled())
 		require.ElementsMatch(t,
-			[]string{metricPrefix + "record_bytes", metricPrefix + "writes_total"},
+			[]string{
+				metricPrefix + "record_bytes", metricPrefix + "writes_total",
+				metricPrefix + "record_age_seconds", metricPrefix + "reads_total",
+			},
 			cacheMetricNames(t, opts.PromRegisterer.(prometheus.Gatherer)),
 		)
 	})
