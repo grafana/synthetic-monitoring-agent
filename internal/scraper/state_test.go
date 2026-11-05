@@ -88,7 +88,7 @@ func stateTestSeries() TimeSeries {
 	}
 }
 
-func writesFor(w *StateWriter, result string) float64 {
+func writesFor(w *StateCache, result string) float64 {
 	return testutil.ToFloat64(w.metrics.writes.WithLabelValues(result))
 }
 
@@ -152,9 +152,9 @@ func TestStatePayloadRoundTrip(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestStateWriterDisabled(t *testing.T) {
+func TestStateCacheDisabled(t *testing.T) {
 	reg := prometheus.NewPedanticRegistry()
-	w := NewStateWriter(nil, reg, zerolog.Nop())
+	w := NewStateCache(nil, reg, zerolog.Nop())
 
 	require.False(t, w.Enabled())
 
@@ -165,7 +165,7 @@ func TestStateWriterDisabled(t *testing.T) {
 	require.Empty(t, mfs, "a disabled writer registers no metrics")
 }
 
-func TestStateWriterStore(t *testing.T) {
+func TestStateCacheStore(t *testing.T) {
 	type testcase struct {
 		frequency   time.Duration
 		firedAtAgo  time.Duration
@@ -198,7 +198,7 @@ func TestStateWriterStore(t *testing.T) {
 			store := &fakeStateStore{err: tc.storeErr}
 
 			reg := prometheus.NewPedanticRegistry()
-			w := NewStateWriter(store, reg, zerolog.Nop())
+			w := NewStateCache(store, reg, zerolog.Nop())
 			require.True(t, w.Enabled())
 
 			check := stateTestCheck(t, tc.frequency)
@@ -240,10 +240,10 @@ func TestStateWriterStore(t *testing.T) {
 	}
 }
 
-func TestStateWriterStoreTimesOut(t *testing.T) {
+func TestStateCacheStoreTimesOut(t *testing.T) {
 	store := &fakeStateStore{blockUntilDone: true}
 
-	w := NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	w := NewStateCache(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
 	w.timeout = 20 * time.Millisecond
 
 	start := time.Now()
@@ -257,10 +257,10 @@ func TestStateWriterStoreTimesOut(t *testing.T) {
 	require.Equal(t, 0.0, writesFor(w, "ok"))
 }
 
-func TestStateWriterStoreCancelledContext(t *testing.T) {
+func TestStateCacheStoreCancelledContext(t *testing.T) {
 	store := &fakeStateStore{blockUntilDone: true}
 
-	w := NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	w := NewStateCache(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

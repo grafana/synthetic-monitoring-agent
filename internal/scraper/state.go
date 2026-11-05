@@ -100,7 +100,7 @@ func decodeStatePayload(b []byte) (TimeSeries, error) {
 	return req.Timeseries, nil
 }
 
-// StateWriter persists scraper state for every scraper in the agent. It owns
+// StateCache persists scraper state for every scraper in the agent. It owns
 // the per-write timeout and the metrics reporting each outcome, so a scraper
 // only ever calls Store.
 //
@@ -110,38 +110,38 @@ func decodeStatePayload(b []byte) (TimeSeries, error) {
 // at most the write timeout.
 // Every scraper is already a goroutine, so this costs no new ones; concurrency is
 // naturally bounded by the number of scrapers finishing in the same window.
-type StateWriter struct {
+type StateCache struct {
 	store   StateStore
 	timeout time.Duration
-	metrics stateWriterMetrics
+	metrics stateCacheMetrics
 	logger  zerolog.Logger
 }
 
-type stateWriterMetrics struct {
+type stateCacheMetrics struct {
 	writes      *prometheus.CounterVec
 	recordBytes prometheus.Histogram
 }
 
-// NewStateWriter returns a writer backed by store. A nil store yields a
+// NewStateCache returns a writer backed by store. A nil store yields a
 // disabled writer: Store returns immediately and no metrics are registered.
-func NewStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) *StateWriter {
-	w := &StateWriter{
+func NewStateCache(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) *StateCache {
+	c := &StateCache{
 		store:  store,
 		logger: logger,
 	}
 
 	if store == nil {
-		return w
+		return c
 	}
 
-	w.timeout = stateWriteTimeout
-	w.metrics = newStateWriterMetrics(reg)
+	c.timeout = stateWriteTimeout
+	c.metrics = newStateCacheMetrics(reg)
 
-	return w
+	return c
 }
 
-func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
-	m := stateWriterMetrics{
+func newStateCacheMetrics(reg prometheus.Registerer) stateCacheMetrics {
+	m := stateCacheMetrics{
 		writes: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Namespace: "sm_agent",
 			Subsystem: "scraper_cache",
@@ -165,8 +165,8 @@ func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
 }
 
 // Enabled reports whether Store persists anything.
-func (w *StateWriter) Enabled() bool {
-	return w.store != nil
+func (c *StateCache) Enabled() bool {
+	return c.store != nil
 }
 
 // Store records the payload published for check and the check's next regular
@@ -174,8 +174,8 @@ func (w *StateWriter) Enabled() bool {
 // state is worth persisting at all is the scraper's decision (see
 // Scraper.persistState); Store only skips records whose TTL is already
 // non-positive.
-func (w *StateWriter) Store(ctx context.Context, check model.Check, nextFire time.Time, ts TimeSeries) {
-	if !w.Enabled() {
+func (c *StateCache) Store(ctx context.Context, check model.Check, nextFire time.Time, ts TimeSeries) {
+	if !c.Enabled() {
 		return
 	}
 
@@ -183,7 +183,7 @@ func (w *StateWriter) Store(ctx context.Context, check model.Check, nextFire tim
 	// successor, and a zero expiration would mean "keep forever" to the cache.
 	ttl := time.Until(nextFire.Add(stateSlack))
 	if ttl <= 0 {
-		w.metrics.writes.WithLabelValues(stateResultSkippedExpired).Inc()
+		c.metrics.writes.WithLabelValues(stateResultSkippedExpired).Inc()
 
 		return
 	}
@@ -192,13 +192,13 @@ func (w *StateWriter) Store(ctx context.Context, check model.Check, nextFire tim
 
 	payload, err := encodeStatePayload(ts)
 	if err != nil {
-		w.metrics.writes.WithLabelValues(stateResultError).Inc()
-		w.logger.Warn().Err(err).Str("key", key).Msg("encoding scraper state")
+		c.metrics.writes.WithLabelValues(stateResultError).Inc()
+		c.logger.Warn().Err(err).Str("key", key).Msg("encoding scraper state")
 
 		return
 	}
 
-	w.metrics.recordBytes.Observe(float64(len(payload)))
+	c.metrics.recordBytes.Observe(float64(len(payload)))
 
 	record := StateRecord{
 		NextFire: nextFire,
@@ -208,15 +208,15 @@ func (w *StateWriter) Store(ctx context.Context, check model.Check, nextFire tim
 	// ctx is the scraper's context. Stop() (check deleted, updated or moved to
 	// another probe) does not cancel it, so the write completes; it is only
 	// cancelled when the process is shutting down, and then the record is moot.
-	ctx, cancel := context.WithTimeout(ctx, w.timeout)
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 
-	if err := w.store.Set(ctx, key, record, ttl); err != nil {
-		w.metrics.writes.WithLabelValues(stateResultError).Inc()
-		w.logger.Warn().Err(err).Str("key", key).Msg("storing scraper state")
+	if err := c.store.Set(ctx, key, record, ttl); err != nil {
+		c.metrics.writes.WithLabelValues(stateResultError).Inc()
+		c.logger.Warn().Err(err).Str("key", key).Msg("storing scraper state")
 
 		return
 	}
 
-	w.metrics.writes.WithLabelValues(stateResultOK).Inc()
+	c.metrics.writes.WithLabelValues(stateResultOK).Inc()
 }

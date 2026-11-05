@@ -102,9 +102,9 @@ type Scraper struct {
 	histograms    map[uint64]prometheus.Histogram
 	telemeter     Telemeter
 	cals          TenantCals
-	// stateWriter is always non-nil, but only enabled if passed an operable cache.
-	stateWriter *StateWriter
-	// persistState is true if the stateWriter is enabled and the check runs with freq > 2m.
+	// stateCache is always non-nil, but only enabled if passed an operable cache.
+	stateCache *StateCache
+	// persistState is true if the stateCache is enabled and the check runs with freq > 2m.
 	persistState bool
 }
 
@@ -119,7 +119,7 @@ type Factory func(
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
 	labellingMode TenantLabelMode,
-	stateWriter *StateWriter,
+	stateCache *StateCache,
 ) (*Scraper, error)
 
 type (
@@ -156,7 +156,7 @@ func New(
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
 	labellingMode TenantLabelMode,
-	stateWriter *StateWriter,
+	stateCache *StateCache,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
@@ -168,7 +168,7 @@ func New(
 		Telemeter:             telemeter,
 		CostAttributionLabels: cals,
 		LabellingMode:         labellingMode,
-		StateWriter:           stateWriter,
+		StateCache:            stateCache,
 	})
 }
 
@@ -184,14 +184,14 @@ type ScraperOpts struct {
 	LabellingMode         TenantLabelMode
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
-	// StateWriter is required; it is effectively disabled if constructed with
+	// StateCache is required; it is effectively disabled if constructed with
 	// a nil store.
-	StateWriter *StateWriter
+	StateCache *StateCache
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
-	if opts.StateWriter == nil {
-		return nil, errStateWriterRequired
+	if opts.StateCache == nil {
+		return nil, errStateCacheRequired
 	}
 
 	checkName := check.Type().String()
@@ -231,16 +231,16 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		histograms:    make(map[uint64]prometheus.Histogram),
 		telemeter:     opts.Telemeter,
 		cals:          opts.CostAttributionLabels,
-		stateWriter:   opts.StateWriter,
-		persistState:  opts.StateWriter.Enabled() && ms(check.Frequency) > maxPublishInterval,
+		stateCache:    opts.StateCache,
+		persistState:  opts.StateCache.Enabled() && ms(check.Frequency) > maxPublishInterval,
 	}, nil
 }
 
 var (
-	errCheckFailed         = errors.New("probe failed")
-	errUnsupportedMetric   = errors.New("unsupported metric type")
-	errTooManyLabels       = errors.New("invalid configuration, too many labels")
-	errStateWriterRequired = errors.New("state writer is required")
+	errCheckFailed        = errors.New("probe failed")
+	errUnsupportedMetric  = errors.New("unsupported metric type")
+	errTooManyLabels      = errors.New("invalid configuration, too many labels")
+	errStateCacheRequired = errors.New("state cache is required")
 )
 
 type checkStateMachine struct {
@@ -372,7 +372,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 
 		if h.scraper.persistState {
 			nextFire := t.Add(ms(h.scraper.check.Frequency))
-			h.scraper.stateWriter.Store(ctx, h.scraper.check, nextFire, h.payload.ts)
+			h.scraper.stateCache.Store(ctx, h.scraper.check, nextFire, h.payload.ts)
 		}
 	}
 }

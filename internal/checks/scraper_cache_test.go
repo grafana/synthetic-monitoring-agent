@@ -48,23 +48,23 @@ func TestNewUpdaterScraperCache(t *testing.T) {
 		return names
 	}
 
-	t.Run("nil cache disables the state writer", func(t *testing.T) {
+	t.Run("nil cache disables the state cache", func(t *testing.T) {
 		opts := base(t)
 
 		u, err := NewUpdater(opts)
 		require.NoError(t, err)
-		require.NotNil(t, u.stateWriter)
-		require.False(t, u.stateWriter.Enabled())
+		require.NotNil(t, u.stateCache)
+		require.False(t, u.stateCache.Enabled())
 		require.Empty(t, cacheMetricNames(t, opts.PromRegisterer.(prometheus.Gatherer)))
 	})
 
-	t.Run("a cache enables the state writer and its metrics", func(t *testing.T) {
+	t.Run("a cache enables the state cache and its metrics", func(t *testing.T) {
 		opts := base(t)
 		opts.ScraperCache = cache.NewNoop(opts.Logger)
 
 		u, err := NewUpdater(opts)
 		require.NoError(t, err)
-		require.True(t, u.stateWriter.Enabled())
+		require.True(t, u.stateCache.Enabled())
 		require.ElementsMatch(t,
 			[]string{metricPrefix + "record_bytes", metricPrefix + "writes_total"},
 			cacheMetricNames(t, opts.PromRegisterer.(prometheus.Gatherer)),
