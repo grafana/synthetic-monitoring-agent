@@ -48,7 +48,7 @@ func TestSelectScraperCache(t *testing.T) {
 	testcases := map[string]struct {
 		enabled   bool
 		agentKind cache.Kind
-		wantAgent bool // the agent's cache is returned, not a fresh noop
+		wantAgent bool // the agent's cache is returned; otherwise nil, meaning disabled
 		wantWarn  string
 	}{
 		"disabled": {
@@ -65,10 +65,9 @@ func TestSelectScraperCache(t *testing.T) {
 			wantAgent: true,
 			wantWarn:  "in-process",
 		},
-		"enabled with noop warns": {
+		"enabled with noop warns and disables": {
 			enabled:   true,
 			agentKind: cache.KindNoop,
-			wantAgent: true,
 			wantWarn:  "no-op",
 		},
 	}
@@ -82,8 +81,7 @@ func TestSelectScraperCache(t *testing.T) {
 			if tc.wantAgent {
 				require.Same(t, agentCache, got)
 			} else {
-				require.NotSame(t, agentCache, got)
-				require.IsType(t, &cache.Noop{}, got)
+				require.Nil(t, got)
 			}
 
 			if tc.wantWarn == "" {

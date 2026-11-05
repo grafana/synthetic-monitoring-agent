@@ -745,14 +745,17 @@ func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) (c
 }
 
 // selectScraperCache picks the cache scrapers persist their state in. With
-// -cache-scrapers off it is a dedicated noop, so scraper code can use it
-// unconditionally. With the flag on it is the agent's own cache, shared with
-// the tenants manager (the same client instance, not a copy; the two never
-// share keys). The warnings flag backends that defeat the purpose, since a
-// cache that does not outlive the process cannot carry state across a restart.
+// -cache-scrapers off it is nil, which the updater treats as disabled: no
+// encoding, no cache calls. With the flag on it is the agent's own cache,
+// shared with the tenants manager.
+//
+// The warnings flag backends that defeat the purpose, since a cache that
+// does not outlive the process cannot carry state across a restart;
+// a no-op backend also disables, as it would cost one encode per
+// scrape for nothing.
 func selectScraperCache(enabled bool, agentCache cache.Cache, agentKind cache.Kind, logger zerolog.Logger) cache.Cache {
 	if !enabled {
-		return cache.NewNoop(logger)
+		return nil
 	}
 
 	switch agentKind {
@@ -760,6 +763,8 @@ func selectScraperCache(enabled bool, agentCache cache.Cache, agentKind cache.Ki
 		logger.Warn().Msg("-cache-scrapers is set but the agent cache is in-process; scraper state will not survive a restart")
 	case cache.KindNoop:
 		logger.Warn().Msg("-cache-scrapers is set but the agent cache is a no-op; scraper state is not cached")
+
+		return nil
 	default:
 		logger.Info().Stringer("backend", agentKind).Msg("scraper cache enabled")
 	}
