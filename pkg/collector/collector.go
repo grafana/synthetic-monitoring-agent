@@ -144,6 +144,7 @@ type noopMetrics struct{}
 func (noopMetrics) AddScrape()         {}
 func (noopMetrics) AddCheckError()     {}
 func (noopMetrics) AddCollectorError() {}
+func (noopMetrics) AddStart(string)    {}
 
 type noopLabelsLimiter struct{}
 

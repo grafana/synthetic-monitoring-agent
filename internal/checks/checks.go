@@ -58,6 +58,10 @@ const (
 const (
 	metricNamespace = "sm_agent"
 	metricSubsystem = "updater"
+
+	// Per-check attribution labels shared by the scraper metrics.
+	labelTenantID = "tenantId"
+	labelRegionID = "regionId"
 )
 
 // Backoffer defines an interface to provide backoff durations.
@@ -109,15 +113,16 @@ type apiInfo struct {
 }
 
 type metrics struct {
-	changeErrorsCounter *prometheus.CounterVec
-	changesCounter      *prometheus.CounterVec
-	connectionStatus    prometheus.Gauge
-	knownChecks         prometheus.Gauge
-	ownedChecks         prometheus.Gauge
-	probeInfo           *prometheus.GaugeVec
-	runningScrapers     *prometheus.GaugeVec
-	scrapeErrorCounter  *prometheus.CounterVec
-	scrapesCounter      *prometheus.CounterVec
+	changeErrorsCounter  *prometheus.CounterVec
+	changesCounter       *prometheus.CounterVec
+	connectionStatus     prometheus.Gauge
+	knownChecks          prometheus.Gauge
+	ownedChecks          prometheus.Gauge
+	probeInfo            *prometheus.GaugeVec
+	runningScrapers      *prometheus.GaugeVec
+	scrapeErrorCounter   *prometheus.CounterVec
+	scrapesCounter       *prometheus.CounterVec
+	scraperStartsCounter *prometheus.CounterVec
 }
 
 type (
@@ -822,18 +827,27 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 	ridStr := strconv.Itoa(check.RegionId)
 
 	scrapeCounter, err := c.metrics.scrapesCounter.GetMetricWith(prometheus.Labels{
-		"type":     checkType,
-		"tenantId": tidStr,
-		"regionId": ridStr,
+		"type":        checkType,
+		labelTenantID: tidStr,
+		labelRegionID: ridStr,
 	})
 	if err != nil {
 		return err
 	}
 
 	scrapeErrorCounter, err := c.metrics.scrapeErrorCounter.CurryWith(prometheus.Labels{
-		"type":     checkType,
-		"tenantId": tidStr,
-		"regionId": ridStr,
+		"type":        checkType,
+		labelTenantID: tidStr,
+		labelRegionID: ridStr,
+	})
+	if err != nil {
+		return err
+	}
+
+	scraperStartsCounter, err := c.metrics.scraperStartsCounter.CurryWith(prometheus.Labels{
+		"type":        checkType,
+		labelTenantID: tidStr,
+		labelRegionID: ridStr,
 	})
 	if err != nil {
 		return err
@@ -842,6 +856,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 	metrics := scraper.NewMetrics(
 		scrapeCounter,
 		scraper.NewIncrementerFromCounterVec(scrapeErrorCounter),
+		scraper.NewIncrementerFromCounterVec(scraperStartsCounter),
 	)
 
 	scraper, err := c.scraperFactory(
@@ -1035,8 +1050,8 @@ func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
 		Help:      "Total number of scrape operations performed by type.",
 	}, []string{
 		"type",
-		"tenantId",
-		"regionId",
+		labelTenantID,
+		labelRegionID,
 	})
 
 	scrapeErrorCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -1047,8 +1062,20 @@ func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
 	}, []string{
 		"type",
 		"source",
-		"tenantId",
-		"regionId",
+		labelTenantID,
+		labelRegionID,
+	})
+
+	scraperStartsCounter := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: metricNamespace,
+		Subsystem: "scraper",
+		Name:      "starts_total",
+		Help:      "Total number of scraper starts by how they began: cold, or resume / catch_up from the state cache.",
+	}, []string{
+		"type",
+		"mode",
+		labelTenantID,
+		labelRegionID,
 	})
 
 	connectionStatusGauge := prometheus.NewGauge(prometheus.GaugeOpts{
@@ -1086,7 +1113,7 @@ func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
 
 	for _, collector := range []prometheus.Collector{
 		changesCounter, changeErrorsCounter, runningScrapers,
-		scrapesCounter, scrapeErrorCounter, connectionStatusGauge,
+		scrapesCounter, scrapeErrorCounter, scraperStartsCounter, connectionStatusGauge,
 		probeInfoGauge, knownChecksGauge, ownedChecksGauge,
 	} {
 		if err := registerer.Register(collector); err != nil {
@@ -1097,15 +1124,16 @@ func (c *Updater) registerMetrics(registerer prometheus.Registerer) error {
 	connectionStatusGauge.Set(0)
 
 	c.metrics = metrics{
-		changeErrorsCounter: changeErrorsCounter,
-		changesCounter:      changesCounter,
-		connectionStatus:    connectionStatusGauge,
-		knownChecks:         knownChecksGauge,
-		ownedChecks:         ownedChecksGauge,
-		probeInfo:           probeInfoGauge,
-		runningScrapers:     runningScrapers,
-		scrapeErrorCounter:  scrapeErrorCounter,
-		scrapesCounter:      scrapesCounter,
+		changeErrorsCounter:  changeErrorsCounter,
+		changesCounter:       changesCounter,
+		connectionStatus:     connectionStatusGauge,
+		knownChecks:          knownChecksGauge,
+		ownedChecks:          ownedChecksGauge,
+		probeInfo:            probeInfoGauge,
+		runningScrapers:      runningScrapers,
+		scrapeErrorCounter:   scrapeErrorCounter,
+		scrapesCounter:       scrapesCounter,
+		scraperStartsCounter: scraperStartsCounter,
 	}
 
 	return nil

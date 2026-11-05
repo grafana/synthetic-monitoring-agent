@@ -21,6 +21,10 @@ type testStateCache struct{}
 
 func (*testStateCache) Store(context.Context, model.Check, time.Time, scraper.TimeSeries) {}
 
+func (*testStateCache) Load(context.Context, model.Check) (scraper.StateRecord, scraper.TimeSeries, bool) {
+	return scraper.StateRecord{}, nil, false
+}
+
 func TestNewUpdaterStateCache(t *testing.T) {
 	base := func(t *testing.T) UpdaterOptions {
 		t.Helper()
