@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      # Skip release-please commits; the release workflow deploys dev.
+      - CHANGELOG.md
+      - .github/release-please/release-please-manifest.json
 
 permissions:
   contents: none
