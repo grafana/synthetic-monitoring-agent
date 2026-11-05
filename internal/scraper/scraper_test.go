@@ -2825,7 +2825,7 @@ func TestScraperRun(t *testing.T) {
 		CostAttributionLabels: testCalTenants{
 			costAttributionLabels: []string{"testing", "you"},
 		},
-		StateWriter: NewStateWriter(nil, nil, zerolog.Nop()),
+		StateCache: NewStateCache(nil, nil, zerolog.Nop()),
 	})
 
 	require.NoError(t, err)
@@ -3232,7 +3232,7 @@ func (p *recordingPublisher) Publish(payload pusher.Payload) {
 	p.payloads = append(p.payloads, payload)
 }
 
-func TestNewWithOptsRequiresStateWriter(t *testing.T) {
+func TestNewWithOptsRequiresStateCache(t *testing.T) {
 	var check model.Check
 
 	err := check.FromSM(sm.Check{
@@ -3257,7 +3257,7 @@ func TestNewWithOptsRequiresStateWriter(t *testing.T) {
 		Telemeter:             &testTelemeter{},
 		CostAttributionLabels: testCalTenants{},
 	})
-	require.ErrorIs(t, err, errStateWriterRequired)
+	require.ErrorIs(t, err, errStateCacheRequired)
 }
 
 // TestScrapeHandlerStoresState checks that a scraper's state is written once
@@ -3292,7 +3292,7 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 			LabellingMode:         testLabellingMode{},
 			Telemeter:             &testTelemeter{},
 			CostAttributionLabels: testCalTenants{},
-			StateWriter:           NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
+			StateCache:            NewStateCache(store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
 		})
 		require.NoError(t, err)
 
@@ -3345,7 +3345,7 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 }
 
 // TestScraperPersistState pins the eligibility decision that gates every
-// StateWriter call: the writer must be enabled and the check must run less
+// StateCache call: the writer must be enabled and the check must run less
 // often than the republish interval.
 func TestScraperPersistState(t *testing.T) {
 	testcases := map[string]struct {
@@ -3385,7 +3385,7 @@ func TestScraperPersistState(t *testing.T) {
 				LabellingMode:         testLabellingMode{},
 				Telemeter:             &testTelemeter{},
 				CostAttributionLabels: testCalTenants{},
-				StateWriter:           NewStateWriter(tc.store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
+				StateCache:            NewStateCache(tc.store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
 			})
 			require.NoError(t, err)
 			require.Equal(t, tc.want, s.persistState)
