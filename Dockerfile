@@ -1,9 +1,9 @@
 # First stage obtains the list of certificates.
-FROM --platform=$BUILDPLATFORM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS build
+FROM --platform=$BUILDPLATFORM alpine:3.24.4@sha256:e2944c2947c8cabdd6b23a2ebcf8094a9f3d53ca9e0340edd065237ab74c18c0 AS build
 RUN apk --no-cache add --upgrade ca-certificates-bundle
 
 # setcapper stage handles adding file capabilities where needed
-FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS setcapper
+FROM alpine:3.24.4@sha256:e2944c2947c8cabdd6b23a2ebcf8094a9f3d53ca9e0340edd065237ab74c18c0 AS setcapper
 ARG TARGETOS
 ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
@@ -16,7 +16,7 @@ RUN setcap cap_net_raw=+ep /usr/local/bin/synthetic-monitoring-agent
 
 # Base release copies the binaries, configuration and also the
 # certificates from the first stage.
-FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS release
+FROM alpine:3.24.4@sha256:e2944c2947c8cabdd6b23a2ebcf8094a9f3d53ca9e0340edd065237ab74c18c0 AS release
 ARG TARGETOS
 ARG TARGETARCH
 ARG HOST_DIST=$TARGETOS-$TARGETARCH
