@@ -69,7 +69,7 @@ func TestNewUpdaterScraperCache(t *testing.T) {
 		require.NotNil(t, u.stateCache)
 		require.IsType(t, scraper.NewStateCache(opts.ScraperCache, prometheus.NewPedanticRegistry(), opts.Logger), u.stateCache)
 		require.ElementsMatch(t,
-			[]string{metricPrefix + "record_bytes", metricPrefix + "writes_total"},
+			[]string{metricPrefix + "record_bytes", metricPrefix + "writes_total", metricPrefix + "reads_total"},
 			cacheMetricNames(t, opts.PromRegisterer.(prometheus.Gatherer)),
 		)
 	})
