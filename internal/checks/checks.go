@@ -102,7 +102,7 @@ type Updater struct {
 	tenantCals          *cals.CostAttributionLabels
 	tenantLabellingMode *labelmode.LabelMode
 	isClusterEnabled    bool
-	scraperCache        cache.Cache
+	stateWriter         *scraper.StateWriter
 }
 
 type apiInfo struct {
@@ -147,7 +147,7 @@ type UpdaterOptions struct {
 	LabellingMode         *labelmode.LabelMode
 	IsClusterEnabled      bool
 	// ScraperCache is where scrapers persist their state across restarts and
-	// migrations. Passing nil means a NoopCache will be used.
+	// migrations. nil disables caching scraper state.
 	ScraperCache cache.Cache
 }
 
@@ -157,10 +157,11 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		scraperFactory = opts.ScraperFactory
 	}
 
-	scraperCache := opts.ScraperCache
-	if scraperCache == nil {
-		scraperCache = cache.NewNoop(opts.Logger)
-	}
+	// A nil cache.Cache converts to a nil StateStore, which NewStateWriter
+	// treats as disabled.
+	stateWriter := scraper.NewStateWriter(
+		opts.ScraperCache, opts.PromRegisterer, opts.Logger.With().Str("subsystem", "scraper_cache").Logger(),
+	)
 
 	c := &Updater{
 		api: apiInfo{
@@ -186,7 +187,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		usageReporter:       opts.UsageReporter,
 		tenantCals:          opts.CostAttributionLabels,
 		tenantLabellingMode: opts.LabellingMode,
-		scraperCache:        scraperCache,
+		stateWriter:         stateWriter,
 	}
 
 	if err := c.registerMetrics(opts.PromRegisterer); err != nil {
@@ -852,6 +853,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		metrics,
 		c.k6Runner,
 		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals, c.tenantLabellingMode,
+		c.stateWriter,
 	)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
