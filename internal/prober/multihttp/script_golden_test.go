@@ -31,7 +31,54 @@ var updateGolden = flag.Bool("update", false, "rewrite the testdata golden scrip
 //
 // and read the diff before committing it.
 func TestScriptGolden(t *testing.T) {
-	testcases := map[string]*sm.MultiHttpSettings{
+	for name, settings := range goldenScriptTestcases() {
+		t.Run(name, func(t *testing.T) {
+			// The fixtures are kept realistic on purpose: anything this rejects
+			// could not reach the agent from the API in the first place.
+			require.NoError(t, settings.Validate())
+
+			actual, err := settingsToScript(settings, true)
+			require.NoError(t, err)
+			require.NotEmpty(t, actual)
+
+			path := filepath.Join("testdata", name+".js")
+
+			if *updateGolden {
+				require.NoError(t, os.WriteFile(path, actual, 0o600))
+
+				return
+			}
+
+			require.Equal(t, string(testhelper.MustReadFile(t, path)), string(actual))
+		})
+	}
+}
+
+// goldenScriptTestcases returns the settings behind the testdata golden
+// scripts, keyed by file name without the extension.
+func goldenScriptTestcases() map[string]*sm.MultiHttpSettings {
+	return map[string]*sm.MultiHttpSettings{
+		// A single GET with a status code assertion and no body, variables or
+		// JSON path: the script imports neither k6/encoding nor jsonpath.
+		"plain_get": {
+			Entries: []*sm.MultiHttpEntry{
+				{
+					Request: &sm.MultiHttpEntryRequest{
+						Method: sm.HttpMethod_GET,
+						Url:    "http://example.org/",
+					},
+					Assertions: []*sm.MultiHttpEntryAssertion{
+						{
+							Type:      sm.MultiHttpEntryAssertionType_TEXT,
+							Subject:   sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE,
+							Condition: sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+							Value:     "200",
+						},
+					},
+				},
+			},
+		},
+
 		// One entry with a ${variable} at every site that expands one: the URL
 		// path (buildUrl), both halves of a query field (buildQueryParams), a
 		// header value (buildHeaders) and the body (interpolateBodyVars).
@@ -141,27 +188,5 @@ func TestScriptGolden(t *testing.T) {
 				},
 			},
 		},
-	}
-
-	for name, settings := range testcases {
-		t.Run(name, func(t *testing.T) {
-			// The fixtures are kept realistic on purpose: anything this rejects
-			// could not reach the agent from the API in the first place.
-			require.NoError(t, settings.Validate())
-
-			actual, err := settingsToScript(settings)
-			require.NoError(t, err)
-			require.NotEmpty(t, actual)
-
-			path := filepath.Join("testdata", name+".js")
-
-			if *updateGolden {
-				require.NoError(t, os.WriteFile(path, actual, 0o600))
-
-				return
-			}
-
-			require.Equal(t, string(testhelper.MustReadFile(t, path)), string(actual))
-		})
 	}
 }

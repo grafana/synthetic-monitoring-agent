@@ -1,10 +1,5 @@
 import http from 'k6/http';
 import { check, fail } from 'k6';
-import { test } from 'k6/execution';
-// TODO(mem): conditionally import these modules
-// - import encoding if base64 decoding is required
-// - import jsonpath if there are json assertions
-import encoding from 'k6/encoding';
 import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js';
 import { URL } from 'https://jslib.k6.io/url/1.0.0/index.js';
 

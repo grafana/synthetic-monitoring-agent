@@ -113,7 +113,8 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 	case sm.CheckTypeMultiHttp:
 		if f.runner != nil {
 			reservedHeaders := f.getReservedHeaders(&check)
-			p, err = multihttp.NewProber(ctx, check, logger, f.runner, reservedHeaders, f.secretStore)
+			leanImports := f.features.IsSet(feature.MultiHTTPLeanImports)
+			p, err = multihttp.NewProber(ctx, check, logger, f.runner, reservedHeaders, f.secretStore, leanImports)
 			target = check.Target
 		} else {
 			err = fmt.Errorf("k6 checks are not enabled")

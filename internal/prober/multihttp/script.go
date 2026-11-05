@@ -37,12 +37,18 @@ func buildQueryParams(urlVarName string, req *sm.MultiHttpEntryRequest) []string
 	return out
 }
 
+// bodyHasPayload reports whether body has a non-empty payload. buildBody then
+// emits an encoding.b64decode call, which needs the k6/encoding module.
+func bodyHasPayload(body *sm.HttpRequestBody) bool {
+	return body != nil && len(body.Payload) > 0
+}
+
 func buildBody(body *sm.HttpRequestBody) string {
 	switch {
 	case body == nil:
 		return "null"
 
-	case len(body.Payload) == 0:
+	case !bodyHasPayload(body):
 		return `""`
 
 	default:
@@ -58,7 +64,7 @@ func buildBody(body *sm.HttpRequestBody) string {
 
 func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []string {
 	switch {
-	case body == nil || len(body.Payload) == 0:
+	case !bodyHasPayload(body):
 		return nil
 
 	default:
@@ -382,7 +388,64 @@ func buildVars(variable *sm.MultiHttpEntryVariable) string {
 	return b.String()
 }
 
-func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
+// assertionUsesJSONPath reports whether buildChecks emits a jsonpath.query call
+// for assertion.
+func assertionUsesJSONPath(assertion *sm.MultiHttpEntryAssertion) bool {
+	switch assertion.Type {
+	case sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE, sm.MultiHttpEntryAssertionType_JSON_PATH_ASSERTION:
+		return true
+
+	default:
+		return false
+	}
+}
+
+// variableUsesJSONPath reports whether buildVars emits a jsonpath.query call for
+// variable.
+func variableUsesJSONPath(variable *sm.MultiHttpEntryVariable) bool {
+	return variable.Type == sm.MultiHttpEntryVariableType_JSON_PATH
+}
+
+// needsJSONPath reports whether the script for settings calls jsonpath.query.
+//
+// The jsonpath module is fetched from jslib.k6.io, and k6 parses, compiles and
+// evaluates it on every run whether the script uses it or not, so the template
+// imports it only when this returns true.
+func needsJSONPath(settings *sm.MultiHttpSettings) bool {
+	for _, entry := range settings.Entries {
+		for _, assertion := range entry.Assertions {
+			if assertionUsesJSONPath(assertion) {
+				return true
+			}
+		}
+
+		for _, variable := range entry.Variables {
+			if variableUsesJSONPath(variable) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// needsEncoding reports whether the script for settings calls
+// encoding.b64decode, so that the template imports k6/encoding only when
+// needed.
+func needsEncoding(settings *sm.MultiHttpSettings) bool {
+	for _, entry := range settings.Entries {
+		if entry.Request != nil && bodyHasPayload(entry.Request.Body) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// settingsToScript generates the k6 script for settings. When leanImports
+// is true the script imports k6/encoding and jsonpath only if it uses them and
+// omits k6/execution, which it never uses; otherwise it imports all of them.
+func settingsToScript(settings *sm.MultiHttpSettings, leanImports bool) ([]byte, error) {
 	// Convert settings to script using a Go template
 	tmpl, err := template.
 		New("").
@@ -393,7 +456,10 @@ func settingsToScript(settings *sm.MultiHttpSettings) ([]byte, error) {
 			"buildUrl":            interpolation.ExpandVariablesToJS,
 			"buildQueryParams":    buildQueryParams,
 			"buildVars":           buildVars,
+			"leanImports":         func() bool { return leanImports },
 			"interpolateBodyVars": interpolateBodyVariables,
+			"needsEncoding":       needsEncoding,
+			"needsJSONPath":       needsJSONPath,
 		}).
 		ParseFS(templateFS, "*.tmpl")
 	if err != nil {
