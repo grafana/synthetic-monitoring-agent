@@ -275,3 +275,126 @@ func TestStateWriterStoreCancelledContext(t *testing.T) {
 	require.Equal(t, 1.0, writesFor(w, "error"))
 	require.Equal(t, 0.0, writesFor(w, "ok"))
 }
+
+// benchPayloadSizes are the browser-check remote-write payload sizes measured
+// in production in 2026-10 (p50, p90, p99; the runner caps metrics at 100 KiB).
+// Browser checks have the largest payloads, so these bound the codec cost.
+var benchPayloadSizes = []struct {
+	name   string
+	target int
+}{
+	{name: "p50_10KiB", target: 10752},
+	{name: "p90_38KiB", target: 38912},
+	{name: "p99_94KiB", target: 96768},
+}
+
+// benchStateSeries builds series shaped like a check's remote-write output
+// until the marshaled request reaches target bytes, and returns that size.
+func benchStateSeries(b *testing.B, target int) (TimeSeries, int) {
+	b.Helper()
+
+	var ts TimeSeries
+
+	for {
+		n := len(ts)
+
+		ts = append(ts, prompb.TimeSeries{
+			Labels: []prompb.Label{
+				{Name: "__name__", Value: "probe_browser_web_vital_lcp"},
+				{Name: "check_name", Value: "browser"},
+				{Name: "config_version", Value: "1700000000500000000-1"},
+				{Name: "instance", Value: "https://example.com/checkout/step/" + strconv.Itoa(n)},
+				{Name: "job", Value: "benchmark job"},
+				{Name: "probe", Value: "Frankfurt"},
+				{Name: "scenario", Value: "scenario_" + strconv.Itoa(n%6)},
+			},
+			Samples: []prompb.Sample{{Value: float64(n) * 0.001, Timestamp: 1700000000000}},
+		})
+
+		if size := (&prompb.WriteRequest{Timeseries: ts}).Size(); size >= target {
+			return ts, size
+		}
+	}
+}
+
+func BenchmarkEncodeStatePayload(b *testing.B) {
+	for _, bc := range benchPayloadSizes {
+		b.Run(bc.name, func(b *testing.B) {
+			ts, size := benchStateSeries(b, bc.target)
+
+			encoded, err := encodeStatePayload(ts)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			b.SetBytes(int64(size))
+
+			for b.Loop() {
+				if _, err := encodeStatePayload(ts); err != nil {
+					b.Fatal(err)
+				}
+			}
+
+			// After the loop: Loop resets the timer and the custom metrics with it.
+			b.ReportMetric(float64(size)/float64(len(encoded)), "ratio")
+		})
+	}
+
+	// The package shares one encoder state between all scrapers, so concurrent
+	// encodes queue behind each other; this measures the throughput of that queue.
+	b.Run("p90_38KiB_parallel", func(b *testing.B) {
+		ts, size := benchStateSeries(b, benchPayloadSizes[1].target)
+
+		b.SetBytes(int64(size))
+
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				if _, err := encodeStatePayload(ts); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	})
+}
+
+func BenchmarkDecodeStatePayload(b *testing.B) {
+	for _, bc := range benchPayloadSizes {
+		b.Run(bc.name, func(b *testing.B) {
+			ts, size := benchStateSeries(b, bc.target)
+
+			encoded, err := encodeStatePayload(ts)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			b.SetBytes(int64(size))
+
+			for b.Loop() {
+				if _, err := decodeStatePayload(encoded); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+
+	// Same single decoder state as the encoder: this is the queue a pod restart
+	// forms when every scraper loads its record within the same few seconds.
+	b.Run("p90_38KiB_parallel", func(b *testing.B) {
+		ts, size := benchStateSeries(b, benchPayloadSizes[1].target)
+
+		encoded, err := encodeStatePayload(ts)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		b.SetBytes(int64(size))
+
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				if _, err := decodeStatePayload(encoded); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	})
+}
