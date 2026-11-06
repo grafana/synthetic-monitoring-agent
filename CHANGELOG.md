@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.70.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.69.0...v0.70.0) (2026-11-06)
+
+
+### Features
+
+* Report which fields reference secrets ([#2115](https://github.com/grafana/synthetic-monitoring-agent/issues/2115)) ([9db09d2](https://github.com/grafana/synthetic-monitoring-agent/commit/9db09d22f236e1906fc3477e22fde9dcb62e17da))
+
+
+### Fixes
+
+* **ci:** skip dev deploy on release-please commits ([#2020](https://github.com/grafana/synthetic-monitoring-agent/issues/2020)) ([b416ec8](https://github.com/grafana/synthetic-monitoring-agent/commit/b416ec872f0fc9ed500609085b34f2c75dab4050))
+
+
+### Miscellaneous Chores
+
+* **docs:** Remove fulfilled requirement from cluster docs ([#2100](https://github.com/grafana/synthetic-monitoring-agent/issues/2100)) ([abfaae7](https://github.com/grafana/synthetic-monitoring-agent/commit/abfaae77c44cb27ea281084cadc3f2109fdc6fb0))
+* Update alpine Docker tag to v3.24.4 [SECURITY] ([#2116](https://github.com/grafana/synthetic-monitoring-agent/issues/2116)) ([6a98134](https://github.com/grafana/synthetic-monitoring-agent/commit/6a981347795168eaf14e24e6194533ceaf4e78cd))
+* Update alpine:3.24.4 Docker digest to 93b41ef [SECURITY] ([#2117](https://github.com/grafana/synthetic-monitoring-agent/issues/2117)) ([dc81410](https://github.com/grafana/synthetic-monitoring-agent/commit/dc8141025aa13f2db4f64b739fef1d529f53bc81))
+* Update dependency grafana/xk6-sm-v1 to v1.1.18 ([#2095](https://github.com/grafana/synthetic-monitoring-agent/issues/2095)) ([4af66bc](https://github.com/grafana/synthetic-monitoring-agent/commit/4af66bc783d1f8a07e7719da282aed9ee3719e12))
+* Update dependency grafana/xk6-sm-v2 to v2.0.12 ([#2096](https://github.com/grafana/synthetic-monitoring-agent/issues/2096)) ([56f5239](https://github.com/grafana/synthetic-monitoring-agent/commit/56f5239802c9690d133ff02dd1c4c8ec3c484144))
+* Update docker:dind Docker digest to 08a9801 ([#2118](https://github.com/grafana/synthetic-monitoring-agent/issues/2118)) ([42b413b](https://github.com/grafana/synthetic-monitoring-agent/commit/42b413b5162ea6cb942e091a57fc88d08183af0a))
+* Update docker:dind Docker digest to d035bd3 ([#2111](https://github.com/grafana/synthetic-monitoring-agent/issues/2111)) ([ca832f5](https://github.com/grafana/synthetic-monitoring-agent/commit/ca832f57465f5c028dde7e399a2f738c82c5ba8d))
+* Update ghcr.io/grafana/chromium-swiftshader-alpine:155.0.8059.84-r0-3.24.3 Docker digest to 2c01a3e ([#2099](https://github.com/grafana/synthetic-monitoring-agent/issues/2099)) ([4ae5915](https://github.com/grafana/synthetic-monitoring-agent/commit/4ae591588fe18c81deeed3e8bc72fdaa389909e2))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v2 ([#2105](https://github.com/grafana/synthetic-monitoring-agent/issues/2105)) ([f1b14b8](https://github.com/grafana/synthetic-monitoring-agent/commit/f1b14b89a0c8c8d24b52ef64a04c13702dbced51))
+* Update google.golang.org/genproto/googleapis/rpc digest to 2ffab32 ([#2081](https://github.com/grafana/synthetic-monitoring-agent/issues/2081)) ([cff517a](https://github.com/grafana/synthetic-monitoring-agent/commit/cff517a8dc5ad7c8061925dd61a994c9e4f20d04))
+* Update module github.com/jpillora/backoff to v1.1.0 ([#2092](https://github.com/grafana/synthetic-monitoring-agent/issues/2092)) ([03c62de](https://github.com/grafana/synthetic-monitoring-agent/commit/03c62dec2851fc5523afaf06efe2b31d7490459b))
+* Update module github.com/prometheus/common to v0.73.1 ([#2104](https://github.com/grafana/synthetic-monitoring-agent/issues/2104)) ([58021d8](https://github.com/grafana/synthetic-monitoring-agent/commit/58021d861a05a8dc2de95aae79a5553f6ceed22e))
+* Update prometheus-go ([#2023](https://github.com/grafana/synthetic-monitoring-agent/issues/2023)) ([917449a](https://github.com/grafana/synthetic-monitoring-agent/commit/917449a6ae8a01c7f3c3365f3064ba902737c32f))
+
 ## [0.69.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.68.0...v0.69.0) (2026-11-02)
 
 
