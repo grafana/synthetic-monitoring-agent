@@ -1,0 +1,72 @@
+suite: NOTES
+templates:
+  - NOTES.txt
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+  replicas: 3
+  cluster:
+    enabled: true
+tests:
+  - it: names the agent image the cluster flags need
+    asserts:
+      - matchRegexRaw:
+          pattern: requires an agent image with the -cluster-\* flags
+  - it: describes the autoscaled cluster size
+    set:
+      autoscaling:
+        enabled: true
+    asserts:
+      - matchRegexRaw:
+          pattern: 2 to 5 agents share the probe
+  - it: warns when a target has no matching request
+    set:
+      autoscaling:
+        enabled: true
+      resources:
+        requests:
+          memory: null
+    asserts:
+      - matchRegexRaw:
+          pattern: autoscaling.targetMemoryUtilizationPercentage is set, but resources.requests.memory isn't
+      - notMatchRegexRaw:
+          pattern: resources.requests.cpu isn't
+  - it: describes the hardened crocochrome security context
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - matchRegexRaw:
+          pattern: It meets the Pod Security "baseline" profile, but not "restricted"
+  - it: describes the unprivileged crocochrome trade-off
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          unprivileged: true
+    asserts:
+      - matchRegexRaw:
+          pattern: meets the Pod Security "restricted" profile. Chromium runs as the\s+same user as crocochrome
+      - notMatchRegexRaw:
+          pattern: DAC_OVERRIDE
+  - it: tells how to scrape crocochrome through its NetworkPolicy, even without the ServiceMonitor
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - matchRegexRaw:
+          pattern: the crocochrome NetworkPolicy only allows the agents
+  - it: drops the crocochrome scraping note once a scraper is allowed
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          networkPolicy:
+            extraIngressFrom:
+              - namespaceSelector:
+                  matchLabels:
+                    kubernetes.io/metadata.name: monitoring
+    asserts:
+      - notMatchRegexRaw:
+          pattern: the crocochrome NetworkPolicy only allows the agents

@@ -1,0 +1,188 @@
+suite: port names
+templates:
+  - deployment.yaml
+  - secret.yaml
+  - service.yaml
+  - service-headless.yaml
+  - servicemonitor.yaml
+  - networkpolicy.yaml
+  - crocochrome/deployment.yaml
+  - crocochrome/service.yaml
+  - crocochrome/servicemonitor.yaml
+  - crocochrome/networkpolicy.yaml
+release:
+  name: sm
+  namespace: probes
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+  replicas: 2
+  cluster:
+    enabled: true
+  serviceMonitor:
+    enabled: true
+  networkPolicy:
+    enabled: true
+  browserPool:
+    enabled: true
+    crocochrome:
+      serviceMonitor:
+        enabled: true
+      networkPolicy:
+        enabled: true
+tests:
+  - it: uses http-metrics, gossip and http by default
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: http-metrics
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].ports[1].name
+          value: gossip
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: http-metrics
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: http-metrics
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: http
+        template: crocochrome/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: http
+        template: crocochrome/deployment.yaml
+  - it: renames the agent metrics port everywhere it is referenced
+    set:
+      listenPortName: agent-metrics
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: agent-metrics
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: agent-metrics
+        template: deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.port
+          value: agent-metrics
+        template: deployment.yaml
+      - equal:
+          path: spec.ports[0].name
+          value: agent-metrics
+        template: service.yaml
+      - equal:
+          path: spec.ports[0].targetPort
+          value: agent-metrics
+        template: service.yaml
+      - equal:
+          path: spec.endpoints[0].port
+          value: agent-metrics
+        template: servicemonitor.yaml
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: agent-metrics
+        template: networkpolicy.yaml
+  - it: renames the gossip port everywhere it is referenced
+    set:
+      cluster:
+        enabled: true
+        listenPortName: ring
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[1].name
+          value: ring
+        template: deployment.yaml
+      - equal:
+          path: spec.ports[0].name
+          value: ring
+        template: service-headless.yaml
+      - equal:
+          path: spec.ports[0].targetPort
+          value: ring
+        template: service-headless.yaml
+      - equal:
+          path: spec.ingress[1].ports[0].port
+          value: ring
+        template: networkpolicy.yaml
+  - it: renames the crocochrome port everywhere it is referenced
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          portName: croco-metrics
+          serviceMonitor:
+            enabled: true
+          networkPolicy:
+            enabled: true
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].ports[0].name
+          value: croco-metrics
+        template: crocochrome/deployment.yaml
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.tcpSocket.port
+          value: croco-metrics
+        template: crocochrome/deployment.yaml
+      - equal:
+          path: spec.ports[0].name
+          value: croco-metrics
+        template: crocochrome/service.yaml
+      - equal:
+          path: spec.ports[0].targetPort
+          value: croco-metrics
+        template: crocochrome/service.yaml
+      - equal:
+          path: spec.endpoints[0].port
+          value: croco-metrics
+        template: crocochrome/servicemonitor.yaml
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: croco-metrics
+        template: crocochrome/networkpolicy.yaml
+  - it: keeps the agent addressing crocochrome by number
+    template: deployment.yaml
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          portName: croco-metrics
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --browser-pool-addresses=sm-synthetic-monitoring-agent-crocochrome.probes.svc.cluster.local:8080
+  - it: leaves a probe with a literal port alone
+    template: deployment.yaml
+    set:
+      listenPortName: agent-metrics
+      readinessProbe:
+        httpGet:
+          path: /ready
+          port: 4050
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.port
+          value: 4050
+  - it: rejects the same name for the metrics and gossip ports
+    template: deployment.yaml
+    set:
+      listenPortName: same
+      cluster:
+        enabled: true
+        listenPortName: same
+    asserts:
+      - failedTemplate:
+          errorMessage: "listenPortName and cluster.listenPortName must differ: container port names are unique in a pod"
+  - it: rejects a port name that is not a valid IANA service name
+    template: deployment.yaml
+    set:
+      listenPortName: Not_Valid
+    asserts:
+      - failedTemplate: {}

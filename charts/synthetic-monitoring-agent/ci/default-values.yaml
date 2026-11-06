@@ -1,0 +1,3 @@
+probe:
+  apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+  apiToken: test-token

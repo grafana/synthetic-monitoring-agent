@@ -1,0 +1,49 @@
+#!/bin/sh
+#
+# Checks that the agent image supports every flag the chart can pass. chart-flags reads the flags from every branch of
+# the sm-agent.args define, so the check doesn't depend on the values. A published chart must work with the agent
+# release in appVersion, so the image defaults to that release. An appVersion that isn't released fails at the image
+# pull.
+#
+# Usage: check-chart-flags [image]
+
+set -eu
+
+# comm needs both lists sorted in the same order, and chart-flags sorts in byte order.
+export LC_ALL=C
+
+chart_dir=${CHART_DIR:-charts/synthetic-monitoring-agent}
+
+toplevel=$(git rev-parse --show-toplevel)
+cd "$toplevel"
+
+app_version=$(yq '.appVersion' "${chart_dir}/Chart.yaml")
+image=${1:-grafana/synthetic-monitoring-agent:${app_version}}
+
+tmpdir=$(mktemp -d)
+trap 'rm -rf "${tmpdir}"' EXIT
+
+# Use a local image if there is one, such as a local build passed as the argument.
+if ! docker image inspect "${image}" > /dev/null 2>&1; then
+	docker pull --quiet "${image}"
+fi
+
+# -help prints to stderr, one flag per line, indented and with a single dash: "  -api-server-address string". The
+# description lines that follow don't start with a dash.
+docker run --rm "${image}" -help > "${tmpdir}/agent-help.txt" 2>&1
+sed -nE 's/^[[:space:]]+-([a-z0-9-]+).*/\1/p' "${tmpdir}/agent-help.txt" | sort -u > "${tmpdir}/agent-flags.txt"
+
+go run ./scripts/chart-flags "${chart_dir}/templates/_helpers.tpl" sm-agent.args > "${tmpdir}/chart-flags.txt"
+
+if [ ! -s "${tmpdir}/chart-flags.txt" ]; then
+	echo "::error file=${chart_dir}/templates/_helpers.tpl::found no agent flags in sm-agent.args"
+	exit 1
+fi
+
+# Flags the chart can pass that the agent doesn't have.
+missing=$(comm -23 "${tmpdir}/chart-flags.txt" "${tmpdir}/agent-flags.txt" | paste -sd ',' - | sed 's/,/, /g')
+
+if [ -n "${missing}" ]; then
+	echo "::error file=${chart_dir}/Chart.yaml::${image} doesn't have these flags the chart passes: ${missing}"
+	exit 1
+fi
