@@ -96,7 +96,6 @@ func (p Prober) Name() string {
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (bool, float64) {
 	secretStore, err := p.secretsRetriever(ctx, logger)
 	if err != nil {
-		p.logger.Error().Err(err).Msg("running probe")
 		return false, 0
 	}
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,6 +43,8 @@ func TestSecretStoreRetrieverUnavailable(t *testing.T) {
 	_, err := retrieve(ctx, kitlog.NewLogfmtLogger(&checkLog))
 	require.Error(t, err)
 
+	// One error line: the probers rely on the retriever and do not log the failure again.
+	require.Equal(t, 1, strings.Count(agentLog.String(), `"level":"error"`))
 	require.Contains(t, agentLog.String(), "10.0.0.1:4031")
 	require.Contains(t, checkLog.String(), `reason="the secret store is unavailable"`)
 	require.NotContains(t, checkLog.String(), "10.0.0.1")

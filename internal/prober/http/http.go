@@ -29,34 +29,6 @@ import (
 
 var errUnsupportedCheck = errors.New("unsupported check")
 
-// secretResolutionError reports a ${secrets.*} reference in field that did not resolve.
-type secretResolutionError struct {
-	field string
-	err   error
-}
-
-func (e secretResolutionError) Error() string {
-	return "failed to resolve " + e.field + ": " + e.err.Error()
-}
-
-func (e secretResolutionError) Unwrap() error { return e.err }
-
-// checkLogFields builds log fields ready to go into the check owner log.
-// It skips original error as it might contain sensitive information, but enhances the log with additional details.
-func (e secretResolutionError) checkLogFields() []any {
-	fields := []any{"msg", "Could not resolve a secret referenced by this check", "field", e.field}
-
-	if errors.Is(e.err, interpolation.ErrInvalidSecretName) {
-		return append(fields, "reason", interpolation.ErrInvalidSecretName.Error())
-	}
-
-	if resolveErr, ok := errors.AsType[*interpolation.ResolveError](e.err); ok {
-		fields = append(fields, "secret", resolveErr.Name)
-	}
-
-	return append(fields, "reason", secrets.OwnerReason(e.err))
-}
-
 type Prober struct {
 	// Raw settings and dependencies for runtime secret resolution
 	settings                   *sm.HttpSettings
@@ -114,11 +86,10 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	if err != nil {
 		p.logger.Error().Err(err).Msg("failed to build config for HTTP probe")
 
-		// The text of the other failures comes from lower-level libraries and
-		// was never written for the check owner.
-		var secretErr secretResolutionError
-		if errors.As(err, &secretErr) {
-			_ = level.Error(l).Log(secretErr.checkLogFields()...)
+		// Only a secret failure reaches the check logs.
+		if secretErr, ok := errors.AsType[*secrets.Error](err); ok {
+			fields := append([]any{"msg", "Could not resolve a secret referenced by this check"}, secretErr.LogFields()...)
+			_ = level.Error(l).Log(fields...)
 		}
 
 		return false, 0
@@ -256,7 +227,10 @@ func resolveSecretValue(ctx context.Context, field, value string, secretStore se
 
 	resolved, err := resolver.Resolve(ctx, value)
 	if err != nil {
-		return "", secretResolutionError{field: field, err: err}
+		secretErr := secrets.AsError(err)
+		secretErr.Field = field
+
+		return "", secretErr
 	}
 
 	return resolved, nil
