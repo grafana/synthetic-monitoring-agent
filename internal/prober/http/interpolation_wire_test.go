@@ -3,7 +3,6 @@ package http
 import (
 	"context"
 	"encoding/base64"
-	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -89,7 +88,7 @@ func TestInterpolationOnTheWire(t *testing.T) {
 
 	failingStore := testhelper.NewMockSecretProviderWithFunc(
 		func(context.Context, model.GlobalID, string) (string, error) {
-			return "", errors.New("no secret store configured for tenant 1")
+			return "", secrets.ErrNoSecretStore
 		},
 	)
 
@@ -233,7 +232,7 @@ func TestInterpolationOnTheWire(t *testing.T) {
 				BearerToken: "${secrets.does-not-exist}",
 			},
 			wantFailure:     true,
-			wantLogContains: "secret not found",
+			wantLogContains: secrets.ErrSecretNotFound.Error(),
 		},
 
 		"secret store unavailable": {
@@ -242,7 +241,7 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			},
 			secretStore:     failingStore,
 			wantFailure:     true,
-			wantLogContains: "no secret store configured",
+			wantLogContains: secrets.ErrNoSecretStore.Error(),
 		},
 
 		// The error must name the field that failed.
@@ -289,11 +288,11 @@ func TestInterpolationOnTheWire(t *testing.T) {
 				},
 			}
 
-			// Resolution errors go to the logger passed to NewProber, not to the
-			// one passed to Probe.
-			var logs testhelper.LogBuffer
+			// The agent's logger!
+			// See `TestSecretFailureReachesTheCheckLogs` for the check owner log tests.
+			var agentLogger testhelper.LogBuffer
 
-			prober, err := NewProber(ctx, check, zerolog.New(&logs), http.Header{}, store)
+			prober, err := NewProber(ctx, check, zerolog.New(&agentLogger), http.Header{}, store)
 			require.NoError(t, err)
 
 			success, _ := prober.Probe(
@@ -309,7 +308,7 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			if tc.wantFailure {
 				require.False(t, success)
 				require.Empty(t, requests, "nothing may reach the target when resolution fails")
-				require.Contains(t, logs.String(), tc.wantLogContains)
+				require.Contains(t, agentLogger.String(), tc.wantLogContains)
 
 				return
 			}
@@ -319,12 +318,12 @@ func TestInterpolationOnTheWire(t *testing.T) {
 
 			// Without this, an empty log would pass the leak check below.
 			if tc.wantLogContains != "" {
-				require.Contains(t, logs.String(), tc.wantLogContains)
+				require.Contains(t, agentLogger.String(), tc.wantLogContains)
 			}
 
 			// Secret values must never reach the logs.
-			require.NotContains(t, logs.String(), wireTokenValue)
-			require.NotContains(t, logs.String(), wirePasswordValue)
+			require.NotContains(t, agentLogger.String(), wireTokenValue)
+			require.NotContains(t, agentLogger.String(), wirePasswordValue)
 
 			// Exact equality, never Contains: "Bearer ${secrets.api-token}" and
 			// "Bearer resolved-token-value" both contain "Bearer".
@@ -405,7 +404,7 @@ func TestInterpolationInTLSMaterial(t *testing.T) {
 					CACert: []byte("${secrets.does-not-exist}"),
 				},
 			},
-			wantError: "secret not found",
+			wantError: secrets.ErrSecretNotFound.Error(),
 		},
 
 		// The error must name the field that failed.
