@@ -2,6 +2,7 @@ package synthetic_monitoring
 
 import (
 	"bytes"
+	"iter"
 	"regexp"
 	"slices"
 
@@ -9,8 +10,8 @@ import (
 	"github.com/tdewolff/parse/v2/js"
 )
 
-// Does this check need a secret before it can run? The API and the agent both
-// need that answer, so it is worked out here, once, in the package they share.
+// The API and the agent both need to know whether a check needs a secret
+// before it can run, so the answer lives here, in the package they share.
 
 // k6SecretsModule is the module a script loads to read secrets.
 const k6SecretsModule = `k6/secrets`
@@ -42,84 +43,137 @@ func (c AdHocCheck) ReferencesSecrets() bool {
 	return c.Settings.ReferencesSecrets()
 }
 
+// SecretFields yields each field of the check that points at a secret. See
+// CheckSettings.SecretFields.
+func (c Check) SecretFields() iter.Seq[SecretField] {
+	return c.Settings.SecretFields()
+}
+
+// SecretFields yields each field of the check that points at a secret. See
+// CheckSettings.SecretFields.
+func (c AdHocCheck) SecretFields() iter.Seq[SecretField] {
+	return c.Settings.SecretFields()
+}
+
+// SecretField names a settings field that can hold a secret reference. The
+// values are stable: callers map them to the probe versions that resolve them.
+type SecretField string
+
+// Values name fields in the schema and never carry a list index, because
+// whether a probe resolves secrets depends only on the field.
+const (
+	SecretFieldHttpBearerToken       SecretField = "http.bearerToken"
+	SecretFieldHttpBasicAuthPassword SecretField = "http.basicAuth.password"
+	SecretFieldHttpTLSCACert         SecretField = "http.tlsConfig.caCert"
+	SecretFieldHttpTLSClientCert     SecretField = "http.tlsConfig.clientCert"
+	SecretFieldHttpTLSClientKey      SecretField = "http.tlsConfig.clientKey"
+	SecretFieldScriptedScript        SecretField = "scripted.script"
+	SecretFieldBrowserScript         SecretField = "browser.script"
+
+	// SecretFieldUnknown is reported for a check type nobody has classified
+	// yet. Callers should not match it to any probe.
+	SecretFieldUnknown SecretField = "unknown"
+)
+
 // ReferencesSecrets reports whether these settings point at a secret. See
 // Check.ReferencesSecrets.
 func (s CheckSettings) ReferencesSecrets() bool {
-	checkType, found := s.checkType()
-	if !found {
-		// Nothing is set, which is what a check being deleted looks like.
-		return false
-	}
-
-	switch checkType {
-	case CheckTypeHttp:
-		return s.Http.referencesSecrets()
-
-	case CheckTypeScripted:
-		return scriptReferencesSecrets(s.Scripted.Script)
-
-	case CheckTypeBrowser:
-		return scriptReferencesSecrets(s.Browser.Script)
-
-	case CheckTypeDns, CheckTypeGrpc, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute:
-		// None of these has a field that takes a secret.
-		return false
-
-	case CheckTypeMultiHttp:
-		// Multihttp has credential fields, but nothing resolves secrets in
-		// them yet.
-		return false
-
-	default:
-		// A new check type, added before anyone decided whether it can carry a
-		// secret. Yes is the safe answer; the type belongs in a case above.
-		return true
-	}
-}
-
-// referencesSecrets reports whether any of the five fields that support secrets
-// holds a reference: the bearer token, the basic auth password and the three
-// TLS fields.
-func (h *HttpSettings) referencesSecrets() bool {
-	if h == nil {
-		return false
-	}
-
-	if secretRefRegex.MatchString(h.BearerToken) {
-		return true
-	}
-
-	if h.BasicAuth != nil && secretRefRegex.MatchString(h.BasicAuth.Password) {
-		return true
-	}
-
-	if h.TlsConfig != nil && slices.ContainsFunc(
-		[][]byte{h.TlsConfig.CACert, h.TlsConfig.ClientCert, h.TlsConfig.ClientKey},
-		secretRefRegex.Match,
-	) {
+	for range s.SecretFields() {
 		return true
 	}
 
 	return false
 }
 
+// SecretFields yields each field that points at a secret, once, in a fixed
+// order. Use slices.Collect to get a slice.
+func (s CheckSettings) SecretFields() iter.Seq[SecretField] {
+	return func(yield func(SecretField) bool) {
+		checkType, found := s.checkType()
+		if !found {
+			// Nothing is set, which is what a check being deleted looks like.
+			return
+		}
+
+		switch checkType {
+		case CheckTypeHttp:
+			s.Http.secretFields(yield)
+
+		case CheckTypeScripted:
+			if scriptReferencesSecrets(s.Scripted.Script) {
+				yield(SecretFieldScriptedScript)
+			}
+
+		case CheckTypeBrowser:
+			if scriptReferencesSecrets(s.Browser.Script) {
+				yield(SecretFieldBrowserScript)
+			}
+
+		case CheckTypeDns, CheckTypeGrpc, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute:
+			// None of these has a field that takes a secret.
+
+		case CheckTypeMultiHttp:
+			// Multihttp has credential fields, but nothing resolves secrets in them yet.
+
+		default:
+			yield(SecretFieldUnknown)
+		}
+	}
+}
+
+// secretFields yields each of the five secret-capable fields that holds a
+// reference. It returns as soon as yield returns false, because calling yield
+// again after that panics.
+func (h *HttpSettings) secretFields(yield func(SecretField) bool) {
+	if h == nil {
+		return
+	}
+
+	if secretRefRegex.MatchString(h.BearerToken) && !yield(SecretFieldHttpBearerToken) {
+		return
+	}
+
+	if h.BasicAuth != nil && secretRefRegex.MatchString(h.BasicAuth.Password) && !yield(SecretFieldHttpBasicAuthPassword) {
+		return
+	}
+
+	if h.TlsConfig == nil {
+		return
+	}
+
+	tlsFields := [...]struct {
+		field SecretField
+		value []byte
+	}{
+		{SecretFieldHttpTLSCACert, h.TlsConfig.CACert},
+		{SecretFieldHttpTLSClientCert, h.TlsConfig.ClientCert},
+		{SecretFieldHttpTLSClientKey, h.TlsConfig.ClientKey},
+	}
+
+	for _, f := range tlsFields {
+		if secretRefRegex.Match(f.value) && !yield(f.field) {
+			return
+		}
+	}
+}
+
 // scriptReferencesSecrets reports whether the script names the secrets module.
 //
-// The script is parsed rather than pattern-matched, because a module can be
-// loaded in more ways than one:
+// The script is parsed because a module can be loaded in several ways, and
+// only the first two below are import statements:
 //
 //	import secrets from 'k6/secrets'
 //	import * as s from 'k6/secrets'
 //	const s = await import('k6/secrets')
 //	let anything = require('k6/secrets')
 //
-// Only the first two are import statements, so matching the shape of an import
-// misses the rest. Parsing finds all four, and ignores a mention inside a
-// comment without being told to. It also reads a line like /['"]/ correctly,
-// where a quote sits inside a pattern - a simpler scan mistakes that quote for
-// the start of a string and misreads everything after it.
+// A pattern over import statements misses the other two. Parsing finds all
+// four and skips a mention inside a comment with no extra rule. It also reads
+// a regular expression literal such as /['"]/ correctly. A simpler scan takes
+// the quote inside it for the start of a string and misreads everything after
+// it.
 //
-// What nothing can see is a name built while the script runs, as in
+// Parsing cannot see a name built while the script runs, as in
 // require('k6' + '/secrets').
 func scriptReferencesSecrets(script []byte) bool {
 	// The name has to appear somewhere for the module to be loaded, so a script
@@ -130,8 +184,7 @@ func scriptReferencesSecrets(script []byte) bool {
 
 	ast, err := js.Parse(parse.NewInputBytes(script), js.Options{})
 	if err != nil {
-		// The script mentions the module and cannot be read. Being unable to
-		// read it is no reason to answer no.
+		// The script mentions the module but does not parse, so it may still load the module.
 		return true
 	}
 

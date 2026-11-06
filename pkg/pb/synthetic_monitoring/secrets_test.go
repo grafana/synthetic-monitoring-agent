@@ -1,6 +1,7 @@
 package synthetic_monitoring
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,8 +23,8 @@ func TestScriptReferencesSecrets(t *testing.T) {
 			want:   false,
 		},
 
-		// The forms an import statement can take. Matching shapes means
-		// listing every one of them.
+		// Each form an import statement can take. A check that matched
+		// statement shapes would need a rule for every one.
 		"default import": {
 			script: "import secrets from 'k6/secrets'\n",
 			want:   true,
@@ -49,8 +50,8 @@ func TestScriptReferencesSecrets(t *testing.T) {
 			want:   true,
 		},
 
-		// None of these is an import statement, yet they all load the module.
-		// This is what matching shapes misses.
+		// These load the module without an import statement, so a check that
+		// matches statement shapes misses them.
 		"dynamic import": {
 			script: "export default async function(){ const s = await import('k6/secrets') }\n",
 			want:   true,
@@ -72,8 +73,8 @@ func TestScriptReferencesSecrets(t *testing.T) {
 			want:   true,
 		},
 
-		// Parsing tells code from comments, so a mention in a comment is
-		// ignored without a rule for it.
+		// The parser separates comments from code, so a mention in a comment
+		// needs no rule of its own.
 		"line comment": {
 			script: "// import secrets from 'k6/secrets'\nexport default function(){}\n",
 			want:   false,
@@ -87,9 +88,9 @@ func TestScriptReferencesSecrets(t *testing.T) {
 			want:   false,
 		},
 
-		// Here a quote sits inside a pattern. Only the surrounding code says
-		// whether the leading slash starts a pattern or divides, and getting
-		// that wrong misreads the rest of the file.
+		// A quote inside a regular expression literal. Only the surrounding
+		// code says whether a leading slash starts a regular expression or
+		// divides, and a scan that guesses wrong misreads the rest of the file.
 		"quote inside a regex literal": {
 			script: "const re = /['\"]/\nexport default function(){ re.test('x') }\n",
 			want:   false,
@@ -99,8 +100,8 @@ func TestScriptReferencesSecrets(t *testing.T) {
 			want:   true,
 		},
 
-		// The name appears, but nothing loads it. Answering yes anyway only
-		// limits the choice of probe.
+		// The name appears but nothing loads it. A yes here only narrows which
+		// probes can run the check.
 		"name in an unrelated string": {
 			script: "const label = 'k6/secrets'\nexport default function(){ console.log(label) }\n",
 			want:   true,
@@ -116,8 +117,8 @@ func TestScriptReferencesSecrets(t *testing.T) {
 			want:   false,
 		},
 
-		// This form loads the module without naming it. Whatever the module
-		// does, whoever wrote the line wanted secrets, so the answer is yes.
+		// This form loads the module without binding it to a name. The author
+		// still wanted secrets, so the answer is yes.
 		"side-effect only import": {
 			script: "import 'k6/secrets'\n",
 			want:   true,
@@ -199,8 +200,7 @@ func TestHttpSettingsReferenceSecrets(t *testing.T) {
 			want:     true,
 		},
 
-		// Secrets are not supported in these fields. A reference here is sent
-		// as text, whichever probe runs it.
+		// No probe resolves secrets in these fields, so a reference here goes out as text.
 		"reference in a custom header": {
 			settings: &HttpSettings{Headers: []string{"X-Api-Key: " + ref}},
 			want:     false,
@@ -219,9 +219,85 @@ func TestHttpSettingsReferenceSecrets(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			require.Equal(t, tc.want, tc.settings.referencesSecrets())
+			var got bool
+
+			tc.settings.secretFields(func(SecretField) bool {
+				got = true
+
+				return false
+			})
+
+			require.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func TestCheckSettingsSecretFields(t *testing.T) {
+	t.Parallel()
+
+	const ref = `${secrets.my-token}`
+
+	everyHttpField := CheckSettings{Http: &HttpSettings{
+		BearerToken: ref,
+		BasicAuth:   &BasicAuth{Username: "u", Password: ref},
+		TlsConfig: &TLSConfig{
+			CACert:     []byte(ref),
+			ClientCert: []byte(ref),
+			ClientKey:  []byte(ref),
+		},
+	}}
+
+	t.Run("every http field, in order", func(t *testing.T) {
+		t.Parallel()
+
+		require.Equal(t, []SecretField{
+			SecretFieldHttpBearerToken,
+			SecretFieldHttpBasicAuthPassword,
+			SecretFieldHttpTLSCACert,
+			SecretFieldHttpTLSClientCert,
+			SecretFieldHttpTLSClientKey,
+		}, slices.Collect(everyHttpField.SecretFields()))
+	})
+
+	// The runtime panics if yield is called again after it returned false.
+	t.Run("stops when the caller breaks", func(t *testing.T) {
+		t.Parallel()
+
+		for stopAfter := 1; stopAfter <= 5; stopAfter++ {
+			var seen int
+
+			require.NotPanics(t, func() {
+				for range everyHttpField.SecretFields() {
+					seen++
+					if seen == stopAfter {
+						break
+					}
+				}
+			})
+			require.Equal(t, stopAfter, seen)
+		}
+	})
+
+	t.Run("script", func(t *testing.T) {
+		t.Parallel()
+
+		settings := CheckSettings{Scripted: &ScriptedSettings{Script: []byte(`import secrets from 'k6/secrets'`)}}
+		require.Equal(t, []SecretField{SecretFieldScriptedScript}, slices.Collect(settings.SecretFields()))
+	})
+
+	t.Run("browser", func(t *testing.T) {
+		t.Parallel()
+
+		settings := CheckSettings{Browser: &BrowserSettings{Script: []byte(`import secrets from 'k6/secrets'`)}}
+		require.Equal(t, []SecretField{SecretFieldBrowserScript}, slices.Collect(settings.SecretFields()))
+	})
+
+	t.Run("plaintext only", func(t *testing.T) {
+		t.Parallel()
+
+		settings := CheckSettings{Http: &HttpSettings{BearerToken: "plain"}}
+		require.Empty(t, slices.Collect(settings.SecretFields()))
+	})
 }
 
 func TestCheckSettingsReferencesSecrets(t *testing.T) {
@@ -306,8 +382,8 @@ func TestCheckSettingsReferencesSecrets(t *testing.T) {
 	}
 }
 
-// TestReferencesSecretsCoversEveryCheckType fails when a new check type is
-// added without deciding whether it can carry a secret.
+// TestReferencesSecretsCoversEveryCheckType fails when someone adds a check
+// type without deciding whether it can carry a secret.
 func TestReferencesSecretsCoversEveryCheckType(t *testing.T) {
 	t.Parallel()
 
