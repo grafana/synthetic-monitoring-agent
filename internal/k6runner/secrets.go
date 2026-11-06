@@ -10,8 +10,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// SecretStoreRetriever loads the stack's secret store configuration.
-// A failure reported to the check owner on logger.
+// SecretStoreRetriever loads the stack's secret store configuration. It reports a failure on
+// the agent log and on the check logger, so callers need not log it again.
 type SecretStoreRetriever func(ctx context.Context, logger logger.Logger) (SecretStore, error)
 
 // NewSecretStoreRetriever returns a SecretStoreRetriever that reads the configuration for tenantID from provider.
@@ -32,7 +32,8 @@ func NewSecretStoreRetriever(provider secrets.SecretProvider, tenantID smmodel.G
 
 			// The check owner gets a fixed reason instead of error because it
 			// might contain the transport detail of the SM API client.
-			_ = level.Error(ownerLogger).Log("msg", "Could not load the secret store configuration for this check", "reason", secrets.OwnerReason(err))
+			fields := append([]any{"msg", "Could not load the secret store configuration for this check"}, secrets.AsError(err).LogFields()...)
+			_ = level.Error(ownerLogger).Log(fields...)
 
 			return store, err
 		}

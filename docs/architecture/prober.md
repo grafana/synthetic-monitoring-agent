@@ -141,22 +141,28 @@ with no `${secrets.` in it is passed through as is and never hits the
 secret store, so checks without secrets only pay for a substring check.
 
 A reference that does not resolve fails the run before any request is
-sent. The agent log gets the whole error. The check logs get the field,
-the secret name and a fixed reason from `secrets.OwnerReason`, never the
-error text, because that text comes from the secret store and SM API
-clients and carries the secret store URL and transport detail. An
-invalid name is reported without the name, since the pattern captures
-everything up to the next `}` and a literal credential can contain
-`${secrets.`.
+sent. Every layer reports the failure as a `secrets.Error` and fills in
+what it knows: the secret store sets a fixed reason and the underlying
+error, the resolver sets the secret name, and the HTTP prober sets the
+field. The agent log gets the whole error. The check logs get only
+`LogFields()`, which are the field, the secret name and the reason, and
+never the underlying error, because its text comes from the secret
+store and SM API clients and carries the secret store URL and transport
+detail. An invalid name stays out of the check logs, since the pattern
+captures everything up to the next `}` and a credential pasted in place
+of the name would land there. The agent log keeps it.
 
 Some reasons are for the check owner to fix: a secret that does not
-exist, an invalid name, a stack with no secret store. A secret store
-that is unavailable, rejects the agent's token or sends a response the
-client cannot read is a problem on the Grafana side, and the reason
-tells the owner that their check is not at fault. Other
-errors while building the client config, such as a bad proxy URL, go to
-the agent log only. Proxy URL errors leave out the URL, because it can
-carry `user:password@`.
+exist, an invalid name, a stack with no secret store, a check that times
+out before the secret arrives. A secret store that is unavailable or
+rate limited, denies the agent's token (401 for another stack's token,
+403 for a token without the scope) or sends a response the client cannot
+read is a problem on the Grafana side, and the reason tells the owner
+that their check is not at fault. The reason comes from the check's
+context when it has ended, so a timeout is not reported as an
+unavailable store. Other errors while building the client config, such
+as a bad proxy URL, go to the agent log only. Proxy URL errors leave out
+the URL, because it can carry `user:password@`.
 
 DNS is special: the project keeps an in-tree fork at
 `prober/dns/internal/bbe` because the upstream DNS prober is missing a
@@ -187,7 +193,8 @@ responsibility is *script preparation*:
 
 Each run first loads the stack's secret store configuration from the SM
 API, which the script needs to fetch secrets. When that fails, the run
-fails, and the check logs get a fixed reason from `secrets.OwnerReason`.
+fails, and the check logs get the reason from the `secrets.Error`. The
+retriever writes both log lines, so the probers do not log it again.
 
 ## Design details
 

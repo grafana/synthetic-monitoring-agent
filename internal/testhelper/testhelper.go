@@ -221,7 +221,7 @@ func (m *MockSecretProvider) GetSecretValue(ctx context.Context, tenantID model.
 		return value, nil
 	}
 
-	return "", secrets.ErrSecretNotFound
+	return "", &secrets.Error{Reason: secrets.ErrSecretNotFound}
 }
 
 // CommonTestSetup returns commonly used test values for context, logger, and tenant ID
