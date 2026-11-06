@@ -104,8 +104,10 @@ func TestSecretFailureReachesTheCheckLogs(t *testing.T) {
 		wantCheckLogEmpty bool
 		// wantAgentLog is detail the operator get but never the check owner.
 		wantAgentLog []string
-		// wantAbsent may not be in either log stream (agent and check).
-		wantAbsent  []string
+		// wantCheckLogAbsent may not be in the check log stream.
+		wantCheckLogAbsent []string
+		// timeout cuts the probe short instead of the test deadline.
+		timeout     time.Duration
 		wantSuccess bool
 	}{
 		"unknown secret in bearer token": {
@@ -141,9 +143,10 @@ func TestSecretFailureReachesTheCheckLogs(t *testing.T) {
 
 		// Validation by the `interpolation.isValidSecretName`
 		"invalid secret name": {
-			settings:     sm.HttpSettings{BearerToken: "${secrets.My_Token}"},
-			wantCheckLog: []string{`field="bearer token"`, "invalid secret name", "lowercase letters"},
-			wantAbsent:   []string{"My_Token"},
+			settings:           sm.HttpSettings{BearerToken: "${secrets.My_Token}"},
+			wantCheckLog:       []string{`field="bearer token"`, "invalid secret name", "lowercase letters"},
+			wantAgentLog:       []string{"My_Token"},
+			wantCheckLogAbsent: []string{"My_Token"},
 		},
 
 		"secret store unreachable": {
@@ -156,7 +159,24 @@ func TestSecretFailureReachesTheCheckLogs(t *testing.T) {
 		"secret store rejects the agent's token": {
 			settings:     sm.HttpSettings{BearerToken: tokenRef},
 			secretStore:  status(http.StatusUnauthorized),
-			wantCheckLog: []string{`reason="the secret store rejected the agent's access token"`},
+			wantCheckLog: []string{`reason="the secret store denied the agent access"`},
+			wantAgentLog: []string{"status 401"},
+		},
+
+		"agent's token lacks the scope": {
+			settings:     sm.HttpSettings{BearerToken: tokenRef},
+			secretStore:  status(http.StatusForbidden),
+			wantCheckLog: []string{`reason="the secret store denied the agent access"`},
+			wantAgentLog: []string{"status 403"},
+		},
+
+		"secret store slower than the check timeout": {
+			settings: sm.HttpSettings{BearerToken: tokenRef},
+			secretStore: serve(func(_ http.ResponseWriter, r *http.Request) {
+				<-r.Context().Done()
+			}),
+			timeout:      50 * time.Millisecond,
+			wantCheckLog: []string{"secret=" + tokenName, `reason="the check timed out before the secret could be fetched"`},
 		},
 
 		"secret store fails": {
@@ -237,6 +257,16 @@ func TestSecretFailureReachesTheCheckLogs(t *testing.T) {
 			ctx, cancel := testhelper.Context(context.Background(), t)
 			t.Cleanup(cancel)
 
+			// The scraper runs every probe under the check's timeout.
+			probeCtx := ctx
+
+			if tc.timeout > 0 {
+				var probeCancel context.CancelFunc
+
+				probeCtx, probeCancel = context.WithTimeout(ctx, tc.timeout)
+				t.Cleanup(probeCancel)
+			}
+
 			target := newRequestRecorder(t)
 			settings := tc.settings
 
@@ -269,7 +299,7 @@ func TestSecretFailureReachesTheCheckLogs(t *testing.T) {
 			require.NoError(t, err)
 
 			success, _ := prober.Probe(
-				ctx,
+				probeCtx,
 				check.Target,
 				prometheus.NewPedanticRegistry(),
 				kitlog.NewLogfmtLogger(&checkLog),
@@ -291,10 +321,10 @@ func TestSecretFailureReachesTheCheckLogs(t *testing.T) {
 				require.NotContains(t, log, tokenValue)
 				require.NotContains(t, log, passwordValue)
 				require.NotContains(t, log, proxyCredentials)
+			}
 
-				for _, absent := range tc.wantAbsent {
-					require.NotContains(t, log, absent)
-				}
+			for _, absent := range tc.wantCheckLogAbsent {
+				require.NotContains(t, checkLog.String(), absent)
 			}
 
 			if tc.wantCheckLogEmpty {
