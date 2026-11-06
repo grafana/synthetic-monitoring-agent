@@ -35,7 +35,7 @@ require (
 	github.com/go-kit/log v0.2.1
 	github.com/gogo/status v1.1.1
 	github.com/grafana/ckit v0.0.0-20251024151910-87043f5a3cf7
-	github.com/grafana/gsm-api-go-client v0.3.6
+	github.com/grafana/gsm-api-go-client v0.3.7
 	github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96
 	github.com/jpillora/backoff v1.1.0
 	github.com/maypok86/otter/v2 v2.4.0
@@ -91,7 +91,7 @@ require (
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
