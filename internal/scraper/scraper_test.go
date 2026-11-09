@@ -3047,7 +3047,9 @@ func TestTickWithOffset(t *testing.T) {
 				start.anchor = time.Now().Add(tc.anchor)
 			}
 
-			tickWithOffset(ctx, stop, work, idle, cleanup, tc.period, start, tc.maxIdle, tc.minGap)
+			scheduled := func(context.Context, time.Time) {}
+
+			tickWithOffset(ctx, stop, work, idle, cleanup, scheduled, tc.period, start, tc.maxIdle, tc.minGap)
 
 			require.Equal(t, tc.expected, results)
 		})
@@ -3086,16 +3088,79 @@ func TestTickWithOffsetKeepsAnchorPhase(t *testing.T) {
 		close(stop)
 	}()
 
+	var scheduled []time.Duration
+
+	schedule := func(_ context.Context, next time.Time) { scheduled = append(scheduled, next.Sub(begin)) }
+
 	// The anchor sits 100ms in the past, so the first on-phase tick after the
 	// immediate first run is at 200ms, and the ticker must then fire at 500ms.
 	// A ticker phased on the end of the 200ms run would fire at 600ms instead.
 	start := tickStart{offset: 1, anchor: begin.Add(-100 * time.Millisecond), primed: true}
 
-	tickWithOffset(ctx, stop, work, noop, noop, period, start, time.Hour, minGap)
+	tickWithOffset(ctx, stop, work, noop, noop, schedule, period, start, time.Hour, minGap)
 
 	require.Len(t, ticks, 3, "ticks at %v", ticks)
 	require.InDelta(t, float64(200*time.Millisecond), float64(ticks[1]), float64(40*time.Millisecond), "anchored tick at %v", ticks[1])
 	require.InDelta(t, float64(500*time.Millisecond), float64(ticks[2]), float64(40*time.Millisecond), "first regular tick at %v", ticks[2])
+
+	// What the loop announced after each execution is what it then did.
+	require.Len(t, scheduled, 3, "scheduled at %v", scheduled)
+	require.Equal(t, 200*time.Millisecond, scheduled[0], "anchored tick is announced exactly on phase")
+	require.InDelta(t, float64(ticks[2]), float64(scheduled[1]), float64(10*time.Millisecond), "first regular tick announced %v, fired %v", scheduled[1], ticks[2])
+}
+
+// TestTickWithOffsetSkipsTickOverrunByCatchUp pins that an on-phase tick which
+// passes while the first (catch-up) execution is still running is skipped, not
+// fired late: a late fire would double-scrape and phase the ticker on the late
+// instant.
+func TestTickWithOffsetSkipsTickOverrunByCatchUp(t *testing.T) {
+	const (
+		period   = 300 * time.Millisecond
+		workTime = 200 * time.Millisecond
+		minGap   = 50 * time.Millisecond
+	)
+
+	ctx, cancel := testhelper.Context(context.Background(), t)
+	t.Cleanup(cancel)
+
+	begin := time.Now()
+
+	var ticks []time.Duration
+
+	work := func(context.Context, time.Time) {
+		ticks = append(ticks, time.Since(begin))
+
+		time.Sleep(workTime)
+	}
+	noop := func(context.Context, time.Time) {}
+
+	stop := make(chan struct{})
+
+	go func() {
+		time.Sleep(750 * time.Millisecond)
+		close(stop)
+	}()
+
+	var scheduled []time.Duration
+
+	schedule := func(_ context.Context, next time.Time) { scheduled = append(scheduled, next.Sub(begin)) }
+
+	// The anchor sits 200ms in the past, so the on-phase tick at 100ms falls
+	// inside the 0–200ms catch-up run. The next one, at 400ms, is the first
+	// the loop can honour, and the ticker must then fire at 700ms.
+	start := tickStart{offset: 1, anchor: begin.Add(-200 * time.Millisecond), primed: true}
+
+	tickWithOffset(ctx, stop, work, noop, noop, schedule, period, start, time.Hour, minGap)
+
+	require.Len(t, ticks, 3, "ticks at %v", ticks)
+	require.InDelta(t, float64(400*time.Millisecond), float64(ticks[1]), float64(40*time.Millisecond), "anchored tick at %v", ticks[1])
+	require.InDelta(t, float64(700*time.Millisecond), float64(ticks[2]), float64(40*time.Millisecond), "first regular tick at %v", ticks[2])
+
+	// The skipped 100ms tick is never announced either: the record a
+	// successor would read names the tick that really came next.
+	require.Len(t, scheduled, 3, "scheduled at %v", scheduled)
+	require.Equal(t, 400*time.Millisecond, scheduled[0], "the overrun tick is skipped in the announcement too")
+	require.InDelta(t, float64(ticks[2]), float64(scheduled[1]), float64(10*time.Millisecond), "first regular tick announced %v, fired %v", scheduled[1], ticks[2])
 }
 
 func TestGetCostAttributionLabels(t *testing.T) {
@@ -3424,7 +3489,7 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 		return s, publisher
 	}
 
-	t.Run("scrape stores the published payload, republish does not", func(t *testing.T) {
+	t.Run("cacheState stores the scraped payload with the announced tick", func(t *testing.T) {
 		store := &fakeStateStore{}
 		s, publisher := newScraper(t, store, 20)
 
@@ -3434,12 +3499,17 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 		h.scrape(t.Context(), firedAt)
 
 		require.Len(t, publisher.payloads, 1)
+		require.Empty(t, store.calls, "scrape publishes; only the loop knows the next tick")
+
+		next := firedAt.Add(210 * time.Second)
+		h.cacheState(t.Context(), next)
+
 		require.Len(t, store.calls, 1)
 		require.Equal(t, stateKey(s.check), store.calls[0].key)
 
 		record, ok := store.calls[0].value.(StateRecord)
 		require.True(t, ok)
-		require.Equal(t, firedAt.Add(5*time.Minute), record.NextFire)
+		require.Equal(t, next, record.NextFire, "the record names the tick the loop announced, whatever the scrape's own time")
 
 		decoded, err := decodeStatePayload(record.Payload)
 		require.NoError(t, err)
@@ -3454,6 +3524,10 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 
 		require.Len(t, publisher.payloads, 3)
 		require.Len(t, store.calls, 1, "cleanup must not write state")
+
+		h.cacheState(t.Context(), next.Add(5*time.Minute))
+
+		require.Len(t, store.calls, 1, "nothing to record once cleanup has dropped the payload")
 	})
 
 	t.Run("failed collection stores nothing", func(t *testing.T) {
@@ -3462,7 +3536,9 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 
 		h := scrapeHandler{scraper: s}
 
-		h.scrape(t.Context(), time.Now())
+		firedAt := time.Now()
+		h.scrape(t.Context(), firedAt)
+		h.cacheState(t.Context(), firedAt.Add(5*time.Minute))
 
 		require.Empty(t, publisher.payloads)
 		require.Empty(t, store.calls)
@@ -3515,10 +3591,12 @@ func TestScraperPersistState(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.want, s.persistState)
 
-			// The decision must be what gates the write: a scrape on an
+			// The decision must be what gates the write: an execution on an
 			// ineligible scraper leaves the store untouched.
 			h := scrapeHandler{scraper: s}
-			h.scrape(t.Context(), time.Now())
+			now := time.Now()
+			h.scrape(t.Context(), now)
+			h.cacheState(t.Context(), now.Add(tc.frequency))
 
 			if fake, ok := tc.store.(*fakeStateStore); ok {
 				if tc.want {
@@ -3773,6 +3851,17 @@ func TestScraperRunHydrates(t *testing.T) {
 
 			cancel()
 			<-done
+
+			// Checked once the scraper has exited: Store runs after Publish on
+			// the scraper's goroutine. Whatever the first execution's own time
+			// was, the record it leaves must sit on the predecessor's phase, or
+			// the next handoff inherits a shifted cadence.
+			if tc.wantScrape && tc.nextFireFrom != 0 {
+				require.Len(t, store.calls, 1)
+				record, ok := store.calls[0].value.(StateRecord)
+				require.True(t, ok)
+				require.WithinDuration(t, started.Add(tc.nextFireFrom+tc.frequency), record.NextFire, publishWait)
+			}
 
 			if tc.wantGet {
 				require.Len(t, store.gets, 1)
