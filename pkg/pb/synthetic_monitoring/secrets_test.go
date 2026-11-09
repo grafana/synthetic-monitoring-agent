@@ -200,10 +200,32 @@ func TestHttpSettingsReferenceSecrets(t *testing.T) {
 			want:     true,
 		},
 
-		// No probe resolves secrets in these fields, so a reference here goes out as text.
-		"reference in a custom header": {
+		"reference in a custom header value": {
 			settings: &HttpSettings{Headers: []string{"X-Api-Key: " + ref}},
+			want:     true,
+		},
+		"reference with text in a custom header value": {
+			settings: &HttpSettings{Headers: []string{"Authorization: ApiKey " + ref}},
+			want:     true,
+		},
+		"plaintext custom header": {
+			settings: &HttpSettings{Headers: []string{"X-Api-Key: plain-key"}},
 			want:     false,
+		},
+
+		// Header names are plain text, so a reference there is never resolved.
+		"reference in a custom header name": {
+			settings: &HttpSettings{Headers: []string{ref + ": value"}},
+			want:     false,
+		},
+		"custom header without a colon": {
+			settings: &HttpSettings{Headers: []string{ref}},
+			want:     false,
+		},
+
+		"reference in a reserved header": {
+			settings: &HttpSettings{Headers: []string{"X-Sm-Id: " + ref}},
+			want:     true,
 		},
 		"variable syntax is not a secret reference": {
 			settings: &HttpSettings{BearerToken: "${my_var}"},
@@ -245,6 +267,7 @@ func TestCheckSettingsSecretFields(t *testing.T) {
 			ClientCert: []byte(ref),
 			ClientKey:  []byte(ref),
 		},
+		Headers: []string{"X-Api-Key: " + ref, "X-Tenant: " + ref},
 	}}
 
 	t.Run("every http field, in order", func(t *testing.T) {
@@ -256,14 +279,45 @@ func TestCheckSettingsSecretFields(t *testing.T) {
 			SecretFieldHttpTLSCACert,
 			SecretFieldHttpTLSClientCert,
 			SecretFieldHttpTLSClientKey,
+			SecretFieldHttpHeaders,
 		}, slices.Collect(everyHttpField.SecretFields()))
+	})
+
+	// The field names a place in the settings, so many headers report it once.
+	t.Run("several custom headers", func(t *testing.T) {
+		t.Parallel()
+
+		settings := CheckSettings{Http: &HttpSettings{Headers: []string{
+			"X-Api-Key: " + ref,
+			"X-Plain: value",
+			"X-Tenant: tenant-" + ref,
+		}}}
+		require.Equal(t, []SecretField{SecretFieldHttpHeaders}, slices.Collect(settings.SecretFields()))
+	})
+
+	// Headers without a reference add no field.
+	t.Run("plain custom headers", func(t *testing.T) {
+		t.Parallel()
+
+		plain := *everyHttpField.Http
+		plain.Headers = []string{"X-Plain: value"}
+
+		require.Equal(t, []SecretField{
+			SecretFieldHttpBearerToken,
+			SecretFieldHttpBasicAuthPassword,
+			SecretFieldHttpTLSCACert,
+			SecretFieldHttpTLSClientCert,
+			SecretFieldHttpTLSClientKey,
+		}, slices.Collect(CheckSettings{Http: &plain}.SecretFields()))
 	})
 
 	// The runtime panics if yield is called again after it returned false.
 	t.Run("stops when the caller breaks", func(t *testing.T) {
 		t.Parallel()
 
-		for stopAfter := 1; stopAfter <= 5; stopAfter++ {
+		total := len(slices.Collect(everyHttpField.SecretFields()))
+
+		for stopAfter := 1; stopAfter <= total; stopAfter++ {
 			var seen int
 
 			require.NotPanics(t, func() {
