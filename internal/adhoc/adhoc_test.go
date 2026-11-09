@@ -2,6 +2,7 @@ package adhoc
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/k6runner"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
@@ -198,6 +200,74 @@ func TestHandlerRun(t *testing.T) {
 	require.Equal(t, "execution_id", entry.StructuredMetadata[0].Name)
 	_, err = uuid.Parse(entry.StructuredMetadata[0].Value)
 	require.NoError(t, err, "execution_id should be a valid UUID")
+}
+
+func TestRunnerRunPublishesRunMetadata(t *testing.T) {
+	t.Parallel()
+
+	testcases := map[string]struct {
+		runner   runner
+		expected map[string]any
+		absent   []string
+	}{
+		"with metadata": {
+			runner: runner{
+				job:             "my-job",
+				labels:          []sm.Label{{Name: "env", Value: "prod"}},
+				clientType:      "gcx",
+				probesRequested: 3,
+			},
+			expected: map[string]any{
+				"job":              "my-job",
+				"labels":           []any{map[string]any{"name": "env", "value": "prod"}},
+				"client_type":      "gcx",
+				"probes_requested": float64(3),
+				"success":          true,
+				"duration_seconds": float64(1),
+			},
+		},
+		"without metadata": {
+			runner: runner{},
+			expected: map[string]any{
+				"success":          true,
+				"duration_seconds": float64(1),
+			},
+			absent: []string{"job", "labels", "client_type", "probes_requested"},
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := zerolog.New(io.Discard)
+			publishCh := make(chan pusher.Payload, 1)
+
+			r := tc.runner
+			r.logger = logger
+			r.prober = &testProber{logger}
+			r.id = "test-id"
+			r.target = "example.com"
+			r.probe = "testProbe"
+
+			r.Run(t.Context(), model.GlobalID(1), channelPublisher(publishCh))
+
+			payload := <-publishCh
+			require.Len(t, payload.Streams(), 1)
+			require.Len(t, payload.Streams()[0].Entries, 1)
+
+			var line map[string]any
+			require.NoError(t, json.Unmarshal([]byte(payload.Streams()[0].Entries[0].Line), &line))
+
+			for k, v := range tc.expected {
+				require.Equal(t, v, line[k], "field %q", k)
+			}
+
+			for _, k := range tc.absent {
+				require.NotContains(t, line, k)
+			}
+		})
+	}
 }
 
 func TestHandleAdHocCheckDoesNotLogCredentials(t *testing.T) {
@@ -638,6 +708,23 @@ func TestDefaultRunnerFactory(t *testing.T) {
 				},
 			},
 		},
+		"ping check with metadata": {
+			request: &sm.AdHocRequest{
+				AdHocCheck: sm.AdHocCheck{
+					Id:         "test-ping-metadata",
+					TenantId:   1000,
+					Target:     "example.com",
+					Timeout:    1000,
+					Probes:     []int64{1, 2, 3},
+					Job:        "my-job",
+					Labels:     []sm.Label{{Name: "env", Value: "prod"}},
+					ClientType: "gcx",
+					Settings: sm.CheckSettings{
+						Ping: &sm.PingSettings{},
+					},
+				},
+			},
+		},
 		"http check": {
 			request: &sm.AdHocRequest{
 				AdHocCheck: sm.AdHocCheck{
@@ -819,6 +906,10 @@ func TestDefaultRunnerFactory(t *testing.T) {
 			require.NotNil(t, runner.prober)
 			require.Equal(t, tc.request.AdHocCheck.Id, runner.id)
 			require.Equal(t, "test-probe", runner.probe)
+			require.Equal(t, tc.request.AdHocCheck.Job, runner.job)
+			require.Equal(t, tc.request.AdHocCheck.Labels, runner.labels)
+			require.Equal(t, tc.request.AdHocCheck.ClientType, runner.clientType)
+			require.Equal(t, len(tc.request.AdHocCheck.Probes), runner.probesRequested)
 
 			// For k6-based checks, verify the grace period is added
 			switch tc.request.AdHocCheck.Type() {
