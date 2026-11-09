@@ -169,16 +169,15 @@ func (w *StateWriter) Enabled() bool {
 	return w.store != nil
 }
 
-// Store records the payload published for check at firedAt, waiting at most
-// stateWriteTimeout for the cache. Whether a check's state is worth persisting
-// at all is the scraper's decision (see Scraper.persistState); Store only
-// skips records whose TTL is already non-positive.
-func (w *StateWriter) Store(ctx context.Context, check model.Check, firedAt time.Time, ts TimeSeries) {
+// Store records the payload published for check and the check's next regular
+// tick, waiting at most stateWriteTimeout for the cache. Whether a check's
+// state is worth persisting at all is the scraper's decision (see
+// Scraper.persistState); Store only skips records whose TTL is already
+// non-positive.
+func (w *StateWriter) Store(ctx context.Context, check model.Check, nextFire time.Time, ts TimeSeries) {
 	if !w.Enabled() {
 		return
 	}
-
-	nextFire := firedAt.Add(ms(check.Frequency))
 
 	// Not an error: a record that would already have expired cannot help a
 	// successor, and a zero expiration would mean "keep forever" to the cache.
