@@ -158,7 +158,7 @@ func TestStateWriterDisabled(t *testing.T) {
 
 	require.False(t, w.Enabled())
 
-	w.Store(context.Background(), stateTestCheck(t, 5*time.Minute), time.Now(), stateTestSeries())
+	w.Store(context.Background(), stateTestCheck(t, 5*time.Minute), time.Now().Add(5*time.Minute), stateTestSeries())
 
 	mfs, err := reg.Gather()
 	require.NoError(t, err)
@@ -205,7 +205,7 @@ func TestStateWriterStore(t *testing.T) {
 			series := stateTestSeries()
 			firedAt := time.Now().Add(-tc.firedAtAgo)
 
-			w.Store(context.Background(), check, firedAt, series)
+			w.Store(context.Background(), check, firedAt.Add(tc.frequency), series)
 
 			if !tc.wantSet {
 				require.Empty(t, store.calls)
@@ -248,7 +248,7 @@ func TestStateWriterStoreTimesOut(t *testing.T) {
 
 	start := time.Now()
 
-	w.Store(context.Background(), stateTestCheck(t, 5*time.Minute), time.Now(), stateTestSeries())
+	w.Store(context.Background(), stateTestCheck(t, 5*time.Minute), time.Now().Add(5*time.Minute), stateTestSeries())
 
 	require.Less(t, time.Since(start), time.Second, "Store must return once the write timeout fires")
 	require.Len(t, store.calls, 1)
@@ -267,7 +267,7 @@ func TestStateWriterStoreCancelledContext(t *testing.T) {
 
 	start := time.Now()
 
-	w.Store(ctx, stateTestCheck(t, 5*time.Minute), time.Now(), stateTestSeries())
+	w.Store(ctx, stateTestCheck(t, 5*time.Minute), time.Now().Add(5*time.Minute), stateTestSeries())
 
 	require.Less(t, time.Since(start), w.timeout, "a cancelled context must not wait for the write timeout")
 	require.Len(t, store.calls, 1)

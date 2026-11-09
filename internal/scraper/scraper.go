@@ -371,7 +371,8 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 		h.scraper.publisher.Publish(h.payload)
 
 		if h.scraper.persistState {
-			h.scraper.stateWriter.Store(ctx, h.scraper.check, t, h.payload.ts)
+			nextFire := t.Add(ms(h.scraper.check.Frequency))
+			h.scraper.stateWriter.Store(ctx, h.scraper.check, nextFire, h.payload.ts)
 		}
 	}
 }
