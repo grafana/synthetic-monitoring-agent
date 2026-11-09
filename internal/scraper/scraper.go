@@ -305,7 +305,7 @@ func (s *Scraper) Run(ctx context.Context) {
 	tickWithOffset(
 		ctx,
 		s.stop,
-		h.scrape, h.republish, h.cleanup,
+		h.scrape, h.republish, h.cleanup, h.cacheState,
 		ms(s.check.Frequency), start,
 		maxPublishInterval, minPublishGap,
 	)
@@ -427,7 +427,12 @@ func planStart(now time.Time, rec StateRecord, frequency, timeout, jitter time.D
 	// nextFire was in the recent past - we missed an execution.
 	// Decide to do a catch-up execution or not: if the next regular tick is
 	// due before a catch-up starting after the jitter could finish (timeout),
-	// the catch-up would overlap with it; wait for the regular tick instead.
+	// the catch-up would run past it and that tick would be skipped; wait for
+	// the regular tick instead.
+	//
+	// timeout bounds a healthy run. A k6 run the runner retries can exceed it,
+	// in which case the catch-up still costs the one tick it runs past; the
+	// loop then settles onto the following on-phase instant.
 	if regular := nextFire.Add(frequency); regular.Sub(now.Add(jitter)) <= timeout {
 		return startResume, tickStart{offset: regular.Sub(now), anchor: nextFire, primed: true}
 	}
@@ -440,6 +445,19 @@ type scrapeHandler struct {
 	scraper *Scraper
 	payload *probeData // needed to keep the most recently published payload for republication and clean up
 	sm      checkStateMachine
+}
+
+// cacheState records the last scraped payload together with next, the tick the
+// loop has just armed. The loop is the only place that knows when the next
+// execution really happens, so the record is written here rather than in
+// scrape: a record that named a tick the loop then skipped would hand a
+// successor a cadence this scraper never followed, with a TTL to match.
+func (h *scrapeHandler) cacheState(ctx context.Context, next time.Time) {
+	if !h.scraper.persistState || h.payload == nil {
+		return
+	}
+
+	h.scraper.stateCache.Store(ctx, h.scraper.check, next, h.payload.ts)
 }
 
 func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
@@ -496,12 +514,6 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 
 	if h.payload != nil {
 		h.scraper.publisher.Publish(h.payload)
-
-		// cache the execution result + nextFire cadence
-		if h.scraper.persistState {
-			nextFire := t.Add(ms(h.scraper.check.Frequency))
-			h.scraper.stateCache.Store(ctx, h.scraper.check, nextFire, h.payload.ts)
-		}
 	}
 }
 
@@ -574,10 +586,14 @@ func (s Scraper) ConfigVersion() string {
 	return s.check.ConfigVersion()
 }
 
+// tickWithOffset drives one scraper: work on every tick, idle republishes in
+// between, cleanup on stop. cacheNextFire is called after each work with the
+// instant the next on-phase tick has been armed for, so the caller can persist a
+// schedule that matches what the loop will actually do.
 func tickWithOffset(
 	ctx context.Context,
 	stop <-chan struct{},
-	work, idle, cleanup func(context.Context, time.Time),
+	work, idle, cleanup, cacheNextFire func(context.Context, time.Time),
 	period time.Duration,
 	start tickStart,
 	maxIdle, minGap time.Duration,
@@ -624,10 +640,20 @@ func tickWithOffset(
 
 	if start.anchor.IsZero() {
 		// this is a cold start - tick every period
+		tickerStart := time.Now()
 		workTicker = time.NewTicker(period)
+
+		cacheNextFire(ctx, tickerStart.Add(period))
 	} else {
-		// otherwise, wait until we reach the start.anchor (nextFire)
-		lastTick, ok = waitForAnchoredTick(ctx, stop, idle, cleanup, inactivityTicker, period, start.anchor, lastTick, minGap)
+		// Otherwise settle onto the anchor's phase. From now, not from
+		// lastTick: the execution that just ran may have overrun the next
+		// on-phase instant, and firing it late would scrape twice in a row
+		// and phase the ticker on the late instant.
+		next := nextOnPhase(start.anchor, time.Now(), period)
+
+		cacheNextFire(ctx, next)
+
+		lastTick, ok = waitForTick(ctx, stop, idle, cleanup, inactivityTicker, next, lastTick, minGap)
 		if !ok {
 			return
 		}
@@ -635,9 +661,11 @@ func tickWithOffset(
 		// Phased on the anchored tick, not on the end of the execution it
 		// starts: a browser check can run for a minute or more, and a cadence
 		// that shifted by that much at every handoff would defeat the record.
+		tickerStart := time.Now()
 		workTicker = time.NewTicker(period)
 
 		work(ctx, lastTick)
+		cacheNextFire(ctx, tickerStart.Add(period))
 	}
 
 	for {
@@ -678,6 +706,7 @@ func tickWithOffset(
 		case t := <-workTicker.C:
 			lastTick = t
 			work(ctx, t)
+			cacheNextFire(ctx, t.Add(period))
 		}
 	}
 }
@@ -731,11 +760,12 @@ func waitForFirstTick(
 }
 
 // nextOnPhase returns the first instant on anchor's phase (anchor + k·period)
-// that falls more than minGap after t. anchor may lie in the past.
-func nextOnPhase(anchor, t time.Time, period, minGap time.Duration) time.Time {
-	// How far past the anchor the earliest acceptable instant lies; negative
-	// means the anchor itself is still acceptable.
-	gap := t.Add(minGap).Sub(anchor)
+// strictly after t. anchor may lie in the past. On-phase instants at or before
+// t are skipped, never fired late: executions run on cadence or not at all.
+func nextOnPhase(anchor, t time.Time, period time.Duration) time.Time {
+	// How far past the anchor t lies; negative means the anchor itself is
+	// still ahead.
+	gap := t.Sub(anchor)
 	if gap < 0 {
 		return anchor
 	}
@@ -746,22 +776,18 @@ func nextOnPhase(anchor, t time.Time, period, minGap time.Duration) time.Time {
 	return anchor.Add(time.Duration(k) * period)
 }
 
-// waitForAnchoredTick waits for the first tick on anchor's phase that falls
-// more than minGap after lastTick, servicing idle runs and stops like the regular
-// loop, and returns that tick's time, or false if the wait was cancelled or
+// waitForTick waits until next, servicing idle runs and stops like the regular
+// loop, and returns the tick's time, or false if the wait was cancelled or
 // stopped. It takes over the inactivity ticker so the idle cadence is the same
 // one the regular loop continues with.
-func waitForAnchoredTick(
+func waitForTick(
 	ctx context.Context,
 	stop <-chan struct{},
 	idle, cleanup func(context.Context, time.Time),
 	inactivityTicker *time.Ticker,
-	period time.Duration,
-	anchor, lastTick time.Time,
+	next, lastTick time.Time,
 	minGap time.Duration,
 ) (time.Time, bool) {
-	next := nextOnPhase(anchor, lastTick, period, minGap)
-
 	anchorTimer := time.NewTimer(time.Until(next))
 
 	for {
