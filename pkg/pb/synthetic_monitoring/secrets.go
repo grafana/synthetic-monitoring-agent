@@ -5,6 +5,7 @@ import (
 	"iter"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/tdewolff/parse/v2"
 	"github.com/tdewolff/parse/v2/js"
@@ -67,6 +68,7 @@ const (
 	SecretFieldHttpTLSCACert         SecretField = "http.tlsConfig.caCert"
 	SecretFieldHttpTLSClientCert     SecretField = "http.tlsConfig.clientCert"
 	SecretFieldHttpTLSClientKey      SecretField = "http.tlsConfig.clientKey"
+	SecretFieldHttpHeaders           SecretField = "http.headers"
 	SecretFieldScriptedScript        SecretField = "scripted.script"
 	SecretFieldBrowserScript         SecretField = "browser.script"
 
@@ -121,9 +123,7 @@ func (s CheckSettings) SecretFields() iter.Seq[SecretField] {
 	}
 }
 
-// secretFields yields each of the five secret-capable fields that holds a
-// reference. It returns as soon as yield returns false, because calling yield
-// again after that panics.
+// secretFields yields each secret field that holds a reference.
 func (h *HttpSettings) secretFields(yield func(SecretField) bool) {
 	if h == nil {
 		return
@@ -137,24 +137,34 @@ func (h *HttpSettings) secretFields(yield func(SecretField) bool) {
 		return
 	}
 
-	if h.TlsConfig == nil {
-		return
-	}
+	if h.TlsConfig != nil {
+		tlsFields := [...]struct {
+			field SecretField
+			value []byte
+		}{
+			{SecretFieldHttpTLSCACert, h.TlsConfig.CACert},
+			{SecretFieldHttpTLSClientCert, h.TlsConfig.ClientCert},
+			{SecretFieldHttpTLSClientKey, h.TlsConfig.ClientKey},
+		}
 
-	tlsFields := [...]struct {
-		field SecretField
-		value []byte
-	}{
-		{SecretFieldHttpTLSCACert, h.TlsConfig.CACert},
-		{SecretFieldHttpTLSClientCert, h.TlsConfig.ClientCert},
-		{SecretFieldHttpTLSClientKey, h.TlsConfig.ClientKey},
-	}
-
-	for _, f := range tlsFields {
-		if secretRefRegex.Match(f.value) && !yield(f.field) {
-			return
+		for _, f := range tlsFields {
+			if secretRefRegex.Match(f.value) && !yield(f.field) {
+				return
+			}
 		}
 	}
+
+	if slices.ContainsFunc(h.Headers, headerValueReferencesSecrets) {
+		yield(SecretFieldHttpHeaders)
+	}
+}
+
+// headerValueReferencesSecrets reports whether the value of a "Name: value"
+// header points at a secret. The name is left out.
+func headerValueReferencesSecrets(header string) bool {
+	_, value, found := strings.Cut(header, ":")
+
+	return found && secretRefRegex.MatchString(value)
 }
 
 // scriptReferencesSecrets reports whether the script names the secrets module.

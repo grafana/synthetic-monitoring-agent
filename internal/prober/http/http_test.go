@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,8 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http/testserver"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -589,10 +592,14 @@ func TestResolveSecretValue(t *testing.T) {
 			// Use mock secret store directly
 			secretStore := mockSecretStore
 
-			actual, err := resolveSecretValue(ctx, "bearer token", tc.input, secretStore, tenantID, logger)
+			resolver := interpolation.NewResolver(secretStore, tenantID, logger)
+
+			actual, err := resolveSecretValue(ctx, "bearer token", tc.input, resolver)
 
 			if tc.expectError {
-				require.Error(t, err)
+				secretErr, ok := errors.AsType[*secrets.Error](err)
+				require.True(t, ok, "want a *secrets.Error, got %v", err)
+				require.Equal(t, "bearer token", secretErr.Field)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tc.expectedOutput, actual)
@@ -663,10 +670,9 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			// Use mock secret store directly
-			secretStore := mockSecretStore
+			resolver := interpolation.NewResolver(mockSecretStore, tenantID, logger)
 
-			cfg, err := buildPrometheusHTTPClientConfig(ctx, &tc.settings, logger, secretStore, tenantID)
+			cfg, err := buildPrometheusHTTPClientConfig(ctx, &tc.settings, logger, resolver)
 			require.NoError(t, err)
 
 			require.Equal(t, tc.expectedBearer, string(cfg.BearerToken))
@@ -737,7 +743,9 @@ func TestBuildTLSConfig_WithSecrets(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			cfg, err := buildTLSConfig(ctx, tc.tlsConfig, mockSecretStore, tenantID, logger)
+			resolver := interpolation.NewResolver(mockSecretStore, tenantID, logger)
+
+			cfg, err := buildTLSConfig(ctx, tc.tlsConfig, logger, resolver)
 
 			if tc.expectError {
 				require.Error(t, err)
