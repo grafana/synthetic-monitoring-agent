@@ -295,7 +295,7 @@ flag a value sets.
 | browserPool.crocochrome.extraPodSecurityContext | object | `{}` | The chart sets the security context the crocochrome image requires, depending on unprivileged. The seccompProfile defaults to RuntimeDefault. Use these to add fields, such as seLinuxOptions. They can't change the required fields: the root filesystem, privilege escalation, capabilities, and, for the hardened image, the user. |
 | browserPool.crocochrome.image.pullPolicy | string | `"IfNotPresent"` | crocochrome image pull policy. |
 | browserPool.crocochrome.image.tag | string | `"v0.14.0"` | crocochrome image tag. |
-| browserPool.crocochrome.livenessProbe | object | `{}` | Liveness probe for crocochrome. Disabled when empty. |
+| browserPool.crocochrome.livenessProbe | object | `{}` | Liveness probe for crocochrome. Rendered with tpl. Disabled when empty. |
 | browserPool.crocochrome.networkPolicy | object | `{"egress":[],"enabled":true,"extraIngressFrom":[]}` | The crocochrome API doesn't have authentication. This NetworkPolicy only allows the agents to reach it. |
 | browserPool.crocochrome.networkPolicy.egress | list | `[]` | Egress rules. When empty, the policy doesn't restrict egress. |
 | browserPool.crocochrome.networkPolicy.enabled | bool | `true` | Create the crocochrome NetworkPolicy. |
@@ -307,7 +307,7 @@ flag a value sets.
 | browserPool.crocochrome.podLabels | object | `{}` | Can't set app.kubernetes.io/name, app.kubernetes.io/instance or app.kubernetes.io/component: the chart uses them in selectors. |
 | browserPool.crocochrome.portName | string | `"http"` | Name of the crocochrome container port. The same port serves the session API and /metrics. |
 | browserPool.crocochrome.priorityClassName | string | `""` | crocochrome priority class. |
-| browserPool.crocochrome.readinessProbe | object | `{"periodSeconds":5,"tcpSocket":{"port":"{{ .Values.browserPool.crocochrome.portName }}"}}` | crocochrome has no health endpoint, so readiness checks that its port accepts connections. The default probe follows portName. |
+| browserPool.crocochrome.readinessProbe | object | `{"periodSeconds":5,"tcpSocket":{"port":"{{ .Values.browserPool.crocochrome.portName }}"}}` | crocochrome has no health endpoint, so readiness checks that its port accepts connections. Rendered with tpl. The default probe follows portName. |
 | browserPool.crocochrome.replicas | int | `3` | Each instance runs one browser session at a time. Run at least as many as the peak number of browser checks running at the same time. Set to null when an autoscaler, such as KEDA, manages the number of instances, so that helm upgrade doesn't reset it. |
 | browserPool.crocochrome.resources | object | `{"limits":{"cpu":"1000m","memory":"1000Mi"},"requests":{"cpu":"500m","memory":"1000Mi"}}` | crocochrome resource requests and limits. |
 | browserPool.crocochrome.serviceAccount | object | `{"annotations":{},"create":true,"name":""}` | ServiceAccount for the crocochrome Pods, separate from the agent's, so that identities given to the agent, such as cloud IAM annotations, don't reach the browsers running check scripts. Its token is never mounted. |
@@ -367,7 +367,7 @@ flag a value sets.
 | lifecycle | object | `{}` | Container lifecycle hooks, for example a preStop hook. |
 | listenPort | int | `4050` | Port for the agent's HTTP server, which serves /metrics, /ready and the optional debug endpoints. The chart makes the agent listen on all interfaces so that probes and metrics scraping work. |
 | listenPortName | string | `"http-metrics"` | Name of the container port for listenPort. The Service, the ServiceMonitor, the NetworkPolicy and the default probes use it. |
-| livenessProbe | object | `{"httpGet":{"path":"/","port":"{{ .Values.listenPortName }}"}}` | Agent liveness probe. |
+| livenessProbe | object | `{"httpGet":{"path":"/","port":"{{ .Values.listenPortName }}"}}` | Agent liveness probe. Rendered with tpl. The default probe follows listenPortName. |
 | logging.debug | bool | `false` | Enable debug logging (-debug), which also enables verbose logging. |
 | logging.verbose | bool | `false` | Enable verbose logging (-verbose). |
 | memory.autoMemLimit | string | `nil` | Set GOMEMLIMIT from the container memory limit (-enable-auto-memlimit). Agent default: true. |
@@ -387,7 +387,7 @@ flag a value sets.
 | probe.apiToken | string | `""` | Probe Authentication Token. The chart stores it in a Secret. Prefer existingSecret in production. |
 | probe.existingSecret | string | `""` | Name of an existing Secret that holds the Probe Authentication Token. Takes precedence over apiToken. |
 | probe.existingSecretKey | string | `"api-token"` | Key of the token in existingSecret. |
-| readinessProbe | object | `{"httpGet":{"path":"/ready","port":"{{ .Values.listenPortName }}"}}` | Agent readiness probe. |
+| readinessProbe | object | `{"httpGet":{"path":"/ready","port":"{{ .Values.listenPortName }}"}}` | Agent readiness probe. Rendered with tpl. The default probe follows listenPortName. |
 | replicas | int | `1` | Number of agents. With clustering disabled, keep it at 1: every agent runs every check of the probe. |
 | resources | object | `{"limits":{"memory":"1Gi"},"requests":{"cpu":"200m","memory":"500Mi"}}` | Agent resource requests and limits. The agent sets GOMEMLIMIT from the memory limit (memory.autoMemLimit), and from the node's memory when there is no limit. |
 | service.annotations | object | `{}` | Annotations for the Service. |

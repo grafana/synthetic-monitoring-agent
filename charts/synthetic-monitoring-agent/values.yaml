@@ -162,13 +162,13 @@ browserPool:
     podLabels: {}
     # -- Name of the crocochrome container port. The same port serves the session API and /metrics.
     portName: http
-    # -- crocochrome has no health endpoint, so readiness checks that its port accepts connections. The default probe
-    # follows portName.
+    # -- crocochrome has no health endpoint, so readiness checks that its port accepts connections. Rendered with tpl.
+    # The default probe follows portName.
     readinessProbe:
       tcpSocket:
         port: "{{ .Values.browserPool.crocochrome.portName }}"
       periodSeconds: 5
-    # -- Liveness probe for crocochrome. Disabled when empty.
+    # -- Liveness probe for crocochrome. Rendered with tpl. Disabled when empty.
     livenessProbe: {}
     # -- The chart sets the security context the crocochrome image requires, depending on unprivileged. The seccompProfile
     # defaults to RuntimeDefault.
@@ -287,13 +287,13 @@ resources:
   limits:
     memory: 1Gi
 
-# -- Agent readiness probe.
+# -- Agent readiness probe. Rendered with tpl. The default probe follows listenPortName.
 readinessProbe:
   httpGet:
     path: /ready
     port: "{{ .Values.listenPortName }}"
 
-# -- Agent liveness probe.
+# -- Agent liveness probe. Rendered with tpl. The default probe follows listenPortName.
 livenessProbe:
   httpGet:
     path: /
