@@ -120,7 +120,8 @@ cluster:
 browserPool:
   # -- Pass the crocochrome headless Service to the agents (-browser-pool-enabled and -browser-pool-addresses) and deploy the fleet.
   enabled: false
-  # -- crocochrome fleet deployed with the release.
+  # -- crocochrome fleet deployed with the release. crocochrome is a Chromium supervisor: each instance runs one browser
+  # session at a time for the agents, and stops the browser and removes its data when the session ends.
   # @default -- See the browserPool.crocochrome.* values.
   crocochrome:
     # -- Use the unprivileged crocochrome image (tag suffix -unprivileged) instead of the hardened one. The hardened image

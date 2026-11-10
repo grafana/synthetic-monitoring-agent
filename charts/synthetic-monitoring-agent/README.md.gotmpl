@@ -8,7 +8,7 @@ Kubernetes. Optionally:
 
 - **Clustering** (experimental): several agents share the same probe and split its checks.
 - **Browser pool** (experimental): browser checks run on a fleet of [crocochrome](https://github.com/grafana/crocochrome)
-  instances instead of a Chromium inside the agent. The chart can deploy the fleet.
+  instances, a Chromium supervisor, instead of a Chromium inside the agent. The chart can deploy the fleet.
 
 ## Install
 
@@ -144,6 +144,10 @@ If you run only a few browser checks without the pool, size the memory limit for
 and expect some scale events around bursts of browser checks.
 
 ## Use a browser pool
+
+[crocochrome](https://github.com/grafana/crocochrome) is a Chromium supervisor. For each browser session an agent
+requests, it starts a Chromium browser, and it stops the browser and removes its data when the session ends. Each
+instance runs one session at a time.
 
 The browser pool requires agent v0.69.0 or later and crocochrome v0.14.0 or later.
 

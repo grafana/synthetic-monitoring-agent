@@ -8,7 +8,7 @@ Kubernetes. Optionally:
 
 - **Clustering** (experimental): several agents share the same probe and split its checks.
 - **Browser pool** (experimental): browser checks run on a fleet of [crocochrome](https://github.com/grafana/crocochrome)
-  instances instead of a Chromium inside the agent. The chart can deploy the fleet.
+  instances, a Chromium supervisor, instead of a Chromium inside the agent. The chart can deploy the fleet.
 
 ## Install
 
@@ -144,6 +144,10 @@ If you run only a few browser checks without the pool, size the memory limit for
 and expect some scale events around bursts of browser checks.
 
 ## Use a browser pool
+
+[crocochrome](https://github.com/grafana/crocochrome) is a Chromium supervisor. For each browser session an agent
+requests, it starts a Chromium browser, and it stops the browser and removes its data when the session ends. Each
+instance runs one session at a time.
 
 The browser pool requires agent v0.69.0 or later and crocochrome v0.14.0 or later.
 
@@ -289,7 +293,7 @@ flag a value sets.
 | autoscaling.minReplicas | int | `2` | Size the minimum for peak load: the HPA reacts too slowly to absorb bursts of checks. |
 | autoscaling.targetCPUUtilizationPercentage | int | `70` | Utilization targets, as a percentage of resources.requests. The HPA uses whichever needs more agents. Set a target to null to remove it. |
 | browserPool | object | See the browserPool.* values. | Run browser checks on a crocochrome browser pool instead of a local Chromium (experimental). Refer to https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/#run-browser-checks-on-a-browser-pool |
-| browserPool.crocochrome | object | See the browserPool.crocochrome.* values. | crocochrome fleet deployed with the release. |
+| browserPool.crocochrome | object | See the browserPool.crocochrome.* values. | crocochrome fleet deployed with the release. crocochrome is a Chromium supervisor: each instance runs one browser session at a time for the agents, and stops the browser and removes its data when the session ends. |
 | browserPool.crocochrome.affinity | object | `{}` | crocochrome affinity. |
 | browserPool.crocochrome.extraArgs | list | `[]` | Extra crocochrome arguments. |
 | browserPool.crocochrome.extraPodSecurityContext | object | `{}` | The chart sets the security context the crocochrome image requires, depending on unprivileged. The seccompProfile defaults to RuntimeDefault. Use these to add fields, such as seLinuxOptions. They can't change the required fields: the root filesystem, privilege escalation, capabilities, and, for the hardened image, the user. |
