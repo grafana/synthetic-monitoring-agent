@@ -14,6 +14,7 @@ const (
 	K6                    = "k6"
 	ExperimentalDnsProber = "experimental-dns-prober"
 	ProtocolSecrets       = "protocol-secrets"
+	MultiHTTPLeanImports  = "multihttp-lean-imports"
 )
 
 // ErrInvalidCollection is returned when you try to set a flag in an

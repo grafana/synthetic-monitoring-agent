@@ -32,7 +32,7 @@ type Prober struct {
 	secretsRetriever func(context.Context) (k6runner.SecretStore, error)
 }
 
-func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header, store secrets.SecretProvider) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, runner k6runner.Runner, reservedHeaders http.Header, store secrets.SecretProvider, leanImports bool) (Prober, error) {
 	var p Prober
 
 	if check.Settings.Multihttp == nil {
@@ -47,7 +47,7 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, ru
 		augmentHttpHeaders(&check.Check, reservedHeaders)
 	}
 
-	script, err := settingsToScript(check.Settings.Multihttp)
+	script, err := settingsToScript(check.Settings.Multihttp, leanImports)
 	if err != nil {
 		return p, err
 	}
