@@ -93,11 +93,22 @@ tests:
       - equal:
           path: spec.template.spec.containers[0].image
           value: ghcr.io/grafana/crocochrome:v0.14.0-unprivileged
+  - it: doesn't deploy the crocochrome NetworkPolicy by default
+    template: crocochrome/networkpolicy.yaml
+    set:
+      browserPool:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 0
   - it: only lets the agents reach crocochrome
     template: crocochrome/networkpolicy.yaml
     set:
       browserPool:
         enabled: true
+        crocochrome:
+          networkPolicy:
+            enabled: true
     asserts:
       - equal:
           path: spec.ingress[0].from[0].podSelector.matchLabels["app.kubernetes.io/component"]

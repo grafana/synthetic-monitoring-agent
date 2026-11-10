@@ -54,8 +54,8 @@ browserPool.crocochrome.unprivileged, which trades away Chromium's isolation fro
 {{- end }}
 {{- if not .Values.browserPool.crocochrome.networkPolicy.enabled }}
 
-WARNING: browserPool.crocochrome.networkPolicy.enabled is false. The crocochrome API doesn't have authentication:
-anything that can reach port 8080 can start browser sessions in your network.
+WARNING: The crocochrome API doesn't have authentication: anything that can reach port 8080 can start browser
+sessions in your network. To only allow the agents, set browserPool.crocochrome.networkPolicy.enabled.
 {{- end }}
 {{- if and .Values.browserPool.crocochrome.networkPolicy.enabled (not .Values.browserPool.crocochrome.networkPolicy.extraIngressFrom) }}
 

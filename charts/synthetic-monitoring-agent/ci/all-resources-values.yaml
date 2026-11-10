@@ -16,6 +16,7 @@ browserPool:
     serviceMonitor:
       enabled: true
     networkPolicy:
+      enabled: true
       extraIngressFrom:
         - namespaceSelector:
             matchLabels:

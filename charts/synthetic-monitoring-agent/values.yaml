@@ -197,10 +197,14 @@ browserPool:
     topologySpreadConstraints: []
     # -- crocochrome priority class.
     priorityClassName: ""
-    # -- The crocochrome API doesn't have authentication. This NetworkPolicy only allows the agents to reach it.
+    # -- Optional NetworkPolicy for the crocochrome Pods. The crocochrome API doesn't have authentication: anything that
+    # can reach port 8080 can start browser sessions that load any URL from inside your network. The policy only allows
+    # the agents of this release, and the sources in extraIngressFrom, to reach crocochrome. Enabling it is recommended.
+    # It blocks every other source, including scrapers, so add your Prometheus to extraIngressFrom to keep scraping
+    # crocochrome metrics. It needs a CNI that enforces NetworkPolicies.
     networkPolicy:
       # -- Create the crocochrome NetworkPolicy.
-      enabled: true
+      enabled: false
       # -- Additional ingress sources for port 8080, for example Prometheus. The same port serves the crocochrome API.
       extraIngressFrom: []
       # -- Egress rules. When empty, the policy doesn't restrict egress.

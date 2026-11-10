@@ -206,15 +206,19 @@ browserPool:
 The chart doesn't set a user for the unprivileged image, so it also runs with the UID that platforms such as the
 OpenShift `restricted-v2` SecurityContextConstraints assign.
 
-The crocochrome API doesn't have authentication. The chart deploys a NetworkPolicy that only allows the agents to reach
-it (`browserPool.crocochrome.networkPolicy.enabled`). It applies to any scraper, whether it uses the ServiceMonitor or
-discovers the Pods on its own. To scrape crocochrome metrics, which use the same port, add your scraper's Pods to
+The crocochrome API doesn't have authentication: anything that can reach it can start browser sessions in your network.
+To only allow the agents to reach it, enable the chart's crocochrome NetworkPolicy
+(`browserPool.crocochrome.networkPolicy.enabled`, off by default). It needs a CNI that enforces NetworkPolicies.
+
+The policy also blocks scrapers, whether they use the ServiceMonitor or discover the Pods on their own. To scrape
+crocochrome metrics, which use the same port, add your scraper's Pods to
 `browserPool.crocochrome.networkPolicy.extraIngressFrom`, for example:
 
 ```yaml
 browserPool:
   crocochrome:
     networkPolicy:
+      enabled: true
       extraIngressFrom:
         - namespaceSelector:
             matchLabels:
@@ -300,9 +304,9 @@ flag a value sets.
 | browserPool.crocochrome.image.pullPolicy | string | `"IfNotPresent"` | crocochrome image pull policy. |
 | browserPool.crocochrome.image.tag | string | `"v0.14.0"` | crocochrome image tag. |
 | browserPool.crocochrome.livenessProbe | object | `{}` | Liveness probe for crocochrome. Rendered with tpl. Disabled when empty. |
-| browserPool.crocochrome.networkPolicy | object | `{"egress":[],"enabled":true,"extraIngressFrom":[]}` | The crocochrome API doesn't have authentication. This NetworkPolicy only allows the agents to reach it. |
+| browserPool.crocochrome.networkPolicy | object | `{"egress":[],"enabled":false,"extraIngressFrom":[]}` | Optional NetworkPolicy for the crocochrome Pods. The crocochrome API doesn't have authentication: anything that can reach port 8080 can start browser sessions that load any URL from inside your network. The policy only allows the agents of this release, and the sources in extraIngressFrom, to reach crocochrome. Enabling it is recommended. It blocks every other source, including scrapers, so add your Prometheus to extraIngressFrom to keep scraping crocochrome metrics. It needs a CNI that enforces NetworkPolicies. |
 | browserPool.crocochrome.networkPolicy.egress | list | `[]` | Egress rules. When empty, the policy doesn't restrict egress. |
-| browserPool.crocochrome.networkPolicy.enabled | bool | `true` | Create the crocochrome NetworkPolicy. |
+| browserPool.crocochrome.networkPolicy.enabled | bool | `false` | Create the crocochrome NetworkPolicy. |
 | browserPool.crocochrome.networkPolicy.extraIngressFrom | list | `[]` | Additional ingress sources for port 8080, for example Prometheus. The same port serves the crocochrome API. |
 | browserPool.crocochrome.nodeSelector | object | `{}` | crocochrome node selector. |
 | browserPool.crocochrome.podAnnotations | object | `{}` | Annotations for the crocochrome Pods. |

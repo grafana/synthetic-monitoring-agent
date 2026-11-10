@@ -206,15 +206,19 @@ browserPool:
 The chart doesn't set a user for the unprivileged image, so it also runs with the UID that platforms such as the
 OpenShift `restricted-v2` SecurityContextConstraints assign.
 
-The crocochrome API doesn't have authentication. The chart deploys a NetworkPolicy that only allows the agents to reach
-it (`browserPool.crocochrome.networkPolicy.enabled`). It applies to any scraper, whether it uses the ServiceMonitor or
-discovers the Pods on its own. To scrape crocochrome metrics, which use the same port, add your scraper's Pods to
+The crocochrome API doesn't have authentication: anything that can reach it can start browser sessions in your network.
+To only allow the agents to reach it, enable the chart's crocochrome NetworkPolicy
+(`browserPool.crocochrome.networkPolicy.enabled`, off by default). It needs a CNI that enforces NetworkPolicies.
+
+The policy also blocks scrapers, whether they use the ServiceMonitor or discover the Pods on their own. To scrape
+crocochrome metrics, which use the same port, add your scraper's Pods to
 `browserPool.crocochrome.networkPolicy.extraIngressFrom`, for example:
 
 ```yaml
 browserPool:
   crocochrome:
     networkPolicy:
+      enabled: true
       extraIngressFrom:
         - namespaceSelector:
             matchLabels:

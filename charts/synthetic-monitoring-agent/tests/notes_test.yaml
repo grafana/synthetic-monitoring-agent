@@ -50,19 +50,32 @@ tests:
           pattern: meets the Pod Security "restricted" profile. Chromium runs as the\s+same user as crocochrome
       - notMatchRegexRaw:
           pattern: DAC_OVERRIDE
-  - it: tells how to scrape crocochrome through its NetworkPolicy, even without the ServiceMonitor
+  - it: warns that crocochrome is reachable without its NetworkPolicy
     set:
       browserPool:
         enabled: true
     asserts:
       - matchRegexRaw:
+          pattern: To only allow the agents, set browserPool.crocochrome.networkPolicy.enabled
+  - it: tells how to scrape crocochrome through its NetworkPolicy, even without the ServiceMonitor
+    set:
+      browserPool:
+        enabled: true
+        crocochrome:
+          networkPolicy:
+            enabled: true
+    asserts:
+      - matchRegexRaw:
           pattern: the crocochrome NetworkPolicy only allows the agents
+      - notMatchRegexRaw:
+          pattern: To only allow the agents
   - it: drops the crocochrome scraping note once a scraper is allowed
     set:
       browserPool:
         enabled: true
         crocochrome:
           networkPolicy:
+            enabled: true
             extraIngressFrom:
               - namespaceSelector:
                   matchLabels:
