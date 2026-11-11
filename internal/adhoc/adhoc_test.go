@@ -603,7 +603,6 @@ func TestReportAdHocResultSuccess(t *testing.T) {
 	require.Equal(t, testAdHocID, result.ExecutionId)
 	require.Equal(t, int64(1), result.ProbeId, "probe id comes from RegisterProbe")
 	require.Equal(t, sm.AdHocResult_OK, result.Status)
-	require.True(t, result.Success)
 	require.Equal(t, float64(1), result.DurationSeconds)
 	require.Empty(t, result.Error)
 }
@@ -625,7 +624,6 @@ func TestReportAdHocResultCouldNotStart(t *testing.T) {
 
 	require.Equal(t, testAdHocID, result.ExecutionId)
 	require.Equal(t, sm.AdHocResult_COULD_NOT_START, result.Status)
-	require.False(t, result.Success)
 	require.Contains(t, result.Error, "boom")
 
 	select {
@@ -657,7 +655,6 @@ func TestReportAdHocResultTimeout(t *testing.T) {
 
 	result := rec.wait(t)
 	require.Equal(t, sm.AdHocResult_TIMEOUT, result.Status)
-	require.False(t, result.Success)
 
 	requirePublished(t, publishCh)
 }
@@ -686,7 +683,6 @@ func TestReportAdHocResultFailed(t *testing.T) {
 
 	result := rec.wait(t)
 	require.Equal(t, sm.AdHocResult_FAILED, result.Status)
-	require.False(t, result.Success)
 
 	requirePublished(t, publishCh)
 }
@@ -1156,4 +1152,43 @@ func (r *testK6Runner) Run(ctx context.Context, script k6runner.Script, secretSt
 
 func (*testK6Runner) Versions(_ context.Context) <-chan []string {
 	return nil // Blocks forever if read.
+}
+
+// Errors the API returns for reasons that are expected and not worth
+// retrying, like an execution it does not track (every plain "test" run),
+// must not show up as warnings.
+func TestReportResultLogLevels(t *testing.T) {
+	for name, tc := range map[string]struct {
+		code codes.Code
+		warn bool
+	}{
+		"unimplemented":       {codes.Unimplemented, false},
+		"not found":           {codes.NotFound, false},
+		"already exists":      {codes.AlreadyExists, false},
+		"failed precondition": {codes.FailedPrecondition, false},
+		"permission denied":   {codes.PermissionDenied, true},
+		"invalid argument":    {codes.InvalidArgument, true},
+		"internal":            {codes.Internal, true},
+		"unavailable":         {codes.Unavailable, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			logs := &testhelper.LogBuffer{}
+			logger := zerolog.New(logs).Level(zerolog.DebugLevel)
+
+			client := &testClient{
+				logger:    zerolog.New(io.Discard),
+				reportErr: status.Error(tc.code, "nope"),
+			}
+
+			reportResult(context.Background(), client, &sm.AdHocResult{ExecutionId: testAdHocID}, logger)
+
+			require.Equal(t, int32(1), client.reportCalls.Load(), "one attempt, no retries")
+
+			if tc.warn {
+				require.Contains(t, logs.String(), `"level":"warn"`)
+			} else {
+				require.NotContains(t, logs.String(), `"level":"warn"`)
+			}
+		})
+	}
 }

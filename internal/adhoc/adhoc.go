@@ -590,9 +590,17 @@ func reportResult(ctx context.Context, client sm.AdHocChecksClient, result *sm.A
 	defer cancel()
 
 	if _, err := client.ReportAdHocResult(ctx, result); err != nil {
-		// Unimplemented is expected while the API is being rolled out.
+		// These are expected, and retrying would not help:
+		//   - Unimplemented: the API is older, or the feature is off.
+		//   - NotFound: the API does not track this execution, which is
+		//     the case for every plain "test" run.
+		//   - AlreadyExists: the result was already reported.
+		//   - FailedPrecondition: the result arrived after the API's
+		//     deadline for the execution.
 		level := zerolog.WarnLevel
-		if status.Code(err) == codes.Unimplemented {
+
+		switch status.Code(err) {
+		case codes.Unimplemented, codes.NotFound, codes.AlreadyExists, codes.FailedPrecondition:
 			level = zerolog.DebugLevel
 		}
 
@@ -701,7 +709,6 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		ExecutionId:     r.id,
 		ProbeId:         r.probeID,
 		Status:          sm.AdHocResult_FAILED,
-		Success:         success,
 		DurationSeconds: duration,
 	}
 

@@ -69,8 +69,14 @@ message AdHocResult {
     // UNKNOWN is the zero value so that an unset status is never
     // mistaken for success.
     UNKNOWN = 0;
+    // OK means the check ran and passed.
     OK = 1;
+    // FAILED means the check ran and did not pass, for example because
+    // an assertion failed or the connection was refused.
     FAILED = 2;
+    // TIMEOUT means the check ran, and the timeout of the check itself
+    // elapsed on the probe. It never means that the probe gave up
+    // reporting the result.
     TIMEOUT = 3;
     // COULD_NOT_START means the probe never ran the check.
     COULD_NOT_START = 4;
@@ -79,8 +85,12 @@ message AdHocResult {
   // execution_id matches AdHocCheck.id.
   string execution_id = 1;
   int64 probe_id = 2;
+  // status is the single source of truth for the outcome: the check
+  // passed if and only if the status is OK.
   Status status = 3;
-  bool success = 4;
+  // success was removed: it duplicated status.
+  reserved 4;
+  reserved "success";
   double duration_seconds = 5;
   string error = 6;
 }

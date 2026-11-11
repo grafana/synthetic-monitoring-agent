@@ -290,7 +290,6 @@ func TestTransportConcurrentExecutions(t *testing.T) {
 		require.Equal(t, id, result.ExecutionId)
 		require.Equal(t, int64(7), result.ProbeId)
 		require.Equal(t, sm.AdHocResult_OK, result.Status, id)
-		require.True(t, result.Success, id)
 	}
 }
 
