@@ -503,7 +503,7 @@ func TestBuildChecks(t *testing.T) {
 				Expression: "Content-Type",
 				Value:      "value",
 			},
-			expected: `currentCheck = check(response, { "header contains \"value\"": response => { return assertHeader(response.headers, "Content-Type", v => value.includes("value")); } }, {"url": url.toString(), "method": "GET"});
+			expected: `currentCheck = check(response, { "header contains \"value\"": response => { return assertHeader(response.headers, "Content-Type", value => value.includes("value")); } }, {"url": url.toString(), "method": "GET"});
 	if(!currentCheck) {
 		console.error("Assertion failed:", "value.includes(\"value\")");
 		fail()
