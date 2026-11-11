@@ -64,33 +64,22 @@ func interpolateBodyVariables(bodyVarName string, body *sm.HttpRequestBody) []st
 	default:
 		var buf strings.Builder
 
-		matches := interpolation.FindVariableRefs(string(body.Payload))
-		parsedMatches := make(map[string]struct{})
-		out := make([]string, 0, len(matches))
+		names := interpolation.VariableNames(string(body.Payload))
+		out := make([]string, 0, len(names))
 
-		// For every instance of ${variable} in the body,
-		// this block returns {bodyVarName} = {bodyVarName}.replaceAll('${variable}', vars['variable'])
-		for _, m := range matches {
-			if _, found := parsedMatches[m]; found {
-				continue
-			}
-
+		// For every variable in the body, this block returns
+		// {bodyVarName} = {bodyVarName}.replaceAll('${variable}', vars['variable'])
+		for _, name := range names {
 			buf.Reset()
 			buf.WriteString(bodyVarName)
 			buf.WriteString("=")
 			buf.WriteString(bodyVarName)
-			buf.WriteString(".replaceAll('")
-			buf.WriteString(m)
-			buf.WriteString("', vars['")
-			// writing the variable name from between ${ and }
-			for i := 2; i < len(m)-1; i++ {
-				buf.WriteByte(m[i])
-			}
-
+			buf.WriteString(".replaceAll('${")
+			buf.WriteString(name)
+			buf.WriteString("}', vars['")
+			buf.WriteString(name)
 			buf.WriteString("'])")
 			out = append(out, buf.String())
-
-			parsedMatches[m] = struct{}{}
 		}
 
 		return out
@@ -172,7 +161,16 @@ func (c assertionCondition) Name(w *strings.Builder, subject, value string) {
 	w.WriteString(`\"`)
 }
 
-func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
+type jsExpr string
+
+// jsString returns s as an escaped JavaScript string literal.
+func jsString(s string) jsExpr {
+	return jsExpr(`"` + template.JSEscapeString(s) + `"`)
+}
+
+// Render writes the condition as a JavaScript expression comparing subject
+// against value.
+func (c assertionCondition) Render(w *strings.Builder, subject string, value jsExpr) {
 	switch sm.MultiHttpEntryAssertionConditionVariant(c) {
 	case sm.MultiHttpEntryAssertionConditionVariant_NOT_CONTAINS:
 		w.WriteRune('!')
@@ -180,28 +178,113 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 
 	case sm.MultiHttpEntryAssertionConditionVariant_CONTAINS, sm.MultiHttpEntryAssertionConditionVariant_DEFAULT_CONDITION:
 		w.WriteString(subject)
-		w.WriteString(`.includes("`)
-		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`")`)
+		w.WriteString(`.includes(`)
+		w.WriteString(string(value))
+		w.WriteString(`)`)
 
 	case sm.MultiHttpEntryAssertionConditionVariant_EQUALS:
 		w.WriteString(subject)
-		w.WriteString(` === "`)
-		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`"`)
+		w.WriteString(` === `)
+		w.WriteString(string(value))
 
 	case sm.MultiHttpEntryAssertionConditionVariant_STARTS_WITH:
 		w.WriteString(subject)
-		w.WriteString(`.startsWith("`)
-		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`")`)
+		w.WriteString(`.startsWith(`)
+		w.WriteString(string(value))
+		w.WriteString(`)`)
 
 	case sm.MultiHttpEntryAssertionConditionVariant_ENDS_WITH:
 		w.WriteString(subject)
-		w.WriteString(`.endsWith("`)
-		w.WriteString(template.JSEscapeString(value))
-		w.WriteString(`")`)
+		w.WriteString(`.endsWith(`)
+		w.WriteString(string(value))
+		w.WriteString(`)`)
 	}
+}
+
+// assertionValue is the value side of an assertion. A value without variable
+// references renders as a string literal. A value with references renders as
+// an expression over vars, which k6 evaluates after earlier requests set them.
+// The check name keeps the value as written either way, because it becomes a
+// metric label and must not change from run to run.
+type assertionValue struct {
+	// literal is the value as written, as a string literal. The failure log
+	// uses it, so the log never shows what a variable resolved to.
+	literal jsExpr
+	// expr is what the condition compares against.
+	expr jsExpr
+	// names lists the distinct variables expr reads, in order of appearance.
+	names []string
+}
+
+func newAssertionValue(value string) assertionValue {
+	v := assertionValue{
+		literal: jsString(value),
+		names:   interpolation.VariableNames(value),
+	}
+
+	if len(v.names) == 0 {
+		v.expr = v.literal
+
+		return v
+	}
+
+	// A variable can hold a number or an object, depending on how it was
+	// extracted. String makes ${x} behave as if the user had typed its value.
+	v.expr = jsExpr("String(" + interpolation.ExpandVariablesToJS(value) + ")")
+
+	return v
+}
+
+// writeCondition writes the condition twice: into checkJS, the JavaScript of
+// the check that k6 runs, and into failureLog, the text of the "Assertion
+// failed:" log line, with the value as written.
+func (v assertionValue) writeCondition(cond assertionCondition, checkJS, failureLog *strings.Builder, subject string) {
+	cond.Render(checkJS, subject, v.expr)
+	cond.Render(failureLog, subject, v.literal)
+}
+
+// openBlock starts the block body of a check's arrow function. The block first
+// makes the check fail when a variable it reads is unset. Without that, the
+// comparison would run against the string "undefined", and a condition such
+// as "does not contain" would pass.
+func (v assertionValue) openBlock(w *strings.Builder) {
+	w.WriteString(`{ `)
+
+	for _, name := range v.names {
+		w.WriteString(`if (vars['`)
+		w.WriteString(name)
+		w.WriteString(`'] == null) { console.error("Variable is not defined:", "`)
+		w.WriteString(name)
+		w.WriteString(`"); return false; } `)
+	}
+}
+
+// openBody and closeBody turn an arrow function body that is a single
+// expression into a block, so the check in openBlock can run first. They
+// write nothing for a value without variables.
+func (v assertionValue) openBody(w *strings.Builder) {
+	if len(v.names) == 0 {
+		return
+	}
+
+	v.openBlock(w)
+	w.WriteString(`return `)
+}
+
+func (v assertionValue) closeBody(w *strings.Builder) {
+	if len(v.names) == 0 {
+		return
+	}
+
+	w.WriteString(`; }`)
+}
+
+// writeExprBody writes an arrow function body that does nothing but compare
+// subject with the value.
+func (v assertionValue) writeExprBody(cond assertionCondition, checkJS, failureLog *strings.Builder, subject string) {
+	v.openBody(checkJS)
+	v.writeCondition(cond, checkJS, failureLog, subject)
+	v.closeBody(checkJS)
 }
 
 // buildChecks takes a single assertion and produces the corresponding JavaScript code.
@@ -210,135 +293,136 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 // of checks.
 func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertion) string {
 	var (
-		b                   strings.Builder
-		assertionDescriptor strings.Builder
+		checkJS    strings.Builder
+		failureLog strings.Builder
 	)
 
-	b.WriteString(`currentCheck = check(response, { "`)
+	checkJS.WriteString(`currentCheck = check(response, { "`)
 
 	switch assertion.Type {
 	case sm.MultiHttpEntryAssertionType_TEXT:
 		cond := assertionCondition(assertion.Condition)
+		value := newAssertionValue(assertion.Value)
 
 		switch assertion.Subject {
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY, sm.MultiHttpEntryAssertionSubjectVariant_DEFAULT_SUBJECT:
-			cond.Name(&b, "body", assertion.Value)
-			b.WriteString(`": response => `)
-			cond.Render(&b, "response.body", assertion.Value)
-			cond.Render(&assertionDescriptor, "response.body", assertion.Value)
+			cond.Name(&checkJS, "body", assertion.Value)
+			checkJS.WriteString(`": response => `)
+			value.writeExprBody(cond, &checkJS, &failureLog, "response.body")
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
-			cond.Name(&b, "header", assertion.Value)
-			b.WriteString(`": response => { `)
+			cond.Name(&checkJS, "header", assertion.Value)
+			checkJS.WriteString(`": response => `)
+			value.openBlock(&checkJS)
 
 			if len(assertion.Expression) == 0 {
 				// No expression provided, match the entire value against all headers.
-				b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
-				b.WriteString(`return !!values.find(value => `)
-				cond.Render(&b, "value", assertion.Value)
-				cond.Render(&assertionDescriptor, "value", assertion.Value)
-				b.WriteString(`);`)
+				checkJS.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
+				checkJS.WriteString(`return !!values.find(value => `)
+				value.writeCondition(cond, &checkJS, &failureLog, "value")
+				checkJS.WriteString(`);`)
 			} else {
 				// Expression provided, search for a matching header.
-				b.WriteString(`return assertHeader(response.headers, "`)
-				b.WriteString(template.JSEscapeString(assertion.Expression))
-				b.WriteString(`", `)
-				b.WriteString(`value => `)
-				cond.Render(&b, "value", assertion.Value)
-				cond.Render(&assertionDescriptor, "value", assertion.Value)
-				b.WriteString(`);`)
+				checkJS.WriteString(`return assertHeader(response.headers, "`)
+				checkJS.WriteString(template.JSEscapeString(assertion.Expression))
+				checkJS.WriteString(`", `)
+				checkJS.WriteString(`value => `)
+				value.writeCondition(cond, &checkJS, &failureLog, "value")
+				checkJS.WriteString(`);`)
 			}
 
-			b.WriteString(` }`)
+			checkJS.WriteString(` }`)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:
-			cond.Name(&b, "status code", assertion.Value)
-			b.WriteString(`": response => `)
-			cond.Render(&b, `response.status.toString()`, assertion.Value)
-			cond.Render(&assertionDescriptor, `response.status.toString()`, assertion.Value)
+			cond.Name(&checkJS, "status code", assertion.Value)
+			checkJS.WriteString(`": response => `)
+			value.writeExprBody(cond, &checkJS, &failureLog, `response.status.toString()`)
 		}
 
 	case sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE:
 		cond := assertionCondition(assertion.Condition)
-		cond.Name(&b, assertion.Expression, assertion.Value)
-		b.WriteString(`": response => jsonpath.query(response.json(), "`)
-		b.WriteString(template.JSEscapeString(assertion.Expression))
-		b.WriteString(`").some(values => `)
-		cond.Render(&b, `values`, assertion.Value)
-		cond.Render(&assertionDescriptor, `values`, assertion.Value)
-		b.WriteString(`)`)
+		value := newAssertionValue(assertion.Value)
+		cond.Name(&checkJS, assertion.Expression, assertion.Value)
+		checkJS.WriteString(`": response => `)
+		value.openBody(&checkJS)
+		checkJS.WriteString(`jsonpath.query(response.json(), "`)
+		checkJS.WriteString(template.JSEscapeString(assertion.Expression))
+		checkJS.WriteString(`").some(values => `)
+		value.writeCondition(cond, &checkJS, &failureLog, `values`)
+		checkJS.WriteString(`)`)
+		value.closeBody(&checkJS)
 
 	case sm.MultiHttpEntryAssertionType_JSON_PATH_ASSERTION:
-		b.WriteString(template.JSEscapeString(assertion.Expression))
-		b.WriteString(` exists": response => jsonpath.query(response.json(), "`)
-		b.WriteString(template.JSEscapeString(assertion.Expression))
-		assertionDescriptor.WriteString(`JsonPath expression `)
-		assertionDescriptor.WriteString(assertion.Expression)
-		b.WriteString(`").length > 0`)
+		checkJS.WriteString(template.JSEscapeString(assertion.Expression))
+		checkJS.WriteString(` exists": response => jsonpath.query(response.json(), "`)
+		checkJS.WriteString(template.JSEscapeString(assertion.Expression))
+		failureLog.WriteString(`JsonPath expression `)
+		failureLog.WriteString(assertion.Expression)
+		checkJS.WriteString(`").length > 0`)
 
 	case sm.MultiHttpEntryAssertionType_REGEX_ASSERTION:
 		switch assertion.Subject {
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY, sm.MultiHttpEntryAssertionSubjectVariant_DEFAULT_SUBJECT:
-			b.WriteString(`body matches /`)
-			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`/": response => { const expr = new RegExp("`)
-			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`"); `)
-			b.WriteString(`return expr.test(response.body); }`)
-			assertionDescriptor.WriteString("Body matches")
-			assertionDescriptor.WriteString(assertion.Expression)
+			checkJS.WriteString(`body matches /`)
+			checkJS.WriteString(template.JSEscapeString(assertion.Expression))
+			checkJS.WriteString(`/": response => { const expr = new RegExp("`)
+			checkJS.WriteString(template.JSEscapeString(assertion.Expression))
+			checkJS.WriteString(`"); `)
+			checkJS.WriteString(`return expr.test(response.body); }`)
+			failureLog.WriteString("Body matches")
+			failureLog.WriteString(assertion.Expression)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS:
-			b.WriteString(`headers matches /`)
-			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`/": response => { const expr = new RegExp("`)
-			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`"); `)
-			b.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
-			b.WriteString(`return !!values.find(value => expr.test(value)); }`)
-			assertionDescriptor.WriteString("Headers match")
-			assertionDescriptor.WriteString(assertion.Expression)
+			checkJS.WriteString(`headers matches /`)
+			checkJS.WriteString(template.JSEscapeString(assertion.Expression))
+			checkJS.WriteString(`/": response => { const expr = new RegExp("`)
+			checkJS.WriteString(template.JSEscapeString(assertion.Expression))
+			checkJS.WriteString(`"); `)
+			checkJS.WriteString(`const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); `)
+			checkJS.WriteString(`return !!values.find(value => expr.test(value)); }`)
+			failureLog.WriteString("Headers match")
+			failureLog.WriteString(assertion.Expression)
 
 		case sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE:
-			b.WriteString(`status matches /`)
-			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`/": response => { const expr = new RegExp("`)
-			b.WriteString(template.JSEscapeString(assertion.Expression))
-			b.WriteString(`"); `)
-			b.WriteString(`return expr.test(response.status.toString()); }`)
-			assertionDescriptor.WriteString("Status matches")
-			assertionDescriptor.WriteString(assertion.Expression)
+			checkJS.WriteString(`status matches /`)
+			checkJS.WriteString(template.JSEscapeString(assertion.Expression))
+			checkJS.WriteString(`/": response => { const expr = new RegExp("`)
+			checkJS.WriteString(template.JSEscapeString(assertion.Expression))
+			checkJS.WriteString(`"); `)
+			checkJS.WriteString(`return expr.test(response.status.toString()); }`)
+			failureLog.WriteString("Status matches")
+			failureLog.WriteString(assertion.Expression)
 		}
 	}
 
-	b.WriteString(` }`)
-	b.WriteString(`, `)
+	checkJS.WriteString(` }`)
+	checkJS.WriteString(`, `)
 
 	// Add tags to the check: url, method
-	b.WriteString(`{`)
-	b.WriteString(`"url": `)
-	b.WriteString(urlVarName)
-	b.WriteString(`.toString(), `)
-	b.WriteString(`"method": "`)
-	b.WriteString(method)
-	b.WriteRune('"')
-	b.WriteString(`}`)
+	checkJS.WriteString(`{`)
+	checkJS.WriteString(`"url": `)
+	checkJS.WriteString(urlVarName)
+	checkJS.WriteString(`.toString(), `)
+	checkJS.WriteString(`"method": "`)
+	checkJS.WriteString(method)
+	checkJS.WriteRune('"')
+	checkJS.WriteString(`}`)
 
-	b.WriteString(`);`)
+	checkJS.WriteString(`);`)
 
-	b.WriteString("\n\t")
-	b.WriteString(`if(!currentCheck) {`)
-	b.WriteString("\n\t\t")
-	b.WriteString(`console.error("Assertion failed:", "`)
-	b.WriteString(template.JSEscapeString(assertionDescriptor.String()))
-	b.WriteString(`");`)
-	b.WriteString("\n\t\t")
-	b.WriteString(`fail()`)
-	b.WriteString("\n\t")
-	b.WriteString(`};`)
-	b.WriteString("\n")
+	checkJS.WriteString("\n\t")
+	checkJS.WriteString(`if(!currentCheck) {`)
+	checkJS.WriteString("\n\t\t")
+	checkJS.WriteString(`console.error("Assertion failed:", "`)
+	checkJS.WriteString(template.JSEscapeString(failureLog.String()))
+	checkJS.WriteString(`");`)
+	checkJS.WriteString("\n\t\t")
+	checkJS.WriteString(`fail()`)
+	checkJS.WriteString("\n\t")
+	checkJS.WriteString(`};`)
+	checkJS.WriteString("\n")
 
-	return b.String()
+	return checkJS.String()
 }
 
 func buildVars(variable *sm.MultiHttpEntryVariable) string {
