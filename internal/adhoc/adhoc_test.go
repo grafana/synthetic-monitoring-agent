@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -429,6 +431,14 @@ type testClient struct {
 	registerProbeError  error
 	getAdhocChecksError error
 	registerProbeHook   func(*sm.ProbeInfo)
+
+	// reportClient, if set, is returned by ReportAdHocResult. If nil,
+	// ReportAdHocResult behaves like an API that predates the RPC.
+	reportClient *recordingReportClient
+	// reportErr, if set, is returned by ReportAdHocResult.
+	reportErr error
+	// reportCalls counts the calls to ReportAdHocResult.
+	reportCalls atomic.Int32
 }
 
 func (c *testClient) RegisterProbe(ctx context.Context, in *sm.ProbeInfo, opts ...grpc.CallOption) (*sm.RegisterProbeResult, error) {
@@ -456,6 +466,308 @@ func (c *testClient) RegisterProbe(ctx context.Context, in *sm.ProbeInfo, opts .
 			Message: "OK",
 		},
 	}, nil
+}
+
+func (c *testClient) ReportAdHocResult(ctx context.Context, opts ...grpc.CallOption) (sm.AdHocChecks_ReportAdHocResultClient, error) {
+	c.logger.Info().Str("func", "ReportAdHocResult").Interface("opts", opts).Send()
+	c.reportCalls.Add(1)
+
+	switch {
+	case c.reportErr != nil:
+		return nil, c.reportErr
+
+	case c.reportClient != nil:
+		return c.reportClient, nil
+
+	default:
+		// Mimic an API that predates the RPC.
+		return nil, status.Error(codes.Unimplemented, "ReportAdHocResult not implemented")
+	}
+}
+
+// recordingReportClient records everything sent through a
+// ReportAdHocResult stream.
+type recordingReportClient struct {
+	mu     sync.Mutex
+	chunks []*sm.AdHocResultChunk
+	closed chan struct{}
+	once   sync.Once
+}
+
+func newRecordingReportClient() *recordingReportClient {
+	return &recordingReportClient{closed: make(chan struct{})}
+}
+
+func (r *recordingReportClient) Send(chunk *sm.AdHocResultChunk) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.chunks = append(r.chunks, chunk)
+
+	return nil
+}
+
+func (r *recordingReportClient) CloseAndRecv() (*sm.Void, error) {
+	r.once.Do(func() { close(r.closed) })
+
+	return &sm.Void{}, nil
+}
+
+func (r *recordingReportClient) Header() (metadata.MD, error) { return nil, nil }
+func (r *recordingReportClient) Trailer() metadata.MD         { return nil }
+func (r *recordingReportClient) CloseSend() error             { return nil }
+func (r *recordingReportClient) Context() context.Context     { return context.Background() }
+func (r *recordingReportClient) SendMsg(any) error            { return nil }
+func (r *recordingReportClient) RecvMsg(any) error            { return nil }
+
+// wait blocks until the stream is closed by the sender and returns what
+// was sent.
+func (r *recordingReportClient) wait(t *testing.T) []*sm.AdHocResultChunk {
+	t.Helper()
+
+	select {
+	case <-r.closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the ReportAdHocResult stream to be closed")
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return append([]*sm.AdHocResultChunk(nil), r.chunks...)
+}
+
+// blockingProber blocks until its context is done, like a check that
+// hits its timeout.
+type blockingProber struct{}
+
+func (blockingProber) Name() string { return "blocking" }
+
+func (blockingProber) Probe(ctx context.Context, _ string, _ *prometheus.Registry, _ logger.Logger, _ string) (bool, float64) {
+	<-ctx.Done()
+
+	return false, 0
+}
+
+// newReportTestHandler returns a Handler wired to client, and the
+// channel where published payloads end up. If factory is nil the runner
+// uses testProber.
+func newReportTestHandler(t *testing.T, client *testClient, factory func(context.Context, *sm.AdHocRequest) (*runner, error)) (*Handler, chan pusher.Payload) {
+	t.Helper()
+
+	features := feature.NewCollection()
+	require.NoError(t, features.Set("adhoc"))
+
+	logger := zerolog.New(io.Discard)
+	client.logger = logger
+
+	if factory == nil {
+		factory = func(_ context.Context, req *sm.AdHocRequest) (*runner, error) {
+			return &runner{
+				logger: logger,
+				prober: &testProber{logger},
+				id:     req.AdHocCheck.Id,
+				target: req.AdHocCheck.Target,
+				probe:  "testProbe",
+			}, nil
+		}
+	}
+
+	publishCh := make(chan pusher.Payload, 1)
+
+	h, err := NewHandler(HandlerOpts{
+		Logger:         logger,
+		Publisher:      channelPublisher(publishCh),
+		TenantCh:       make(chan sm.Tenant),
+		PromRegisterer: prometheus.NewPedanticRegistry(),
+		Features:       features,
+		runnerFactory:  factory,
+		grpcAdhocChecksClientFactory: func(ClientConn) (sm.AdHocChecksClient, error) {
+			return client, nil
+		},
+	})
+	require.NoError(t, err)
+
+	return h, publishCh
+}
+
+func finalOf(t *testing.T, chunks []*sm.AdHocResultChunk) *sm.AdHocFinal {
+	t.Helper()
+
+	require.NotEmpty(t, chunks, "expected at least the final chunk")
+
+	final := chunks[len(chunks)-1].GetFinal()
+	require.NotNil(t, final, "the last chunk must be the final one")
+
+	for _, c := range chunks[:len(chunks)-1] {
+		require.Nil(t, c.GetFinal(), "only the last chunk can be final")
+	}
+
+	return final
+}
+
+func requirePublished(t *testing.T, publishCh <-chan pusher.Payload) {
+	t.Helper()
+
+	select {
+	case payload := <-publishCh:
+		require.Len(t, payload.Streams(), 1)
+		require.Contains(t, payload.Streams()[0].Entries[0].Line, "ad-hoc check done")
+
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the Loki publish")
+	}
+}
+
+// The "id" used by testGetAdhocChecksClient.Recv.
+const testAdHocID = "test"
+
+func TestReportAdHocResultSuccess(t *testing.T) {
+	rec := newRecordingReportClient()
+	h, publishCh := newReportTestHandler(t, &testClient{reportClient: rec}, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	require.NoError(t, h.Run(ctx))
+
+	chunks := rec.wait(t)
+	requirePublished(t, publishCh)
+
+	for _, c := range chunks {
+		require.Equal(t, testAdHocID, c.ExecutionId)
+		require.Equal(t, int64(1), c.ProbeId, "probe id comes from RegisterProbe")
+	}
+
+	var lines []string
+
+	for _, c := range chunks {
+		if ll := c.GetLogLines(); ll != nil {
+			for _, l := range ll.Lines {
+				lines = append(lines, string(l))
+			}
+		}
+	}
+
+	require.NotEmpty(t, lines, "the prober logged a line, it must be reported")
+	require.Contains(t, lines[0], `"msg":"test"`)
+
+	final := finalOf(t, chunks)
+	require.Equal(t, sm.AdHocFinal_OK, final.Status)
+	require.True(t, final.Success)
+	require.Equal(t, float64(1), final.DurationSeconds)
+	require.Contains(t, string(final.Metrics), "probe_success")
+	require.Empty(t, final.Error)
+}
+
+func TestReportAdHocResultCouldNotStart(t *testing.T) {
+	rec := newRecordingReportClient()
+	h, publishCh := newReportTestHandler(t, &testClient{reportClient: rec},
+		func(context.Context, *sm.AdHocRequest) (*runner, error) {
+			return nil, errors.New("boom")
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	require.NoError(t, h.Run(ctx))
+
+	chunks := rec.wait(t)
+
+	require.Len(t, chunks, 1, "the check never ran, there are no logs to report")
+	require.Equal(t, testAdHocID, chunks[0].ExecutionId)
+
+	final := finalOf(t, chunks)
+	require.Equal(t, sm.AdHocFinal_COULD_NOT_START, final.Status)
+	require.False(t, final.Success)
+	require.Contains(t, final.Error, "boom")
+
+	select {
+	case <-publishCh:
+		t.Fatal("nothing ran, nothing should be published")
+	default:
+	}
+}
+
+func TestReportAdHocResultTimeout(t *testing.T) {
+	rec := newRecordingReportClient()
+	h, publishCh := newReportTestHandler(t, &testClient{reportClient: rec},
+		func(_ context.Context, req *sm.AdHocRequest) (*runner, error) {
+			return &runner{
+				logger:  zerolog.New(io.Discard),
+				prober:  blockingProber{},
+				id:      req.AdHocCheck.Id,
+				target:  req.AdHocCheck.Target,
+				probe:   "testProbe",
+				timeout: 50 * time.Millisecond,
+			}, nil
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	require.NoError(t, h.Run(ctx))
+
+	final := finalOf(t, rec.wait(t))
+	require.Equal(t, sm.AdHocFinal_TIMEOUT, final.Status)
+	require.False(t, final.Success)
+
+	requirePublished(t, publishCh)
+}
+
+// An API that predates ReportAdHocResult answers Unimplemented. The
+// probe must carry on, publishing to Loki as it always did.
+func TestReportAdHocResultUnimplementedFallsBackToLoki(t *testing.T) {
+	client := &testClient{} // no reportClient: Unimplemented.
+	h, publishCh := newReportTestHandler(t, client, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	require.NoError(t, h.Run(ctx))
+
+	requirePublished(t, publishCh)
+	require.LessOrEqual(t, client.reportCalls.Load(), int32(1), "one attempt per execution, no retry storm")
+}
+
+// Reporting is additive: the Loki path must be unchanged whether or not
+// reporting works.
+func TestReportAdHocResultKeepsLokiPath(t *testing.T) {
+	for name, client := range map[string]*testClient{
+		"reporting works":   {reportClient: newRecordingReportClient()},
+		"reporting fails":   {reportErr: status.Error(codes.Internal, "kaboom")},
+		"not implemented":   {},
+		"unavailable":       {reportErr: status.Error(codes.Unavailable, "gone")},
+		"permission denied": {reportErr: status.Error(codes.PermissionDenied, "no")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h, publishCh := newReportTestHandler(t, client, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			require.NoError(t, h.Run(ctx))
+
+			select {
+			case payload := <-publishCh:
+				require.Len(t, payload.Metrics(), 0)
+				require.Len(t, payload.Streams(), 1)
+
+				entry := payload.Streams()[0].Entries[0]
+				require.Contains(t, entry.Line, "ad-hoc check done")
+				require.Len(t, entry.StructuredMetadata, 1)
+				require.Equal(t, "execution_id", entry.StructuredMetadata[0].Name)
+
+				_, err := uuid.Parse(entry.StructuredMetadata[0].Value)
+				require.NoError(t, err, "execution_id should be a valid UUID")
+
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for the Loki publish")
+			}
+		})
+	}
 }
 
 type testGetAdhocChecksClient struct {
