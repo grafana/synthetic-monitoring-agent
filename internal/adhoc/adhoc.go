@@ -3,16 +3,13 @@ package adhoc
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
 	prompb "github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
@@ -69,6 +66,10 @@ const (
 	errIdleTimeout         = Error("connection idle timeout")
 
 	k6AdhocGraceTime = 20 * time.Second
+
+	// reportTimeout is how long to wait for the API to acknowledge the
+	// result of an ad-hoc execution.
+	reportTimeout = 10 * time.Second
 )
 
 // Removed HTTP status code parsing; we treat all codes.Unavailable as idle timeout.
@@ -435,11 +436,12 @@ func (h *Handler) handleAdHocCheck(ctx context.Context, ahReq *sm.AdHocRequest) 
 		// TODO(mem): this should also be published to Loki, so that the
 		// frontend is able to communicate to the user that something
 		// went wrong.
-		reporter := newResultReporter(ctx, h.resultsClient, ahReq.AdHocCheck.Id, h.probeID(), h.logger)
-		reporter.final(&sm.AdHocFinal{
-			Status: sm.AdHocFinal_COULD_NOT_START,
-			Error:  err.Error(),
-		})
+		reportResult(ctx, h.resultsClient, &sm.AdHocResult{
+			ExecutionId: ahReq.AdHocCheck.Id,
+			ProbeId:     h.probeID(),
+			Status:      sm.AdHocResult_COULD_NOT_START,
+			Error:       err.Error(),
+		}, h.logger)
 
 		return err
 	}
@@ -576,195 +578,32 @@ func (h *Handler) probeID() int64 {
 	return h.probe.Id
 }
 
-// resultReporter reports the results of a single ad-hoc execution back
-// to the API, using one ReportAdHocResult stream per execution.
-//
-// All the methods are safe to call on a nil *resultReporter, and from
-// multiple goroutines. Reporting is best effort: the first error stops
-// any further reporting for the execution, and it's only logged.
-type resultReporter struct {
-	logger  zerolog.Logger
-	id      string
-	probeID int64
-
-	mu     sync.Mutex
-	stream sm.AdHocChecks_ReportAdHocResultClient
-}
-
-// newResultReporter opens a stream to report the results of the
-// execution identified by id. It returns nil if there is no client, or
-// if the stream cannot be opened (for example, because the API does not
-// implement the RPC yet).
-func newResultReporter(ctx context.Context, client sm.AdHocChecksClient, id string, probeID int64, logger zerolog.Logger) *resultReporter {
+// reportResult tells the API the outcome of an ad-hoc execution. It's
+// best effort: if there is no client, or the call fails, the result is
+// still available in Loki, so errors are only logged.
+func reportResult(ctx context.Context, client sm.AdHocChecksClient, result *sm.AdHocResult, logger zerolog.Logger) {
 	if client == nil {
-		return nil
+		return
 	}
 
-	stream, err := client.ReportAdHocResult(ctx)
-	if err != nil {
+	ctx, cancel := context.WithTimeout(ctx, reportTimeout)
+	defer cancel()
+
+	if _, err := client.ReportAdHocResult(ctx, result); err != nil {
 		// Unimplemented is expected while the API is being rolled out.
 		level := zerolog.WarnLevel
 		if status.Code(err) == codes.Unimplemented {
 			level = zerolog.DebugLevel
 		}
 
-		logger.WithLevel(level).Err(err).Str("id", id).Msg("cannot report ad-hoc result to API, using Loki only")
-
-		return nil
+		logger.WithLevel(level).Err(err).Str("id", result.ExecutionId).Msg("cannot report ad-hoc result to API, using Loki only")
 	}
-
-	return &resultReporter{
-		logger:  logger,
-		id:      id,
-		probeID: probeID,
-		stream:  stream,
-	}
-}
-
-// send sends a payload to the API. It must be called with r.mu held.
-func (r *resultReporter) send(chunk *sm.AdHocResultChunk) {
-	if r.stream == nil {
-		return
-	}
-
-	chunk.ExecutionId = r.id
-	chunk.ProbeId = r.probeID
-
-	if err := r.stream.Send(chunk); err != nil {
-		r.logger.Warn().Err(err).Str("id", r.id).Msg("cannot report ad-hoc result to API, using Loki only")
-		r.stream = nil
-	}
-}
-
-// maxResultChunkBytes is the maximum size of the log lines in a single
-// chunk. It's well below the default 4MiB limit of gRPC servers.
-const maxResultChunkBytes = 1 << 20
-
-// encodeMetrics encodes the metric families as JSON. If the result is
-// larger than limit bytes, it keeps as many of the leading metric
-// families as fit, so that what's returned is still valid JSON, and it
-// returns a warning saying so.
-func encodeMetrics(mfs []*dto.MetricFamily, limit int) ([]byte, string) {
-	encoded, err := json.Marshal(mfs)
-	if err != nil {
-		return nil, fmt.Sprintf("metrics could not be encoded: %v", err)
-	}
-
-	if len(encoded) <= limit {
-		return encoded, ""
-	}
-
-	// Find the longest prefix that fits.
-	lo, hi := 0, len(mfs)
-
-	for lo < hi {
-		mid := (lo + hi + 1) / 2
-
-		if prefix, err := json.Marshal(mfs[:mid]); err == nil && len(prefix) <= limit {
-			lo = mid
-		} else {
-			hi = mid - 1
-		}
-	}
-
-	kept, err := json.Marshal(mfs[:lo])
-	if err != nil {
-		return nil, fmt.Sprintf("metrics could not be encoded: %v", err)
-	}
-
-	return kept, fmt.Sprintf(
-		"metrics truncated: kept %d of %d metric families (%d bytes exceeds the limit of %d bytes)",
-		lo, len(mfs), len(encoded), limit,
-	)
-}
-
-// logs reports the log entries of a completed execution, in as many
-// chunks as needed to stay under maxResultChunkBytes. A single entry
-// larger than that is replaced by a marker.
-func (r *resultReporter) logs(entries []map[string]string) {
-	if r == nil {
-		return
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	var (
-		batch [][]byte
-		size  int
-	)
-
-	flush := func() {
-		if len(batch) == 0 {
-			return
-		}
-
-		r.send(&sm.AdHocResultChunk{
-			Payload: &sm.AdHocResultChunk_LogLines{
-				LogLines: &sm.AdHocLogLines{Lines: batch},
-			},
-		})
-
-		batch, size = nil, 0
-	}
-
-	for _, entry := range entries {
-		line, err := json.Marshal(entry)
-		if err != nil {
-			continue
-		}
-
-		if len(line) > maxResultChunkBytes {
-			r.logger.Warn().
-				Str("id", r.id).
-				Int("lineBytes", len(line)).
-				Int("limitBytes", maxResultChunkBytes).
-				Msg("log line truncated")
-
-			line = []byte(fmt.Sprintf(`{"truncated":"log line of %d bytes exceeds the %d byte limit"}`, len(line), maxResultChunkBytes))
-		}
-
-		if size+len(line) > maxResultChunkBytes {
-			flush()
-		}
-
-		batch = append(batch, line)
-		size += len(line)
-	}
-
-	flush()
-}
-
-// final reports the outcome of the execution and closes the stream.
-func (r *resultReporter) final(final *sm.AdHocFinal) {
-	if r == nil {
-		return
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.send(&sm.AdHocResultChunk{
-		Payload: &sm.AdHocResultChunk_Final{Final: final},
-	})
-
-	if r.stream == nil {
-		return
-	}
-
-	if _, err := r.stream.CloseAndRecv(); err != nil {
-		r.logger.Warn().Err(err).Str("id", r.id).Msg("closing ad-hoc result stream")
-	}
-
-	r.stream = nil
 }
 
 // Run runs the specified prober once and captures the results using
 // jsonLogger.
 func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pusher.Publisher) {
 	r.logger.Info().Msg("running ad-hoc check")
-
-	reporter := newResultReporter(ctx, r.results, r.id, r.probeID, r.logger)
 
 	var (
 		logger   = &jsonLogger{}
@@ -857,50 +696,31 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		Msg("ad-hoc result sent to publisher")
 
 	// Report to the API once the check is complete, after publishing, so
-	// that neither the prober nor the Loki path can be delayed by a slow
-	// or broken stream.
-	if reporter != nil {
-		reporter.logs(logger.entries)
-
-		final := &sm.AdHocFinal{
-			Status:          sm.AdHocFinal_FAILED,
-			Success:         success,
-			DurationSeconds: duration,
-		}
-
-		if duration == 0 {
-			final.DurationSeconds = time.Since(start).Seconds()
-		}
-
-		switch {
-		case success:
-			final.Status = sm.AdHocFinal_OK
-		case timedOut:
-			final.Status = sm.AdHocFinal_TIMEOUT
-		}
-
-		if err != nil {
-			final.Error = err.Error()
-		}
-
-		var warning string
-
-		final.Metrics, warning = encodeMetrics(mfs, maxResultChunkBytes)
-		if warning != "" {
-			final.Warnings = append(final.Warnings, warning)
-
-			r.logger.Warn().
-				Str("id", r.id).
-				Str("target", r.target).
-				Str("probe", r.probe).
-				Str("check_name", r.prober.Name()).
-				Int("limitBytes", maxResultChunkBytes).
-				Str("detail", warning).
-				Msg("metrics truncated")
-		}
-
-		reporter.final(final)
+	// that the Loki path is never delayed by it.
+	result := &sm.AdHocResult{
+		ExecutionId:     r.id,
+		ProbeId:         r.probeID,
+		Status:          sm.AdHocResult_FAILED,
+		Success:         success,
+		DurationSeconds: duration,
 	}
+
+	if duration == 0 {
+		result.DurationSeconds = time.Since(start).Seconds()
+	}
+
+	switch {
+	case success:
+		result.Status = sm.AdHocResult_OK
+	case timedOut:
+		result.Status = sm.AdHocResult_TIMEOUT
+	}
+
+	if err != nil {
+		result.Error = err.Error()
+	}
+
+	reportResult(ctx, r.results, result, r.logger)
 }
 
 type (

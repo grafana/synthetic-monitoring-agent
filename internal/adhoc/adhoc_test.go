@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"os"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -432,13 +431,17 @@ type testClient struct {
 	getAdhocChecksError error
 	registerProbeHook   func(*sm.ProbeInfo)
 
-	// reportClient, if set, is returned by ReportAdHocResult. If nil,
-	// ReportAdHocResult behaves like an API that predates the RPC.
-	reportClient *recordingReportClient
+	// results, if set, records the results passed to ReportAdHocResult.
+	// If nil, ReportAdHocResult behaves like an API that predates the
+	// RPC.
+	results *resultRecorder
 	// reportErr, if set, is returned by ReportAdHocResult.
 	reportErr error
 	// reportCalls counts the calls to ReportAdHocResult.
 	reportCalls atomic.Int32
+	// reportBounded is set if a call had a deadline of at most
+	// reportTimeout.
+	reportBounded atomic.Bool
 }
 
 func (c *testClient) RegisterProbe(ctx context.Context, in *sm.ProbeInfo, opts ...grpc.CallOption) (*sm.RegisterProbeResult, error) {
@@ -468,16 +471,22 @@ func (c *testClient) RegisterProbe(ctx context.Context, in *sm.ProbeInfo, opts .
 	}, nil
 }
 
-func (c *testClient) ReportAdHocResult(ctx context.Context, opts ...grpc.CallOption) (sm.AdHocChecks_ReportAdHocResultClient, error) {
-	c.logger.Info().Str("func", "ReportAdHocResult").Interface("opts", opts).Send()
+func (c *testClient) ReportAdHocResult(ctx context.Context, in *sm.AdHocResult, opts ...grpc.CallOption) (*sm.Void, error) {
+	c.logger.Info().Str("func", "ReportAdHocResult").Interface("in", in).Interface("opts", opts).Send()
 	c.reportCalls.Add(1)
+
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= reportTimeout {
+		c.reportBounded.Store(true)
+	}
 
 	switch {
 	case c.reportErr != nil:
 		return nil, c.reportErr
 
-	case c.reportClient != nil:
-		return c.reportClient, nil
+	case c.results != nil:
+		c.results.ch <- in
+
+		return &sm.Void{}, nil
 
 	default:
 		// Mimic an API that predates the RPC.
@@ -485,56 +494,28 @@ func (c *testClient) ReportAdHocResult(ctx context.Context, opts ...grpc.CallOpt
 	}
 }
 
-// recordingReportClient records everything sent through a
-// ReportAdHocResult stream.
-type recordingReportClient struct {
-	mu     sync.Mutex
-	chunks []*sm.AdHocResultChunk
-	closed chan struct{}
-	once   sync.Once
+// resultRecorder records the results reported to the API.
+type resultRecorder struct {
+	ch chan *sm.AdHocResult
 }
 
-func newRecordingReportClient() *recordingReportClient {
-	return &recordingReportClient{closed: make(chan struct{})}
+func newResultRecorder() *resultRecorder {
+	return &resultRecorder{ch: make(chan *sm.AdHocResult, 16)}
 }
 
-func (r *recordingReportClient) Send(chunk *sm.AdHocResultChunk) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.chunks = append(r.chunks, chunk)
-
-	return nil
-}
-
-func (r *recordingReportClient) CloseAndRecv() (*sm.Void, error) {
-	r.once.Do(func() { close(r.closed) })
-
-	return &sm.Void{}, nil
-}
-
-func (r *recordingReportClient) Header() (metadata.MD, error) { return nil, nil }
-func (r *recordingReportClient) Trailer() metadata.MD         { return nil }
-func (r *recordingReportClient) CloseSend() error             { return nil }
-func (r *recordingReportClient) Context() context.Context     { return context.Background() }
-func (r *recordingReportClient) SendMsg(any) error            { return nil }
-func (r *recordingReportClient) RecvMsg(any) error            { return nil }
-
-// wait blocks until the stream is closed by the sender and returns what
-// was sent.
-func (r *recordingReportClient) wait(t *testing.T) []*sm.AdHocResultChunk {
+// wait blocks until a result is reported and returns it.
+func (r *resultRecorder) wait(t *testing.T) *sm.AdHocResult {
 	t.Helper()
 
 	select {
-	case <-r.closed:
+	case result := <-r.ch:
+		return result
+
 	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for the ReportAdHocResult stream to be closed")
+		t.Fatal("timed out waiting for a result to be reported")
+
+		return nil
 	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	return append([]*sm.AdHocResultChunk(nil), r.chunks...)
 }
 
 // blockingProber blocks until its context is done, like a check that
@@ -591,21 +572,6 @@ func newReportTestHandler(t *testing.T, client *testClient, factory func(context
 	return h, publishCh
 }
 
-func finalOf(t *testing.T, chunks []*sm.AdHocResultChunk) *sm.AdHocFinal {
-	t.Helper()
-
-	require.NotEmpty(t, chunks, "expected at least the final chunk")
-
-	final := chunks[len(chunks)-1].GetFinal()
-	require.NotNil(t, final, "the last chunk must be the final one")
-
-	for _, c := range chunks[:len(chunks)-1] {
-		require.Nil(t, c.GetFinal(), "only the last chunk can be final")
-	}
-
-	return final
-}
-
 func requirePublished(t *testing.T, publishCh <-chan pusher.Payload) {
 	t.Helper()
 
@@ -623,46 +589,28 @@ func requirePublished(t *testing.T, publishCh <-chan pusher.Payload) {
 const testAdHocID = "test"
 
 func TestReportAdHocResultSuccess(t *testing.T) {
-	rec := newRecordingReportClient()
-	h, publishCh := newReportTestHandler(t, &testClient{reportClient: rec}, nil)
+	rec := newResultRecorder()
+	h, publishCh := newReportTestHandler(t, &testClient{results: rec}, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	require.NoError(t, h.Run(ctx))
 
-	chunks := rec.wait(t)
+	result := rec.wait(t)
 	requirePublished(t, publishCh)
 
-	for _, c := range chunks {
-		require.Equal(t, testAdHocID, c.ExecutionId)
-		require.Equal(t, int64(1), c.ProbeId, "probe id comes from RegisterProbe")
-	}
-
-	var lines []string
-
-	for _, c := range chunks {
-		if ll := c.GetLogLines(); ll != nil {
-			for _, l := range ll.Lines {
-				lines = append(lines, string(l))
-			}
-		}
-	}
-
-	require.NotEmpty(t, lines, "the prober logged a line, it must be reported")
-	require.Contains(t, lines[0], `"msg":"test"`)
-
-	final := finalOf(t, chunks)
-	require.Equal(t, sm.AdHocFinal_OK, final.Status)
-	require.True(t, final.Success)
-	require.Equal(t, float64(1), final.DurationSeconds)
-	require.Contains(t, string(final.Metrics), "probe_success")
-	require.Empty(t, final.Error)
+	require.Equal(t, testAdHocID, result.ExecutionId)
+	require.Equal(t, int64(1), result.ProbeId, "probe id comes from RegisterProbe")
+	require.Equal(t, sm.AdHocResult_OK, result.Status)
+	require.True(t, result.Success)
+	require.Equal(t, float64(1), result.DurationSeconds)
+	require.Empty(t, result.Error)
 }
 
 func TestReportAdHocResultCouldNotStart(t *testing.T) {
-	rec := newRecordingReportClient()
-	h, publishCh := newReportTestHandler(t, &testClient{reportClient: rec},
+	rec := newResultRecorder()
+	h, publishCh := newReportTestHandler(t, &testClient{results: rec},
 		func(context.Context, *sm.AdHocRequest) (*runner, error) {
 			return nil, errors.New("boom")
 		},
@@ -673,15 +621,12 @@ func TestReportAdHocResultCouldNotStart(t *testing.T) {
 
 	require.NoError(t, h.Run(ctx))
 
-	chunks := rec.wait(t)
+	result := rec.wait(t)
 
-	require.Len(t, chunks, 1, "the check never ran, there are no logs to report")
-	require.Equal(t, testAdHocID, chunks[0].ExecutionId)
-
-	final := finalOf(t, chunks)
-	require.Equal(t, sm.AdHocFinal_COULD_NOT_START, final.Status)
-	require.False(t, final.Success)
-	require.Contains(t, final.Error, "boom")
+	require.Equal(t, testAdHocID, result.ExecutionId)
+	require.Equal(t, sm.AdHocResult_COULD_NOT_START, result.Status)
+	require.False(t, result.Success)
+	require.Contains(t, result.Error, "boom")
 
 	select {
 	case <-publishCh:
@@ -691,8 +636,8 @@ func TestReportAdHocResultCouldNotStart(t *testing.T) {
 }
 
 func TestReportAdHocResultTimeout(t *testing.T) {
-	rec := newRecordingReportClient()
-	h, publishCh := newReportTestHandler(t, &testClient{reportClient: rec},
+	rec := newResultRecorder()
+	h, publishCh := newReportTestHandler(t, &testClient{results: rec},
 		func(_ context.Context, req *sm.AdHocRequest) (*runner, error) {
 			return &runner{
 				logger:  zerolog.New(io.Discard),
@@ -710,17 +655,55 @@ func TestReportAdHocResultTimeout(t *testing.T) {
 
 	require.NoError(t, h.Run(ctx))
 
-	final := finalOf(t, rec.wait(t))
-	require.Equal(t, sm.AdHocFinal_TIMEOUT, final.Status)
-	require.False(t, final.Success)
+	result := rec.wait(t)
+	require.Equal(t, sm.AdHocResult_TIMEOUT, result.Status)
+	require.False(t, result.Success)
 
 	requirePublished(t, publishCh)
+}
+
+// A probe that ran the check but did not succeed reports FAILED, which is
+// different from a timeout or a check that could not start.
+func TestReportAdHocResultFailed(t *testing.T) {
+	rec := newResultRecorder()
+	h, publishCh := newReportTestHandler(t, &testClient{results: rec},
+		func(_ context.Context, req *sm.AdHocRequest) (*runner, error) {
+			return &runner{
+				logger:  zerolog.New(io.Discard),
+				prober:  failingProber{},
+				id:      req.AdHocCheck.Id,
+				target:  req.AdHocCheck.Target,
+				probe:   "testProbe",
+				timeout: 10 * time.Second,
+			}, nil
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	require.NoError(t, h.Run(ctx))
+
+	result := rec.wait(t)
+	require.Equal(t, sm.AdHocResult_FAILED, result.Status)
+	require.False(t, result.Success)
+
+	requirePublished(t, publishCh)
+}
+
+// failingProber runs to completion and reports that the check failed.
+type failingProber struct{}
+
+func (failingProber) Name() string { return "failing" }
+
+func (failingProber) Probe(context.Context, string, *prometheus.Registry, logger.Logger, string) (bool, float64) {
+	return false, 0.5
 }
 
 // An API that predates ReportAdHocResult answers Unimplemented. The
 // probe must carry on, publishing to Loki as it always did.
 func TestReportAdHocResultUnimplementedFallsBackToLoki(t *testing.T) {
-	client := &testClient{} // no reportClient: Unimplemented.
+	client := &testClient{} // no results recorder: Unimplemented.
 	h, publishCh := newReportTestHandler(t, client, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -736,7 +719,7 @@ func TestReportAdHocResultUnimplementedFallsBackToLoki(t *testing.T) {
 // reporting works.
 func TestReportAdHocResultKeepsLokiPath(t *testing.T) {
 	for name, client := range map[string]*testClient{
-		"reporting works":   {reportClient: newRecordingReportClient()},
+		"reporting works":   {results: newResultRecorder()},
 		"reporting fails":   {reportErr: status.Error(codes.Internal, "kaboom")},
 		"not implemented":   {},
 		"unavailable":       {reportErr: status.Error(codes.Unavailable, "gone")},
@@ -768,6 +751,20 @@ func TestReportAdHocResultKeepsLokiPath(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A reporting call that never returns must not hold the goroutine forever,
+// so the call is bounded by a deadline.
+func TestReportAdHocResultCallIsBounded(t *testing.T) {
+	client := &testClient{results: newResultRecorder(), logger: zerolog.New(io.Discard)}
+
+	// The context has no deadline of its own, so any deadline the call
+	// has was added by reportResult.
+	reportResult(context.Background(), client, &sm.AdHocResult{ExecutionId: testAdHocID}, zerolog.New(io.Discard))
+
+	client.results.wait(t)
+
+	require.True(t, client.reportBounded.Load(), "the call must have a deadline of at most reportTimeout")
 }
 
 type testGetAdhocChecksClient struct {
