@@ -3,9 +3,11 @@ package adhoc
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -585,6 +587,48 @@ func (h *Handler) probeID() int64 {
 // the API.
 const maxReasonBytes = 256
 
+// maxResultLogsBytes is the maximum total size of the log lines sent to
+// the API with the result of an execution.
+const maxResultLogsBytes = 512 * 1024
+
+// encodeLogs encodes the log entries of an execution as JSON lines, in
+// the same way they are in the Loki entry. If they do not fit in limit
+// bytes, the oldest ones are dropped and truncated is true.
+//
+// The newest entries are kept, because the cause of a failure is
+// usually at the end. A single entry larger than the limit is replaced
+// by a short marker, so that it does not push out the newer entries.
+func encodeLogs(entries []map[string]string, limit int) (lines [][]byte, truncated bool) {
+	var size int
+
+	// Walk from the newest entry to the oldest, and put the result back
+	// in order at the end.
+	for i := len(entries) - 1; i >= 0; i-- {
+		line, err := json.Marshal(entries[i])
+		if err != nil {
+			continue
+		}
+
+		if len(line) > limit {
+			line = []byte(fmt.Sprintf(`{"truncated":"log line of %d bytes dropped"}`, len(line)))
+			truncated = true
+		}
+
+		if size+len(line) > limit {
+			truncated = true
+
+			break
+		}
+
+		size += len(line)
+		lines = append(lines, line)
+	}
+
+	slices.Reverse(lines)
+
+	return lines, truncated
+}
+
 // failureReason returns a short, human readable reason why a check
 // failed, built from what the prober logged, or an empty string if the
 // prober did not log any error.
@@ -822,6 +866,13 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 	case result.Status != sm.AdHocResult_OK:
 		// The caller should be able to tell why the check did not pass.
 		result.Error = failureReason(logger.entries)
+	}
+
+	// A check that passed has nothing to explain. Otherwise, send the
+	// same lines that go to Loki, so that the caller can see what
+	// happened without querying it.
+	if result.Status != sm.AdHocResult_OK {
+		result.Logs, result.LogsTruncated = encodeLogs(logger.entries, maxResultLogsBytes)
 	}
 
 	reportResult(ctx, r.results, result, r.logger)

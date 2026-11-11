@@ -93,6 +93,13 @@ message AdHocResult {
   reserved "success";
   double duration_seconds = 5;
   string error = 6;
+  // logs are the log lines of the execution, each one JSON encoded as
+  // in the Loki entry of the execution. They are only sent when the
+  // status is not OK. If they do not fit in the limit, the oldest lines
+  // are dropped and logs_truncated is set, because the cause of a
+  // failure is usually at the end.
+  repeated bytes logs = 7;
+  bool logs_truncated = 8;
 }
 
 // Void is an empty message used by RPC methods that don't take

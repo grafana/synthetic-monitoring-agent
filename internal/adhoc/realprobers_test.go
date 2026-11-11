@@ -1,10 +1,12 @@
 package adhoc
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -115,6 +117,8 @@ func TestRealProbersHTTP(t *testing.T) {
 			}
 
 			require.LessOrEqual(t, len(result.Error), maxReasonBytes)
+
+			requireLogs(t, result)
 		})
 	}
 }
@@ -174,6 +178,36 @@ func TestRealProbersTCP(t *testing.T) {
 			for _, s := range tc.wantError {
 				require.Contains(t, result.Error, s)
 			}
+
+			requireLogs(t, result)
 		})
 	}
+}
+
+// requireLogs checks that the logs are only sent when the check did not
+// pass, and that they are the lines the prober logged.
+func requireLogs(t *testing.T, result *sm.AdHocResult) {
+	t.Helper()
+
+	require.False(t, result.LogsTruncated)
+
+	if result.Status == sm.AdHocResult_OK {
+		require.Empty(t, result.Logs, "logs are only sent when the check did not pass")
+
+		return
+	}
+
+	require.NotEmpty(t, result.Logs, "a check that did not pass must come with its logs")
+
+	var hasError bool
+
+	for _, line := range result.Logs {
+		require.True(t, json.Valid(line), "every line must be JSON: %s", line)
+
+		if strings.Contains(string(line), `"level":"ERROR"`) {
+			hasError = true
+		}
+	}
+
+	require.True(t, hasError, "the logs must include the error the prober logged")
 }
