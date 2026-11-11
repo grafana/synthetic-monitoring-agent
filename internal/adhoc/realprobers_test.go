@@ -1,6 +1,7 @@
 package adhoc
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -37,12 +38,30 @@ func runRealCheck(t *testing.T, settings sm.CheckSettings, target string, timeou
 	publishCh := startTransportHandler(t, srv, nil)
 
 	result := srv.waitReported(t)
-	waitPublished(t, publishCh)
+	payload := waitPublished(t, publishCh)
+
+	// Handy to see what the prober logged when a test fails.
+	t.Logf("loki line: %s", payload.Streams()[0].Entries[0].Line)
 
 	require.Equal(t, "real-probers", result.ExecutionId)
 	require.Equal(t, int64(7), result.ProbeId)
 
 	return result
+}
+
+// closedAddress returns an address, on this machine, where nothing is
+// listening.
+func closedAddress(t *testing.T) string {
+	t.Helper()
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	addr := l.Addr().String()
+
+	require.NoError(t, l.Close())
+
+	return addr
 }
 
 func TestRealProbersHTTP(t *testing.T) {
@@ -70,21 +89,50 @@ func TestRealProbersHTTP(t *testing.T) {
 	t.Cleanup(func() { close(release) })
 
 	for name, tc := range map[string]struct {
-		path    string
+		target  string
 		timeout int64
 		want    sm.AdHocResult_Status
+		// wantError lists what the reason for a failure must contain.
+		wantError []string
 	}{
-		"2xx passes":            {"/ok", 5000, sm.AdHocResult_OK},
-		"5xx fails":             {"/error", 5000, sm.AdHocResult_FAILED},
-		"slow server times out": {"/slow", 500, sm.AdHocResult_TIMEOUT},
+		"2xx passes":            {server.URL + "/ok", 5000, sm.AdHocResult_OK, nil},
+		"5xx fails":             {server.URL + "/error", 5000, sm.AdHocResult_FAILED, []string{"Invalid HTTP response status code", "500"}},
+		"slow server times out": {server.URL + "/slow", 500, sm.AdHocResult_TIMEOUT, []string{"Error for HTTP request", "context deadline exceeded"}},
+		"refused connection":    {"http://" + closedAddress(t) + "/", 5000, sm.AdHocResult_FAILED, []string{"Error for HTTP request", "connection refused"}},
 	} {
 		t.Run(name, func(t *testing.T) {
-			result := runRealCheck(t, sm.CheckSettings{Http: &sm.HttpSettings{}}, server.URL+tc.path, tc.timeout)
+			result := runRealCheck(t, sm.CheckSettings{Http: &sm.HttpSettings{}}, tc.target, tc.timeout)
 
 			require.Equal(t, tc.want, result.Status, "error: %q", result.Error)
 			require.Greater(t, result.DurationSeconds, float64(0))
+
+			if tc.wantError == nil {
+				require.Empty(t, result.Error, "a passing check has no failure reason")
+			}
+
+			for _, s := range tc.wantError {
+				require.Contains(t, result.Error, s)
+			}
+
+			require.LessOrEqual(t, len(result.Error), maxReasonBytes)
 		})
 	}
+}
+
+// The reason a check failed goes to the API, so it must not carry
+// credentials the check was configured with.
+func TestRealProbersFailureReasonHasNoCredentials(t *testing.T) {
+	const password = "s3cretpassw0rd"
+
+	target := fmt.Sprintf("http://user:%s@%s/", password, closedAddress(t))
+
+	result := runRealCheck(t, sm.CheckSettings{Http: &sm.HttpSettings{}}, target, 5000)
+
+	t.Logf("reason: %s", result.Error)
+
+	require.Equal(t, sm.AdHocResult_FAILED, result.Status)
+	require.Contains(t, result.Error, "connection refused", "there must be a reason for this to mean anything")
+	require.NotContains(t, result.Error, password)
 }
 
 func TestRealProbersTCP(t *testing.T) {
@@ -106,25 +154,26 @@ func TestRealProbersTCP(t *testing.T) {
 
 	t.Cleanup(func() { _ = listener.Close() })
 
-	// An address nothing listens on: bind a port, then release it.
-	closed, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
-	refused := closed.Addr().String()
-
-	require.NoError(t, closed.Close())
-
 	for name, tc := range map[string]struct {
-		target string
-		want   sm.AdHocResult_Status
+		target    string
+		want      sm.AdHocResult_Status
+		wantError []string
 	}{
-		"open port passes":         {open, sm.AdHocResult_OK},
-		"refused connection fails": {refused, sm.AdHocResult_FAILED},
+		"open port passes":         {open, sm.AdHocResult_OK, nil},
+		"refused connection fails": {closedAddress(t), sm.AdHocResult_FAILED, []string{"Error dialing TCP", "connection refused"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			result := runRealCheck(t, sm.CheckSettings{Tcp: &sm.TcpSettings{}}, tc.target, 5000)
 
 			require.Equal(t, tc.want, result.Status, "error: %q", result.Error)
+
+			if tc.wantError == nil {
+				require.Empty(t, result.Error, "a passing check has no failure reason")
+			}
+
+			for _, s := range tc.wantError {
+				require.Contains(t, result.Error, s)
+			}
 		})
 	}
 }

@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -578,6 +581,92 @@ func (h *Handler) probeID() int64 {
 	return h.probe.Id
 }
 
+// maxReasonBytes is the maximum size of the reason for a failure sent to
+// the API.
+const maxReasonBytes = 256
+
+// failureReason returns a short, human readable reason why a check
+// failed, built from what the prober logged, or an empty string if the
+// prober did not log any error.
+//
+// Probers log the cause of a failure as an error entry, right before
+// they return, so the last error entry is the one that says why. The
+// level is compared ignoring case, because probers don't agree on it.
+func failureReason(entries []map[string]string) string {
+	for i := len(entries) - 1; i >= 0; i-- {
+		if strings.EqualFold(entries[i]["level"], "error") {
+			return truncateUTF8(formatReason(entries[i]), maxReasonBytes)
+		}
+	}
+
+	return ""
+}
+
+// formatReason formats a log entry as "message: error (key=value, ...)".
+// The level and the time are left out, and the remaining fields are
+// sorted so that the result is stable.
+func formatReason(entry map[string]string) string {
+	var b strings.Builder
+
+	b.WriteString(entry["msg"])
+
+	if err := entry["err"]; err != "" {
+		if b.Len() > 0 {
+			b.WriteString(": ")
+		}
+
+		b.WriteString(err)
+	}
+
+	var keys []string
+
+	for k := range entry {
+		switch k {
+		case "level", "msg", "err", "time":
+		default:
+			keys = append(keys, k)
+		}
+	}
+
+	if len(keys) == 0 {
+		return b.String()
+	}
+
+	sort.Strings(keys)
+
+	if b.Len() > 0 {
+		b.WriteString(" ")
+	}
+
+	b.WriteString("(")
+
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+
+		b.WriteString(k + "=" + entry[k])
+	}
+
+	b.WriteString(")")
+
+	return b.String()
+}
+
+// truncateUTF8 cuts s to at most max bytes, without leaving half of a
+// multibyte character at the end.
+func truncateUTF8(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+
+	for max > 0 && !utf8.RuneStart(s[max]) {
+		max--
+	}
+
+	return s[:max]
+}
+
 // reportResult tells the API the outcome of an ad-hoc execution. It's
 // best effort: if there is no client, or the call fails, the result is
 // still available in Loki, so errors are only logged.
@@ -726,8 +815,13 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		result.Status = sm.AdHocResult_TIMEOUT
 	}
 
-	if err != nil {
+	switch {
+	case err != nil:
 		result.Error = err.Error()
+
+	case result.Status != sm.AdHocResult_OK:
+		// The caller should be able to tell why the check did not pass.
+		result.Error = failureReason(logger.entries)
 	}
 
 	reportResult(ctx, r.results, result, r.logger)
