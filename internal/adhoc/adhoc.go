@@ -589,7 +589,10 @@ func reportResult(ctx context.Context, client sm.AdHocChecksClient, result *sm.A
 	ctx, cancel := context.WithTimeout(ctx, reportTimeout)
 	defer cancel()
 
-	if _, err := client.ReportAdHocResult(ctx, result); err != nil {
+	// A long check can outlive the connection it was started on. Wait
+	// for the connection to come back, up to reportTimeout, instead of
+	// failing right away: by now the result is all that's missing.
+	if _, err := client.ReportAdHocResult(ctx, result, grpc.WaitForReady(true)); err != nil {
 		// These are expected, and retrying would not help:
 		//   - Unimplemented: the API is older, or the feature is off.
 		//   - NotFound: the API does not track this execution, which is
