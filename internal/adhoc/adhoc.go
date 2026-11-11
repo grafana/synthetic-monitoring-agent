@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	prompb "github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
@@ -544,9 +545,6 @@ func sleepCtx(ctx context.Context, d time.Duration) error {
 // jsonLogger implements the log.Logger interface.
 type jsonLogger struct {
 	entries []map[string]string
-
-	// sink, if set, is called for every entry as it's logged.
-	sink func(map[string]string)
 }
 
 // Log takes key-value pairs and logs them.
@@ -564,10 +562,6 @@ func (l *jsonLogger) Log(keyvals ...any) error {
 	}
 
 	l.entries = append(l.entries, m)
-
-	if l.sink != nil {
-		l.sink(m)
-	}
 
 	return nil
 }
@@ -642,25 +636,103 @@ func (r *resultReporter) send(chunk *sm.AdHocResultChunk) {
 	}
 }
 
-// logLine reports a single log entry.
-func (r *resultReporter) logLine(entry map[string]string) {
-	if r == nil {
-		return
+// maxResultChunkBytes is the maximum size of the log lines in a single
+// chunk. It's well below the default 4MiB limit of gRPC servers.
+const maxResultChunkBytes = 1 << 20
+
+// encodeMetrics encodes the metric families as JSON. If the result is
+// larger than limit bytes, it keeps as many of the leading metric
+// families as fit, so that what's returned is still valid JSON, and it
+// returns a warning saying so.
+func encodeMetrics(mfs []*dto.MetricFamily, limit int) ([]byte, string) {
+	encoded, err := json.Marshal(mfs)
+	if err != nil {
+		return nil, fmt.Sprintf("metrics could not be encoded: %v", err)
 	}
 
-	line, err := json.Marshal(entry)
+	if len(encoded) <= limit {
+		return encoded, ""
+	}
+
+	// Find the longest prefix that fits.
+	lo, hi := 0, len(mfs)
+
+	for lo < hi {
+		mid := (lo + hi + 1) / 2
+
+		if prefix, err := json.Marshal(mfs[:mid]); err == nil && len(prefix) <= limit {
+			lo = mid
+		} else {
+			hi = mid - 1
+		}
+	}
+
+	kept, err := json.Marshal(mfs[:lo])
 	if err != nil {
+		return nil, fmt.Sprintf("metrics could not be encoded: %v", err)
+	}
+
+	return kept, fmt.Sprintf(
+		"metrics truncated: kept %d of %d metric families (%d bytes exceeds the limit of %d bytes)",
+		lo, len(mfs), len(encoded), limit,
+	)
+}
+
+// logs reports the log entries of a completed execution, in as many
+// chunks as needed to stay under maxResultChunkBytes. A single entry
+// larger than that is replaced by a marker.
+func (r *resultReporter) logs(entries []map[string]string) {
+	if r == nil {
 		return
 	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.send(&sm.AdHocResultChunk{
-		Payload: &sm.AdHocResultChunk_LogLines{
-			LogLines: &sm.AdHocLogLines{Lines: [][]byte{line}},
-		},
-	})
+	var (
+		batch [][]byte
+		size  int
+	)
+
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+
+		r.send(&sm.AdHocResultChunk{
+			Payload: &sm.AdHocResultChunk_LogLines{
+				LogLines: &sm.AdHocLogLines{Lines: batch},
+			},
+		})
+
+		batch, size = nil, 0
+	}
+
+	for _, entry := range entries {
+		line, err := json.Marshal(entry)
+		if err != nil {
+			continue
+		}
+
+		if len(line) > maxResultChunkBytes {
+			r.logger.Warn().
+				Str("id", r.id).
+				Int("lineBytes", len(line)).
+				Int("limitBytes", maxResultChunkBytes).
+				Msg("log line truncated")
+
+			line = []byte(fmt.Sprintf(`{"truncated":"log line of %d bytes exceeds the %d byte limit"}`, len(line), maxResultChunkBytes))
+		}
+
+		if size+len(line) > maxResultChunkBytes {
+			flush()
+		}
+
+		batch = append(batch, line)
+		size += len(line)
+	}
+
+	flush()
 }
 
 // final reports the outcome of the execution and closes the stream.
@@ -715,10 +787,6 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 	})
 
 	registry.MustRegister(durationGauge)
-
-	if reporter != nil {
-		logger.sink = reporter.logLine
-	}
 
 	start := time.Now()
 
@@ -788,9 +856,12 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		Str("check_name", r.prober.Name()).
 		Msg("ad-hoc result sent to publisher")
 
-	// Report to the API after publishing, so that a slow or broken
-	// stream never delays the Loki path.
+	// Report to the API once the check is complete, after publishing, so
+	// that neither the prober nor the Loki path can be delayed by a slow
+	// or broken stream.
 	if reporter != nil {
+		reporter.logs(logger.entries)
+
 		final := &sm.AdHocFinal{
 			Status:          sm.AdHocFinal_FAILED,
 			Success:         success,
@@ -812,8 +883,20 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 			final.Error = err.Error()
 		}
 
-		if metrics, err := json.Marshal(mfs); err == nil {
-			final.Metrics = metrics
+		var warning string
+
+		final.Metrics, warning = encodeMetrics(mfs, maxResultChunkBytes)
+		if warning != "" {
+			final.Warnings = append(final.Warnings, warning)
+
+			r.logger.Warn().
+				Str("id", r.id).
+				Str("target", r.target).
+				Str("probe", r.probe).
+				Str("check_name", r.prober.Name()).
+				Int("limitBytes", maxResultChunkBytes).
+				Str("detail", warning).
+				Msg("metrics truncated")
 		}
 
 		reporter.final(final)

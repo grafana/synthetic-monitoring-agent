@@ -101,6 +101,10 @@ message AdHocFinal {
   // metrics is the gathered Prometheus metric families, encoded as JSON.
   bytes metrics = 4;
   string error = 5;
+  // warnings lists problems that did not prevent the check from
+  // running, but that the caller should know about. For example, that
+  // the metrics were truncated to fit in a message.
+  repeated string warnings = 6;
 }
 
 // Void is an empty message used by RPC methods that don't take
