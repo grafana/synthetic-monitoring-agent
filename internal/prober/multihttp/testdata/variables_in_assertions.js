@@ -156,9 +156,9 @@ export default function() {
 		fail()
 	};
 
-	currentCheck = check(response, { "$.theirValue equals \"${probeIp}\"": response => { if (vars['probeIp'] == null) { console.error("Variable is not defined:", "probeIp"); return false; } return jsonpath.query(response.json(), "$.theirValue").some(values => values === String(vars['probeIp'])); } }, {"url": url.toString(), "method": "GET"});
+	currentCheck = check(response, { "$.theirValue equals \"${probeIp}\"": response => { if (vars['probeIp'] == null) { console.error("Variable is not defined:", "probeIp"); return false; } return jsonpath.query(response.json(), "$.theirValue").some(values => String(values) === String(vars['probeIp'])); } }, {"url": url.toString(), "method": "GET"});
 	if(!currentCheck) {
-		console.error("Assertion failed:", "values \u003D\u003D\u003D \"${probeIp}\"");
+		console.error("Assertion failed:", "String(values) \u003D\u003D\u003D \"${probeIp}\"");
 		fail()
 	};
 

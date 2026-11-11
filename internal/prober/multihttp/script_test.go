@@ -677,9 +677,25 @@ func TestBuildChecks(t *testing.T) {
 				Expression: "$.theirValue",
 				Value:      "${probe_ip}",
 			},
-			expected: `currentCheck = check(response, { "$.theirValue equals \"${probe_ip}\"": response => { if (vars['probe_ip'] == null) { console.error("Variable is not defined:", "probe_ip"); return false; } return jsonpath.query(response.json(), "$.theirValue").some(values => values === String(vars['probe_ip'])); } }, {"url": url.toString(), "method": "GET"});
+			expected: `currentCheck = check(response, { "$.theirValue equals \"${probe_ip}\"": response => { if (vars['probe_ip'] == null) { console.error("Variable is not defined:", "probe_ip"); return false; } return jsonpath.query(response.json(), "$.theirValue").some(values => String(values) === String(vars['probe_ip'])); } }, {"url": url.toString(), "method": "GET"});
 	if(!currentCheck) {
-		console.error("Assertion failed:", "values \u003D\u003D\u003D \"${probe_ip}\"");
+		console.error("Assertion failed:", "String(values) \u003D\u003D\u003D \"${probe_ip}\"");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksJsonPathValueAssertionContainsVariable": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+				Condition:  sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Expression: "$.id",
+				Value:      "${id}",
+			},
+			expected: `currentCheck = check(response, { "$.id contains \"${id}\"": response => { if (vars['id'] == null) { console.error("Variable is not defined:", "id"); return false; } return jsonpath.query(response.json(), "$.id").some(values => String(values).includes(String(vars['id']))); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "String(values).includes(\"${id}\")");
 		fail()
 	};
 `,

@@ -348,7 +348,15 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 		checkJS.WriteString(`jsonpath.query(response.json(), "`)
 		checkJS.WriteString(template.JSEscapeString(assertion.Expression))
 		checkJS.WriteString(`").some(values => `)
-		value.writeCondition(cond, &checkJS, &failureLog, `values`)
+
+		// A JSONPath result keeps its JSON type, and the variable side is
+		// a string. Converting the result too lets a numeric 42 match ${id}.
+		subject := `values`
+		if len(value.names) > 0 {
+			subject = `String(values)`
+		}
+
+		value.writeCondition(cond, &checkJS, &failureLog, subject)
 		checkJS.WriteString(`)`)
 		value.closeBody(&checkJS)
 
