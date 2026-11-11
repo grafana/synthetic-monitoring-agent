@@ -91,6 +91,28 @@ type runner struct {
 	// the API. If nil, results are only published to Loki.
 	results sm.AdHocChecksClient
 	probeID int64
+
+	// omitReason keeps the reason a check failed, which is taken from
+	// what the prober logged, out of the result. It is set for checks
+	// that run k6 scripts, where what is logged is whatever the script
+	// printed, which the tenant cannot read from the check configuration.
+	omitReason bool
+}
+
+// couldNotRunMessage is the error reported when the probe could not run
+// a check. The cause is logged by the agent, and not sent, because it
+// can contain details of the infrastructure of the probe.
+const couldNotRunMessage = "the probe could not run the check"
+
+// usesK6 returns true for the checks that run a k6 script.
+func usesK6(t sm.CheckType) bool {
+	switch t {
+	case sm.CheckTypeMultiHttp, sm.CheckTypeScripted, sm.CheckTypeBrowser:
+		return true
+
+	default:
+		return false
+	}
 }
 
 // ClientConn represents the GRPC client connection that can be used to
@@ -513,8 +535,7 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 	// to us, instead of both us and the runner timing out at the same time and missing the runner's response. We define
 	// that grace time to be 20 seconds, to be consistent with the grace time used for k6, non ad-hoc checks.
 	timeout := time.Duration(check.Timeout) * time.Millisecond
-	switch check.Type() {
-	case sm.CheckTypeMultiHttp, sm.CheckTypeScripted, sm.CheckTypeBrowser:
+	if usesK6(check.Type()) {
 		timeout += k6AdhocGraceTime
 	}
 
@@ -525,6 +546,8 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 		target:  target,
 		probe:   h.probe.Name,
 		timeout: timeout,
+
+		omitReason: usesK6(check.Type()),
 	}, nil
 }
 
@@ -776,9 +799,40 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 	rCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
-	success, duration := r.prober.Probe(rCtx, r.target, registry, logger, executionID)
+	var (
+		success  bool
+		duration float64
+		probeErr error
+	)
+
+	// Probers that can tell a check that failed from a check that could
+	// not be run say so. For the rest, both are a failure.
+	if ep, ok := r.prober.(prober.ErrorProber); ok {
+		success, duration, probeErr = ep.ProbeErr(rCtx, r.target, registry, logger, executionID)
+	} else {
+		success, duration = r.prober.Probe(rCtx, r.target, registry, logger, executionID)
+	}
 
 	timedOut := errors.Is(rCtx.Err(), context.DeadlineExceeded)
+
+	// Running out of time is what happened, whatever else the prober
+	// reports on its way out. Otherwise the check could not be run.
+	couldNotRun := probeErr != nil && !success && !timedOut
+
+	if couldNotRun {
+		// The cause can name the infrastructure of the probe: keep it in
+		// the log of the agent, and say what happened in the logs of the
+		// execution, which are sent.
+		r.logger.Error().
+			Err(probeErr).
+			Str("id", r.id).
+			Str("target", r.target).
+			Str("probe", r.probe).
+			Str("check_name", r.prober.Name()).
+			Msg("the probe could not run the check")
+
+		_ = logger.Log("level", "error", "source", "agent", "msg", couldNotRunMessage)
+	}
 
 	if success {
 		successGauge.Set(1)
@@ -857,13 +911,18 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		result.Status = sm.AdHocResult_OK
 	case timedOut:
 		result.Status = sm.AdHocResult_TIMEOUT
+	case couldNotRun:
+		result.Status = sm.AdHocResult_COULD_NOT_START
 	}
 
 	switch {
 	case err != nil:
 		result.Error = err.Error()
 
-	case result.Status != sm.AdHocResult_OK:
+	case couldNotRun:
+		result.Error = couldNotRunMessage
+
+	case result.Status != sm.AdHocResult_OK && !r.omitReason:
 		// The caller should be able to tell why the check did not pass.
 		result.Error = failureReason(logger.entries)
 	}

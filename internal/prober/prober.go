@@ -33,6 +33,18 @@ type Prober interface {
 	Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (bool, float64)
 }
 
+// ErrorProber is implemented by probers that can tell a check that failed
+// apart from a check that could not be run, for example because the
+// runner it depends on is not available.
+//
+// Probe reports both as a failure. ProbeErr returns a non-nil error only
+// when the check could not be run: if the check ran and did not pass, the
+// error is nil and success is false.
+type ErrorProber interface {
+	Prober
+	ProbeErr(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (success bool, duration float64, err error)
+}
+
 func Run(ctx context.Context, p Prober, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (bool, float64) {
 	return p.Probe(ctx, target, registry, logger, executionID)
 }

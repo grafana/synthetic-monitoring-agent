@@ -1131,9 +1131,14 @@ func TestDefaultRunnerFactory(t *testing.T) {
 				expectedTimeout := time.Duration(tc.request.AdHocCheck.Timeout)*time.Millisecond + k6AdhocGraceTime
 				require.Equal(t, expectedTimeout, runner.timeout)
 
+				// What a script prints is not turned into the reason.
+				require.True(t, runner.omitReason)
+
 			default:
 				expectedTimeout := time.Duration(tc.request.AdHocCheck.Timeout) * time.Millisecond
 				require.Equal(t, expectedTimeout, runner.timeout)
+
+				require.False(t, runner.omitReason)
 			}
 		})
 	}
