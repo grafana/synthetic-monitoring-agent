@@ -132,31 +132,31 @@ export default function() {
 	if(response.error) {
 		console.error("Request error:" + url.toString() + ": " + response.error)
 	}
-	currentCheck = check(response, { "status code equals \"${status}\"": response => { if (vars['status'] == null) { console.error("Variable is not defined:", "status"); return false; } return response.status.toString() === String(vars['status']); } }, {"url": url.toString(), "method": "GET"});
+	currentCheck = check(response, { "status code equals \"${status}\"": response => { if (!Object.hasOwn(vars, 'status') || vars['status'] == null) { console.error("Variable is not defined:", "status"); return false; } return response.status.toString() === ''+vars['status']; } }, {"url": url.toString(), "method": "GET"});
 	if(!currentCheck) {
 		console.error("Assertion failed:", "response.status.toString() \u003D\u003D\u003D \"${status}\"");
 		fail()
 	};
 
-	currentCheck = check(response, { "body contains \"${probeIp}\"": response => { if (vars['probeIp'] == null) { console.error("Variable is not defined:", "probeIp"); return false; } return response.body.includes(String(vars['probeIp'])); } }, {"url": url.toString(), "method": "GET"});
+	currentCheck = check(response, { "body contains \"${probeIp}\"": response => { if (!Object.hasOwn(vars, 'probeIp') || vars['probeIp'] == null) { console.error("Variable is not defined:", "probeIp"); return false; } return response.body.includes(''+vars['probeIp']); } }, {"url": url.toString(), "method": "GET"});
 	if(!currentCheck) {
 		console.error("Assertion failed:", "response.body.includes(\"${probeIp}\")");
 		fail()
 	};
 
-	currentCheck = check(response, { "header contains \"x-echo: ${probeIp}\"": response => { if (vars['probeIp'] == null) { console.error("Variable is not defined:", "probeIp"); return false; } const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => value.includes(String('x-echo: '+vars['probeIp']))); } }, {"url": url.toString(), "method": "GET"});
+	currentCheck = check(response, { "header contains \"x-echo: ${probeIp}\"": response => { if (!Object.hasOwn(vars, 'probeIp') || vars['probeIp'] == null) { console.error("Variable is not defined:", "probeIp"); return false; } const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => value.includes(''+'x-echo: '+vars['probeIp'])); } }, {"url": url.toString(), "method": "GET"});
 	if(!currentCheck) {
 		console.error("Assertion failed:", "value.includes(\"x-echo: ${probeIp}\")");
 		fail()
 	};
 
-	currentCheck = check(response, { "header equals \"${probeIp}\"": response => { if (vars['probeIp'] == null) { console.error("Variable is not defined:", "probeIp"); return false; } return assertHeader(response.headers, "X-Echo", value => value === String(vars['probeIp'])); } }, {"url": url.toString(), "method": "GET"});
+	currentCheck = check(response, { "header equals \"${probeIp}\"": response => { if (!Object.hasOwn(vars, 'probeIp') || vars['probeIp'] == null) { console.error("Variable is not defined:", "probeIp"); return false; } return assertHeader(response.headers, "X-Echo", value => value === ''+vars['probeIp']); } }, {"url": url.toString(), "method": "GET"});
 	if(!currentCheck) {
 		console.error("Assertion failed:", "value \u003D\u003D\u003D \"${probeIp}\"");
 		fail()
 	};
 
-	currentCheck = check(response, { "$.theirValue equals \"${probeIp}\"": response => { if (vars['probeIp'] == null) { console.error("Variable is not defined:", "probeIp"); return false; } return jsonpath.query(response.json(), "$.theirValue").some(values => String(values) === String(vars['probeIp'])); } }, {"url": url.toString(), "method": "GET"});
+	currentCheck = check(response, { "$.theirValue equals \"${probeIp}\"": response => { if (!Object.hasOwn(vars, 'probeIp') || vars['probeIp'] == null) { console.error("Variable is not defined:", "probeIp"); return false; } return jsonpath.query(response.json(), "$.theirValue").some(values => String(values) === ''+vars['probeIp']); } }, {"url": url.toString(), "method": "GET"});
 	if(!currentCheck) {
 		console.error("Assertion failed:", "String(values) \u003D\u003D\u003D \"${probeIp}\"");
 		fail()

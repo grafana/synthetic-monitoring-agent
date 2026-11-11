@@ -229,8 +229,10 @@ func newAssertionValue(value string) assertionValue {
 	}
 
 	// A variable can hold a number or an object, depending on how it was
-	// extracted. String makes ${x} behave as if the user had typed its value.
-	v.expr = jsExpr("String(" + interpolation.ExpandVariablesToJS(value) + ")")
+	// extracted. The leading empty string makes every + a string
+	// concatenation, so ${x} behaves as if the user had typed its value.
+	// Without it, ${a}${b} with the numbers 20 and 0 would add up to 20.
+	v.expr = jsExpr("''+" + interpolation.ExpandVariablesToJS(value))
 
 	return v
 }
@@ -246,12 +248,15 @@ func (v assertionValue) writeCondition(cond assertionCondition, checkJS, failure
 // openBlock starts the block body of a check's arrow function. The block first
 // makes the check fail when a variable it reads is unset. Without that, the
 // comparison would run against the string "undefined", and a condition such
-// as "does not contain" would pass.
+// as "does not contain" would pass. vars is a plain object, so the own-property
+// test keeps a name such as constructor from reading an inherited value.
 func (v assertionValue) openBlock(w *strings.Builder) {
 	w.WriteString(`{ `)
 
 	for _, name := range v.names {
-		w.WriteString(`if (vars['`)
+		w.WriteString(`if (!Object.hasOwn(vars, '`)
+		w.WriteString(name)
+		w.WriteString(`') || vars['`)
 		w.WriteString(name)
 		w.WriteString(`'] == null) { console.error("Variable is not defined:", "`)
 		w.WriteString(name)
