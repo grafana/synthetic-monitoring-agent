@@ -86,7 +86,11 @@ func TestClassificationCouldNotRun(t *testing.T) {
 		10*time.Second, false)
 
 	require.Equal(t, sm.AdHocResult_COULD_NOT_START, result.Status)
-	require.Equal(t, couldNotRunMessage, result.Error)
+
+	// The status already says that the probe could not run the check, so
+	// there is nothing to add to it: saying it again in `error` only makes
+	// whatever shows both repeat itself.
+	require.Empty(t, result.Error)
 
 	// The cause is for the agent's own log: it can name the infrastructure.
 	require.NotContains(t, result.Error, internal)

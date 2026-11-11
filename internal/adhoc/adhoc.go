@@ -99,9 +99,9 @@ type runner struct {
 	omitReason bool
 }
 
-// couldNotRunMessage is the error reported when the probe could not run
-// a check. The cause is logged by the agent, and not sent, because it
-// can contain details of the infrastructure of the probe.
+// couldNotRunMessage is the log entry that says that the probe could not
+// run a check. The cause is logged by the agent, and not sent, because
+// it can contain details of the infrastructure of the probe.
 const couldNotRunMessage = "the probe could not run the check"
 
 // usesK6 returns true for the checks that run a k6 script.
@@ -920,7 +920,8 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		result.Error = err.Error()
 
 	case couldNotRun:
-		result.Error = couldNotRunMessage
+		// The status says it. The cause stays in the agent's log, and the
+		// logs of the execution say where it happened.
 
 	case result.Status != sm.AdHocResult_OK && !r.omitReason:
 		// The caller should be able to tell why the check did not pass.
