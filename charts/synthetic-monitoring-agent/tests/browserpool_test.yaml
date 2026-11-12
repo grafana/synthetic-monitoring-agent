@@ -58,6 +58,9 @@ tests:
     set:
       browserPool:
         enabled: true
+        crocochrome:
+          image:
+            tag: v8.8.8
     asserts:
       - equal:
           path: spec.replicas
@@ -67,7 +70,7 @@ tests:
           value: 320
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/grafana/crocochrome:v0.14.0
+          value: ghcr.io/grafana/crocochrome:v8.8.8
       - equal:
           path: spec.template.spec.volumes[0].emptyDir.medium
           value: Memory
@@ -89,10 +92,12 @@ tests:
         enabled: true
         crocochrome:
           unprivileged: true
+          image:
+            tag: v8.8.8
     asserts:
       - equal:
           path: spec.template.spec.containers[0].image
-          value: ghcr.io/grafana/crocochrome:v0.14.0-unprivileged
+          value: ghcr.io/grafana/crocochrome:v8.8.8-unprivileged
   - it: doesn't deploy the crocochrome NetworkPolicy by default
     template: crocochrome/networkpolicy.yaml
     set:
@@ -162,14 +167,17 @@ tests:
     set:
       browserPool:
         enabled: true
+        crocochrome:
+          image:
+            tag: v8.8.8
     asserts:
       - equal:
           path: metadata.labels["app.kubernetes.io/version"]
-          value: v0.14.0
+          value: v8.8.8
         template: crocochrome/deployment.yaml
       - equal:
           path: metadata.labels["app.kubernetes.io/version"]
-          value: v0.14.0
+          value: v8.8.8
         template: crocochrome/service.yaml
       - equal:
           path: metadata.labels["app.kubernetes.io/version"]

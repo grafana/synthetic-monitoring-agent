@@ -28,7 +28,6 @@ Kubernetes. Optionally:
 
    ```bash
    helm install sm-agent oci://ghcr.io/grafana/helm-charts/synthetic-monitoring-agent \
-     --version 2.0.0 \
      -n synthetic-monitoring \
      --set probe.apiServerAddress=synthetic-monitoring-grpc-eu-west-3.grafana.net:443 \
      --set probe.existingSecret=sm-agent
@@ -38,7 +37,7 @@ Kubernetes. Optionally:
 
    ```bash
    helm repo add grafana https://grafana.github.io/helm-charts
-   helm install sm-agent grafana/synthetic-monitoring-agent --version 2.0.0 -n synthetic-monitoring ...
+   helm install sm-agent grafana/synthetic-monitoring-agent -n synthetic-monitoring ...
    ```
 
 The probe appears as online on the **Synthetics > Probes** page once the agent connects.
