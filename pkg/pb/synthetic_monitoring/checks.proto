@@ -53,6 +53,53 @@ service AdHocChecks {
 
   // GetAdHocChecks returns a list of checks to be run immediately.
   rpc GetAdHocChecks(Void) returns (stream AdHocRequest) {}
+
+  // ReportAdHocResult is used by the probe to report the outcome of an
+  // ad-hoc execution back to synthetic-monitoring-api, once the
+  // execution is complete. The logs and metrics of the execution are
+  // not part of the result.
+  //
+  // EXPERIMENTAL: feasibility spike, not a stable API.
+  rpc ReportAdHocResult(AdHocResult) returns (Void) {}
+}
+
+// AdHocResult is the outcome of an ad-hoc execution.
+message AdHocResult {
+  enum Status {
+    // UNKNOWN is the zero value so that an unset status is never
+    // mistaken for success.
+    UNKNOWN = 0;
+    // OK means the check ran and passed.
+    OK = 1;
+    // FAILED means the check ran and did not pass, for example because
+    // an assertion failed or the connection was refused.
+    FAILED = 2;
+    // TIMEOUT means the check ran, and the timeout of the check itself
+    // elapsed on the probe. It never means that the probe gave up
+    // reporting the result.
+    TIMEOUT = 3;
+    // COULD_NOT_START means the probe never ran the check.
+    COULD_NOT_START = 4;
+  }
+
+  // execution_id matches AdHocCheck.id.
+  string execution_id = 1;
+  int64 probe_id = 2;
+  // status is the single source of truth for the outcome: the check
+  // passed if and only if the status is OK.
+  Status status = 3;
+  // success was removed: it duplicated status.
+  reserved 4;
+  reserved "success";
+  double duration_seconds = 5;
+  string error = 6;
+  // logs are the log lines of the execution, each one JSON encoded as
+  // in the Loki entry of the execution. They are only sent when the
+  // status is not OK. If they do not fit in the limit, the oldest lines
+  // are dropped and logs_truncated is set, because the cause of a
+  // failure is usually at the end.
+  repeated bytes logs = 7;
+  bool logs_truncated = 8;
 }
 
 // Void is an empty message used by RPC methods that don't take

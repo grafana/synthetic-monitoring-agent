@@ -45,6 +45,11 @@ type Handler struct {
 	proberFactory                prober.ProberFactory
 	supportsProtocolSecrets      bool
 	isClusterEnabled             bool
+
+	// resultsClient is the client used to report results back to the
+	// API. It's set by loop for every connection, and it's only
+	// accessed from the goroutine running loop.
+	resultsClient sm.AdHocChecksClient
 }
 
 // Error represents errors returned from this package.
@@ -61,6 +66,10 @@ const (
 	errIdleTimeout         = Error("connection idle timeout")
 
 	k6AdhocGraceTime = 20 * time.Second
+
+	// reportTimeout is how long to wait for the API to acknowledge the
+	// result of an ad-hoc execution.
+	reportTimeout = 10 * time.Second
 )
 
 // Removed HTTP status code parsing; we treat all codes.Unavailable as idle timeout.
@@ -72,6 +81,11 @@ type runner struct {
 	target  string
 	probe   string
 	timeout time.Duration
+
+	// results is used to report the outcome of the execution back to
+	// the API. If nil, results are only published to Loki.
+	results sm.AdHocChecksClient
+	probeID int64
 }
 
 // ClientConn represents the GRPC client connection that can be used to
@@ -297,6 +311,8 @@ func (h *Handler) loop(ctx context.Context) error {
 		return fmt.Errorf("cannot create adhoc checks client: %w", err)
 	}
 
+	h.resultsClient = client
+
 	grpcErrorHandler := func(action string, err error) error {
 		status, ok := status.FromError(err)
 
@@ -414,12 +430,23 @@ func (h *Handler) handleAdHocCheck(ctx context.Context, ahReq *sm.AdHocRequest) 
 
 	runner, err := h.runnerFactory(ctx, ahReq)
 	if err != nil {
-		// TODO(mem): if the runner factory returns an error, we should
-		// create a result that reflects that and publish it, so that
-		// the frontend is able to communicate to the user that
-		// something went wrong.
+		// Tell the API that the check never ran, so that the caller can
+		// tell this apart from a check that ran and failed.
+		//
+		// TODO(mem): this should also be published to Loki, so that the
+		// frontend is able to communicate to the user that something
+		// went wrong.
+		reportResult(ctx, h.resultsClient, &sm.AdHocResult{
+			ExecutionId: ahReq.AdHocCheck.Id,
+			ProbeId:     h.probeID(),
+			Status:      sm.AdHocResult_COULD_NOT_START,
+		}, h.logger)
+
 		return err
 	}
+
+	runner.results = h.resultsClient
+	runner.probeID = h.probeID()
 
 	go runner.Run(ctx, model.GlobalID(ahReq.AdHocCheck.TenantId), h.publisher)
 
@@ -540,6 +567,49 @@ func (l *jsonLogger) Log(keyvals ...any) error {
 	return nil
 }
 
+// probeID returns the ID of the probe as registered with the API, or 0
+// if the probe is not registered yet.
+func (h *Handler) probeID() int64 {
+	if h.probe == nil {
+		return 0
+	}
+
+	return h.probe.Id
+}
+
+// reportResult tells the API the outcome of an ad-hoc execution. It's
+// best effort: if there is no client, or the call fails, the result is
+// still available in Loki, so errors are only logged.
+func reportResult(ctx context.Context, client sm.AdHocChecksClient, result *sm.AdHocResult, logger zerolog.Logger) {
+	if client == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, reportTimeout)
+	defer cancel()
+
+	// A long check can outlive the connection it was started on. Wait
+	// for the connection to come back, up to reportTimeout, instead of
+	// failing right away: by now the result is all that's missing.
+	if _, err := client.ReportAdHocResult(ctx, result, grpc.WaitForReady(true)); err != nil {
+		// These are expected, and retrying would not help:
+		//   - Unimplemented: the API is older, or the feature is off.
+		//   - NotFound: the API does not track this execution, which is
+		//     the case for every plain "test" run.
+		//   - AlreadyExists: the result was already reported.
+		//   - FailedPrecondition: the result arrived after the API's
+		//     deadline for the execution.
+		level := zerolog.WarnLevel
+
+		switch status.Code(err) {
+		case codes.Unimplemented, codes.NotFound, codes.AlreadyExists, codes.FailedPrecondition:
+			level = zerolog.DebugLevel
+		}
+
+		logger.WithLevel(level).Err(err).Str("id", result.ExecutionId).Msg("cannot report ad-hoc result to API, using Loki only")
+	}
+}
+
 // Run runs the specified prober once and captures the results using
 // jsonLogger.
 func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pusher.Publisher) {
@@ -632,6 +702,29 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		Str("probe", r.probe).
 		Str("check_name", r.prober.Name()).
 		Msg("ad-hoc result sent to publisher")
+
+	// Report to the API once the check is complete, after publishing, so
+	// that the Loki path is never delayed by it.
+	result := &sm.AdHocResult{
+		ExecutionId:     r.id,
+		ProbeId:         r.probeID,
+		Status:          sm.AdHocResult_FAILED,
+		DurationSeconds: duration,
+	}
+
+	if duration == 0 {
+		result.DurationSeconds = time.Since(start).Seconds()
+	}
+
+	if success {
+		result.Status = sm.AdHocResult_OK
+	}
+
+	if err != nil {
+		result.Error = err.Error()
+	}
+
+	reportResult(ctx, r.results, result, r.logger)
 }
 
 type (
