@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -429,6 +430,18 @@ type testClient struct {
 	registerProbeError  error
 	getAdhocChecksError error
 	registerProbeHook   func(*sm.ProbeInfo)
+
+	// results, if set, records the results passed to ReportAdHocResult.
+	// If nil, ReportAdHocResult behaves like an API that predates the
+	// RPC.
+	results *resultRecorder
+	// reportErr, if set, is returned by ReportAdHocResult.
+	reportErr error
+	// reportCalls counts the calls to ReportAdHocResult.
+	reportCalls atomic.Int32
+	// reportBounded is set if a call had a deadline of at most
+	// reportTimeout.
+	reportBounded atomic.Bool
 }
 
 func (c *testClient) RegisterProbe(ctx context.Context, in *sm.ProbeInfo, opts ...grpc.CallOption) (*sm.RegisterProbeResult, error) {
@@ -456,6 +469,260 @@ func (c *testClient) RegisterProbe(ctx context.Context, in *sm.ProbeInfo, opts .
 			Message: "OK",
 		},
 	}, nil
+}
+
+func (c *testClient) ReportAdHocResult(ctx context.Context, in *sm.AdHocResult, opts ...grpc.CallOption) (*sm.Void, error) {
+	c.logger.Info().Str("func", "ReportAdHocResult").Interface("in", in).Interface("opts", opts).Send()
+	c.reportCalls.Add(1)
+
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= reportTimeout {
+		c.reportBounded.Store(true)
+	}
+
+	switch {
+	case c.reportErr != nil:
+		return nil, c.reportErr
+
+	case c.results != nil:
+		c.results.ch <- in
+
+		return &sm.Void{}, nil
+
+	default:
+		// Mimic an API that predates the RPC.
+		return nil, status.Error(codes.Unimplemented, "ReportAdHocResult not implemented")
+	}
+}
+
+// resultRecorder records the results reported to the API.
+type resultRecorder struct {
+	ch chan *sm.AdHocResult
+}
+
+func newResultRecorder() *resultRecorder {
+	return &resultRecorder{ch: make(chan *sm.AdHocResult, 16)}
+}
+
+// wait blocks until a result is reported and returns it.
+func (r *resultRecorder) wait(t *testing.T) *sm.AdHocResult {
+	t.Helper()
+
+	select {
+	case result := <-r.ch:
+		return result
+
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for a result to be reported")
+
+		return nil
+	}
+}
+
+// newReportTestHandler returns a Handler wired to client, and the
+// channel where published payloads end up. If factory is nil the runner
+// uses testProber.
+func newReportTestHandler(t *testing.T, client *testClient, factory func(context.Context, *sm.AdHocRequest) (*runner, error)) (*Handler, chan pusher.Payload) {
+	t.Helper()
+
+	features := feature.NewCollection()
+	require.NoError(t, features.Set("adhoc"))
+
+	logger := zerolog.New(io.Discard)
+	client.logger = logger
+
+	if factory == nil {
+		factory = func(_ context.Context, req *sm.AdHocRequest) (*runner, error) {
+			return &runner{
+				logger: logger,
+				prober: &testProber{logger},
+				id:     req.AdHocCheck.Id,
+				target: req.AdHocCheck.Target,
+				probe:  "testProbe",
+			}, nil
+		}
+	}
+
+	publishCh := make(chan pusher.Payload, 1)
+
+	h, err := NewHandler(HandlerOpts{
+		Logger:         logger,
+		Publisher:      channelPublisher(publishCh),
+		TenantCh:       make(chan sm.Tenant),
+		PromRegisterer: prometheus.NewPedanticRegistry(),
+		Features:       features,
+		runnerFactory:  factory,
+		grpcAdhocChecksClientFactory: func(ClientConn) (sm.AdHocChecksClient, error) {
+			return client, nil
+		},
+	})
+	require.NoError(t, err)
+
+	return h, publishCh
+}
+
+func requirePublished(t *testing.T, publishCh <-chan pusher.Payload) {
+	t.Helper()
+
+	select {
+	case payload := <-publishCh:
+		require.Len(t, payload.Streams(), 1)
+		require.Contains(t, payload.Streams()[0].Entries[0].Line, "ad-hoc check done")
+
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the Loki publish")
+	}
+}
+
+// The "id" used by testGetAdhocChecksClient.Recv.
+const testAdHocID = "test"
+
+func TestReportAdHocResultSuccess(t *testing.T) {
+	rec := newResultRecorder()
+	h, publishCh := newReportTestHandler(t, &testClient{results: rec}, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	require.NoError(t, h.Run(ctx))
+
+	result := rec.wait(t)
+	requirePublished(t, publishCh)
+
+	require.Equal(t, testAdHocID, result.ExecutionId)
+	require.Equal(t, int64(1), result.ProbeId, "probe id comes from RegisterProbe")
+	require.Equal(t, sm.AdHocResult_OK, result.Status)
+	require.Equal(t, float64(1), result.DurationSeconds)
+	require.Empty(t, result.Error)
+}
+
+func TestReportAdHocResultCouldNotStart(t *testing.T) {
+	rec := newResultRecorder()
+	h, publishCh := newReportTestHandler(t, &testClient{results: rec},
+		func(context.Context, *sm.AdHocRequest) (*runner, error) {
+			return nil, errors.New("boom")
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	require.NoError(t, h.Run(ctx))
+
+	result := rec.wait(t)
+
+	require.Equal(t, testAdHocID, result.ExecutionId)
+	require.Equal(t, sm.AdHocResult_COULD_NOT_START, result.Status)
+	require.Empty(t, result.Error, "the cause is not sent")
+
+	select {
+	case <-publishCh:
+		t.Fatal("nothing ran, nothing should be published")
+	default:
+	}
+}
+
+// A probe that ran the check but did not succeed reports FAILED, which is
+// different from a check that could not start.
+func TestReportAdHocResultFailed(t *testing.T) {
+	rec := newResultRecorder()
+	h, publishCh := newReportTestHandler(t, &testClient{results: rec},
+		func(_ context.Context, req *sm.AdHocRequest) (*runner, error) {
+			return &runner{
+				logger:  zerolog.New(io.Discard),
+				prober:  failingProber{},
+				id:      req.AdHocCheck.Id,
+				target:  req.AdHocCheck.Target,
+				probe:   "testProbe",
+				timeout: 10 * time.Second,
+			}, nil
+		},
+	)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	require.NoError(t, h.Run(ctx))
+
+	result := rec.wait(t)
+	require.Equal(t, sm.AdHocResult_FAILED, result.Status)
+
+	requirePublished(t, publishCh)
+}
+
+// failingProber runs to completion and reports that the check failed.
+type failingProber struct{}
+
+func (failingProber) Name() string { return "failing" }
+
+func (failingProber) Probe(context.Context, string, *prometheus.Registry, logger.Logger, string) (bool, float64) {
+	return false, 0.5
+}
+
+// An API that predates ReportAdHocResult answers Unimplemented. The
+// probe must carry on, publishing to Loki as it always did.
+func TestReportAdHocResultUnimplementedFallsBackToLoki(t *testing.T) {
+	client := &testClient{} // no results recorder: Unimplemented.
+	h, publishCh := newReportTestHandler(t, client, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	require.NoError(t, h.Run(ctx))
+
+	requirePublished(t, publishCh)
+	require.LessOrEqual(t, client.reportCalls.Load(), int32(1), "one attempt per execution, no retry storm")
+}
+
+// Reporting is additive: the Loki path must be unchanged whether or not
+// reporting works.
+func TestReportAdHocResultKeepsLokiPath(t *testing.T) {
+	for name, client := range map[string]*testClient{
+		"reporting works":   {results: newResultRecorder()},
+		"reporting fails":   {reportErr: status.Error(codes.Internal, "kaboom")},
+		"not implemented":   {},
+		"unavailable":       {reportErr: status.Error(codes.Unavailable, "gone")},
+		"permission denied": {reportErr: status.Error(codes.PermissionDenied, "no")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			h, publishCh := newReportTestHandler(t, client, nil)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			require.NoError(t, h.Run(ctx))
+
+			select {
+			case payload := <-publishCh:
+				require.Len(t, payload.Metrics(), 0)
+				require.Len(t, payload.Streams(), 1)
+
+				entry := payload.Streams()[0].Entries[0]
+				require.Contains(t, entry.Line, "ad-hoc check done")
+				require.Len(t, entry.StructuredMetadata, 1)
+				require.Equal(t, "execution_id", entry.StructuredMetadata[0].Name)
+
+				_, err := uuid.Parse(entry.StructuredMetadata[0].Value)
+				require.NoError(t, err, "execution_id should be a valid UUID")
+
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for the Loki publish")
+			}
+		})
+	}
+}
+
+// A reporting call that never returns must not hold the goroutine forever,
+// so the call is bounded by a deadline.
+func TestReportAdHocResultCallIsBounded(t *testing.T) {
+	client := &testClient{results: newResultRecorder(), logger: zerolog.New(io.Discard)}
+
+	// The context has no deadline of its own, so any deadline the call
+	// has was added by reportResult.
+	reportResult(context.Background(), client, &sm.AdHocResult{ExecutionId: testAdHocID}, zerolog.New(io.Discard))
+
+	client.results.wait(t)
+
+	require.True(t, client.reportBounded.Load(), "the call must have a deadline of at most reportTimeout")
 }
 
 type testGetAdhocChecksClient struct {
@@ -847,4 +1114,43 @@ func (r *testK6Runner) Run(ctx context.Context, script k6runner.Script, secretSt
 
 func (*testK6Runner) Versions(_ context.Context) <-chan []string {
 	return nil // Blocks forever if read.
+}
+
+// Errors the API returns for reasons that are expected and not worth
+// retrying, like an execution it does not track (every plain "test" run),
+// must not show up as warnings.
+func TestReportResultLogLevels(t *testing.T) {
+	for name, tc := range map[string]struct {
+		code codes.Code
+		warn bool
+	}{
+		"unimplemented":       {codes.Unimplemented, false},
+		"not found":           {codes.NotFound, false},
+		"already exists":      {codes.AlreadyExists, false},
+		"failed precondition": {codes.FailedPrecondition, false},
+		"permission denied":   {codes.PermissionDenied, true},
+		"invalid argument":    {codes.InvalidArgument, true},
+		"internal":            {codes.Internal, true},
+		"unavailable":         {codes.Unavailable, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			logs := &testhelper.LogBuffer{}
+			logger := zerolog.New(logs).Level(zerolog.DebugLevel)
+
+			client := &testClient{
+				logger:    zerolog.New(io.Discard),
+				reportErr: status.Error(tc.code, "nope"),
+			}
+
+			reportResult(context.Background(), client, &sm.AdHocResult{ExecutionId: testAdHocID}, logger)
+
+			require.Equal(t, int32(1), client.reportCalls.Load(), "one attempt, no retries")
+
+			if tc.warn {
+				require.Contains(t, logs.String(), `"level":"warn"`)
+			} else {
+				require.NotContains(t, logs.String(), `"level":"warn"`)
+			}
+		})
+	}
 }
