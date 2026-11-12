@@ -93,6 +93,15 @@
       "matchStrings": [
         "appVersion: \"(?<currentValue>[^\"]+)\""
       ]
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "charts/synthetic-monitoring-agent/values.yaml"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n(?:[ \\t]*(?:#.*|repository: \\S+)\\n)*[ \\t]*tag: (?<currentValue>\\S+)"
+      ]
     }
   ]
 }

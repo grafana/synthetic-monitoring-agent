@@ -80,3 +80,11 @@ customManagers:
       - "charts/synthetic-monitoring-agent/Chart.yaml"
     matchStrings:
       - "appVersion: \"(?<currentValue>[^\"]+)\""
+
+  - # The org config disables the helm-values manager, so read the image tags
+    # that have a "# renovate:" comment above their repository.
+    customType: "regex"
+    managerFilePatterns:
+      - "charts/synthetic-monitoring-agent/values.yaml"
+    matchStrings:
+      - "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n(?:[ \\t]*(?:#.*|repository: \\S+)\\n)*[ \\t]*tag: (?<currentValue>\\S+)"
