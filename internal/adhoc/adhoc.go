@@ -3,10 +3,15 @@ package adhoc
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"slices"
+	"sort"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -45,6 +50,11 @@ type Handler struct {
 	proberFactory                prober.ProberFactory
 	supportsProtocolSecrets      bool
 	isClusterEnabled             bool
+
+	// resultsClient is the client used to report results back to the
+	// API. It's set by loop for every connection, and it's only
+	// accessed from the goroutine running loop.
+	resultsClient sm.AdHocChecksClient
 }
 
 // Error represents errors returned from this package.
@@ -61,6 +71,10 @@ const (
 	errIdleTimeout         = Error("connection idle timeout")
 
 	k6AdhocGraceTime = 20 * time.Second
+
+	// reportTimeout is how long to wait for the API to acknowledge the
+	// result of an ad-hoc execution.
+	reportTimeout = 10 * time.Second
 )
 
 // Removed HTTP status code parsing; we treat all codes.Unavailable as idle timeout.
@@ -72,6 +86,33 @@ type runner struct {
 	target  string
 	probe   string
 	timeout time.Duration
+
+	// results is used to report the outcome of the execution back to
+	// the API. If nil, results are only published to Loki.
+	results sm.AdHocChecksClient
+	probeID int64
+
+	// omitReason keeps the reason a check failed, which is taken from
+	// what the prober logged, out of the result. It is set for checks
+	// that run k6 scripts, where what is logged is whatever the script
+	// printed, which the tenant cannot read from the check configuration.
+	omitReason bool
+}
+
+// couldNotRunMessage is the log entry that says that the probe could not
+// run a check. The cause is logged by the agent, and not sent, because
+// it can contain details of the infrastructure of the probe.
+const couldNotRunMessage = "the probe could not run the check"
+
+// usesK6 returns true for the checks that run a k6 script.
+func usesK6(t sm.CheckType) bool {
+	switch t {
+	case sm.CheckTypeMultiHttp, sm.CheckTypeScripted, sm.CheckTypeBrowser:
+		return true
+
+	default:
+		return false
+	}
 }
 
 // ClientConn represents the GRPC client connection that can be used to
@@ -297,6 +338,8 @@ func (h *Handler) loop(ctx context.Context) error {
 		return fmt.Errorf("cannot create adhoc checks client: %w", err)
 	}
 
+	h.resultsClient = client
+
 	grpcErrorHandler := func(action string, err error) error {
 		status, ok := status.FromError(err)
 
@@ -414,12 +457,24 @@ func (h *Handler) handleAdHocCheck(ctx context.Context, ahReq *sm.AdHocRequest) 
 
 	runner, err := h.runnerFactory(ctx, ahReq)
 	if err != nil {
-		// TODO(mem): if the runner factory returns an error, we should
-		// create a result that reflects that and publish it, so that
-		// the frontend is able to communicate to the user that
-		// something went wrong.
+		// Tell the API that the check never ran, so that the caller can
+		// tell this apart from a check that ran and failed.
+		//
+		// TODO(mem): this should also be published to Loki, so that the
+		// frontend is able to communicate to the user that something
+		// went wrong.
+		reportResult(ctx, h.resultsClient, &sm.AdHocResult{
+			ExecutionId: ahReq.AdHocCheck.Id,
+			ProbeId:     h.probeID(),
+			Status:      sm.AdHocResult_COULD_NOT_START,
+			Error:       err.Error(),
+		}, h.logger)
+
 		return err
 	}
+
+	runner.results = h.resultsClient
+	runner.probeID = h.probeID()
 
 	go runner.Run(ctx, model.GlobalID(ahReq.AdHocCheck.TenantId), h.publisher)
 
@@ -480,8 +535,7 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 	// to us, instead of both us and the runner timing out at the same time and missing the runner's response. We define
 	// that grace time to be 20 seconds, to be consistent with the grace time used for k6, non ad-hoc checks.
 	timeout := time.Duration(check.Timeout) * time.Millisecond
-	switch check.Type() {
-	case sm.CheckTypeMultiHttp, sm.CheckTypeScripted, sm.CheckTypeBrowser:
+	if usesK6(check.Type()) {
 		timeout += k6AdhocGraceTime
 	}
 
@@ -492,6 +546,8 @@ func (h *Handler) defaultRunnerFactory(ctx context.Context, req *sm.AdHocRequest
 		target:  target,
 		probe:   h.probe.Name,
 		timeout: timeout,
+
+		omitReason: usesK6(check.Type()),
 	}, nil
 }
 
@@ -540,6 +596,177 @@ func (l *jsonLogger) Log(keyvals ...any) error {
 	return nil
 }
 
+// probeID returns the ID of the probe as registered with the API, or 0
+// if the probe is not registered yet.
+func (h *Handler) probeID() int64 {
+	if h.probe == nil {
+		return 0
+	}
+
+	return h.probe.Id
+}
+
+// maxReasonBytes is the maximum size of the reason for a failure sent to
+// the API.
+const maxReasonBytes = 256
+
+// maxResultLogsBytes is the maximum total size of the log lines sent to
+// the API with the result of an execution.
+const maxResultLogsBytes = 512 * 1024
+
+// encodeLogs encodes the log entries of an execution as JSON lines, in
+// the same way they are in the Loki entry. If they do not fit in limit
+// bytes, the oldest ones are dropped and truncated is true.
+//
+// The newest entries are kept, because the cause of a failure is
+// usually at the end. A single entry larger than the limit is replaced
+// by a short marker, so that it does not push out the newer entries.
+func encodeLogs(entries []map[string]string, limit int) (lines [][]byte, truncated bool) {
+	var size int
+
+	// Walk from the newest entry to the oldest, and put the result back
+	// in order at the end.
+	for i := len(entries) - 1; i >= 0; i-- {
+		line, err := json.Marshal(entries[i])
+		if err != nil {
+			continue
+		}
+
+		if len(line) > limit {
+			line = []byte(fmt.Sprintf(`{"truncated":"log line of %d bytes dropped"}`, len(line)))
+			truncated = true
+		}
+
+		if size+len(line) > limit {
+			truncated = true
+
+			break
+		}
+
+		size += len(line)
+		lines = append(lines, line)
+	}
+
+	slices.Reverse(lines)
+
+	return lines, truncated
+}
+
+// failureReason returns a short, human readable reason why a check
+// failed, built from what the prober logged, or an empty string if the
+// prober did not log any error.
+//
+// Probers log the cause of a failure as an error entry, right before
+// they return, so the last error entry is the one that says why. The
+// level is compared ignoring case, because probers don't agree on it.
+func failureReason(entries []map[string]string) string {
+	for i := len(entries) - 1; i >= 0; i-- {
+		if strings.EqualFold(entries[i]["level"], "error") {
+			return truncateUTF8(formatReason(entries[i]), maxReasonBytes)
+		}
+	}
+
+	return ""
+}
+
+// formatReason formats a log entry as "message: error (key=value, ...)".
+// The level and the time are left out, and the remaining fields are
+// sorted so that the result is stable.
+func formatReason(entry map[string]string) string {
+	var b strings.Builder
+
+	b.WriteString(entry["msg"])
+
+	if err := entry["err"]; err != "" {
+		if b.Len() > 0 {
+			b.WriteString(": ")
+		}
+
+		b.WriteString(err)
+	}
+
+	var keys []string
+
+	for k := range entry {
+		switch k {
+		case "level", "msg", "err", "time":
+		default:
+			keys = append(keys, k)
+		}
+	}
+
+	if len(keys) == 0 {
+		return b.String()
+	}
+
+	sort.Strings(keys)
+
+	if b.Len() > 0 {
+		b.WriteString(" ")
+	}
+
+	b.WriteString("(")
+
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+
+		b.WriteString(k + "=" + entry[k])
+	}
+
+	b.WriteString(")")
+
+	return b.String()
+}
+
+// truncateUTF8 cuts s to at most max bytes, without leaving half of a
+// multibyte character at the end.
+func truncateUTF8(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+
+	for max > 0 && !utf8.RuneStart(s[max]) {
+		max--
+	}
+
+	return s[:max]
+}
+
+// reportResult tells the API the outcome of an ad-hoc execution. It's
+// best effort: if there is no client, or the call fails, the result is
+// still available in Loki, so errors are only logged.
+func reportResult(ctx context.Context, client sm.AdHocChecksClient, result *sm.AdHocResult, logger zerolog.Logger) {
+	if client == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, reportTimeout)
+	defer cancel()
+
+	// A long check can outlive the connection it was started on. Wait
+	// for the connection to come back, up to reportTimeout, instead of
+	// failing right away: by now the result is all that's missing.
+	if _, err := client.ReportAdHocResult(ctx, result, grpc.WaitForReady(true)); err != nil {
+		// These are expected, and retrying would not help:
+		//   - Unimplemented: the API is older, or the feature is off.
+		//   - NotFound: the API does not track this execution, which is
+		//     the case for every plain "test" run.
+		//   - AlreadyExists: the result was already reported.
+		//   - FailedPrecondition: the result arrived after the API's
+		//     deadline for the execution.
+		level := zerolog.WarnLevel
+
+		switch status.Code(err) {
+		case codes.Unimplemented, codes.NotFound, codes.AlreadyExists, codes.FailedPrecondition:
+			level = zerolog.DebugLevel
+		}
+
+		logger.WithLevel(level).Err(err).Str("id", result.ExecutionId).Msg("cannot report ad-hoc result to API, using Loki only")
+	}
+}
+
 // Run runs the specified prober once and captures the results using
 // jsonLogger.
 func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pusher.Publisher) {
@@ -572,7 +799,40 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 	rCtx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
-	success, duration := r.prober.Probe(rCtx, r.target, registry, logger, executionID)
+	var (
+		success  bool
+		duration float64
+		probeErr error
+	)
+
+	// Probers that can tell a check that failed from a check that could
+	// not be run say so. For the rest, both are a failure.
+	if ep, ok := r.prober.(prober.ErrorProber); ok {
+		success, duration, probeErr = ep.ProbeErr(rCtx, r.target, registry, logger, executionID)
+	} else {
+		success, duration = r.prober.Probe(rCtx, r.target, registry, logger, executionID)
+	}
+
+	timedOut := errors.Is(rCtx.Err(), context.DeadlineExceeded)
+
+	// Running out of time is what happened, whatever else the prober
+	// reports on its way out. Otherwise the check could not be run.
+	couldNotRun := probeErr != nil && !success && !timedOut
+
+	if couldNotRun {
+		// The cause can name the infrastructure of the probe: keep it in
+		// the log of the agent, and say what happened in the logs of the
+		// execution, which are sent.
+		r.logger.Error().
+			Err(probeErr).
+			Str("id", r.id).
+			Str("target", r.target).
+			Str("probe", r.probe).
+			Str("check_name", r.prober.Name()).
+			Msg("the probe could not run the check")
+
+		_ = logger.Log("level", "error", "source", "agent", "msg", couldNotRunMessage)
+	}
 
 	if success {
 		successGauge.Set(1)
@@ -632,6 +892,50 @@ func (r *runner) Run(ctx context.Context, tenantId model.GlobalID, publisher pus
 		Str("probe", r.probe).
 		Str("check_name", r.prober.Name()).
 		Msg("ad-hoc result sent to publisher")
+
+	// Report to the API once the check is complete, after publishing, so
+	// that the Loki path is never delayed by it.
+	result := &sm.AdHocResult{
+		ExecutionId:     r.id,
+		ProbeId:         r.probeID,
+		Status:          sm.AdHocResult_FAILED,
+		DurationSeconds: duration,
+	}
+
+	if duration == 0 {
+		result.DurationSeconds = time.Since(start).Seconds()
+	}
+
+	switch {
+	case success:
+		result.Status = sm.AdHocResult_OK
+	case timedOut:
+		result.Status = sm.AdHocResult_TIMEOUT
+	case couldNotRun:
+		result.Status = sm.AdHocResult_COULD_NOT_START
+	}
+
+	switch {
+	case err != nil:
+		result.Error = err.Error()
+
+	case couldNotRun:
+		// The status says it. The cause stays in the agent's log, and the
+		// logs of the execution say where it happened.
+
+	case result.Status != sm.AdHocResult_OK && !r.omitReason:
+		// The caller should be able to tell why the check did not pass.
+		result.Error = failureReason(logger.entries)
+	}
+
+	// A check that passed has nothing to explain. Otherwise, send the
+	// same lines that go to Loki, so that the caller can see what
+	// happened without querying it.
+	if result.Status != sm.AdHocResult_OK {
+		result.Logs, result.LogsTruncated = encodeLogs(logger.entries, maxResultLogsBytes)
+	}
+
+	reportResult(ctx, r.results, result, r.logger)
 }
 
 type (

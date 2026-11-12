@@ -13,6 +13,8 @@ import (
 var (
 	ErrStacktrace = errors.New("fatal error occurred while running the script")
 	ErrThrown     = errors.New("uncaught error occurred while running the script")
+	// ErrBrowserLaunch indicates that k6 could not start the browser, before running any code of the script.
+	ErrBrowserLaunch = errors.New("browser could not be launched")
 )
 
 const (
@@ -31,6 +33,9 @@ const (
 	ErrorCodeAborted = "aborted"
 	// ErrorCodeUnknown reperesents a non-nil error we cannot map to any known cause.
 	ErrorCodeUnknown = "unknown"
+	// ErrorCodeBrowserLaunch signals that k6 could not start the browser. Unlike the other codes, this is not
+	// attributable to the script, but to the browser or the machine where it runs.
+	ErrorCodeBrowserLaunch = "browser_launch"
 )
 
 // errorFromLogs scans k6 logs for signs of significant errors that should be reported as such.
@@ -38,6 +43,10 @@ func errorFromLogs(logs []byte) error {
 	dec := logfmt.NewDecoder(bytes.NewReader(logs))
 
 	keyVals := make(map[string]string, 8) // Typically will be less than 8 fields.
+
+	// The first error found in the script is the one reported, unless the browser could not be launched: that is
+	// what happened first, and it is not about the script.
+	var scriptErr error
 
 	for dec.ScanRecord() {
 		clear(keyVals)
@@ -52,21 +61,31 @@ func errorFromLogs(logs []byte) error {
 			continue
 		}
 
+		// k6 could not start the browser. It builds it before running the script, so this is not about the script.
+		// What a script prints has source=console, so a script cannot make itself look like this.
+		if keyVals["level"] == "error" && keyVals["source"] != "console" && strings.HasPrefix(keyVals["msg"], browserLaunchMsgPrefix) {
+			return ErrBrowserLaunch
+		}
+
 		// Stacktrace errors are often fatal, like syntax errors or accessing properties of undefined objects.
-		if keyVals["level"] == "error" && keyVals["source"] == "stacktrace" {
-			return ErrStacktrace
+		if scriptErr == nil && keyVals["level"] == "error" && keyVals["source"] == "stacktrace" {
+			scriptErr = ErrStacktrace
 		}
 
 		// Uncaught exceptions and errors.
 		// These do not have an identifiable attribute (https://github.com/grafana/k6/issues/3842), so we rely in
 		// string matching.
-		if keyVals["level"] == "error" && strings.HasPrefix(keyVals["msg"], "Uncaught (in promise)") {
-			return ErrThrown
+		if scriptErr == nil && keyVals["level"] == "error" && strings.HasPrefix(keyVals["msg"], "Uncaught (in promise)") {
+			scriptErr = ErrThrown
 		}
 	}
 
-	return nil
+	return scriptErr
 }
+
+// browserLaunchMsgPrefix is how the message that k6 logs when it cannot start the browser begins, after "finding
+// browser executable" or "launching browser". It was observed with k6 v2: this depends on the wording of k6.
+const browserLaunchMsgPrefix = "error building browser on IterStart"
 
 // isUserError returns whether we attribute this error to the user, i.e. to a combination of the k6 script contents and
 // settings. This includes timeouts and exit codes returned by k6.
@@ -94,6 +113,11 @@ func errorType(err error) string {
 
 	if errors.Is(err, context.DeadlineExceeded) {
 		return ErrorCodeTimeout
+	}
+
+	if errors.Is(err, ErrBrowserLaunch) {
+		// Not about the script, whatever else happened as a consequence, like k6 exiting with an error code.
+		return ErrorCodeBrowserLaunch
 	}
 
 	if errors.Is(err, ErrStacktrace) {

@@ -280,3 +280,48 @@ func (l recordingLogger) Log(keyvals ...any) error {
 
 	return err
 }
+
+type responseRunner struct{ resp *RunResponse }
+
+func (r responseRunner) WithLogger(*zerolog.Logger) Runner { return r }
+
+func (r responseRunner) Run(context.Context, Script, SecretStore, string) (*RunResponse, error) {
+	return r.resp, nil
+}
+
+func (responseRunner) Versions(context.Context) <-chan []string { return nil }
+
+type discardLogger struct{}
+
+func (discardLogger) Log(...any) error { return nil }
+
+// A browser that could not be launched is not the fault of the script, so
+// it is returned as an error, like the other failures to run a check, and
+// not reported as a script that failed.
+func TestProcessorBrowserLaunchIsAnError(t *testing.T) {
+	for name, tc := range map[string]struct {
+		code string
+		err  bool
+	}{
+		"browser launch":    {ErrorCodeBrowserLaunch, true},
+		"script failed":     {ErrorCodeFailed, false},
+		"script aborted":    {ErrorCodeAborted, false},
+		"script timed out":  {ErrorCodeTimeout, false},
+		"process killed":    {ErrorCodeKilled, false},
+		"unknown condition": {ErrorCodeUnknown, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			processor, err := NewProcessor(Script{}, responseRunner{resp: &RunResponse{Error: "something", ErrorCode: tc.code}})
+			require.NoError(t, err)
+
+			success, _, err := processor.Run(t.Context(), prometheus.NewRegistry(), discardLogger{}, zerolog.Nop(), SecretStore{}, "id")
+			require.False(t, success)
+
+			if tc.err {
+				require.ErrorIs(t, err, ErrFromRunner)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}

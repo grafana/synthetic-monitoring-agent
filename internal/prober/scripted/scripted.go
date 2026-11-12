@@ -3,6 +3,7 @@ package scripted
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 
@@ -78,10 +79,21 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (bool, float64) {
+	success, duration, err := p.ProbeErr(ctx, target, registry, logger, executionID)
+	if err != nil {
+		p.logger.Error().Err(err).Msg("running probe")
+		return false, 0
+	}
+
+	return success, duration
+}
+
+// ProbeErr is like Probe, but it returns an error if the check could not
+// be run, as opposed to having run and failed.
+func (p Prober) ProbeErr(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (bool, float64, error) {
 	secretStore, err := p.secretsRetriever(ctx)
 	if err != nil {
-		p.logger.Error().Err(err).Msg("failed to retrieve secret store")
-		return false, 0
+		return false, 0, fmt.Errorf("retrieving secret store: %w", err)
 	}
 
 	p.logger.Debug().
@@ -93,11 +105,10 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 
 	success, duration, err := p.processor.Run(ctx, registry, logger, p.logger, secretStore, executionID)
 	if err != nil {
-		p.logger.Error().Err(err).Msg("running probe")
-		return false, 0
+		return false, 0, err
 	}
 
-	return success, duration.Seconds()
+	return success, duration.Seconds(), nil
 }
 
 func newCredentialsRetriever(provider secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) func(context.Context) (k6runner.SecretStore, error) {

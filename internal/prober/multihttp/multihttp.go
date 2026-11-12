@@ -3,6 +3,7 @@ package multihttp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -94,19 +95,29 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (bool, float64) {
-	secretStore, err := p.secretsRetriever(ctx)
+	success, duration, err := p.ProbeErr(ctx, target, registry, logger, executionID)
 	if err != nil {
 		p.logger.Error().Err(err).Msg("running probe")
 		return false, 0
+	}
+
+	return success, duration
+}
+
+// ProbeErr is like Probe, but it returns an error if the check could not
+// be run, as opposed to having run and failed.
+func (p Prober) ProbeErr(ctx context.Context, target string, registry *prometheus.Registry, logger logger.Logger, executionID string) (bool, float64, error) {
+	secretStore, err := p.secretsRetriever(ctx)
+	if err != nil {
+		return false, 0, fmt.Errorf("retrieving secret store: %w", err)
 	}
 
 	success, duration, err := p.processor.Run(ctx, registry, logger, p.logger, secretStore, executionID)
 	if err != nil {
-		p.logger.Error().Err(err).Msg("running probe")
-		return false, 0
+		return false, 0, err
 	}
 
-	return success, duration.Seconds()
+	return success, duration.Seconds(), nil
 }
 
 // Overrides any user-provided headers with our own augmented values

@@ -28,3 +28,17 @@ scriptfile="${*: -1}"
 if [[ -f "$scriptfile" ]] && grep -q "K6_FAKE_FAIL" "$scriptfile"; then
   exit 1
 fi
+
+# The browser cannot be launched. This is what k6 logs, and the exit code it
+# uses, when it does not find a browser or the browser exits right away.
+if [[ -n "$logfile" && -f "$scriptfile" ]] && grep -q "K6_FAKE_BROWSER_LAUNCH_FAIL" "$scriptfile"; then
+  echo 'time="2026-11-11T16:21:32-05:00" level=error msg="error building browser on IterStart: launching browser: browser process ended unexpectedly at default (file:///script.js:12:16(0))"' >> "$logfile"
+  exit 108
+fi
+
+# A script that prints the same message as a browser that cannot be launched,
+# and fails. What a script prints has source=console.
+if [[ -n "$logfile" && -f "$scriptfile" ]] && grep -q "K6_FAKE_SPOOF" "$scriptfile"; then
+  echo 'time="2026-11-11T16:24:26-05:00" level=error msg="error building browser on IterStart: launching browser: fake" source=console' >> "$logfile"
+  exit 108
+fi

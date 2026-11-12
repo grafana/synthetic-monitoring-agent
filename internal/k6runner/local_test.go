@@ -437,3 +437,41 @@ func (f *fakeBrowserPool) acquireBudget() time.Duration {
 
 	return f.budget
 }
+
+// A browser that k6 cannot launch is not a script that failed.
+func TestLocalBrowserLaunchFailure(t *testing.T) {
+	t.Parallel()
+
+	// The k6 fake is exec'd with the runner's temporary directory as working
+	// directory, so its path must be absolute.
+	k6Fake, err := filepath.Abs("./testdata/k6-env-fake")
+	require.NoError(t, err)
+
+	runner, err := New(RunnerOpts{Uri: k6Fake})
+	require.NoError(t, err)
+
+	for name, tc := range map[string]struct {
+		marker string
+		code   string
+	}{
+		"the browser cannot be launched":     {"K6_FAKE_BROWSER_LAUNCH_FAIL", ErrorCodeBrowserLaunch},
+		"the script prints the same message": {"K6_FAKE_SPOOF", ErrorCodeAborted},
+		"the script fails":                   {"K6_FAKE_FAIL", ErrorCodeAborted},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			script := Script{
+				Script:            []byte("// " + tc.marker),
+				Settings:          Settings{Timeout: 5000},
+				CheckInfo:         CheckInfo{Type: "browser", Metadata: map[string]any{"id": "123"}},
+				K6ChannelManifest: "*",
+			}
+
+			rr, err := runner.Run(t.Context(), script, SecretStore{}, "exec-id")
+			require.NoError(t, err)
+			require.Equal(t, tc.code, rr.ErrorCode, "error: %q", rr.Error)
+			require.NotEmpty(t, rr.Error)
+		})
+	}
+}
