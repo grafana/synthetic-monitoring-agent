@@ -11,7 +11,7 @@ permissions: {}
 
 jobs:
   release_chart:
-    uses: grafana/helm-charts/.github/workflows/update-helm-repo.yaml@80d6bc92a4669c4dd3e834df8f0abbafee74ffa4 # main
+    uses: grafana/helm-charts/.github/workflows/update-helm-repo.yaml@89a1e8bb7dcd6307d1cc927008c1cafb10aecceb # main
     permissions:
       contents: write # Needed to create the release and push the tag
       id-token: write # Needed for the GitHub App token
