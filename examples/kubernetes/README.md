@@ -1,5 +1,7 @@
 # Kubernetes
 
+To deploy with Helm instead, use the [synthetic-monitoring-agent chart](../../charts/synthetic-monitoring-agent).
+
 Steps:
 - Get an Authentication Token for your private probe, [see here for steps](https://grafana.com/docs/grafana-cloud/synthetic-monitoring/private-probes/)
 - Get Probe API Server URL from [Private Probe docs](https://grafana.com/docs/grafana-cloud/synthetic-monitoring/private-probes/)

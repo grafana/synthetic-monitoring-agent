@@ -1,0 +1,74 @@
+suite: agent NetworkPolicy
+templates:
+  - networkpolicy.yaml
+release:
+  name: sm
+  namespace: probes
+set:
+  probe:
+    apiServerAddress: synthetic-monitoring-grpc-eu-west-3.grafana.net:443
+    apiToken: test-token
+tests:
+  - it: is off by default
+    asserts:
+      - hasDocuments:
+          count: 0
+  - it: only allows metrics for a single agent, from any source
+    set:
+      networkPolicy:
+        enabled: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - lengthEqual:
+          path: spec.ingress
+          count: 1
+      - equal:
+          path: spec.ingress[0].ports[0].port
+          value: http-metrics
+      - notExists:
+          path: spec.ingress[0].from
+  - it: limits metrics to extraIngressFrom
+    set:
+      networkPolicy:
+        enabled: true
+        extraIngressFrom:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: monitoring
+    asserts:
+      - equal:
+          path: spec.ingress[0].from
+          value:
+            - namespaceSelector:
+                matchLabels:
+                  kubernetes.io/metadata.name: monitoring
+  - it: allows cluster traffic only from the release's agents
+    set:
+      replicas: 3
+      cluster:
+        enabled: true
+      networkPolicy:
+        enabled: true
+        extraIngressFrom:
+          - podSelector:
+              matchLabels:
+                app: prometheus
+    asserts:
+      - equal:
+          path: spec.ingress[1].ports[0].port
+          value: gossip
+      - equal:
+          path: spec.ingress[1].from
+          value:
+            - podSelector:
+                matchLabels:
+                  app.kubernetes.io/name: synthetic-monitoring-agent
+                  app.kubernetes.io/instance: sm
+                  app.kubernetes.io/component: agent
+      - equal:
+          path: spec.ingress[0].from
+          value:
+            - podSelector:
+                matchLabels:
+                  app: prometheus
