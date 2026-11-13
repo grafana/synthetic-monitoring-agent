@@ -408,37 +408,37 @@ func TestAssertionConditionRender(t *testing.T) {
 	testcases := map[string]struct {
 		condition sm.MultiHttpEntryAssertionConditionVariant
 		subject   string
-		value     string
+		valueJS   jsExpr
 		expected  string
 	}{
 		"TestAssertionConditionRenderNotContains": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_NOT_CONTAINS,
 			subject:   "subject",
-			value:     "val'ue",
+			valueJS:   `"val\'ue"`,
 			expected:  `!subject.includes("val\'ue")`,
 		},
 		"TestAssertionConditionRenderContains": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
 			subject:   "subject",
-			value:     "val'ue",
+			valueJS:   `"val\'ue"`,
 			expected:  `subject.includes("val\'ue")`,
 		},
 		"TestAssertionConditionRenderEquals": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
 			subject:   "subject",
-			value:     "val'ue",
+			valueJS:   `"val\'ue"`,
 			expected:  `subject === "val\'ue"`,
 		},
 		"TestAssertionConditionRenderStartsWith": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_STARTS_WITH,
 			subject:   "subject",
-			value:     "val'ue",
+			valueJS:   `"val\'ue"`,
 			expected:  `subject.startsWith("val\'ue")`,
 		},
 		"TestAssertionConditionRenderEndsWith": {
 			condition: sm.MultiHttpEntryAssertionConditionVariant_ENDS_WITH,
 			subject:   "subject",
-			value:     "val'ue",
+			valueJS:   `"val\'ue"`,
 			expected:  `subject.endsWith("val\'ue")`,
 		},
 	}
@@ -448,7 +448,7 @@ func TestAssertionConditionRender(t *testing.T) {
 			var b strings.Builder
 
 			cond := assertionCondition(testcase.condition)
-			cond.Render(&b, testcase.subject, testcase.value)
+			cond.Render(&b, testcase.subject, testcase.valueJS)
 			require.Equal(t, testcase.expected, b.String())
 		})
 	}
@@ -503,7 +503,7 @@ func TestBuildChecks(t *testing.T) {
 				Expression: "Content-Type",
 				Value:      "value",
 			},
-			expected: `currentCheck = check(response, { "header contains \"value\"": response => { return assertHeader(response.headers, "Content-Type", v => value.includes("value")); } }, {"url": url.toString(), "method": "GET"});
+			expected: `currentCheck = check(response, { "header contains \"value\"": response => { return assertHeader(response.headers, "Content-Type", value => value.includes("value")); } }, {"url": url.toString(), "method": "GET"});
 	if(!currentCheck) {
 		console.error("Assertion failed:", "value.includes(\"value\")");
 		fail()
@@ -603,12 +603,176 @@ func TestBuildChecks(t *testing.T) {
 	};
 `,
 		},
+		"TestBuildChecksTextAssertionWithBodySubjectAndVariable": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:      sm.MultiHttpEntryAssertionType_TEXT,
+				Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+				Value:     "${probe_ip}",
+			},
+			expected: `currentCheck = check(response, { "body contains \"${probe_ip}\"": response => { if (!Object.hasOwn(vars, 'probe_ip') || vars['probe_ip'] == null) { console.error("Variable is not defined:", "probe_ip"); return false; } return response.body.includes(''+vars['probe_ip']); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "response.body.includes(\"${probe_ip}\")");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksTextAssertionWithHeadersSubjectAndVariable": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:      sm.MultiHttpEntryAssertionType_TEXT,
+				Condition: sm.MultiHttpEntryAssertionConditionVariant_NOT_CONTAINS,
+				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
+				Value:     "Bearer ${token}",
+			},
+			expected: `currentCheck = check(response, { "header does not contain \"Bearer ${token}\"": response => { if (!Object.hasOwn(vars, 'token') || vars['token'] == null) { console.error("Variable is not defined:", "token"); return false; } const values = Object.entries(response.headers).map(header => header[0].toLowerCase() + ': ' + header[1]); return !!values.find(value => !value.includes(''+'Bearer '+vars['token'])); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "!value.includes(\"Bearer ${token}\")");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksTextAssertionWithHeadersSubjectExpressionAndVariables": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:       sm.MultiHttpEntryAssertionType_TEXT,
+				Condition:  sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+				Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
+				Expression: "X-Echo",
+				Value:      "${a}-${b}-${a}",
+			},
+			expected: `currentCheck = check(response, { "header equals \"${a}-${b}-${a}\"": response => { if (!Object.hasOwn(vars, 'a') || vars['a'] == null) { console.error("Variable is not defined:", "a"); return false; } if (!Object.hasOwn(vars, 'b') || vars['b'] == null) { console.error("Variable is not defined:", "b"); return false; } return assertHeader(response.headers, "X-Echo", value => value === ''+vars['a']+'-'+vars['b']+'-'+vars['a']); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "value \u003D\u003D\u003D \"${a}-${b}-${a}\"");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksTextAssertionWithStatusCodeSubjectAndVariable": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:      sm.MultiHttpEntryAssertionType_TEXT,
+				Condition: sm.MultiHttpEntryAssertionConditionVariant_STARTS_WITH,
+				Subject:   sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE,
+				Value:     "${code}",
+			},
+			expected: `currentCheck = check(response, { "status code starts with \"${code}\"": response => { if (!Object.hasOwn(vars, 'code') || vars['code'] == null) { console.error("Variable is not defined:", "code"); return false; } return response.status.toString().startsWith(''+vars['code']); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "response.status.toString().startsWith(\"${code}\")");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksJsonPathValueAssertionWithVariable": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+				Condition:  sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+				Expression: "$.theirValue",
+				Value:      "${probe_ip}",
+			},
+			expected: `currentCheck = check(response, { "$.theirValue equals \"${probe_ip}\"": response => { if (!Object.hasOwn(vars, 'probe_ip') || vars['probe_ip'] == null) { console.error("Variable is not defined:", "probe_ip"); return false; } return jsonpath.query(response.json(), "$.theirValue").some(values => String(values) === ''+vars['probe_ip']); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "String(values) \u003D\u003D\u003D \"${probe_ip}\"");
+		fail()
+	};
+`,
+		},
+		"TestBuildChecksJsonPathValueAssertionContainsVariable": {
+			urlVarName: "url",
+			method:     "GET",
+			assertion: &sm.MultiHttpEntryAssertion{
+				Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+				Condition:  sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+				Expression: "$.id",
+				Value:      "${id}",
+			},
+			expected: `currentCheck = check(response, { "$.id contains \"${id}\"": response => { if (!Object.hasOwn(vars, 'id') || vars['id'] == null) { console.error("Variable is not defined:", "id"); return false; } return jsonpath.query(response.json(), "$.id").some(values => String(values).includes(''+vars['id'])); } }, {"url": url.toString(), "method": "GET"});
+	if(!currentCheck) {
+		console.error("Assertion failed:", "String(values).includes(\"${id}\")");
+		fail()
+	};
+`,
+		},
 	}
 
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
 			actual := buildChecks(testcase.urlVarName, testcase.method, testcase.assertion)
 			require.Equal(t, testcase.expected, actual)
+		})
+	}
+}
+
+func TestNewAssertionValue(t *testing.T) {
+	testcases := map[string]struct {
+		value    string
+		expected assertionValue
+	}{
+		"plain value is a string literal": {
+			value: "val'ue",
+			expected: assertionValue{
+				literal: `"val\'ue"`,
+				expr:    `"val\'ue"`,
+			},
+		},
+		"variable is read from vars as a string": {
+			value: "${probe_ip}",
+			expected: assertionValue{
+				literal: `"${probe_ip}"`,
+				expr:    `''+vars['probe_ip']`,
+				names:   []string{"probe_ip"},
+			},
+		},
+		"repeated variable is checked once": {
+			value: "${a}-${b}-${a}",
+			expected: assertionValue{
+				literal: `"${a}-${b}-${a}"`,
+				expr:    `''+vars['a']+'-'+vars['b']+'-'+vars['a']`,
+				names:   []string{"a", "b"},
+			},
+		},
+		"text around a variable is escaped": {
+			value: "it's ${a}",
+			expected: assertionValue{
+				literal: `"it\'s ${a}"`,
+				expr:    `''+'it\'s '+vars['a']`,
+				names:   []string{"a"},
+			},
+		},
+		"adjacent variables concatenate as strings": {
+			value: "${a}${b}",
+			expected: assertionValue{
+				literal: `"${a}${b}"`,
+				expr:    `''+vars['a']+vars['b']`,
+				names:   []string{"a", "b"},
+			},
+		},
+		"invalid variable name stays literal": {
+			value: "${my-var}",
+			expected: assertionValue{
+				literal: `"${my-var}"`,
+				expr:    `"${my-var}"`,
+			},
+		},
+		"secret reference stays literal": {
+			value: "${secrets.token}",
+			expected: assertionValue{
+				literal: `"${secrets.token}"`,
+				expr:    `"${secrets.token}"`,
+			},
+		},
+	}
+
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, testcase.expected, newAssertionValue(testcase.value))
 		})
 	}
 }
