@@ -10,6 +10,7 @@ policy:
         - and:
             - Workflow .github/workflows/renovate-validate.yaml succeeded or skipped
             - Workflow .github/workflows/validate-policy-bot-config.yml succeeded or skipped
+            - Workflow .github/workflows/validate_chart.yaml succeeded or skipped
             - Workflow .github/workflows/validate_pr.yaml succeeded or skipped
             - default to approval
         - override policies
@@ -49,6 +50,29 @@ approval_rules:
             - success
           workflows:
             - .github/workflows/validate-policy-bot-config.yml
+  - name: Workflow .github/workflows/validate_chart.yaml succeeded or skipped
+    if:
+      changed_files:
+        paths:
+          - ^charts\/(?:(?:[^/]*(?:/|$))*)$
+          - ^\.github\/workflows\/validate_chart\.yaml$
+          - ^scripts\/chart-flags\/(?:(?:[^/]*(?:/|$))*)$
+          - ^scripts\/check-chart-(?:[^/]*)$
+          - ^scripts\/lint-chart$
+          - ^scripts\/make\/700_chart\.mk$
+      file_not_deleted:
+        paths:
+          - ^\.github\/workflows\/validate_chart\.yaml$
+      targets_branch:
+        pattern: (^main$)
+    requires:
+      conditions:
+        has_workflow_result:
+          conclusions:
+            - skipped
+            - success
+          workflows:
+            - .github/workflows/validate_chart.yaml
   - name: Workflow .github/workflows/validate_pr.yaml succeeded or skipped
     if:
       file_not_deleted:

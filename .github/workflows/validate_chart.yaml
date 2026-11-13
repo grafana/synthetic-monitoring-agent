@@ -10,6 +10,7 @@ on:
       - scripts/chart-flags/**
       - scripts/check-chart-*
       - scripts/lint-chart
+      - scripts/make/700_chart.mk
 
 permissions:
   contents: none
