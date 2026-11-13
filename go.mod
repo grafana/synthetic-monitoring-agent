@@ -1,30 +1,6 @@
 module github.com/grafana/synthetic-monitoring-agent
 
-go 1.26.10
-
-require (
-	github.com/go-kit/kit v0.13.0
-	github.com/go-logfmt/logfmt v0.6.1
-	github.com/gogo/googleapis v1.4.1
-	github.com/gogo/protobuf v1.3.2
-	github.com/golang/snappy v1.0.0
-	github.com/google/uuid v1.6.0
-	github.com/miekg/dns v1.1.73
-	github.com/mmcloughlin/geohash v0.10.0
-	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
-	github.com/pkg/errors v0.9.1
-	github.com/prometheus/blackbox_exporter v0.29.1
-	github.com/prometheus/client_golang v1.25.0
-	github.com/prometheus/client_model v0.6.3
-	github.com/prometheus/common v0.73.1
-	github.com/prometheus/prometheus v0.315.1
-	github.com/rs/zerolog v1.35.1
-	github.com/stretchr/testify v1.12.1
-	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
-	golang.org/x/net v0.62.0
-	golang.org/x/sync v0.25.0
-	google.golang.org/grpc v1.85.0
-)
+go 1.27.3
 
 require (
 	github.com/KimMachineGun/automemlimit v0.7.5
@@ -32,22 +8,43 @@ require (
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b
 	github.com/bradfitz/gomemcache v0.0.0-20260422231931-4d751bb6e37c
 	github.com/felixge/httpsnoop v1.1.0
+	github.com/go-kit/kit v0.13.0
 	github.com/go-kit/log v0.2.1
+	github.com/go-logfmt/logfmt v0.6.1
+	github.com/gogo/googleapis v1.4.1
+	github.com/gogo/protobuf v1.3.2
 	github.com/gogo/status v1.1.1
+	github.com/golang/snappy v1.0.0
+	github.com/google/uuid v1.6.0
 	github.com/grafana/ckit v0.0.0-20251024151910-87043f5a3cf7
-	github.com/grafana/gsm-api-go-client v0.3.6
+	github.com/grafana/gsm-api-go-client v0.3.8
 	github.com/grafana/loki/pkg/push v0.0.0-20250903135404-0b2d0b070e96
 	github.com/jpillora/backoff v1.1.0
 	github.com/maypok86/otter/v2 v2.4.0
 	github.com/mccutchen/go-httpbin/v2 v2.26.0
+	github.com/miekg/dns v1.1.73
+	github.com/mmcloughlin/geohash v0.10.0
+	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f
 	github.com/patrickmn/go-cache v2.1.0+incompatible
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus-community/pro-bing v0.9.1
+	github.com/prometheus/blackbox_exporter v0.29.1
+	github.com/prometheus/client_golang v1.25.0
+	github.com/prometheus/client_model v0.6.3
+	github.com/prometheus/common v0.73.1
+	github.com/prometheus/prometheus v0.315.1
 	github.com/puzpuzpuz/xsync/v4 v4.5.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.23
+	github.com/rs/zerolog v1.35.1
 	github.com/spf13/afero v1.15.0
+	github.com/stretchr/testify v1.12.1
 	github.com/tdewolff/parse/v2 v2.8.20
+	github.com/tonobo/mtr v0.1.1-0.20210422192847-1c17592ae70b
 	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
+	golang.org/x/net v0.62.0
+	golang.org/x/sync v0.25.0
 	golang.org/x/time v0.16.0
+	google.golang.org/grpc v1.85.0
 	gopkg.in/yaml.v3 v3.0.1
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.78
 )
@@ -91,7 +88,7 @@ require (
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
