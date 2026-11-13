@@ -11,6 +11,7 @@ import (
 	"github.com/go-kit/log"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/http/testserver"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/version"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
@@ -503,104 +504,6 @@ func TestNewProberWithSecretStore(t *testing.T) {
 	// accepted and passed through the call chain without causing errors
 }
 
-func TestResolveSecretValue(t *testing.T) {
-	ctx := context.Background()
-	logger := testhelper.NewTestLogger()
-	tenantID := model.GlobalID(123)
-
-	testcases := map[string]struct {
-		input          string
-		mockSecretFunc func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
-		expectedOutput string
-		expectError    bool
-	}{
-		"empty value": {
-			input:          "",
-			expectedOutput: "",
-			expectError:    false,
-		},
-		"secret interpolation with valid secret": {
-			input: "${secrets.my-secret-key}",
-			mockSecretFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
-				if secretKey == "my-secret-key" {
-					return "secret-value-from-gsm", nil
-				}
-
-				return "", fmt.Errorf("secret not found")
-			},
-			expectedOutput: "secret-value-from-gsm",
-			expectError:    false,
-		},
-		"secret interpolation with secret lookup error": {
-			input: "${secrets.non-existent-key}",
-			mockSecretFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
-				return "", fmt.Errorf("secret not found")
-			},
-			expectedOutput: "",
-			expectError:    true,
-		},
-		"secret interpolation with empty secret name": {
-			input:          "${secrets.}",
-			expectedOutput: "",
-			expectError:    true,
-		},
-		"plaintext value (no interpolation)": {
-			input:          "my-plain-password",
-			expectedOutput: "my-plain-password",
-			expectError:    false,
-		},
-		"mixed interpolation and plaintext": {
-			input: "Bearer ${secrets.my-token}",
-			mockSecretFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
-				if secretKey == "my-token" {
-					return "actual-token-value", nil
-				}
-
-				return "", fmt.Errorf("secret not found")
-			},
-			expectedOutput: "Bearer actual-token-value",
-			expectError:    false,
-		},
-		"multiple secrets in one string": {
-			input: "${secrets.username}:${secrets.password}",
-			mockSecretFunc: func(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error) {
-				switch secretKey {
-				case "username":
-					return "admin", nil
-				case "password":
-					return "secret123", nil
-				default:
-					return "", fmt.Errorf("secret not found")
-				}
-			},
-			expectedOutput: "admin:secret123",
-			expectError:    false,
-		},
-	}
-
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			// Create mock secret store
-			var mockSecretStore *testhelper.MockSecretProvider
-			if tc.mockSecretFunc != nil {
-				mockSecretStore = testhelper.NewMockSecretProviderWithFunc(tc.mockSecretFunc)
-			}
-
-			// Use mock secret store directly
-			secretStore := mockSecretStore
-
-			actual, err := resolveSecretValue(ctx, tc.input, secretStore, tenantID, logger)
-
-			if tc.expectError {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				require.Equal(t, tc.expectedOutput, actual)
-			}
-		})
-	}
-}
-
 func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 	ctx, logger, tenantID := testhelper.CommonTestSetup()
 
@@ -663,10 +566,9 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			// Use mock secret store directly
-			secretStore := mockSecretStore
+			resolver := interpolation.NewResolver(mockSecretStore, tenantID, logger)
 
-			cfg, err := buildPrometheusHTTPClientConfig(ctx, &tc.settings, logger, secretStore, tenantID)
+			cfg, err := buildPrometheusHTTPClientConfig(ctx, &tc.settings, logger, resolver)
 			require.NoError(t, err)
 
 			require.Equal(t, tc.expectedBearer, string(cfg.BearerToken))
@@ -737,7 +639,9 @@ func TestBuildTLSConfig_WithSecrets(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			cfg, err := buildTLSConfig(ctx, tc.tlsConfig, mockSecretStore, tenantID, logger)
+			resolver := interpolation.NewResolver(mockSecretStore, tenantID, logger)
+
+			cfg, err := buildTLSConfig(ctx, tc.tlsConfig, logger, resolver)
 
 			if tc.expectError {
 				require.Error(t, err)

@@ -133,12 +133,10 @@ per-type file translates the SM `Check` configuration into a
 blackbox-exporter `config.Module` and calls the upstream
 `ProbeHTTP` / `ProbeDNS` / `ProbeTCP` / `ProbeGRPC` function.
 
-HTTP also resolves `${secrets.<name>}` references while building the
-client config: in the bearer token, the basic auth password, and the TLS
-CA cert, client cert and client key. This happens for every check. The
-`secretManagerEnabled` field in the check settings is ignored. A value
-with no `${secrets.` in it is passed through as is and never hits the
-secret store, so checks without secrets only pay for a substring check.
+HTTP resolves `${secrets.<name>}` references on every run: in the bearer
+token, the basic auth password, the TLS CA cert, client cert and client
+key, and custom header values (never names). `secretManagerEnabled` is
+ignored. A value without `${secrets.` never hits the secret store.
 
 DNS is special: the project keeps an in-tree fork at
 `prober/dns/internal/bbe` because the upstream DNS prober is missing a
