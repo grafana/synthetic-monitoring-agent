@@ -2825,6 +2825,7 @@ func TestScraperRun(t *testing.T) {
 		CostAttributionLabels: testCalTenants{
 			costAttributionLabels: []string{"testing", "you"},
 		},
+		StateWriter: NewStateWriter(nil, nil, zerolog.Nop()),
 	})
 
 	require.NoError(t, err)
@@ -3220,5 +3221,187 @@ func TestHTTPCheckLogTimestampsAreNonDecreasing(t *testing.T) {
 				i, entries[i].Line,
 			)
 		}
+	}
+}
+
+type recordingPublisher struct {
+	payloads []pusher.Payload
+}
+
+func (p *recordingPublisher) Publish(payload pusher.Payload) {
+	p.payloads = append(p.payloads, payload)
+}
+
+func TestNewWithOptsRequiresStateWriter(t *testing.T) {
+	var check model.Check
+
+	err := check.FromSM(sm.Check{
+		Id:        1,
+		TenantId:  1000,
+		Frequency: 300000,
+		Timeout:   1000,
+		Enabled:   true,
+		Target:    "127.0.0.1",
+		Job:       "test",
+		Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
+	})
+	require.NoError(t, err)
+
+	_, err = NewWithOpts(t.Context(), check, ScraperOpts{
+		Metrics:               NewMetrics(&testCounter{}, &testCounterVec{counters: make(map[string]Incrementer), t: t}),
+		ProbeFactory:          testProbeFactory{builder: func() prober.Prober { return &testProberB{} }},
+		Logger:                zerolog.New(zerolog.NewTestWriter(t)),
+		Publisher:             &testPublisher{},
+		LabelsLimiter:         testLabelsLimiter{maxMetricLabels: 20, maxLogLabels: 15},
+		LabellingMode:         testLabellingMode{},
+		Telemeter:             &testTelemeter{},
+		CostAttributionLabels: testCalTenants{},
+	})
+	require.ErrorIs(t, err, errStateWriterRequired)
+}
+
+// TestScrapeHandlerStoresState checks that a scraper's state is written once
+// per successful scrape, and never for republications or failed collections.
+func TestScrapeHandlerStoresState(t *testing.T) {
+	newScraper := func(t *testing.T, store StateStore, maxMetricLabels int) (*Scraper, *recordingPublisher) {
+		t.Helper()
+
+		var check model.Check
+
+		err := check.FromSM(sm.Check{
+			Id:        1,
+			TenantId:  1000,
+			Frequency: 300000, // 5m, above maxPublishInterval
+			Timeout:   1000,
+			Modified:  1700000000,
+			Enabled:   true,
+			Target:    "127.0.0.1",
+			Job:       "test",
+			Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
+		})
+		require.NoError(t, err)
+
+		publisher := &recordingPublisher{}
+
+		s, err := NewWithOpts(t.Context(), check, ScraperOpts{
+			Metrics:               NewMetrics(&testCounter{}, &testCounterVec{counters: make(map[string]Incrementer), t: t}),
+			ProbeFactory:          testProbeFactory{builder: func() prober.Prober { return &testProberB{} }},
+			Logger:                zerolog.New(zerolog.NewTestWriter(t)),
+			Publisher:             publisher,
+			LabelsLimiter:         testLabelsLimiter{maxMetricLabels: maxMetricLabels, maxLogLabels: 15},
+			LabellingMode:         testLabellingMode{},
+			Telemeter:             &testTelemeter{},
+			CostAttributionLabels: testCalTenants{},
+			StateWriter:           NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
+		})
+		require.NoError(t, err)
+
+		return s, publisher
+	}
+
+	t.Run("scrape stores the published payload, republish does not", func(t *testing.T) {
+		store := &fakeStateStore{}
+		s, publisher := newScraper(t, store, 20)
+
+		h := scrapeHandler{scraper: s}
+		firedAt := time.Now()
+
+		h.scrape(t.Context(), firedAt)
+
+		require.Len(t, publisher.payloads, 1)
+		require.Len(t, store.calls, 1)
+		require.Equal(t, stateKey(s.check), store.calls[0].key)
+
+		record, ok := store.calls[0].value.(StateRecord)
+		require.True(t, ok)
+		require.Equal(t, firedAt.Add(5*time.Minute), record.NextFire)
+
+		decoded, err := decodeStatePayload(record.Payload)
+		require.NoError(t, err)
+		require.Equal(t, publisher.payloads[0].Metrics(), decoded)
+
+		h.republish(t.Context(), firedAt.Add(2*time.Minute))
+
+		require.Len(t, publisher.payloads, 2)
+		require.Len(t, store.calls, 1, "republish must not write state")
+
+		h.cleanup(t.Context(), firedAt.Add(3*time.Minute))
+
+		require.Len(t, publisher.payloads, 3)
+		require.Len(t, store.calls, 1, "cleanup must not write state")
+	})
+
+	t.Run("failed collection stores nothing", func(t *testing.T) {
+		store := &fakeStateStore{}
+		s, publisher := newScraper(t, store, 1) // too many labels: collectData fails
+
+		h := scrapeHandler{scraper: s}
+
+		h.scrape(t.Context(), time.Now())
+
+		require.Empty(t, publisher.payloads)
+		require.Empty(t, store.calls)
+	})
+}
+
+// TestScraperPersistState pins the eligibility decision that gates every
+// StateWriter call: the writer must be enabled and the check must run less
+// often than the republish interval.
+func TestScraperPersistState(t *testing.T) {
+	testcases := map[string]struct {
+		frequency time.Duration
+		store     StateStore // nil disables the writer
+		want      bool
+	}{
+		"5m check with an enabled writer persists": {frequency: 5 * time.Minute, store: &fakeStateStore{}, want: true},
+		"3m check with an enabled writer persists": {frequency: 3 * time.Minute, store: &fakeStateStore{}, want: true},
+		"2m check does not persist":                {frequency: 2 * time.Minute, store: &fakeStateStore{}, want: false},
+		"1m check does not persist":                {frequency: time.Minute, store: &fakeStateStore{}, want: false},
+		"5m check with a disabled writer does not": {frequency: 5 * time.Minute, want: false},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			var check model.Check
+
+			require.NoError(t, check.FromSM(sm.Check{
+				Id:        1,
+				TenantId:  1000,
+				Frequency: tc.frequency.Milliseconds(),
+				Timeout:   1000,
+				Modified:  1700000000,
+				Enabled:   true,
+				Target:    "127.0.0.1",
+				Job:       "test",
+				Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
+			}))
+
+			s, err := NewWithOpts(t.Context(), check, ScraperOpts{
+				Metrics:               NewMetrics(&testCounter{}, &testCounterVec{counters: make(map[string]Incrementer), t: t}),
+				ProbeFactory:          testProbeFactory{builder: func() prober.Prober { return &testProberB{} }},
+				Logger:                zerolog.New(zerolog.NewTestWriter(t)),
+				Publisher:             &recordingPublisher{},
+				LabelsLimiter:         testLabelsLimiter{maxMetricLabels: 20, maxLogLabels: 15},
+				LabellingMode:         testLabellingMode{},
+				Telemeter:             &testTelemeter{},
+				CostAttributionLabels: testCalTenants{},
+				StateWriter:           NewStateWriter(tc.store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
+			})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, s.persistState)
+
+			// The decision must be what gates the write: a scrape on an
+			// ineligible scraper leaves the store untouched.
+			h := scrapeHandler{scraper: s}
+			h.scrape(t.Context(), time.Now())
+
+			if fake, ok := tc.store.(*fakeStateStore); ok {
+				if tc.want {
+					require.Len(t, fake.calls, 1)
+				} else {
+					require.Empty(t, fake.calls)
+				}
+			}
+		})
 	}
 }

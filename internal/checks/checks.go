@@ -24,6 +24,7 @@ import (
 
 	logproto "github.com/grafana/loki/pkg/push"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cluster"
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
@@ -55,8 +56,10 @@ const (
 	errTransportClosing    = TransientError("transport closing")
 )
 
-const metricNamespace = "sm_agent"
-const metricSubsystem = "updater"
+const (
+	metricNamespace = "sm_agent"
+	metricSubsystem = "updater"
+)
 
 // Backoffer defines an interface to provide backoff durations.
 //
@@ -100,6 +103,7 @@ type Updater struct {
 	tenantLabellingMode     *labelmode.LabelMode
 	supportsProtocolSecrets bool
 	isClusterEnabled        bool
+	stateWriter             *scraper.StateWriter
 }
 
 type apiInfo struct {
@@ -144,6 +148,9 @@ type UpdaterOptions struct {
 	LabellingMode           *labelmode.LabelMode
 	SupportsProtocolSecrets bool
 	IsClusterEnabled        bool
+	// ScraperCache is where scrapers persist their state across restarts and
+	// migrations. nil disables caching scraper state.
+	ScraperCache cache.Cache
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -151,6 +158,12 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	if opts.ScraperFactory != nil {
 		scraperFactory = opts.ScraperFactory
 	}
+
+	// A nil cache.Cache converts to a nil StateStore, which NewStateWriter
+	// treats as disabled.
+	stateWriter := scraper.NewStateWriter(
+		opts.ScraperCache, opts.PromRegisterer, opts.Logger.With().Str("subsystem", "scraper_cache").Logger(),
+	)
 
 	c := &Updater{
 		api: apiInfo{
@@ -177,6 +190,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		usageReporter:           opts.UsageReporter,
 		tenantCals:              opts.CostAttributionLabels,
 		tenantLabellingMode:     opts.LabellingMode,
+		stateWriter:             stateWriter,
 	}
 
 	if err := c.registerMetrics(opts.PromRegisterer); err != nil {
@@ -843,6 +857,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		metrics,
 		c.k6Runner,
 		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals, c.tenantLabellingMode,
+		c.stateWriter,
 	)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
