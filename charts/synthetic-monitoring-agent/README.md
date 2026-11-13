@@ -1,6 +1,6 @@
 # synthetic-monitoring-agent Helm chart
 
-![Version: 2.0.0](https://img.shields.io/badge/Version-2.0.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.69.0](https://img.shields.io/badge/AppVersion-v0.69.0-informational?style=flat-square)
+![Version: 2.0.1](https://img.shields.io/badge/Version-2.0.1-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: v0.69.0](https://img.shields.io/badge/AppVersion-v0.69.0-informational?style=flat-square)
 
 Deploys the [Grafana Synthetic Monitoring agent](https://github.com/grafana/synthetic-monitoring-agent) to run a
 [private probe](https://grafana.com/docs/grafana-cloud/testing/synthetic-monitoring/set-up/set-up-private-probes/) on
@@ -301,7 +301,7 @@ flag a value sets.
 | browserPool.crocochrome.extraArgs | list | `[]` | Extra crocochrome arguments. |
 | browserPool.crocochrome.extraPodSecurityContext | object | `{}` | The chart sets the security context the crocochrome image requires, depending on unprivileged. The seccompProfile defaults to RuntimeDefault. Use these to add fields, such as seLinuxOptions. They can't change the required fields: the root filesystem, privilege escalation, capabilities, and, for the hardened image, the user. |
 | browserPool.crocochrome.image.pullPolicy | string | `"IfNotPresent"` | crocochrome image pull policy. |
-| browserPool.crocochrome.image.tag | string | `"v0.14.0"` | crocochrome image tag. |
+| browserPool.crocochrome.image.tag | string | `"v0.14.1"` | crocochrome image tag. |
 | browserPool.crocochrome.livenessProbe | object | `{}` | Liveness probe for crocochrome. Rendered with tpl. Disabled when empty. |
 | browserPool.crocochrome.networkPolicy | object | `{"egress":[],"enabled":false,"extraIngressFrom":[]}` | Optional NetworkPolicy for the crocochrome Pods. The crocochrome API doesn't have authentication: anything that can reach port 8080 can start browser sessions that load any URL from inside your network. The policy only allows the agents of this release, and the sources in extraIngressFrom, to reach crocochrome. Enabling it is recommended. It blocks every other source, including scrapers, so add your Prometheus to extraIngressFrom to keep scraping crocochrome metrics. It needs a CNI that enforces NetworkPolicies. |
 | browserPool.crocochrome.networkPolicy.egress | list | `[]` | Egress rules. When empty, the policy doesn't restrict egress. |

@@ -136,7 +136,7 @@ browserPool:
       # renovate: datasource=docker depName=ghcr.io/grafana/crocochrome
       repository: ghcr.io/grafana/crocochrome
       # -- crocochrome image tag.
-      tag: v0.14.0
+      tag: v0.14.1
       # -- crocochrome image pull policy.
       pullPolicy: IfNotPresent
     # -- Each instance runs one browser session at a time. Run at least as many as the peak number of browser checks
