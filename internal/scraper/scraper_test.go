@@ -45,6 +45,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/mmcloughlin/geohash"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	prom "github.com/prometheus/common/model"
@@ -2825,7 +2826,7 @@ func TestScraperRun(t *testing.T) {
 		CostAttributionLabels: testCalTenants{
 			costAttributionLabels: []string{"testing", "you"},
 		},
-		StateWriter: NewStateWriter(nil, nil, zerolog.Nop()),
+		StateCache: NewStateCache(nil, nil, zerolog.Nop()),
 	})
 
 	require.NoError(t, err)
@@ -2860,6 +2861,8 @@ func TestTickWithOffset(t *testing.T) {
 		timeout  time.Duration
 		period   time.Duration
 		offset   time.Duration
+		anchor   time.Duration // phase anchor relative to the start of the test; zero means none
+		primed   bool          // tickStart.primed
 		maxIdle  time.Duration
 		minGap   time.Duration
 		expected []int
@@ -2934,6 +2937,79 @@ func TestTickWithOffset(t *testing.T) {
 				CLEANUP,
 			},
 		},
+		"An anchor in the past keeps the phase after the first run.": {
+			timeout: 750 * time.Millisecond,
+			period:  500 * time.Millisecond,
+			offset:  1,
+			anchor:  -300 * time.Millisecond,
+			maxIdle: time.Second, // larger than the period: no idle runs
+			minGap:  50 * time.Millisecond,
+			expected: []int{
+				WORK, // 0
+				WORK, // 200, the anchor's phase: -300 + 500
+				WORK, // 700
+				CLEANUP,
+			},
+		},
+		"An anchor whose next phase is within the gap of the first run is skipped.": {
+			timeout: 600 * time.Millisecond,
+			period:  500 * time.Millisecond,
+			offset:  1,
+			anchor:  -480 * time.Millisecond,
+			maxIdle: time.Second,
+			minGap:  50 * time.Millisecond,
+			expected: []int{
+				WORK, // 0
+				WORK, // 520, there's no run at 20 because it's too close to the first run
+				CLEANUP,
+			},
+		},
+		"An idle worker running while waiting for the first run.": {
+			timeout: 500 * time.Millisecond,
+			period:  500 * time.Millisecond,
+			offset:  440 * time.Millisecond,
+			primed:  true,
+			maxIdle: 100 * time.Millisecond,
+			minGap:  50 * time.Millisecond,
+			expected: []int{
+				IDLE, // 100
+				IDLE, // 200
+				IDLE, // 300
+				WORK, // 440, there's no idle at 400 because it's too close to the first run
+				CLEANUP,
+			},
+		},
+		"A primed start stopped before the first run cleans up.": {
+			timeout: 150 * time.Millisecond,
+			period:  500 * time.Millisecond,
+			offset:  450 * time.Millisecond,
+			primed:  true,
+			maxIdle: 100 * time.Millisecond,
+			minGap:  50 * time.Millisecond,
+			expected: []int{
+				IDLE, // 100
+				CLEANUP,
+			},
+		},
+		"A cold start stopped before the first run has nothing to clean up.": {
+			timeout:  150 * time.Millisecond,
+			period:   500 * time.Millisecond,
+			offset:   450 * time.Millisecond,
+			maxIdle:  100 * time.Millisecond,
+			minGap:   50 * time.Millisecond,
+			expected: nil,
+		},
+		"A cold start does not run idle while waiting for the first run.": {
+			timeout: 500 * time.Millisecond,
+			period:  500 * time.Millisecond,
+			offset:  450 * time.Millisecond,
+			maxIdle: 100 * time.Millisecond,
+			minGap:  50 * time.Millisecond,
+			expected: []int{
+				WORK, // 450
+				CLEANUP,
+			},
+		},
 	}
 
 	for name, tc := range testcases {
@@ -2966,11 +3042,125 @@ func TestTickWithOffset(t *testing.T) {
 				close(stop)
 			}
 
-			tickWithOffset(ctx, stop, work, idle, cleanup, tc.period, tc.offset, tc.maxIdle, tc.minGap)
+			start := tickStart{offset: tc.offset, primed: tc.primed}
+			if tc.anchor != 0 {
+				start.anchor = time.Now().Add(tc.anchor)
+			}
+
+			scheduled := func(context.Context, time.Time) {}
+
+			tickWithOffset(ctx, stop, work, idle, cleanup, scheduled, tc.period, start, tc.maxIdle, tc.minGap)
 
 			require.Equal(t, tc.expected, results)
 		})
 	}
+}
+
+// TestTickWithOffsetKeepsAnchorPhase pins that the regular ticks after an
+// anchored start stay on the anchor's phase even when the execution that
+// starts them takes a while: the ticker is phased on the tick, not on the end
+// of the work. The order-only harness above cannot see this.
+func TestTickWithOffsetKeepsAnchorPhase(t *testing.T) {
+	const (
+		period   = 300 * time.Millisecond
+		workTime = 100 * time.Millisecond
+		minGap   = 50 * time.Millisecond
+	)
+
+	ctx, cancel := testhelper.Context(context.Background(), t)
+	t.Cleanup(cancel)
+
+	begin := time.Now()
+
+	var ticks []time.Duration
+
+	work := func(context.Context, time.Time) {
+		ticks = append(ticks, time.Since(begin))
+
+		time.Sleep(workTime)
+	}
+	noop := func(context.Context, time.Time) {}
+
+	stop := make(chan struct{})
+
+	go func() {
+		time.Sleep(650 * time.Millisecond)
+		close(stop)
+	}()
+
+	var scheduled []time.Duration
+
+	schedule := func(_ context.Context, next time.Time) { scheduled = append(scheduled, next.Sub(begin)) }
+
+	// The anchor sits 100ms in the past, so the first on-phase tick after the
+	// immediate first run is at 200ms, and the ticker must then fire at 500ms.
+	// A ticker phased on the end of the 200ms run would fire at 600ms instead.
+	start := tickStart{offset: 1, anchor: begin.Add(-100 * time.Millisecond), primed: true}
+
+	tickWithOffset(ctx, stop, work, noop, noop, schedule, period, start, time.Hour, minGap)
+
+	require.Len(t, ticks, 3, "ticks at %v", ticks)
+	require.InDelta(t, float64(200*time.Millisecond), float64(ticks[1]), float64(40*time.Millisecond), "anchored tick at %v", ticks[1])
+	require.InDelta(t, float64(500*time.Millisecond), float64(ticks[2]), float64(40*time.Millisecond), "first regular tick at %v", ticks[2])
+
+	// What the loop announced after each execution is what it then did.
+	require.Len(t, scheduled, 3, "scheduled at %v", scheduled)
+	require.Equal(t, 200*time.Millisecond, scheduled[0], "anchored tick is announced exactly on phase")
+	require.InDelta(t, float64(ticks[2]), float64(scheduled[1]), float64(10*time.Millisecond), "first regular tick announced %v, fired %v", scheduled[1], ticks[2])
+}
+
+// TestTickWithOffsetSkipsTickOverrunByCatchUp pins that an on-phase tick which
+// passes while the first (catch-up) execution is still running is skipped, not
+// fired late: a late fire would double-scrape and phase the ticker on the late
+// instant.
+func TestTickWithOffsetSkipsTickOverrunByCatchUp(t *testing.T) {
+	const (
+		period   = 300 * time.Millisecond
+		workTime = 200 * time.Millisecond
+		minGap   = 50 * time.Millisecond
+	)
+
+	ctx, cancel := testhelper.Context(context.Background(), t)
+	t.Cleanup(cancel)
+
+	begin := time.Now()
+
+	var ticks []time.Duration
+
+	work := func(context.Context, time.Time) {
+		ticks = append(ticks, time.Since(begin))
+
+		time.Sleep(workTime)
+	}
+	noop := func(context.Context, time.Time) {}
+
+	stop := make(chan struct{})
+
+	go func() {
+		time.Sleep(750 * time.Millisecond)
+		close(stop)
+	}()
+
+	var scheduled []time.Duration
+
+	schedule := func(_ context.Context, next time.Time) { scheduled = append(scheduled, next.Sub(begin)) }
+
+	// The anchor sits 200ms in the past, so the on-phase tick at 100ms falls
+	// inside the 0–200ms catch-up run. The next one, at 400ms, is the first
+	// the loop can honour, and the ticker must then fire at 700ms.
+	start := tickStart{offset: 1, anchor: begin.Add(-200 * time.Millisecond), primed: true}
+
+	tickWithOffset(ctx, stop, work, noop, noop, schedule, period, start, time.Hour, minGap)
+
+	require.Len(t, ticks, 3, "ticks at %v", ticks)
+	require.InDelta(t, float64(400*time.Millisecond), float64(ticks[1]), float64(40*time.Millisecond), "anchored tick at %v", ticks[1])
+	require.InDelta(t, float64(700*time.Millisecond), float64(ticks[2]), float64(40*time.Millisecond), "first regular tick at %v", ticks[2])
+
+	// The skipped 100ms tick is never announced either: the record a
+	// successor would read names the tick that really came next.
+	require.Len(t, scheduled, 3, "scheduled at %v", scheduled)
+	require.Equal(t, 400*time.Millisecond, scheduled[0], "the overrun tick is skipped in the announcement too")
+	require.InDelta(t, float64(ticks[2]), float64(scheduled[1]), float64(10*time.Millisecond), "first regular tick announced %v, fired %v", scheduled[1], ticks[2])
 }
 
 func TestGetCostAttributionLabels(t *testing.T) {
@@ -3232,7 +3422,7 @@ func (p *recordingPublisher) Publish(payload pusher.Payload) {
 	p.payloads = append(p.payloads, payload)
 }
 
-func TestNewWithOptsRequiresStateWriter(t *testing.T) {
+func TestNewWithOptsRequiresStateCache(t *testing.T) {
 	var check model.Check
 
 	err := check.FromSM(sm.Check{
@@ -3257,7 +3447,7 @@ func TestNewWithOptsRequiresStateWriter(t *testing.T) {
 		Telemeter:             &testTelemeter{},
 		CostAttributionLabels: testCalTenants{},
 	})
-	require.ErrorIs(t, err, errStateWriterRequired)
+	require.ErrorIs(t, err, errStateCacheRequired)
 }
 
 // TestScrapeHandlerStoresState checks that a scraper's state is written once
@@ -3292,14 +3482,14 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 			LabellingMode:         testLabellingMode{},
 			Telemeter:             &testTelemeter{},
 			CostAttributionLabels: testCalTenants{},
-			StateWriter:           NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
+			StateCache:            NewStateCache(store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
 		})
 		require.NoError(t, err)
 
 		return s, publisher
 	}
 
-	t.Run("scrape stores the published payload, republish does not", func(t *testing.T) {
+	t.Run("cacheState stores the scraped payload with the announced tick", func(t *testing.T) {
 		store := &fakeStateStore{}
 		s, publisher := newScraper(t, store, 20)
 
@@ -3309,12 +3499,17 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 		h.scrape(t.Context(), firedAt)
 
 		require.Len(t, publisher.payloads, 1)
+		require.Empty(t, store.calls, "scrape publishes; only the loop knows the next tick")
+
+		next := firedAt.Add(210 * time.Second)
+		h.cacheState(t.Context(), next)
+
 		require.Len(t, store.calls, 1)
 		require.Equal(t, stateKey(s.check), store.calls[0].key)
 
 		record, ok := store.calls[0].value.(StateRecord)
 		require.True(t, ok)
-		require.Equal(t, firedAt.Add(5*time.Minute), record.NextFire)
+		require.Equal(t, next, record.NextFire, "the record names the tick the loop announced, whatever the scrape's own time")
 
 		decoded, err := decodeStatePayload(record.Payload)
 		require.NoError(t, err)
@@ -3329,6 +3524,10 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 
 		require.Len(t, publisher.payloads, 3)
 		require.Len(t, store.calls, 1, "cleanup must not write state")
+
+		h.cacheState(t.Context(), next.Add(5*time.Minute))
+
+		require.Len(t, store.calls, 1, "nothing to record once cleanup has dropped the payload")
 	})
 
 	t.Run("failed collection stores nothing", func(t *testing.T) {
@@ -3337,7 +3536,9 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 
 		h := scrapeHandler{scraper: s}
 
-		h.scrape(t.Context(), time.Now())
+		firedAt := time.Now()
+		h.scrape(t.Context(), firedAt)
+		h.cacheState(t.Context(), firedAt.Add(5*time.Minute))
 
 		require.Empty(t, publisher.payloads)
 		require.Empty(t, store.calls)
@@ -3345,7 +3546,7 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 }
 
 // TestScraperPersistState pins the eligibility decision that gates every
-// StateWriter call: the writer must be enabled and the check must run less
+// StateCache call: the cache must be enabled and the check must run less
 // often than the republish interval.
 func TestScraperPersistState(t *testing.T) {
 	testcases := map[string]struct {
@@ -3385,15 +3586,17 @@ func TestScraperPersistState(t *testing.T) {
 				LabellingMode:         testLabellingMode{},
 				Telemeter:             &testTelemeter{},
 				CostAttributionLabels: testCalTenants{},
-				StateWriter:           NewStateWriter(tc.store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
+				StateCache:            NewStateCache(tc.store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
 			})
 			require.NoError(t, err)
 			require.Equal(t, tc.want, s.persistState)
 
-			// The decision must be what gates the write: a scrape on an
+			// The decision must be what gates the write: an execution on an
 			// ineligible scraper leaves the store untouched.
 			h := scrapeHandler{scraper: s}
-			h.scrape(t.Context(), time.Now())
+			now := time.Now()
+			h.scrape(t.Context(), now)
+			h.cacheState(t.Context(), now.Add(tc.frequency))
 
 			if fake, ok := tc.store.(*fakeStateStore); ok {
 				if tc.want {
@@ -3402,6 +3605,292 @@ func TestScraperPersistState(t *testing.T) {
 					require.Empty(t, fake.calls)
 				}
 			}
+		})
+	}
+}
+
+func TestPlanStart(t *testing.T) {
+	const (
+		frequency = 5 * time.Minute
+		timeout   = time.Minute
+		jitter    = 7 * time.Second
+	)
+
+	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+
+	testcases := map[string]struct {
+		nextFire   time.Time
+		wantMode   startMode
+		wantOffset time.Duration
+	}{
+		"next tick ahead resumes":                                {nextFire: now.Add(4 * time.Minute), wantMode: startResume, wantOffset: 4 * time.Minute},
+		"next tick exactly one period ahead resumes":             {nextFire: now.Add(frequency), wantMode: startResume, wantOffset: frequency},
+		"next tick just missed catches up":                       {nextFire: now.Add(-time.Minute), wantMode: startCatchUp, wantOffset: jitter},
+		"next tick missed by the whole slack still catches up":   {nextFire: now.Add(-stateSlack), wantMode: startCatchUp, wantOffset: jitter},
+		"next tick due right now catches up":                     {nextFire: now, wantMode: startCatchUp, wantOffset: jitter},
+		"regular tick due within the timeout skips the catch-up": {nextFire: now.Add(-frequency + timeout), wantMode: startResume, wantOffset: timeout},
+		"regular tick reachable by a jittered catch-up skips it": {nextFire: now.Add(-frequency + timeout + jitter), wantMode: startResume, wantOffset: timeout + jitter},
+		"regular tick beyond jitter plus timeout catches up":     {nextFire: now.Add(-frequency + timeout + jitter + time.Second), wantMode: startCatchUp, wantOffset: jitter},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			mode, start := planStart(now, StateRecord{NextFire: tc.nextFire}, frequency, timeout, jitter)
+
+			require.Equal(t, tc.wantMode, mode)
+			require.Equal(t, tc.wantOffset, start.offset)
+			require.True(t, tc.nextFire.Equal(start.anchor), "anchor %s, want %s", start.anchor, tc.nextFire)
+			require.True(t, start.primed)
+		})
+	}
+}
+
+func TestNextOnPhase(t *testing.T) {
+	const (
+		period = 500 * time.Millisecond
+		minGap = 50 * time.Millisecond
+	)
+
+	now := time.Date(2026, 11, 5, 12, 0, 0, 0, time.UTC)
+
+	testcases := map[string]struct {
+		anchor time.Time
+		want   time.Time
+	}{
+		"anchor in the past steps onto the next period":    {anchor: now.Add(-100 * time.Millisecond), want: now.Add(400 * time.Millisecond)},
+		"on-phase instant inside the gap is skipped":       {anchor: now.Add(-480 * time.Millisecond), want: now.Add(520 * time.Millisecond)},
+		"anchor exactly at t moves one period":             {anchor: now, want: now.Add(period)},
+		"anchor ahead is kept":                             {anchor: now.Add(300 * time.Millisecond), want: now.Add(300 * time.Millisecond)},
+		"anchor ahead but inside the gap moves one period": {anchor: now.Add(40 * time.Millisecond), want: now.Add(540 * time.Millisecond)},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			got := nextOnPhase(tc.anchor, now, period, minGap)
+			require.True(t, tc.want.Equal(got), "got %s, want %s", got, tc.want)
+		})
+	}
+}
+
+// chanPublisher hands each payload to the test over a channel, which is what a
+// scraper running on its own goroutine needs.
+type chanPublisher chan pusher.Payload
+
+func (p chanPublisher) Publish(payload pusher.Payload) {
+	p <- payload
+}
+
+func seriesNames(ts TimeSeries) []string {
+	names := make([]string, 0, len(ts))
+
+	for _, s := range ts {
+		for _, l := range s.Labels {
+			if l.Name == "__name__" {
+				names = append(names, l.Value)
+			}
+		}
+	}
+
+	return names
+}
+
+func TestScraperRunHydrates(t *testing.T) {
+	const (
+		frequency   = 5 * time.Minute
+		publishWait = 2 * time.Second
+	)
+
+	payload, err := encodeStatePayload(stateTestSeries())
+	require.NoError(t, err)
+
+	type testcase struct {
+		frequency    time.Duration
+		offset       time.Duration
+		nextFireFrom time.Duration // zero leaves the store empty
+		wantRead     string
+		wantAge      time.Duration // zero means no age observation
+		wantHydrated bool          // first publish is the predecessor's payload
+		wantScrape   bool          // a real scrape is published within publishWait
+		wantGet      bool
+	}
+
+	testcases := map[string]testcase{
+		"resume": {
+			frequency:    frequency,
+			nextFireFrom: 4 * time.Minute,
+			wantRead:     "hit_resume",
+			wantAge:      time.Minute,
+			wantHydrated: true,
+			wantGet:      true,
+		},
+		"resume with the next tick imminent skips the republish": {
+			frequency:    frequency,
+			nextFireFrom: time.Second,
+			wantRead:     "hit_resume",
+			wantAge:      frequency - time.Second,
+			wantScrape:   true,
+			wantGet:      true,
+		},
+		// With the catch-up jitter zeroed the execution is immediate, so it
+		// falls under the republish gap like an imminent resume does.
+		"catch up": {
+			frequency:    frequency,
+			nextFireFrom: -time.Minute,
+			wantRead:     "hit_catch_up",
+			wantAge:      6 * time.Minute,
+			wantScrape:   true,
+			wantGet:      true,
+		},
+		"miss": {
+			frequency:  frequency,
+			offset:     time.Millisecond,
+			wantRead:   "miss",
+			wantScrape: true,
+			wantGet:    true,
+		},
+		"not persisted": {
+			frequency:  2 * time.Minute,
+			offset:     time.Millisecond,
+			wantScrape: true,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			var check model.Check
+
+			require.NoError(t, check.FromSM(sm.Check{
+				Id:        1,
+				TenantId:  1000,
+				Frequency: tc.frequency.Milliseconds(),
+				Offset:    tc.offset.Milliseconds(),
+				Timeout:   1000,
+				Modified:  1700000000,
+				Enabled:   true,
+				Target:    "127.0.0.1",
+				Job:       "test",
+				Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
+			}))
+
+			store := &fakeStateStore{}
+
+			if tc.nextFireFrom != 0 {
+				store.records = map[string]StateRecord{
+					stateKey(check): {NextFire: time.Now().Add(tc.nextFireFrom), Payload: payload},
+				}
+			}
+
+			reg := prometheus.NewPedanticRegistry()
+			stateCache := NewStateCache(store, reg, zerolog.Nop())
+			stateCache.loadSpread = 0
+			stateCache.catchUpJitter = 0
+
+			publisher := make(chanPublisher, 8)
+
+			s, err := NewWithOpts(t.Context(), check, ScraperOpts{
+				Metrics:               NewMetrics(&testCounter{}, &testCounterVec{counters: make(map[string]Incrementer), t: t}),
+				ProbeFactory:          testProbeFactory{builder: func() prober.Prober { return &testProberB{} }},
+				Logger:                zerolog.New(zerolog.NewTestWriter(t)),
+				Publisher:             publisher,
+				LabelsLimiter:         testLabelsLimiter{maxMetricLabels: 20, maxLogLabels: 15},
+				LabellingMode:         testLabellingMode{},
+				Telemeter:             &testTelemeter{},
+				CostAttributionLabels: testCalTenants{},
+				StateCache:            stateCache,
+			})
+			require.NoError(t, err)
+
+			ctx, cancel := context.WithCancel(t.Context())
+			done := make(chan struct{})
+
+			started := time.Now()
+
+			go func() {
+				defer close(done)
+
+				s.Run(ctx)
+			}()
+
+			receive := func() pusher.Payload {
+				t.Helper()
+
+				select {
+				case p := <-publisher:
+					return p
+				case <-time.After(publishWait):
+					t.Fatal("no payload published")
+
+					return nil
+				}
+			}
+
+			if tc.wantHydrated {
+				p := receive()
+				require.Equal(t, stateTestSeries()[0].Labels, p.Metrics()[0].Labels)
+				require.Equal(t, seriesNames(stateTestSeries()), seriesNames(p.Metrics()))
+				require.Empty(t, p.Streams())
+				require.Equal(t, check.GlobalTenantID(), p.Tenant())
+
+				for _, series := range p.Metrics() {
+					for _, sample := range series.Samples {
+						require.InDelta(t, started.UnixMilli(), sample.Timestamp, float64(publishWait.Milliseconds()))
+					}
+				}
+			}
+
+			if tc.wantScrape {
+				p := receive()
+				require.Contains(t, seriesNames(p.Metrics()), CheckInfoMetricName, "a real scrape carries %s", CheckInfoMetricName)
+			}
+
+			select {
+			case p := <-publisher:
+				t.Fatalf("unexpected extra publish with series %v", seriesNames(p.Metrics()))
+			case <-time.After(100 * time.Millisecond):
+			}
+
+			cancel()
+			<-done
+
+			// Checked once the scraper has exited: Store runs after Publish on
+			// the scraper's goroutine. Whatever the first execution's own time
+			// was, the record it leaves must sit on the predecessor's phase, or
+			// the next handoff inherits a shifted cadence.
+			if tc.wantScrape && tc.nextFireFrom != 0 {
+				require.Len(t, store.calls, 1)
+				record, ok := store.calls[0].value.(StateRecord)
+				require.True(t, ok)
+				require.WithinDuration(t, started.Add(tc.nextFireFrom+tc.frequency), record.NextFire, publishWait)
+			}
+
+			if tc.wantGet {
+				require.Len(t, store.gets, 1)
+				require.Equal(t, stateKey(check), store.gets[0].key)
+			} else {
+				require.Empty(t, store.gets)
+			}
+
+			for _, result := range stateReadResults {
+				want := 0.0
+				if result == tc.wantRead {
+					want = 1
+				}
+
+				require.Equal(t, want, readsFor(stateCache, result), "result %q", result)
+			}
+
+			count, sum := histogramSamples(t, reg, "sm_agent_scraper_cache_record_age_seconds")
+
+			if tc.wantAge == 0 {
+				require.Zero(t, count)
+			} else {
+				require.Equal(t, uint64(1), count)
+				require.InDelta(t, tc.wantAge.Seconds(), sum, publishWait.Seconds())
+			}
+
+			problems, err := testutil.GatherAndLint(reg)
+			require.NoError(t, err)
+			require.Empty(t, problems)
 		})
 	}
 }
