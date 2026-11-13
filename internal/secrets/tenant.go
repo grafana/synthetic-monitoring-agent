@@ -70,7 +70,13 @@ func (sp *secretProvider) GetSecretCredentials(ctx context.Context, tenantID mod
 	})
 	if err != nil {
 		sp.logger.Warn().Err(err).Int64("tenantId", int64(tenantID)).Msg("failed to get tenant")
-		return nil, err
+
+		reason := contextReason(ctx)
+		if reason == nil {
+			reason = ErrSecretStoreUnavailable
+		}
+
+		return nil, &Error{Reason: reason, Err: fmt.Errorf("could not load the secret store configuration: %w", err)}
 	}
 
 	return tenant.SecretStore, nil
@@ -103,30 +109,32 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 	// Get the secret store configuration for this tenant
 	secretStore, err := sp.GetSecretCredentials(ctx, tenantID)
 	if err != nil {
-		return "", fmt.Errorf("failed to get secret store credentials: %w", err)
+		return "", err
 	}
 
 	if secretStore == nil {
-		return "", fmt.Errorf("no secret store configured for tenant %d", tenantID)
+		return "", &Error{Reason: ErrNoSecretStore}
 	}
 
 	// Create GSM client
 	client, err := sp.gsmClientFactory.CreateClient(secretStore.Url, secretStore.Token)
 	if err != nil {
-		return "", fmt.Errorf("failed to create GSM client: %w", err)
+		return "", &Error{Reason: ErrSecretStoreUnavailable, Err: err}
 	}
 
 	// Get the decrypted secret value
 	resp, err := client.DecryptSecretByIdWithResponse(ctx, secretKey)
 	if err != nil {
 		// Network error or client error - leave cache unchanged
+		classified := classifyTransportError(ctx, err)
+
 		sp.logger.Warn().
-			Err(err).
+			Err(classified).
 			Int64("tenantId", int64(tenantID)).
 			Str("secretKey", secretKey).
-			Msg("network error fetching secret, leaving cache unchanged")
+			Msg("failed to fetch secret from GSM, leaving cache unchanged")
 
-		return "", fmt.Errorf("failed to contact GSM for secret '%s': %w", secretKey, err)
+		return "", classified
 	}
 
 	// Handle different status codes
@@ -134,7 +142,10 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 	case http.StatusOK:
 		// Success - update cache and return value
 		if resp.JSON200 == nil {
-			return "", fmt.Errorf("empty response from GSM for secret %s", secretKey)
+			return "", &Error{
+				Reason: ErrSecretStoreBadResponse,
+				Err:    fmt.Errorf("status 200 with content type %q", resp.HTTPResponse.Header.Get("Content-Type")),
+			}
 		}
 
 		secretValue := resp.JSON200.Plaintext
@@ -156,21 +167,24 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Str("secretKey", secretKey).
 			Msg("secret not found in GSM, removed from cache")
 
-		return "", fmt.Errorf("secret '%s' not found in GSM (404)", secretKey)
+		return "", &Error{Reason: ErrSecretNotFound}
 
-	case http.StatusUnauthorized:
-		// Auth issue - remove from cache (credentials may have changed)
+	case http.StatusUnauthorized, http.StatusForbidden:
+		// GSM answers 401 when the token belongs to another stack and 403 when it lacks the scope to decrypt.
+		statusCode := resp.StatusCode()
+
 		sp.cache.Delete(cacheKey)
 
 		sp.logger.Warn().
+			Int("statusCode", statusCode).
 			Int64("tenantId", int64(tenantID)).
 			Str("secretKey", secretKey).
-			Msg("unauthorized accessing secret in GSM, removed from cache")
+			Msg("access to secret in GSM denied, removed from cache")
 
-		return "", fmt.Errorf("unauthorized to access secret '%s' in GSM (401)", secretKey)
+		return "", &Error{Reason: ErrSecretStoreUnauthorized, Err: fmt.Errorf("status %d", statusCode)}
 
 	default:
-		// 5xx or other errors - leave cache unchanged
+		// 5xx, 429 or other errors - leave cache unchanged
 		statusCode := resp.StatusCode()
 
 		sp.logger.Warn().
@@ -179,6 +193,11 @@ func (sp *secretProvider) GetSecretValue(ctx context.Context, tenantID model.Glo
 			Str("secretKey", secretKey).
 			Msg("GSM returned error status, leaving cache unchanged")
 
-		return "", fmt.Errorf("GSM returned status %d for secret '%s'", statusCode, secretKey)
+		reason := ErrSecretStoreBadResponse
+		if statusCode >= http.StatusInternalServerError || statusCode == http.StatusTooManyRequests {
+			reason = ErrSecretStoreUnavailable
+		}
+
+		return "", &Error{Reason: reason, Err: fmt.Errorf("status %d", statusCode)}
 	}
 }
