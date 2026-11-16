@@ -110,6 +110,52 @@ func TestResolver_Resolve(t *testing.T) {
 	}
 }
 
+func TestResolverRedactor(t *testing.T) {
+	ctx, logger, tenantID := testhelper.CommonTestSetup()
+
+	secretProvider := testhelper.NewMockSecretProvider(map[string]string{
+		"short":        "token",
+		"long":         "token-with-suffix",
+		"empty-secret": "",
+	})
+
+	t.Run("nothing resolved", func(t *testing.T) {
+		resolver := NewResolver(secretProvider, tenantID, logger)
+
+		_, err := resolver.Resolve(ctx, "plain text")
+		require.NoError(t, err)
+
+		require.Nil(t, resolver.Redactor())
+	})
+
+	t.Run("an empty value is never replaced", func(t *testing.T) {
+		resolver := NewResolver(secretProvider, tenantID, logger)
+
+		_, err := resolver.Resolve(ctx, "${secrets.empty-secret}")
+		require.NoError(t, err)
+
+		require.Nil(t, resolver.Redactor())
+	})
+
+	t.Run("each value becomes its reference", func(t *testing.T) {
+		resolver := NewResolver(secretProvider, tenantID, logger)
+
+		for _, value := range []string{"${secrets.short}", "a ${secrets.long} b"} {
+			_, err := resolver.Resolve(ctx, value)
+			require.NoError(t, err)
+		}
+
+		redact := resolver.Redactor()
+		require.NotNil(t, redact)
+
+		// The longer value holds the shorter one, and is replaced as a whole.
+		require.Equal(t,
+			"host=${secrets.long} key=${secrets.short} other=text",
+			redact("host=token-with-suffix key=token other=text"),
+		)
+	})
+}
+
 func TestIsValidSecretName(t *testing.T) {
 	testcases := map[string]struct {
 		name     string

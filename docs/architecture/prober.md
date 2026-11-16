@@ -162,6 +162,20 @@ unavailable store. Other errors while building the client config, such
 as a bad proxy URL, go to the agent log only. Proxy URL errors leave out
 the URL, because it can carry `user:password@`.
 
+A resolved header value with a line break or another control character
+also fails the run before any request is sent. HTTP does not allow these
+characters in a header, and a stored secret often ends with a line
+break. The check logs name the header and, when the value holds one
+reference, the secret. A bad character typed into the check itself is
+left to the HTTP client.
+
+Blackbox exporter logs the `Host` header and each redirect it follows,
+and puts the `Host` value in TLS errors. The check logs keep every
+level, and a target can echo a value back. So the HTTP prober wraps the
+check logger and replaces each value it resolved in that run with its
+`${secrets.<name>}` text. A very short value is replaced in unrelated
+text too, and a transformed value, such as base64, is not replaced.
+
 DNS is special: the project keeps an in-tree fork at
 `prober/dns/internal/bbe` because the upstream DNS prober is missing a
 behaviour change (see the PR link in `dns/internal/bbe/prober/dns.go`).

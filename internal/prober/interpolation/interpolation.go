@@ -1,10 +1,13 @@
 package interpolation
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
@@ -36,11 +39,13 @@ type SecretProvider interface {
 	GetSecretValue(ctx context.Context, tenantID model.GlobalID, secretKey string) (string, error)
 }
 
-// Resolver handles string interpolation for secrets
+// Resolver handles string interpolation for secrets. It is not safe for concurrent use.
 type Resolver struct {
 	secretProvider SecretProvider
 	tenantID       model.GlobalID
 	logger         zerolog.Logger
+	// refs maps each secret value Resolve returned to its reference, for Redactor.
+	refs map[string]string
 }
 
 // NewResolver creates a new interpolation resolver
@@ -49,6 +54,7 @@ func NewResolver(secretProvider SecretProvider, tenantID model.GlobalID, logger 
 		secretProvider: secretProvider,
 		tenantID:       tenantID,
 		logger:         logger,
+		refs:           make(map[string]string),
 	}
 }
 
@@ -128,7 +134,33 @@ func (r *Resolver) resolveSecret(ctx context.Context, name string) (string, erro
 		return "", secretErr
 	}
 
+	// An empty value is left out, because a strings.Replacer matches "" at every position.
+	if secretValue != "" {
+		r.refs[secretValue] = SecretRefPrefix + name + "}"
+	}
+
 	return secretValue, nil
+}
+
+// Redactor returns a function that replaces each secret value r has resolved with its
+// ${secrets.name} reference, or nil when r has resolved none. Values that r resolves after the
+// call are not replaced. The function is safe for concurrent use.
+func (r *Resolver) Redactor() func(string) string {
+	if len(r.refs) == 0 {
+		return nil
+	}
+
+	// Longest first, so that a value that holds another value is replaced as a whole.
+	values := slices.SortedFunc(maps.Keys(r.refs), func(a, b string) int {
+		return cmp.Or(cmp.Compare(len(b), len(a)), cmp.Compare(a, b))
+	})
+
+	oldnew := make([]string, 0, 2*len(values))
+	for _, value := range values {
+		oldnew = append(oldnew, value, r.refs[value])
+	}
+
+	return strings.NewReplacer(oldnew...).Replace
 }
 
 // isValidSecretName validates that a secret name follows Kubernetes DNS subdomain naming convention.

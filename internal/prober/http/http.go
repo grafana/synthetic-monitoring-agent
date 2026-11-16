@@ -27,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	promconfig "github.com/prometheus/common/config"
 	"github.com/rs/zerolog"
+	"golang.org/x/net/http/httpguts"
 )
 
 var errUnsupportedCheck = errors.New("unsupported check")
@@ -74,36 +75,43 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger, _ string) (bool, float64) {
-	slogger := logger.ToSlog(l)
-
 	if p.cacheBustingQueryParamName != "" {
 		// FIXME(mem): the second target argument should be the probe's name
 		target = addCacheBustParam(target, p.cacheBustingQueryParamName, target)
 	}
 
+	resolver := interpolation.NewResolver(p.secretStore, p.tenantID, p.logger)
+
 	// Resolve secrets and build complete config at probe time
-	probeConfig, err := p.buildProbeConfig(ctx)
+	probeConfig, err := p.buildProbeConfig(ctx, resolver)
+
+	// Blackbox exporter logs the Host header and the redirects it follows, and a target can echo
+	// a value back, so the check logs get each resolved value as its reference.
+	l = logger.Redacting(l, resolver.Redactor())
+
 	if err != nil {
 		p.logger.Error().Err(err).Msg("failed to build config for HTTP probe")
 
 		// Only a secret failure reaches the check logs.
 		if secretErr, ok := errors.AsType[*secrets.Error](err); ok {
-			fields := append([]any{"msg", "Could not resolve a secret referenced by this check"}, secretErr.LogFields()...)
-			_ = level.Error(l).Log(fields...)
+			msg := "Could not resolve a secret referenced by this check"
+			if errors.Is(secretErr, secrets.ErrSecretValueInvalidInHeader) {
+				msg = "Could not send a secret referenced by this check"
+			}
+
+			_ = level.Error(l).Log(append([]any{"msg", msg}, secretErr.LogFields()...)...)
 		}
 
 		return false, 0
 	}
 
-	return bbeprober.ProbeHTTP(ctx, target, probeConfig, registry, slogger), 0
+	return bbeprober.ProbeHTTP(ctx, target, probeConfig, registry, logger.ToSlog(l)), 0
 }
 
 // buildProbeConfig creates the complete configuration with resolved secrets
-func (p Prober) buildProbeConfig(ctx context.Context) (config.Module, error) {
+func (p Prober) buildProbeConfig(ctx context.Context, resolver *interpolation.Resolver) (config.Module, error) {
 	// Start with static config
 	cfg := p.staticConfig
-
-	resolver := interpolation.NewResolver(p.secretStore, p.tenantID, p.logger)
 
 	httpClientConfig, err := buildPrometheusHTTPClientConfig(ctx, p.settings, p.logger, resolver)
 	if err != nil {
@@ -135,7 +143,8 @@ func (p Prober) buildProbeConfig(ctx context.Context) (config.Module, error) {
 	return cfg, nil
 }
 
-// buildStaticConfig creates the parts of the config
+// buildStaticConfig builds the parts of the config that NewProber can build once. Header values
+// can still hold secret references, which buildProbeConfig resolves on each run.
 func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 	var m config.Module
 
@@ -255,8 +264,14 @@ func resolveHeaders(ctx context.Context, headers map[string]string, resolver *in
 
 	// Sorted, so that when several headers fail the check logs always report the same one.
 	for _, name := range slices.Sorted(maps.Keys(headers)) {
-		v, err := resolveSecretValue(ctx, "header "+name, headers[name], resolver)
+		field := "header " + name
+
+		v, err := resolveSecretValue(ctx, field, headers[name], resolver)
 		if err != nil {
+			return nil, err
+		}
+
+		if err := checkResolvedHeaderValue(field, headers[name], v); err != nil {
 			return nil, err
 		}
 
@@ -264,6 +279,25 @@ func resolveHeaders(ctx context.Context, headers map[string]string, resolver *in
 	}
 
 	return resolved, nil
+}
+
+// checkResolvedHeaderValue fails when resolving put a character into a header value that HTTP does
+// not allow, such as the line break a stored secret often ends with. The HTTP client rejects such a
+// request too, but its error does not tell the check owner that a secret is the cause. A bad
+// character typed into the check itself is left to the HTTP client, as before.
+func checkResolvedHeaderValue(field, raw, resolved string) error {
+	if httpguts.ValidHeaderFieldValue(resolved) || !httpguts.ValidHeaderFieldValue(raw) {
+		return nil
+	}
+
+	err := &secrets.Error{Field: field, Reason: secrets.ErrSecretValueInvalidInHeader}
+
+	// With more than one reference, the value does not tell which secret is the cause.
+	if refs := interpolation.SecretRegex.FindAllStringSubmatch(raw, -1); len(refs) == 1 {
+		err.Secret = refs[0][1]
+	}
+
+	return err
 }
 
 func anyValueHasSecretRef(headers map[string]string) bool {

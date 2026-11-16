@@ -124,8 +124,6 @@ func TestInterpolationOnTheWire(t *testing.T) {
 		wantLogNotContains string
 		// wantCheckLogContains is matched against the check log
 		wantCheckLogContains string
-		// allowValueInCheckLogs allows a resolved value in the check logs (only host header)
-		allowValueInCheckLogs bool
 	}{
 		"plaintext bearer token": {
 			settings: sm.HttpSettings{
@@ -300,10 +298,10 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			settings: sm.HttpSettings{
 				Headers: []string{"Host: " + wireTokenRef},
 			},
-			wantHost:              wireTokenValue,
-			wantLogContains:       wireTokenName,
-			wantCheckLogContains:  wireTokenValue,
-			allowValueInCheckLogs: true,
+			wantHost:        wireTokenValue,
+			wantLogContains: wireTokenName,
+			// Blackbox exporter logs the Host at debug level.
+			wantCheckLogContains: "host=" + wireTokenRef,
 		},
 
 		// Invalid value in the header (API stores it with no trim or modification)
@@ -314,6 +312,39 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			secretStore: testhelper.NewMockSecretProvider(map[string]string{
 				wireTokenName: wireTokenValue + "\n",
 			}),
+			wantFailure:          true,
+			wantCheckLogContains: `msg="Could not send a secret referenced by this check" field="header X-Api-Key" secret=api-token`,
+		},
+
+		"secret value that adds a second header": {
+			settings: sm.HttpSettings{
+				Headers: []string{"X-Api-Key: " + wireTokenRef},
+			},
+			secretStore: testhelper.NewMockSecretProvider(map[string]string{
+				wireTokenName: wireTokenValue + "\r\nX-Injected: yes",
+			}),
+			wantFailure:          true,
+			wantCheckLogContains: `field="header X-Api-Key" secret=api-token`,
+		},
+
+		// The value does not tell which of two secrets is the cause.
+		"secret value ending in a newline in a header with two references": {
+			settings: sm.HttpSettings{
+				Headers: []string{"X-Api-Key: " + wireTokenRef + ":" + wirePasswordRef},
+			},
+			secretStore: testhelper.NewMockSecretProvider(map[string]string{
+				wireTokenName:    wireTokenValue + "\n",
+				wirePasswordName: wirePasswordValue,
+			}),
+			wantFailure:          true,
+			wantCheckLogContains: `field="header X-Api-Key" reason=`,
+		},
+
+		// A line break typed into the check is left to the HTTP client.
+		"line break typed into a header value with a reference": {
+			settings: sm.HttpSettings{
+				Headers: []string{"X-Api-Key: " + wireTokenRef + "\n"},
+			},
 			wantFailure:          true,
 			wantCheckLogContains: `invalid header field value for \"X-Api-Key\"`,
 		},
@@ -436,10 +467,7 @@ func TestInterpolationOnTheWire(t *testing.T) {
 			// Secret values must never reach the logs.
 			for _, value := range []string{wireTokenValue, wirePasswordValue} {
 				require.NotContains(t, agentLogger.String(), value)
-
-				if !tc.allowValueInCheckLogs {
-					require.NotContains(t, checkLogs.String(), value)
-				}
+				require.NotContains(t, checkLogs.String(), value)
 			}
 
 			if tc.wantFailure {
@@ -509,6 +537,39 @@ func TestCustomHeaderSecretRotation(t *testing.T) {
 	require.Len(t, requests, 2)
 	require.Equal(t, "first-value", requests[0].header.Get("X-Api-Key"))
 	require.Equal(t, "rotated-value", requests[1].header.Get("X-Api-Key"))
+}
+
+// TestEchoedSecretIsRedactedFromTheCheckLogs uses a target that puts the header it receives into a
+// redirect, which blackbox exporter logs.
+func TestEchoedSecretIsRedactedFromTheCheckLogs(t *testing.T) {
+	ctx, cancel := testhelper.Context(context.Background(), t)
+	t.Cleanup(cancel)
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.URL.Path == "/landed" {
+			w.WriteHeader(http.StatusOK)
+
+			return
+		}
+
+		http.Redirect(w, req, "/landed?key="+req.Header.Get("X-Api-Key"), http.StatusFound)
+	}))
+	t.Cleanup(target.Close)
+
+	store := testhelper.NewMockSecretProvider(map[string]string{wireTokenName: wireTokenValue})
+	check := wireCheck(target.URL, &sm.HttpSettings{Headers: []string{"X-Api-Key: " + wireTokenRef}})
+
+	var agentLogs, checkLogs testhelper.LogBuffer
+
+	prober, err := NewProber(ctx, check, zerolog.New(&agentLogs), http.Header{}, store)
+	require.NoError(t, err)
+
+	success, _ := prober.Probe(ctx, check.Target, prometheus.NewPedanticRegistry(), log.NewLogfmtLogger(&checkLogs), "test-execution-id")
+	require.True(t, success)
+
+	require.Contains(t, checkLogs.String(), `location="/landed?key=`+wireTokenRef+`"`)
+	require.NotContains(t, checkLogs.String(), wireTokenValue)
+	require.NotContains(t, agentLogs.String(), wireTokenValue)
 }
 
 // TLS fixtures. Only the bytes matter, so they are not real certificates.
