@@ -103,7 +103,7 @@ func TestExpandVariablesToJS(t *testing.T) {
 	}
 }
 
-func TestFindVariableRefs(t *testing.T) {
+func TestVariableNames(t *testing.T) {
 	testcases := map[string]struct {
 		input    string
 		expected []string
@@ -116,23 +116,23 @@ func TestFindVariableRefs(t *testing.T) {
 			input:    "plain string",
 			expected: nil,
 		},
-		"references are returned as written, duplicates included": {
-			input:    "${a} x ${b} y ${a}",
-			expected: []string{"${a}", "${b}", "${a}"},
+		"names are returned once, in order of first appearance": {
+			input:    "${b} x ${a} y ${b}",
+			expected: []string{"b", "a"},
 		},
 		"hyphenated name is not a reference": {
 			input:    "${bad-name} ${good_name}",
-			expected: []string{"${good_name}"},
+			expected: []string{"good_name"},
 		},
 		"secret reference is not a reference": {
 			input:    "${secrets.api-token} ${good_name}",
-			expected: []string{"${good_name}"},
+			expected: []string{"good_name"},
 		},
 	}
 
 	for name, testcase := range testcases {
 		t.Run(name, func(t *testing.T) {
-			actual := FindVariableRefs(testcase.input)
+			actual := VariableNames(testcase.input)
 			require.Equal(t, testcase.expected, actual)
 		})
 	}

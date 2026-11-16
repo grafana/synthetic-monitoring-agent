@@ -2,6 +2,7 @@ package interpolation
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 	"text/template"
 )
@@ -70,9 +71,16 @@ func ExpandVariablesToJS(in string) string {
 	return s.String()
 }
 
-// FindVariableRefs returns every ${variable} reference in the order it appears, duplicates
-// included. Each element is the matched text, ${name} and not name, because callers substitute
-// the reference itself.
-func FindVariableRefs(in string) []string {
-	return variableRegex.FindAllString(in, -1)
+// VariableNames returns the name of every variable that in references, without duplicates, in
+// order of first appearance.
+func VariableNames(in string) []string {
+	var names []string
+
+	for _, m := range variableRegex.FindAllStringSubmatch(in, -1) {
+		if !slices.Contains(names, m[1]) {
+			names = append(names, m[1])
+		}
+	}
+
+	return names
 }

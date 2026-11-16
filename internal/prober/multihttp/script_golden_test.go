@@ -141,6 +141,62 @@ func TestScriptGolden(t *testing.T) {
 				},
 			},
 		},
+
+		// Every assertion shape that has a value, each comparing the second
+		// response against variables extracted from the first one.
+		"variables_in_assertions": {
+			Entries: []*sm.MultiHttpEntry{
+				{
+					Request: &sm.MultiHttpEntryRequest{
+						Method: sm.HttpMethod_GET,
+						Url:    "http://example.org/whoami",
+					},
+					Variables: []*sm.MultiHttpEntryVariable{
+						{Type: sm.MultiHttpEntryVariableType_JSON_PATH, Name: "probeIp", Expression: "$.ip"},
+						{Type: sm.MultiHttpEntryVariableType_JSON_PATH, Name: "status", Expression: "$.status"},
+					},
+				},
+				{
+					Request: &sm.MultiHttpEntryRequest{
+						Method: sm.HttpMethod_GET,
+						Url:    "http://example.org/echo",
+					},
+					Assertions: []*sm.MultiHttpEntryAssertion{
+						{
+							Type:      sm.MultiHttpEntryAssertionType_TEXT,
+							Subject:   sm.MultiHttpEntryAssertionSubjectVariant_HTTP_STATUS_CODE,
+							Condition: sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+							Value:     "${status}",
+						},
+						{
+							Type:      sm.MultiHttpEntryAssertionType_TEXT,
+							Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_BODY,
+							Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+							Value:     "${probeIp}",
+						},
+						{
+							Type:      sm.MultiHttpEntryAssertionType_TEXT,
+							Subject:   sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
+							Condition: sm.MultiHttpEntryAssertionConditionVariant_CONTAINS,
+							Value:     "x-echo: ${probeIp}",
+						},
+						{
+							Type:       sm.MultiHttpEntryAssertionType_TEXT,
+							Subject:    sm.MultiHttpEntryAssertionSubjectVariant_RESPONSE_HEADERS,
+							Condition:  sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+							Expression: "X-Echo",
+							Value:      "${probeIp}",
+						},
+						{
+							Type:       sm.MultiHttpEntryAssertionType_JSON_PATH_VALUE,
+							Condition:  sm.MultiHttpEntryAssertionConditionVariant_EQUALS,
+							Expression: "$.theirValue",
+							Value:      "${probeIp}",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for name, settings := range testcases {
