@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
@@ -83,7 +84,14 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 	// Resolve secrets and build complete config at probe time
 	probeConfig, err := p.buildProbeConfig(ctx)
 	if err != nil {
-		p.logger.Error().Err(err).Msg("failed to resolve secrets for HTTP probe")
+		p.logger.Error().Err(err).Msg("failed to build config for HTTP probe")
+
+		// Only a secret failure reaches the check logs.
+		if secretErr, ok := errors.AsType[*secrets.Error](err); ok {
+			fields := append([]any{"msg", "Could not resolve a secret referenced by this check"}, secretErr.LogFields()...)
+			_ = level.Error(l).Log(fields...)
+		}
+
 		return false, 0
 	}
 
@@ -209,25 +217,33 @@ func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 }
 
 // resolveSecretValue resolves a secret value using string interpolation with ${secrets.secret_name} syntax.
-// A value holding no reference is returned unchanged.
-func resolveSecretValue(ctx context.Context, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) (string, error) {
+// A value holding no reference is returned unchanged. field names the setting in errors.
+func resolveSecretValue(ctx context.Context, field, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) (string, error) {
 	if value == "" {
 		return "", nil
 	}
 
 	resolver := interpolation.NewResolver(secretStore, tenantID, logger)
 
-	return resolver.Resolve(ctx, value)
+	resolved, err := resolver.Resolve(ctx, value)
+	if err != nil {
+		secretErr := secrets.AsError(err)
+		secretErr.Field = field
+
+		return "", secretErr
+	}
+
+	return resolved, nil
 }
 
 // resolveSecretBytes is resolveSecretValue for []byte. A value with no reference is returned as
 // is, without converting it to a string and back.
-func resolveSecretBytes(ctx context.Context, value []byte, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) ([]byte, error) {
+func resolveSecretBytes(ctx context.Context, field string, value []byte, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) ([]byte, error) {
 	if !bytes.Contains(value, []byte(interpolation.SecretRefPrefix)) {
 		return value, nil
 	}
 
-	resolved, err := resolveSecretValue(ctx, string(value), secretStore, tenantID, logger)
+	resolved, err := resolveSecretValue(ctx, field, string(value), secretStore, tenantID, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -270,18 +286,18 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 	}
 
 	// Resolve bearer token (may be a secret)
-	bearerToken, err := resolveSecretValue(ctx, settings.BearerToken, secretStore, tenantID, logger)
+	bearerToken, err := resolveSecretValue(ctx, "bearer token", settings.BearerToken, secretStore, tenantID, logger)
 	if err != nil {
-		return cfg, fmt.Errorf("failed to resolve bearer token: %w", err)
+		return cfg, err
 	}
 
 	cfg.BearerToken = promconfig.Secret(bearerToken)
 
 	if settings.BasicAuth != nil {
 		// Resolve password (may be a secret)
-		password, err := resolveSecretValue(ctx, settings.BasicAuth.Password, secretStore, tenantID, logger)
+		password, err := resolveSecretValue(ctx, "basic auth password", settings.BasicAuth.Password, secretStore, tenantID, logger)
 		if err != nil {
-			return cfg, fmt.Errorf("failed to resolve basic auth password: %w", err)
+			return cfg, err
 		}
 
 		cfg.BasicAuth = &promconfig.BasicAuth{
@@ -293,9 +309,9 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 	if settings.ProxyURL != "" {
 		var err error
 
-		cfg.ProxyURL.URL, err = url.Parse(settings.ProxyURL)
+		cfg.ProxyURL.URL, err = parseProxyURL(settings.ProxyURL)
 		if err != nil {
-			return cfg, fmt.Errorf("parsing proxy URL: %w", err)
+			return cfg, err
 		}
 
 		if len(settings.ProxyConnectHeaders) > 0 {
@@ -323,19 +339,19 @@ func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore se
 
 	var err error
 
-	resolvedTLSConfig.CACert, err = resolveSecretBytes(ctx, tlsConfig.CACert, secretStore, tenantID, logger)
+	resolvedTLSConfig.CACert, err = resolveSecretBytes(ctx, "CA cert", tlsConfig.CACert, secretStore, tenantID, logger)
 	if err != nil {
-		return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve CA cert: %w", err)
+		return promconfig.TLSConfig{}, err
 	}
 
-	resolvedTLSConfig.ClientCert, err = resolveSecretBytes(ctx, tlsConfig.ClientCert, secretStore, tenantID, logger)
+	resolvedTLSConfig.ClientCert, err = resolveSecretBytes(ctx, "client cert", tlsConfig.ClientCert, secretStore, tenantID, logger)
 	if err != nil {
-		return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client cert: %w", err)
+		return promconfig.TLSConfig{}, err
 	}
 
-	resolvedTLSConfig.ClientKey, err = resolveSecretBytes(ctx, tlsConfig.ClientKey, secretStore, tenantID, logger)
+	resolvedTLSConfig.ClientKey, err = resolveSecretBytes(ctx, "client key", tlsConfig.ClientKey, secretStore, tenantID, logger)
 	if err != nil {
-		return promconfig.TLSConfig{}, fmt.Errorf("failed to resolve client key: %w", err)
+		return promconfig.TLSConfig{}, err
 	}
 
 	// Use the existing TLS conversion function with resolved config
@@ -357,9 +373,9 @@ func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerol
 
 	var err error
 	if cfg.ProxyURL != "" {
-		r.ProxyURL.URL, err = url.Parse(cfg.ProxyURL)
+		r.ProxyURL.URL, err = parseProxyURL(cfg.ProxyURL)
 		if err != nil {
-			return nil, fmt.Errorf("parsing proxy URL: %w", err)
+			return nil, err
 		}
 	}
 
@@ -371,6 +387,21 @@ func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerol
 	}
 
 	return r, nil
+}
+
+// parseProxyURL is url.Parse without the URL in its error.
+func parseProxyURL(raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		// url.Parse quotes the whole raw URL, and a proxy URL might have user:password@.
+		if urlErr, ok := errors.AsType[*url.Error](err); ok {
+			err = urlErr.Err
+		}
+
+		return nil, fmt.Errorf("parsing proxy URL: %w", err)
+	}
+
+	return u, nil
 }
 
 // Overrides any user-provided headers with our own augmented values

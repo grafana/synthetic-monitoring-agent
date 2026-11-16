@@ -2,11 +2,13 @@ package interpolation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/rs/zerolog"
 )
 
@@ -24,6 +26,10 @@ const SecretRefPrefix = "${secrets."
 func HasSecretRef(value string) bool {
 	return strings.Contains(value, SecretRefPrefix)
 }
+
+// ErrInvalidSecretName is the reason Resolve gives for a reference whose name is not a valid
+// secret name.
+var ErrInvalidSecretName = errors.New("invalid secret name: use up to 253 lowercase letters, digits, '-' and '.', starting and ending with a letter or digit")
 
 // SecretProvider defines the interface for resolving secrets
 type SecretProvider interface {
@@ -73,7 +79,7 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 
 		// Validate secret name follows Kubernetes DNS subdomain naming convention
 		if !isValidSecretName(secretName) {
-			return "", fmt.Errorf("invalid secret name '%s': must follow Kubernetes DNS subdomain naming convention", secretName)
+			return "", &secrets.Error{Reason: ErrInvalidSecretName, Err: fmt.Errorf("name %q", secretName)}
 		}
 
 		secretMatches = append(secretMatches, secretMatch{
@@ -116,7 +122,10 @@ func (r *Resolver) resolveSecret(ctx context.Context, name string) (string, erro
 
 	secretValue, err := r.secretProvider.GetSecretValue(ctx, r.tenantID, name)
 	if err != nil {
-		return "", fmt.Errorf("failed to get secret '%s' from GSM: %w", name, err)
+		secretErr := secrets.AsError(err)
+		secretErr.Secret = name
+
+		return "", secretErr
 	}
 
 	return secretValue, nil
