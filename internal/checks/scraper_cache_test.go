@@ -11,6 +11,7 @@ import (
 	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
+	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
@@ -48,26 +49,36 @@ func TestNewUpdaterScraperCache(t *testing.T) {
 		return names
 	}
 
-	t.Run("nil cache disables the state writer", func(t *testing.T) {
+	t.Run("caching off hands scrapers a noop writer", func(t *testing.T) {
 		opts := base(t)
+		opts.ScraperCache = cache.NewNoop(opts.Logger) // present but unused: the flag decides
 
 		u, err := NewUpdater(opts)
 		require.NoError(t, err)
-		require.NotNil(t, u.stateWriter)
-		require.False(t, u.stateWriter.Enabled())
+		require.IsType(t, scraper.NoopStateWriter{}, u.stateWriter)
 		require.Empty(t, cacheMetricNames(t, opts.PromRegisterer.(prometheus.Gatherer)))
 	})
 
-	t.Run("a cache enables the state writer and its metrics", func(t *testing.T) {
+	t.Run("caching on builds the writer and registers its metrics", func(t *testing.T) {
 		opts := base(t)
+		opts.CacheScrapers = true
 		opts.ScraperCache = cache.NewNoop(opts.Logger)
 
 		u, err := NewUpdater(opts)
 		require.NoError(t, err)
-		require.True(t, u.stateWriter.Enabled())
+		require.NotNil(t, u.stateWriter)
+		require.IsType(t, scraper.NewStateWriter(opts.ScraperCache, prometheus.NewPedanticRegistry(), opts.Logger), u.stateWriter)
 		require.ElementsMatch(t,
 			[]string{metricPrefix + "record_bytes", metricPrefix + "writes_total"},
 			cacheMetricNames(t, opts.PromRegisterer.(prometheus.Gatherer)),
 		)
+	})
+
+	t.Run("caching on without a cache is a wiring error", func(t *testing.T) {
+		opts := base(t)
+		opts.CacheScrapers = true
+
+		_, err := NewUpdater(opts)
+		require.ErrorIs(t, err, errScraperCacheRequired)
 	})
 }

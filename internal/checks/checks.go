@@ -103,7 +103,7 @@ type Updater struct {
 	tenantLabellingMode     *labelmode.LabelMode
 	supportsProtocolSecrets bool
 	isClusterEnabled        bool
-	stateWriter             *scraper.StateWriter
+	stateWriter             scraper.StateWriter
 }
 
 type apiInfo struct {
@@ -148,10 +148,13 @@ type UpdaterOptions struct {
 	LabellingMode           *labelmode.LabelMode
 	SupportsProtocolSecrets bool
 	IsClusterEnabled        bool
-	// ScraperCache is where scrapers persist their state across restarts and
-	// migrations. nil disables caching scraper state.
-	ScraperCache cache.Cache
+	// CacheScrapers makes scrapers persist their state across restarts and
+	// migrations, in ScraperCache, which must then be set.
+	CacheScrapers bool
+	ScraperCache  cache.Cache
 }
+
+var errScraperCacheRequired = errors.New("caching scraper state requires a scraper cache")
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	scraperFactory := scraper.New
@@ -159,11 +162,17 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		scraperFactory = opts.ScraperFactory
 	}
 
-	// A nil cache.Cache converts to a nil StateStore, which NewStateWriter
-	// treats as disabled.
-	stateWriter := scraper.NewStateWriter(
-		opts.ScraperCache, opts.PromRegisterer, opts.Logger.With().Str("subsystem", "scraper_cache").Logger(),
-	)
+	var stateWriter scraper.StateWriter = scraper.NoopStateWriter{}
+
+	if opts.CacheScrapers {
+		if opts.ScraperCache == nil {
+			return nil, errScraperCacheRequired
+		}
+
+		stateWriter = scraper.NewStateWriter(
+			opts.ScraperCache, opts.PromRegisterer, opts.Logger.With().Str("subsystem", "scraper_cache").Logger(),
+		)
+	}
 
 	c := &Updater{
 		api: apiInfo{

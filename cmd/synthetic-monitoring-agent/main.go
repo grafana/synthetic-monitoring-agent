@@ -148,7 +148,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.IntVar(&config.CacheLocalCapacity, "cache-local-capacity", config.CacheLocalCapacity, "maximum number of items in local cache")
 	flags.DurationVar(&config.CacheLocalTTL, "cache-local-ttl", config.CacheLocalTTL, "default TTL for local cache items")
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
-	flags.BoolVar(&config.CacheScrapers, "cache-scrapers", config.CacheScrapers, "[experimental] persist scraper state in the agent cache (see -cache-type) so scrapers resume their cadence after a restart or migration; needs a backend shared across restarts such as memcached, local and noop caches cannot carry state")
+	flags.BoolVar(&config.CacheScrapers, "cache-scrapers", config.CacheScrapers, "[experimental] persist scraper state in the agent cache (see -cache-type) so scrapers resume their cadence after a restart or migration; needs the memcached cache, the only one that outlives a restart")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
 	flags.BoolVar(&config.BrowserPool.Enabled, "browser-pool-enabled", config.BrowserPool.Enabled, "[experimental] use remote browser sessions from an external browser (crocochrome) pool for browser checks instead of a local Chromium; requires -browser-pool-addresses")
@@ -296,9 +296,10 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	scraperCache := selectScraperCache(
-		config.CacheScrapers, cacheClient, cacheKind, zl.With().Str("subsystem", "scraper_cache").Logger(),
-	)
+	cacheScrapers := config.CacheScrapers && cacheKind == cache.KindMemcached
+	if config.CacheScrapers && !cacheScrapers {
+		zl.Warn().Stringer("backend", cacheKind).Msg("-cache-scrapers needs the memcached cache, the only one that outlives a restart; scraper state caching disabled")
+	}
 
 	// to know if probe is connected to API
 	readynessHandler := NewReadynessHandler()
@@ -464,7 +465,8 @@ func run(args []string, stdout io.Writer) error {
 		SupportsProtocolSecrets: config.EnableProtocolSecrets,
 		IsClusterEnabled:        config.Cluster.Enabled,
 		Node:                    clusterNode,
-		ScraperCache:            scraperCache,
+		CacheScrapers:           cacheScrapers,
+		ScraperCache:            cacheClient,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
@@ -742,32 +744,4 @@ func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) (c
 		Msg("local cache initialized")
 
 	return localCache, cache.KindLocal
-}
-
-// selectScraperCache picks the cache scrapers persist their state in. With
-// -cache-scrapers off it is nil, which the updater treats as disabled: no
-// encoding, no cache calls. With the flag on it is the agent's own cache,
-// shared with the tenants manager.
-//
-// The warnings flag backends that defeat the purpose, since a cache that
-// does not outlive the process cannot carry state across a restart;
-// a no-op backend also disables, as it would cost one encode per
-// scrape for nothing.
-func selectScraperCache(enabled bool, agentCache cache.Cache, agentKind cache.Kind, logger zerolog.Logger) cache.Cache {
-	if !enabled {
-		return nil
-	}
-
-	switch agentKind {
-	case cache.KindLocal:
-		logger.Warn().Msg("-cache-scrapers is set but the agent cache is in-process; scraper state will not survive a restart")
-	case cache.KindNoop:
-		logger.Warn().Msg("-cache-scrapers is set but the agent cache is a no-op; scraper state is not cached")
-
-		return nil
-	default:
-		logger.Info().Stringer("backend", agentKind).Msg("scraper cache enabled")
-	}
-
-	return agentCache
 }

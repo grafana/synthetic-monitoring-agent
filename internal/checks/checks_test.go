@@ -627,7 +627,7 @@ func testScraperFactory(ctx context.Context, check model.Check, publisher pusher
 	secretStore secrets.SecretProvider,
 	cals scraper.TenantCals,
 	labellingMode scraper.TenantLabelMode,
-	stateWriter *scraper.StateWriter,
+	stateWriter scraper.StateWriter,
 ) (*scraper.Scraper, error) {
 	return scraper.NewWithOpts(
 		ctx,
