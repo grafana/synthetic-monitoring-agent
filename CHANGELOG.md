@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.71.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.70.0...v0.71.0) (2026-11-16)
+
+
+### Features
+
+* Add Helm chart ([#2106](https://github.com/grafana/synthetic-monitoring-agent/issues/2106)) ([aec519c](https://github.com/grafana/synthetic-monitoring-agent/commit/aec519c6a75c46047e9321fa9801de5b3ddd5df5))
+
+
+### Fixes
+
+* **ci:** Require the Helm chart validation to merge chart changes ([#2134](https://github.com/grafana/synthetic-monitoring-agent/issues/2134)) ([16cc55f](https://github.com/grafana/synthetic-monitoring-agent/commit/16cc55fb0398e14ba635338582acf18848783369))
+* Report secret failures in the check logs ([#2010](https://github.com/grafana/synthetic-monitoring-agent/issues/2010)) ([5104a33](https://github.com/grafana/synthetic-monitoring-agent/commit/5104a33202ab81c7428da5a644b8f1e16d68878f))
+* Resolve variables in multihttp assertions ([#2128](https://github.com/grafana/synthetic-monitoring-agent/issues/2128)) ([d3d519d](https://github.com/grafana/synthetic-monitoring-agent/commit/d3d519d1ef1c39eb0e46b07e653d90acd2dcab6b))
+
+
+### Miscellaneous Chores
+
+* **deps:** update xk6-sm to v1.1.20 and v2.0.16 ([#2142](https://github.com/grafana/synthetic-monitoring-agent/issues/2142)) ([3600ea7](https://github.com/grafana/synthetic-monitoring-agent/commit/3600ea7e6819996a2a0296477aa26e1fddb09c62))
+* **deps:** update xk6-sm v2 to v2.0.15 ([#2135](https://github.com/grafana/synthetic-monitoring-agent/issues/2135)) ([048e323](https://github.com/grafana/synthetic-monitoring-agent/commit/048e3235bd82d6810aaadf75c5216bc0789b6875))
+* **docs:** Add browser pool examples ([#2035](https://github.com/grafana/synthetic-monitoring-agent/issues/2035)) ([f82b473](https://github.com/grafana/synthetic-monitoring-agent/commit/f82b473aafe2347077f449ce6a1cb5e09dffc757))
+* **docs:** Add k8s clustering example ([#2034](https://github.com/grafana/synthetic-monitoring-agent/issues/2034)) ([19c68ae](https://github.com/grafana/synthetic-monitoring-agent/commit/19c68aedd236c6f1b84ae59eaa1e4a62dc7ccd7a))
+* Update alpine:3.24.4 Docker digest to f59abe6 [SECURITY] ([#2122](https://github.com/grafana/synthetic-monitoring-agent/issues/2122)) ([9a6a7a2](https://github.com/grafana/synthetic-monitoring-agent/commit/9a6a7a2ffa87391556ee0431af2f3aed3a980c04))
+* Update module golang.org/x/crypto to v0.59.0 [SECURITY] ([#2130](https://github.com/grafana/synthetic-monitoring-agent/issues/2130)) ([5953b73](https://github.com/grafana/synthetic-monitoring-agent/commit/5953b73631c336ad0a21a14c37d17838a4437825))
+
 ## [0.70.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.69.0...v0.70.0) (2026-11-06)
 
 
