@@ -112,9 +112,12 @@ type Scraper struct {
 	histograms    map[uint64]prometheus.Histogram
 	telemeter     Telemeter
 	cals          TenantCals
-	// stateWriter is always non-nil, but only enabled if passed an operable cache.
-	stateWriter *StateWriter
-	// persistState is true if the stateWriter is enabled and the check runs with freq > 2m.
+	// stateWriter receives the state of every eligible execution; whether it
+	// keeps it is decided where the agent's cache is configured.
+	stateWriter StateWriter
+	// persistState is true for checks that run less often than the republish
+	// interval: a check that republishes anyway has nothing a successor could
+	// not reconstruct within the same window.
 	persistState bool
 }
 
@@ -129,7 +132,7 @@ type Factory func(
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
 	labellingMode TenantLabelMode,
-	stateWriter *StateWriter,
+	stateWriter StateWriter,
 ) (*Scraper, error)
 
 type (
@@ -166,7 +169,7 @@ func New(
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
 	labellingMode TenantLabelMode,
-	stateWriter *StateWriter,
+	stateWriter StateWriter,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
@@ -194,9 +197,8 @@ type ScraperOpts struct {
 	LabellingMode         TenantLabelMode
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
-	// StateWriter is required; it is effectively disabled if constructed with
-	// a nil store.
-	StateWriter *StateWriter
+	// StateWriter is required; pass NoopStateWriter when state is not cached.
+	StateWriter StateWriter
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
@@ -242,7 +244,7 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		telemeter:     opts.Telemeter,
 		cals:          opts.CostAttributionLabels,
 		stateWriter:   opts.StateWriter,
-		persistState:  opts.StateWriter.Enabled() && ms(check.Frequency) > maxPublishInterval,
+		persistState:  ms(check.Frequency) > maxPublishInterval,
 	}, nil
 }
 

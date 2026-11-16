@@ -100,9 +100,24 @@ func decodeStatePayload(b []byte) (TimeSeries, error) {
 	return req.Timeseries, nil
 }
 
-// StateWriter persists scraper state for every scraper in the agent. It owns
-// the per-write timeout and the metrics reporting each outcome, so a scraper
-// only ever calls Store.
+// StateWriter persists a scraper's state for its successor. A scraper calls
+// Store after every execution it is eligible for and never asks whether
+// anything is listening: an agent without a scraper cache hands out a
+// NoopStateWriter, so the decision is made once, where the cache is configured.
+type StateWriter interface {
+	// Store records the payload published for check together with nextFire,
+	// the check's next regular tick.
+	Store(ctx context.Context, check model.Check, nextFire time.Time, ts TimeSeries)
+}
+
+// NoopStateWriter is the StateWriter of an agent that does not cache scraper
+// state. It registers no metrics and costs nothing per call.
+type NoopStateWriter struct{}
+
+func (NoopStateWriter) Store(context.Context, model.Check, time.Time, TimeSeries) {}
+
+// stateWriter persists scraper state in a cache shared across restarts. It
+// owns the per-write timeout and the metrics reporting each outcome.
 //
 // Store is synchronous and unbounded by design. It runs on the scraper's own
 // goroutine after Publish has already handed the payload to the pusher, so the
@@ -110,7 +125,7 @@ func decodeStatePayload(b []byte) (TimeSeries, error) {
 // at most the write timeout.
 // Every scraper is already a goroutine, so this costs no new ones; concurrency is
 // naturally bounded by the number of scrapers finishing in the same window.
-type StateWriter struct {
+type stateWriter struct {
 	store   StateStore
 	timeout time.Duration
 	metrics stateWriterMetrics
@@ -122,22 +137,19 @@ type stateWriterMetrics struct {
 	recordBytes prometheus.Histogram
 }
 
-// NewStateWriter returns a writer backed by store. A nil store yields a
-// disabled writer: Store returns immediately and no metrics are registered.
-func NewStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) *StateWriter {
-	w := &StateWriter{
-		store:  store,
-		logger: logger,
+// NewStateWriter returns a writer backed by store, which must not be nil, and
+// registers its metrics with reg.
+func NewStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) StateWriter {
+	return newStateWriter(store, reg, logger)
+}
+
+func newStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) *stateWriter {
+	return &stateWriter{
+		store:   store,
+		timeout: stateWriteTimeout,
+		metrics: newStateWriterMetrics(reg),
+		logger:  logger,
 	}
-
-	if store == nil {
-		return w
-	}
-
-	w.timeout = stateWriteTimeout
-	w.metrics = newStateWriterMetrics(reg)
-
-	return w
 }
 
 func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
@@ -164,21 +176,12 @@ func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
 	return m
 }
 
-// Enabled reports whether Store persists anything.
-func (w *StateWriter) Enabled() bool {
-	return w.store != nil
-}
-
 // Store records the payload published for check and the check's next regular
 // tick, waiting at most stateWriteTimeout for the cache. Whether a check's
 // state is worth persisting at all is the scraper's decision (see
 // Scraper.persistState); Store only skips records whose TTL is already
 // non-positive.
-func (w *StateWriter) Store(ctx context.Context, check model.Check, nextFire time.Time, ts TimeSeries) {
-	if !w.Enabled() {
-		return
-	}
-
+func (w *stateWriter) Store(ctx context.Context, check model.Check, nextFire time.Time, ts TimeSeries) {
 	// Not an error: a record that would already have expired cannot help a
 	// successor, and a zero expiration would mean "keep forever" to the cache.
 	ttl := time.Until(nextFire.Add(stateSlack))

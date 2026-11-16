@@ -88,7 +88,7 @@ func stateTestSeries() TimeSeries {
 	}
 }
 
-func writesFor(w *StateWriter, result string) float64 {
+func writesFor(w *stateWriter, result string) float64 {
 	return testutil.ToFloat64(w.metrics.writes.WithLabelValues(result))
 }
 
@@ -152,17 +152,12 @@ func TestStatePayloadRoundTrip(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestStateWriterDisabled(t *testing.T) {
-	reg := prometheus.NewPedanticRegistry()
-	w := NewStateWriter(nil, reg, zerolog.Nop())
+func TestNoopStateWriter(t *testing.T) {
+	var w StateWriter = NoopStateWriter{}
 
-	require.False(t, w.Enabled())
-
+	// Nothing to assert beyond "returns": the noop has no store, no metrics
+	// and no registry to register them with.
 	w.Store(context.Background(), stateTestCheck(t, 5*time.Minute), time.Now().Add(5*time.Minute), stateTestSeries())
-
-	mfs, err := reg.Gather()
-	require.NoError(t, err)
-	require.Empty(t, mfs, "a disabled writer registers no metrics")
 }
 
 func TestStateWriterStore(t *testing.T) {
@@ -198,8 +193,7 @@ func TestStateWriterStore(t *testing.T) {
 			store := &fakeStateStore{err: tc.storeErr}
 
 			reg := prometheus.NewPedanticRegistry()
-			w := NewStateWriter(store, reg, zerolog.Nop())
-			require.True(t, w.Enabled())
+			w := newStateWriter(store, reg, zerolog.Nop())
 
 			check := stateTestCheck(t, tc.frequency)
 			series := stateTestSeries()
@@ -243,7 +237,7 @@ func TestStateWriterStore(t *testing.T) {
 func TestStateWriterStoreTimesOut(t *testing.T) {
 	store := &fakeStateStore{blockUntilDone: true}
 
-	w := NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	w := newStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
 	w.timeout = 20 * time.Millisecond
 
 	start := time.Now()
@@ -260,7 +254,7 @@ func TestStateWriterStoreTimesOut(t *testing.T) {
 func TestStateWriterStoreCancelledContext(t *testing.T) {
 	store := &fakeStateStore{blockUntilDone: true}
 
-	w := NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	w := newStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

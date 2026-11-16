@@ -3041,7 +3041,7 @@ func TestScraperRun(t *testing.T) {
 		CostAttributionLabels: testCalTenants{
 			costAttributionLabels: []string{"testing", "you"},
 		},
-		StateWriter: NewStateWriter(nil, nil, zerolog.Nop()),
+		StateWriter: NoopStateWriter{},
 	})
 
 	require.NoError(t, err)
@@ -3561,19 +3561,17 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 }
 
 // TestScraperPersistState pins the eligibility decision that gates every
-// StateWriter call: the writer must be enabled and the check must run less
-// often than the republish interval.
+// StateWriter call: the check must run less often than the republish
+// interval. Whether the writer keeps anything is not the scraper's concern.
 func TestScraperPersistState(t *testing.T) {
 	testcases := map[string]struct {
 		frequency time.Duration
-		store     StateStore // nil disables the writer
 		want      bool
 	}{
-		"5m check with an enabled writer persists": {frequency: 5 * time.Minute, store: &fakeStateStore{}, want: true},
-		"3m check with an enabled writer persists": {frequency: 3 * time.Minute, store: &fakeStateStore{}, want: true},
-		"2m check does not persist":                {frequency: 2 * time.Minute, store: &fakeStateStore{}, want: false},
-		"1m check does not persist":                {frequency: time.Minute, store: &fakeStateStore{}, want: false},
-		"5m check with a disabled writer does not": {frequency: 5 * time.Minute, want: false},
+		"5m check persists":         {frequency: 5 * time.Minute, want: true},
+		"3m check persists":         {frequency: 3 * time.Minute, want: true},
+		"2m check does not persist": {frequency: 2 * time.Minute, want: false},
+		"1m check does not persist": {frequency: time.Minute, want: false},
 	}
 
 	for name, tc := range testcases {
@@ -3592,6 +3590,8 @@ func TestScraperPersistState(t *testing.T) {
 				Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
 			}))
 
+			store := &fakeStateStore{}
+
 			s, err := NewWithOpts(t.Context(), check, ScraperOpts{
 				Metrics:               NewMetrics(&testCounter{}, &testCounterVec{counters: make(map[string]Incrementer), t: t}),
 				ProbeFactory:          testProbeFactory{builder: func() prober.Prober { return &testProberB{} }},
@@ -3601,7 +3601,7 @@ func TestScraperPersistState(t *testing.T) {
 				LabellingMode:         testLabellingMode{},
 				Telemeter:             &testTelemeter{},
 				CostAttributionLabels: testCalTenants{},
-				StateWriter:           NewStateWriter(tc.store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
+				StateWriter:           NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
 			})
 			require.NoError(t, err)
 			require.Equal(t, tc.want, s.persistState)
@@ -3611,12 +3611,10 @@ func TestScraperPersistState(t *testing.T) {
 			h := scrapeHandler{scraper: s}
 			h.scrape(t.Context(), time.Now())
 
-			if fake, ok := tc.store.(*fakeStateStore); ok {
-				if tc.want {
-					require.Len(t, fake.calls, 1)
-				} else {
-					require.Empty(t, fake.calls)
-				}
+			if tc.want {
+				require.Len(t, store.calls, 1)
+			} else {
+				require.Empty(t, store.calls)
 			}
 		})
 	}

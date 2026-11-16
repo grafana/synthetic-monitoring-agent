@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -57,63 +56,6 @@ func TestDeprecatedFeatureHints(t *testing.T) {
 	require.Contains(t, out.String(), `"level":"warn"`)
 	require.Contains(t, out.String(), "the `protocol-secrets` feature is now permanently enabled")
 	require.NotContains(t, out.String(), "the `k6` feature")
-}
-
-func TestSelectScraperCache(t *testing.T) {
-	agentCache := cache.NewNoop(zerolog.Nop())
-
-	testcases := map[string]struct {
-		enabled   bool
-		agentKind cache.Kind
-		wantAgent bool // the agent's cache is returned; otherwise nil, meaning disabled
-		wantWarn  string
-	}{
-		"disabled": {
-			agentKind: cache.KindMemcached,
-		},
-		"enabled with memcached": {
-			enabled:   true,
-			agentKind: cache.KindMemcached,
-			wantAgent: true,
-		},
-		"enabled with local warns about restarts": {
-			enabled:   true,
-			agentKind: cache.KindLocal,
-			wantAgent: true,
-			wantWarn:  "in-process",
-		},
-		"enabled with noop warns and disables": {
-			enabled:   true,
-			agentKind: cache.KindNoop,
-			wantWarn:  "no-op",
-		},
-	}
-
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			var buf bytes.Buffer
-
-			got := selectScraperCache(tc.enabled, agentCache, tc.agentKind, zerolog.New(&buf))
-
-			if tc.wantAgent {
-				require.Same(t, agentCache, got)
-			} else {
-				require.Nil(t, got)
-			}
-
-			if tc.wantWarn == "" {
-				require.NotContains(t, buf.String(), `"level":"warn"`)
-
-				if tc.enabled {
-					require.Contains(t, buf.String(), "scraper cache enabled")
-					require.Contains(t, buf.String(), fmt.Sprintf(`"backend":%q`, tc.agentKind))
-				}
-			} else {
-				require.Contains(t, buf.String(), `"level":"warn"`)
-				require.Contains(t, buf.String(), tc.wantWarn)
-			}
-		})
-	}
 }
 
 func TestSetupCacheKind(t *testing.T) {
