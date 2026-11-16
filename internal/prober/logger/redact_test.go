@@ -53,6 +53,29 @@ func TestRedacting(t *testing.T) {
 		}, rec.keyvals)
 	})
 
+	t.Run("keys and timestamps are never redacted", func(t *testing.T) {
+		var rec recordingLogger
+
+		short := strings.NewReplacer("16", "${secrets.short}").Replace
+
+		err := Redacting(&rec, short).Log(
+			"level", "DEBUG",
+			"msg", "port 16",
+			"time", "2026-11-16T16:20:39Z",
+			"ts", "2026-11-16T16:20:39Z",
+			"16", "16",
+		)
+		require.NoError(t, err)
+
+		require.Equal(t, []any{
+			"level", "DEBUG",
+			"msg", "port ${secrets.short}",
+			"time", "2026-11-16T16:20:39Z",
+			"ts", "2026-11-16T16:20:39Z",
+			"16", "${secrets.short}",
+		}, rec.keyvals)
+	})
+
 	t.Run("a value without a secret keeps its type", func(t *testing.T) {
 		var rec recordingLogger
 

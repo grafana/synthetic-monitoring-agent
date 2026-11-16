@@ -173,8 +173,10 @@ Blackbox exporter logs the `Host` header and each redirect it follows,
 and puts the `Host` value in TLS errors. The check logs keep every
 level, and a target can echo a value back. So the HTTP prober wraps the
 check logger and replaces each value it resolved in that run with its
-`${secrets.<name>}` text. A very short value is replaced in unrelated
-text too, and a transformed value, such as base64, is not replaced.
+`${secrets.<name>}` text. Log keys, the level and the timestamps stay as
+they are, because the scraper drops a line whose timestamp does not
+parse. A very short value is replaced in other unrelated text too, and
+a transformed value, such as base64, is not replaced.
 
 DNS is special: the project keeps an in-tree fork at
 `prober/dns/internal/bbe` because the upstream DNS prober is missing a

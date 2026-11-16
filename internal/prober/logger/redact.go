@@ -17,10 +17,21 @@ type redactingLogger struct {
 	redact func(string) string
 }
 
+// unredactedKeys hold values that cannot carry a secret. The scraper parses ts and time and drops
+// a line whose timestamp does not parse, which a short secret such as "16" could cause.
+var unredactedKeys = map[any]bool{"level": true, "time": true, "ts": true}
+
 func (r redactingLogger) Log(keyvals ...any) error {
 	redacted := make([]any, len(keyvals))
 
 	for i, kv := range keyvals {
+		// Keys come from code, so only values are redacted.
+		if i%2 == 0 || unredactedKeys[keyvals[i-1]] {
+			redacted[i] = kv
+
+			continue
+		}
+
 		switch v := kv.(type) {
 		case string:
 			redacted[i] = r.redact(v)
