@@ -2,8 +2,12 @@ package main
 
 import (
 	"testing"
+	"time"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 )
 
 func TestValidateCIDRs(t *testing.T) {
@@ -33,4 +37,12 @@ func TestValidateCIDRs(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+func TestSetupCacheRejectsRedis(t *testing.T) {
+	logger := zerolog.Nop()
+
+	_, err := setupCache(t.Context(), cache.KindRedis, nil, 10, time.Minute, &logger)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not supported for the tenants cache")
 }
