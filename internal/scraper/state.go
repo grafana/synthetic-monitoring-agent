@@ -8,7 +8,6 @@ import (
 
 	"github.com/klauspost/compress/zstd"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/prometheus/prompb"
 	"github.com/rs/zerolog"
 
@@ -154,13 +153,13 @@ func newStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.
 
 func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
 	m := stateWriterMetrics{
-		writes: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+		writes: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "sm_agent",
 			Subsystem: "scraper_cache",
 			Name:      "writes_total",
 			Help:      "Total number of scraper state writes by outcome.",
 		}, []string{"result"}),
-		recordBytes: promauto.With(reg).NewHistogram(prometheus.HistogramOpts{
+		recordBytes: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "sm_agent",
 			Subsystem: "scraper_cache",
 			Name:      "record_bytes",
@@ -168,6 +167,8 @@ func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
 			Buckets:   prometheus.ExponentialBuckets(1024, 2, 10),
 		}),
 	}
+
+	reg.MustRegister(m.writes, m.recordBytes)
 
 	for _, result := range stateResults {
 		m.writes.WithLabelValues(result)
