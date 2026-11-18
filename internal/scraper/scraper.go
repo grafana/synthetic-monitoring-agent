@@ -668,6 +668,13 @@ func tickWithOffset(
 		cacheNextFire(ctx, tickerStart.Add(period))
 	}
 
+	// The time of the last work or idle, whichever came later: stale markers
+	// go right after it. Earlier (the last tick, when an idle has republished
+	// since) they are out of order and mark nothing; later (now) they can land
+	// ahead of a successor that has already republished this series and hide
+	// it until its next publish.
+	lastPublish := lastTick
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -679,12 +686,7 @@ func tickWithOffset(
 		case <-stop:
 			workTicker.Stop()
 			inactivityTicker.Stop()
-			// if we are here, we already pushed something
-			// at least once, lastTick cannot be zero, but
-			// just in case...
-			if !lastTick.IsZero() {
-				cleanup(ctx, lastTick)
-			}
+			cleanup(ctx, lastPublish)
 
 			return
 
@@ -700,11 +702,12 @@ func tickWithOffset(
 			//      |    +-- run here
 			//      +-- don't run here because it's too close to the last run
 			if t.Sub(lastTick) >= minGap && lastTick.Add(period).Sub(t) >= minGap {
+				lastPublish = t
 				idle(ctx, t)
 			}
 
 		case t := <-workTicker.C:
-			lastTick = t
+			lastTick, lastPublish = t, t
 			work(ctx, t)
 			cacheNextFire(ctx, t.Add(period))
 		}
@@ -721,7 +724,11 @@ func waitForFirstTick(
 	start tickStart,
 	maxIdle, minGap time.Duration,
 ) (time.Time, bool) {
-	firstWorkAt := time.Now().Add(start.offset)
+	// A primed start republished its predecessor's payload just before
+	// calling; see the regular loop for why stale markers follow the last
+	// publish exactly.
+	lastPublish := time.Now()
+	firstWorkAt := lastPublish.Add(start.offset)
 	offsetTimer := time.NewTimer(start.offset)
 
 	defer offsetTimer.Stop()
@@ -743,13 +750,14 @@ func waitForFirstTick(
 				// a 'primed' tick is one where the scraper state was rehydrated
 				// from cache and the previous payload was republished; receiving
 				// a Stop() means we must run cleanup to stale-mark the timeseries.
-				cleanup(ctx, time.Now())
+				cleanup(ctx, lastPublish)
 			}
 
 			return time.Time{}, false
 
 		case t := <-inactivityTicker.C:
 			if firstWorkAt.Sub(t) >= minGap {
+				lastPublish = t
 				idle(ctx, t)
 			}
 
@@ -790,6 +798,9 @@ func waitForTick(
 ) (time.Time, bool) {
 	anchorTimer := time.NewTimer(time.Until(next))
 
+	// See the regular loop for why stale markers follow the last publish.
+	lastPublish := lastTick
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -801,12 +812,13 @@ func waitForTick(
 		case <-stop:
 			anchorTimer.Stop()
 			inactivityTicker.Stop()
-			cleanup(ctx, lastTick)
+			cleanup(ctx, lastPublish)
 
 			return time.Time{}, false
 
 		case t := <-inactivityTicker.C:
 			if t.Sub(lastTick) >= minGap && next.Sub(t) >= minGap {
+				lastPublish = t
 				idle(ctx, t)
 			}
 
