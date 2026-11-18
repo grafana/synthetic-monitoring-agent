@@ -25,25 +25,17 @@ type stateSetCall struct {
 	err   error
 }
 
-// fakeStateStore records Set calls. With blockUntilDone set, Set waits for the
-// context to end and returns its error, standing in for a cache that hangs.
+// fakeStateStore records Set calls and returns err from each. Like the
+// memcached client, it does not watch the context.
 type fakeStateStore struct {
-	calls          []stateSetCall
-	err            error
-	blockUntilDone bool
+	calls []stateSetCall
+	err   error
 }
 
-func (s *fakeStateStore) Set(ctx context.Context, key string, value any, ttl time.Duration) error {
-	err := s.err
+func (s *fakeStateStore) Set(_ context.Context, key string, value any, ttl time.Duration) error {
+	s.calls = append(s.calls, stateSetCall{key: key, value: value, ttl: ttl, err: s.err})
 
-	if s.blockUntilDone {
-		<-ctx.Done()
-		err = ctx.Err()
-	}
-
-	s.calls = append(s.calls, stateSetCall{key: key, value: value, ttl: ttl, err: err})
-
-	return err
+	return s.err
 }
 
 func stateTestCheck(t *testing.T, frequency time.Duration) model.Check {
@@ -232,42 +224,6 @@ func TestStateWriterStore(t *testing.T) {
 			require.Empty(t, problems)
 		})
 	}
-}
-
-func TestStateWriterStoreTimesOut(t *testing.T) {
-	store := &fakeStateStore{blockUntilDone: true}
-
-	w := newStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
-	w.timeout = 20 * time.Millisecond
-
-	start := time.Now()
-
-	w.Store(context.Background(), stateTestCheck(t, 5*time.Minute), time.Now().Add(5*time.Minute), stateTestSeries())
-
-	require.Less(t, time.Since(start), time.Second, "Store must return once the write timeout fires")
-	require.Len(t, store.calls, 1)
-	require.ErrorIs(t, store.calls[0].err, context.DeadlineExceeded)
-	require.Equal(t, 1.0, writesFor(w, "error"))
-	require.Equal(t, 0.0, writesFor(w, "ok"))
-}
-
-func TestStateWriterStoreCancelledContext(t *testing.T) {
-	store := &fakeStateStore{blockUntilDone: true}
-
-	w := newStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	start := time.Now()
-
-	w.Store(ctx, stateTestCheck(t, 5*time.Minute), time.Now().Add(5*time.Minute), stateTestSeries())
-
-	require.Less(t, time.Since(start), w.timeout, "a cancelled context must not wait for the write timeout")
-	require.Len(t, store.calls, 1)
-	require.ErrorIs(t, store.calls[0].err, context.Canceled)
-	require.Equal(t, 1.0, writesFor(w, "error"))
-	require.Equal(t, 0.0, writesFor(w, "ok"))
 }
 
 // benchPayloadSizes are the browser-check remote-write payload sizes measured

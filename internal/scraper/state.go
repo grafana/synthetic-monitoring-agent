@@ -26,9 +26,8 @@ type StateRecord struct {
 }
 
 const (
-	stateKeyPrefix    = "sm:scraper:v1:"
-	stateSlack        = 2 * time.Minute // aliveness slack beyond nextFire
-	stateWriteTimeout = 100 * time.Millisecond
+	stateKeyPrefix = "sm:scraper:v1:"
+	stateSlack     = 2 * time.Minute // aliveness slack beyond nextFire
 )
 
 const (
@@ -115,18 +114,19 @@ type NoopStateWriter struct{}
 
 func (NoopStateWriter) Store(context.Context, model.Check, time.Time, TimeSeries) {}
 
-// stateWriter persists scraper state in a cache shared across restarts. It
-// owns the per-write timeout and the metrics reporting each outcome.
+// stateWriter persists scraper state in a cache shared across restarts and
+// reports each outcome as a metric.
 //
-// Store is synchronous and unbounded by design. It runs on the scraper's own
-// goroutine after Publish has already handed the payload to the pusher, so the
-// only thing a slow cache delays is that scraper returning to its ticker, by
-// at most the write timeout.
+// Store is synchronous by design. It runs on the scraper's own goroutine after
+// Publish has already handed the payload to the pusher, so the only thing a
+// slow cache delays is that scraper returning to its ticker, by at most the
+// cache client's own timeout (100ms per socket operation for memcached, see
+// cache.DefaultTimeout). The context is passed on by convention; the memcached
+// client does not watch it.
 // Every scraper is already a goroutine, so this costs no new ones; concurrency is
 // naturally bounded by the number of scrapers finishing in the same window.
 type stateWriter struct {
 	store   StateStore
-	timeout time.Duration
 	metrics stateWriterMetrics
 	logger  zerolog.Logger
 }
@@ -145,7 +145,6 @@ func NewStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.
 func newStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) *stateWriter {
 	return &stateWriter{
 		store:   store,
-		timeout: stateWriteTimeout,
 		metrics: newStateWriterMetrics(reg),
 		logger:  logger,
 	}
@@ -178,9 +177,9 @@ func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
 }
 
 // Store records the payload published for check and the check's next regular
-// tick, waiting at most stateWriteTimeout for the cache. Whether a check's
-// state is worth persisting at all is the scraper's decision (see
-// Scraper.persistState); Store only skips records whose TTL is already
+// tick. The write is bounded by the cache client's own timeout, not by ctx.
+// Whether a check's state is worth persisting at all is the scraper's decision
+// (see Scraper.persistState); Store only skips records whose TTL is already
 // non-positive.
 func (w *stateWriter) Store(ctx context.Context, check model.Check, nextFire time.Time, ts TimeSeries) {
 	// Not an error: a record that would already have expired cannot help a
@@ -208,12 +207,6 @@ func (w *stateWriter) Store(ctx context.Context, check model.Check, nextFire tim
 		NextFire: nextFire,
 		Payload:  payload,
 	}
-
-	// ctx is the scraper's context. Stop() (check deleted, updated or moved to
-	// another probe) does not cancel it, so the write completes; it is only
-	// cancelled when the process is shutting down, and then the record is moot.
-	ctx, cancel := context.WithTimeout(ctx, w.timeout)
-	defer cancel()
 
 	if err := w.store.Set(ctx, key, record, ttl); err != nil {
 		w.metrics.writes.WithLabelValues(stateResultError).Inc()
