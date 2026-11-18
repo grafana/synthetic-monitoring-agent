@@ -3111,6 +3111,60 @@ func TestTickWithOffsetKeepsAnchorPhase(t *testing.T) {
 	require.InDelta(t, float64(ticks[2]), float64(scheduled[1]), float64(10*time.Millisecond), "first regular tick announced %v, fired %v", scheduled[1], ticks[2])
 }
 
+// TestTickWithOffsetCleanupAtLastPublish pins that the stale markers written on
+// stop are stamped at the last idle republish, exactly: earlier they are out of
+// order behind it and mark nothing; later they can land ahead of a successor
+// that has already republished the series.
+func TestTickWithOffsetCleanupAtLastPublish(t *testing.T) {
+	const (
+		period  = time.Second
+		maxIdle = 100 * time.Millisecond
+		minGap  = 50 * time.Millisecond
+	)
+
+	// Each start idles every 100ms until the stop at 450ms, well before the
+	// next run.
+	testcases := map[string]func(now time.Time) tickStart{
+		"before the first run": func(time.Time) tickStart {
+			return tickStart{offset: 900 * time.Millisecond, primed: true}
+		},
+		"in the regular loop": func(time.Time) tickStart {
+			return tickStart{offset: 1}
+		},
+		"during the anchored wait": func(now time.Time) tickStart {
+			return tickStart{offset: 1, anchor: now.Add(-100 * time.Millisecond), primed: true}
+		},
+	}
+
+	for name, start := range testcases {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := testhelper.Context(context.Background(), t)
+			t.Cleanup(cancel)
+
+			var idles, cleanups []time.Time
+
+			noop := func(context.Context, time.Time) {}
+			idle := func(_ context.Context, t time.Time) { idles = append(idles, t) }
+			cleanup := func(_ context.Context, t time.Time) { cleanups = append(cleanups, t) }
+
+			stop := make(chan struct{})
+
+			go func() {
+				time.Sleep(450 * time.Millisecond)
+				close(stop)
+			}()
+
+			tickWithOffset(ctx, stop, noop, idle, cleanup, noop, period, start(time.Now()), maxIdle, minGap)
+
+			require.NotEmpty(t, idles, "the wait republished at least once")
+			require.Len(t, cleanups, 1)
+
+			last := idles[len(idles)-1]
+			require.True(t, cleanups[0].Equal(last), "cleanup at %v, last idle at %v", cleanups[0], last)
+		})
+	}
+}
+
 // TestTickWithOffsetSkipsTickOverrunByCatchUp pins that an on-phase tick which
 // passes while the first (catch-up) execution is still running is skipped, not
 // fired late: a late fire would double-scrape and phase the ticker on the late
