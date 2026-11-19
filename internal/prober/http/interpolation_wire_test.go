@@ -313,6 +313,7 @@ func TestInterpolationOnTheWire(t *testing.T) {
 				wireTokenName: wireTokenValue + "\n",
 			}),
 			wantFailure:          true,
+			wantLogContains:      "failed to send header X-Api-Key: secret '" + wireTokenName + "'",
 			wantCheckLogContains: `msg="Could not send a secret referenced by this check" field="header X-Api-Key" secret=api-token`,
 		},
 

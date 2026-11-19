@@ -40,7 +40,12 @@ func (e *Error) Error() string {
 	var b strings.Builder
 
 	if e.Field != "" {
-		b.WriteString("failed to resolve " + e.Field + ": ")
+		verb := "resolve"
+		if errors.Is(e.reason(), ErrSecretValueInvalidInHeader) {
+			verb = "send"
+		}
+
+		b.WriteString("failed to " + verb + " " + e.Field + ": ")
 	}
 
 	if e.Secret != "" {
