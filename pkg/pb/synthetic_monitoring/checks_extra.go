@@ -148,10 +148,12 @@ const (
 //
 // This map must not be modified at runtime. Use IsSystemLabel to query it.
 //
-// Intentionally excluded labels not useful in the SM context; the agent omits
-// them from metrics and logs:
+// Intentionally excluded labels not useful in the SM context:
 //
-//   - from_cache, from_prefetch_cache, from_service_worker, resource_type
+//   - from_cache, from_prefetch_cache, from_service_worker, resource_type: k6
+//     browser emits these per request; in DUAL_WRITE and UNPREFIXED modes the
+//     agent strips them from metrics (migratedOmittedMetricLabels in
+//     internal/scraper).
 //   - region: the agent renames this to sm_region (see sm_region in this map).
 //
 // Tenants are free to define any of these as user labels without collision
