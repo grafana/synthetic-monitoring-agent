@@ -2134,3 +2134,26 @@ func BenchmarkIsSystemLabel(b *testing.B) {
 
 	_ = found
 }
+
+func TestSplitHeader(t *testing.T) {
+	testcases := map[string]struct {
+		header    string
+		wantName  string
+		wantValue string
+	}{
+		"name and value":      {header: "X-Key: value", wantName: "X-Key", wantValue: "value"},
+		"no space":            {header: "X-Key:value", wantName: "X-Key", wantValue: "value"},
+		"colon in the value":  {header: "X-Key: a:b", wantName: "X-Key", wantValue: "a:b"},
+		"only leading spaces": {header: "X-Key:  \tvalue ", wantName: "X-Key", wantValue: "\tvalue "},
+		"no colon":            {header: "X-Key", wantName: "X-Key", wantValue: ""},
+		"empty value":         {header: "X-Key:", wantName: "X-Key", wantValue: ""},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			gotName, gotValue := SplitHeader(tc.header)
+			require.Equal(t, tc.wantName, gotName)
+			require.Equal(t, tc.wantValue, gotValue)
+		})
+	}
+}

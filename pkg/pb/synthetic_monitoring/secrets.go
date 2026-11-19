@@ -5,7 +5,6 @@ import (
 	"iter"
 	"regexp"
 	"slices"
-	"strings"
 
 	"github.com/tdewolff/parse/v2"
 	"github.com/tdewolff/parse/v2/js"
@@ -162,9 +161,9 @@ func (h *HttpSettings) secretFields(yield func(SecretField) bool) {
 // headerValueReferencesSecrets reports whether the value of a "Name: value"
 // header points at a secret. The name is left out.
 func headerValueReferencesSecrets(header string) bool {
-	_, value, found := strings.Cut(header, ":")
+	_, value := SplitHeader(header)
 
-	return found && secretRefRegex.MatchString(value)
+	return secretRefRegex.MatchString(value)
 }
 
 // scriptReferencesSecrets reports whether the script names the secrets module.

@@ -40,7 +40,8 @@ type Prober struct {
 	tenantID                   model.GlobalID
 	logger                     zerolog.Logger
 	cacheBustingQueryParamName string
-	staticConfig               config.Module
+	// Built once; header values still hold ${secrets.name}, resolved on each run.
+	staticConfig config.Module
 }
 
 func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, reservedHeaders http.Header, secretStore secrets.SecretProvider) (Prober, error) {
@@ -284,7 +285,7 @@ func resolveHeaders(ctx context.Context, headers map[string]string, resolver *in
 // checkResolvedHeaderValue fails when resolving put a character into a header value that HTTP does
 // not allow, such as the line break a stored secret often ends with. The HTTP client rejects such a
 // request too, but its error does not tell the check owner that a secret is the cause. A bad
-// character typed into the check itself is left to the HTTP client, as before.
+// character typed into the check itself is left to the HTTP client.
 func checkResolvedHeaderValue(field, raw, resolved string) error {
 	if httpguts.ValidHeaderFieldValue(resolved) || !httpguts.ValidHeaderFieldValue(raw) {
 		return nil
@@ -377,7 +378,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 			headers := make(promconfig.ProxyHeader)
 
 			for _, h := range settings.ProxyConnectHeaders {
-				name, value := strToHeaderNameValue(h)
+				name, value := sm.SplitHeader(h)
 				headers[name] = []promconfig.Secret{promconfig.Secret(value)}
 			}
 
@@ -469,7 +470,7 @@ func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 	headers := []string{}
 
 	for _, header := range check.Settings.Http.Headers {
-		name, _ := strToHeaderNameValue(header)
+		name, _ := sm.SplitHeader(header)
 
 		_, present := reservedHeaders[http.CanonicalHeaderKey(name)]
 		if present {
@@ -501,7 +502,7 @@ func buildHttpHeaders(headers []string) map[string]string {
 	}
 
 	for _, header := range headers {
-		name, value := strToHeaderNameValue(header)
+		name, value := sm.SplitHeader(header)
 
 		if strings.ToLower(name) == userAgentHeader {
 			// Remove the default user-agent header and
@@ -516,17 +517,6 @@ func buildHttpHeaders(headers []string) map[string]string {
 	}
 
 	return h
-}
-
-func strToHeaderNameValue(s string) (string, string) {
-	parts := strings.SplitN(s, ":", 2)
-
-	var value string
-	if len(parts) == 2 {
-		value = strings.TrimLeft(parts[1], " ")
-	}
-
-	return parts[0], value
 }
 
 func addCacheBustParam(target, paramName, salt string) string {

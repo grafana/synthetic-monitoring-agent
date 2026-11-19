@@ -59,8 +59,7 @@ func NewResolver(secretProvider SecretProvider, tenantID model.GlobalID, logger 
 }
 
 // Resolve replaces every ${secrets.name} reference in value with that secret's value. Everything
-// else is copied through byte for byte, including a bare ${name}, which this package does not
-// expand.
+// else is copied through byte for byte.
 func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 	// No "${secrets." in the value, so skip all the secret work.
 	if !HasSecretRef(value) {
