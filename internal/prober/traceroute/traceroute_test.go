@@ -118,6 +118,21 @@ func TestSettingsToModule(t *testing.T) {
 				srcAddr:        "",
 			},
 		},
+		"max-hops": {
+			input: sm.TracerouteSettings{
+				MaxHops: 10,
+			},
+			expected: Module{
+				count:          5,
+				timeout:        30 * time.Second,
+				hopTimeout:     500 * time.Millisecond,
+				interval:       time.Nanosecond,
+				hopSleep:       time.Nanosecond,
+				maxHops:        10,
+				maxUnknownHops: 15,
+				ringBufferSize: 50,
+			},
+		},
 	}
 
 	for name, testcase := range testcases {
