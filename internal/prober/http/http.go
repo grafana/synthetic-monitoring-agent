@@ -319,7 +319,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 
 			for _, h := range settings.ProxyConnectHeaders {
 				name, value := strToHeaderNameValue(h)
-				headers[name] = []promconfig.Secret{promconfig.Secret(value)}
+				headers[name] = append(headers[name], promconfig.Secret(value))
 			}
 
 			cfg.ProxyConnectHeader = headers
