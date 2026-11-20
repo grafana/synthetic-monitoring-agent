@@ -66,6 +66,7 @@ type Metrics interface {
 	AddScrape()
 	AddCheckError()
 	AddCollectorError()
+	AddStart(mode string)
 }
 
 type LabelsLimiter interface {
@@ -102,13 +103,16 @@ type Scraper struct {
 	histograms    map[uint64]prometheus.Histogram
 	telemeter     Telemeter
 	cals          TenantCals
-	// stateWriter receives the state of every eligible execution; whether it
+	// stateCache receives the state of every eligible execution; whether it
 	// keeps it is decided where the agent's cache is configured.
-	stateWriter StateWriter
+	stateCache StateCache
 	// persistState is true for checks that run less often than the republish
 	// interval: a check that republishes anyway has nothing a successor could
 	// not reconstruct within the same window.
 	persistState bool
+	// catchUpJitter is the upper bound of the random delay before a catch-up
+	// execution; tests zero it.
+	catchUpJitter time.Duration
 }
 
 type Factory func(
@@ -122,7 +126,7 @@ type Factory func(
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
 	labellingMode TenantLabelMode,
-	stateWriter StateWriter,
+	stateCache StateCache,
 ) (*Scraper, error)
 
 type (
@@ -159,7 +163,7 @@ func New(
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
 	labellingMode TenantLabelMode,
-	stateWriter StateWriter,
+	stateCache StateCache,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
@@ -171,7 +175,7 @@ func New(
 		Telemeter:             telemeter,
 		CostAttributionLabels: cals,
 		LabellingMode:         labellingMode,
-		StateWriter:           stateWriter,
+		StateCache:            stateCache,
 	})
 }
 
@@ -187,13 +191,13 @@ type ScraperOpts struct {
 	LabellingMode         TenantLabelMode
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
-	// StateWriter is required; pass NoopStateWriter when state is not cached.
-	StateWriter StateWriter
+	// StateCache is required; pass NoopStateCache when state is not cached.
+	StateCache StateCache
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
-	if opts.StateWriter == nil {
-		return nil, errStateWriterRequired
+	if opts.StateCache == nil {
+		return nil, errStateCacheRequired
 	}
 
 	checkName := check.Type().String()
@@ -233,16 +237,17 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		histograms:    make(map[uint64]prometheus.Histogram),
 		telemeter:     opts.Telemeter,
 		cals:          opts.CostAttributionLabels,
-		stateWriter:   opts.StateWriter,
+		stateCache:    opts.StateCache,
 		persistState:  ms(check.Frequency) > maxPublishInterval,
+		catchUpJitter: stateCatchUpJitter,
 	}, nil
 }
 
 var (
-	errCheckFailed         = errors.New("probe failed")
-	errUnsupportedMetric   = errors.New("unsupported metric type")
-	errTooManyLabels       = errors.New("invalid configuration, too many labels")
-	errStateWriterRequired = errors.New("state writer is required")
+	errCheckFailed        = errors.New("probe failed")
+	errUnsupportedMetric  = errors.New("unsupported metric type")
+	errTooManyLabels      = errors.New("invalid configuration, too many labels")
+	errStateCacheRequired = errors.New("state cache is required")
 )
 
 type checkStateMachine struct {
@@ -287,22 +292,16 @@ func (s *Scraper) Run(ctx context.Context) {
 	// TODO(mem): keep count of the number of successive errors and
 	// collect logs if threshold is reached.
 
-	var (
-		frequency = ms(s.check.Frequency)
-		offset    = ms(s.check.Offset)
-	)
+	h := scrapeHandler{scraper: s}
 
-	if offset == 0 {
-		offset = randDuration(min(frequency, maxPublishInterval))
-	}
-
-	scrapeHandler := scrapeHandler{scraper: s}
+	start, mode := s.hydrate(ctx, &h)
+	s.metrics.AddStart(mode.String())
 
 	tickWithOffset(
 		ctx,
 		s.stop,
-		scrapeHandler.scrape, scrapeHandler.republish, scrapeHandler.cleanup,
-		frequency, offset,
+		h.scrape, h.republish, h.cleanup, h.cacheState,
+		ms(s.check.Frequency), start,
 		maxPublishInterval, minPublishGap,
 	)
 
@@ -311,10 +310,149 @@ func (s *Scraper) Run(ctx context.Context) {
 	s.logger.Info().Msg("scraper stopped")
 }
 
+// coldStart is how a scraper with no usable predecessor record starts: the
+// first execution after the check's own offset or, lacking one, a random
+// delay that spreads the executions of the checks assigned at the same time.
+func (s *Scraper) coldStart() tickStart {
+	offset := ms(s.check.Offset)
+
+	if offset == 0 {
+		offset = randDuration(min(ms(s.check.Frequency), maxPublishInterval))
+	}
+
+	return tickStart{offset: offset}
+}
+
+// hydrate looks for the record a predecessor of this scraper left in the state
+// cache. With one inside the acceptance window it republishes the
+// predecessor's last payload at once, so the series does not go stale during
+// the handoff, and returns a start that continues the predecessor's cadence.
+// Otherwise the scraper starts cold. The mode says which it was.
+func (s *Scraper) hydrate(ctx context.Context, h *scrapeHandler) (tickStart, startMode) {
+	if !s.persistState {
+		return s.coldStart(), startCold
+	}
+
+	// Every scraper on a restarting pod reaches this point at the same
+	// instant; the cache bounds how many of these lookups run at once.
+	rec, ts, ok := s.stateCache.Load(ctx, s.check)
+	if !ok {
+		// no previous record; either check is net-new (first execution)
+		// or the record expired. Degrade to cold-start behaviour.
+		return s.coldStart(), startCold
+	}
+
+	var (
+		now       = time.Now()
+		frequency = ms(s.check.Frequency)
+	)
+
+	firedAt := rec.NextFire.Add(-frequency)
+	cachedRecordAge := now.Sub(firedAt)
+
+	mode, start := planStart(now, rec, frequency, ms(s.check.Timeout), randDuration(s.catchUpJitter))
+
+	h.payload = &probeData{tenantId: s.check.GlobalTenantID(), ts: ts}
+
+	// Even when the first execution is imminent: its sample exists only once
+	// it finishes, and for the checks that persist state that can be minutes
+	// after it starts. The echo keeps the series alive until then.
+	h.republish(ctx, now)
+
+	s.logger.Info().
+		Str("subsystem", "scraper_cache").
+		Str("key", stateKey(s.check)).
+		Stringer("mode", mode).
+		Time("next_fire", rec.NextFire).
+		Dur("age", cachedRecordAge).
+		Msg("resuming predecessor's scraper state")
+
+	return start, mode
+}
+
+type startMode int
+
+const (
+	startCold startMode = iota
+	startResume
+	startCatchUp
+)
+
+func (m startMode) String() string {
+	switch m {
+	case startCold:
+		return "cold"
+	case startResume:
+		return "resume"
+	case startCatchUp:
+		return "catch_up"
+	default:
+		return strconv.Itoa(int(m))
+	}
+}
+
+// tickStart describes how tickWithOffset reaches its first regular tick.
+type tickStart struct {
+	// offset is the delay before the work work()
+	offset time.Duration
+	// anchor is the phase of the periodic ticks after the first work(); zero
+	// means the first work() itself sets the phase.
+	anchor time.Time
+	// primed marks a start whose caller has already published for this cadence
+	// before the first work(): idle() then runs on the maxIdle cadence during
+	// the wait, and cleanup() runs if the wait is stopped, exactly as after a
+	// work().
+	primed bool
+}
+
+// planStart decides how a scraper that found rec should start. jitter is the
+// delay before a catch-up execution.
+//
+// NextFire is trusted as found: the predecessor computed it as its tick time
+// plus the frequency, and the key carries the config version, so it can never
+// be more than one frequency ahead nor belong to a different frequency.
+func planStart(now time.Time, rec StateRecord, frequency, timeout, jitter time.Duration) (startMode, tickStart) {
+	nextFire := rec.NextFire
+
+	if now.Before(nextFire) {
+		// nextFire is in the future, resume firing at that point.
+		return startResume, tickStart{offset: nextFire.Sub(now), anchor: nextFire, primed: true}
+	}
+
+	// nextFire was in the recent past - we missed an execution.
+	// Decide to do a catch-up execution or not: if the next regular tick is
+	// due before a catch-up starting after the jitter could finish (timeout),
+	// the catch-up would run past it and that tick would be skipped; wait for
+	// the regular tick instead.
+	//
+	// timeout bounds a healthy run. A k6 run the runner retries can exceed it,
+	// in which case the catch-up still costs the one tick it runs past; the
+	// loop then settles onto the following on-phase instant.
+	if regular := nextFire.Add(frequency); regular.Sub(now.Add(jitter)) <= timeout {
+		return startResume, tickStart{offset: regular.Sub(now), anchor: nextFire, primed: true}
+	}
+
+	// This is now a "catch-up" execution and should be run imminently.
+	return startCatchUp, tickStart{offset: jitter, anchor: nextFire, primed: true}
+}
+
 type scrapeHandler struct {
 	scraper *Scraper
 	payload *probeData // needed to keep the most recently published payload for republication and clean up
 	sm      checkStateMachine
+}
+
+// cacheState records the last scraped payload together with next, the tick the
+// loop has just armed. The loop is the only place that knows when the next
+// execution really happens, so the record is written here rather than in
+// scrape: a record that named a tick the loop then skipped would hand a
+// successor a cadence this scraper never followed, with a TTL to match.
+func (h *scrapeHandler) cacheState(ctx context.Context, next time.Time) {
+	if !h.scraper.persistState || h.payload == nil {
+		return
+	}
+
+	h.scraper.stateCache.Store(ctx, h.scraper.check, next, h.payload.ts)
 }
 
 func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
@@ -371,11 +509,6 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 
 	if h.payload != nil {
 		h.scraper.publisher.Publish(h.payload)
-
-		if h.scraper.persistState {
-			nextFire := t.Add(ms(h.scraper.check.Frequency))
-			h.scraper.stateWriter.Store(ctx, h.scraper.check, nextFire, h.payload.ts)
-		}
 	}
 }
 
@@ -428,6 +561,10 @@ func ms(n int64) time.Duration {
 }
 
 func randDuration(d time.Duration) time.Duration {
+	if d <= 0 {
+		return 0
+	}
+
 	return time.Duration(rand.Int63n(int64(d)))
 }
 
@@ -444,54 +581,47 @@ func (s Scraper) ConfigVersion() string {
 	return s.check.ConfigVersion()
 }
 
+// tickWithOffset drives one scraper: work on every tick, idle republishes in
+// between, cleanup on stop. cacheNextFire is called after each work with the
+// instant the next on-phase tick has been armed for, so the caller can persist a
+// schedule that matches what the loop will actually do.
 func tickWithOffset(
 	ctx context.Context,
 	stop <-chan struct{},
-	work, idle, cleanup func(context.Context, time.Time),
-	period, offset, maxIdle, minGap time.Duration,
+	work, idle, cleanup, cacheNextFire func(context.Context, time.Time),
+	period time.Duration,
+	start tickStart,
+	maxIdle, minGap time.Duration,
 ) {
-	// wait for up to offset duration, paying attention to cancellation signals.
-	offsetTimer := time.NewTimer(offset)
-
-	var lastTick time.Time
-
-	drainOffsetTimer := func() {
-		if !offsetTimer.Stop() {
-			<-offsetTimer.C
-		}
-	}
-
 	// Check context and stop channels first, to avoid runnig the work
 	// function if we have been cancelled already. This can happen with a 0
 	// offset, and the Go runtime choosing to send the offset tick before
 	// other two channels.
 	select {
 	case <-ctx.Done():
-		drainOffsetTimer()
 		return
 
 	case <-stop:
-		drainOffsetTimer()
-		// we haven't done anything yet, no clean up
+		// A cold start has published nothing yet. A primed one has already
+		// republished its predecessor's payload, which must not be left alive.
+		if start.primed {
+			cleanup(ctx, time.Now())
+		}
+
 		return
 
 	default:
 	}
 
-	select {
-	case <-ctx.Done():
-		drainOffsetTimer()
+	// wait for the first tick before we must do work.
+	// for [startResume] checks, this is the time until nextFire.
+	// for [startCatchUp] checks, this is within the next 30s (but prior to nextFire).
+	lastTick, ok := waitForFirstTick(ctx, stop, idle, cleanup, period, start, maxIdle, minGap)
+	if !ok {
 		return
-
-	case <-stop:
-		drainOffsetTimer()
-		// we haven't done anything yet, no clean up
-		return
-
-	case t := <-offsetTimer.C:
-		lastTick = t
-		work(ctx, t)
 	}
+
+	work(ctx, lastTick)
 
 	// create a ticker that won't fire, and replace it with a running
 	// ticker in case we need it.
@@ -501,7 +631,44 @@ func tickWithOffset(
 		inactivityTicker = time.NewTicker(maxIdle)
 	}
 
-	workTicker := time.NewTicker(period)
+	var workTicker *time.Ticker
+
+	if start.anchor.IsZero() {
+		// this is a cold start - tick every period
+		tickerStart := time.Now()
+		workTicker = time.NewTicker(period)
+
+		cacheNextFire(ctx, tickerStart.Add(period))
+	} else {
+		// Otherwise settle onto the anchor's phase. From now, not from
+		// lastTick: the execution that just ran may have overrun the next
+		// on-phase instant, and firing it late would scrape twice in a row
+		// and phase the ticker on the late instant.
+		next := nextOnPhase(start.anchor, time.Now(), period)
+
+		cacheNextFire(ctx, next)
+
+		lastTick, ok = waitForTick(ctx, stop, idle, cleanup, inactivityTicker, next, lastTick, minGap)
+		if !ok {
+			return
+		}
+
+		// Phased on the anchored tick, not on the end of the execution it
+		// starts: a browser check can run for a minute or more, and a cadence
+		// that shifted by that much at every handoff would defeat the record.
+		tickerStart := time.Now()
+		workTicker = time.NewTicker(period)
+
+		work(ctx, lastTick)
+		cacheNextFire(ctx, tickerStart.Add(period))
+	}
+
+	// The time of the last work or idle, whichever came later: stale markers
+	// go right after it. Earlier (the last tick, when an idle has republished
+	// since) they are out of order and mark nothing; later (now) they can land
+	// ahead of a successor that has already republished this series and hide
+	// it until its next publish.
+	lastPublish := lastTick
 
 	for {
 		select {
@@ -514,12 +681,7 @@ func tickWithOffset(
 		case <-stop:
 			workTicker.Stop()
 			inactivityTicker.Stop()
-			// if we are here, we already pushed something
-			// at least once, lastTick cannot be zero, but
-			// just in case...
-			if !lastTick.IsZero() {
-				cleanup(ctx, lastTick)
-			}
+			cleanup(ctx, lastPublish)
 
 			return
 
@@ -535,12 +697,128 @@ func tickWithOffset(
 			//      |    +-- run here
 			//      +-- don't run here because it's too close to the last run
 			if t.Sub(lastTick) >= minGap && lastTick.Add(period).Sub(t) >= minGap {
+				lastPublish = t
 				idle(ctx, t)
 			}
 
 		case t := <-workTicker.C:
-			lastTick = t
+			lastTick, lastPublish = t, t
 			work(ctx, t)
+			cacheNextFire(ctx, t.Add(period))
+		}
+	}
+}
+
+// waitForFirstTick waits start.offset and returns the time of the first tick,
+// or false if the wait was cancelled or stopped.
+func waitForFirstTick(
+	ctx context.Context,
+	stop <-chan struct{},
+	idle, cleanup func(context.Context, time.Time),
+	period time.Duration,
+	start tickStart,
+	maxIdle, minGap time.Duration,
+) (time.Time, bool) {
+	// A primed start republished its predecessor's payload just before
+	// calling; see the regular loop for why stale markers follow the last
+	// publish exactly.
+	lastPublish := time.Now()
+	firstWorkAt := lastPublish.Add(start.offset)
+	offsetTimer := time.NewTimer(start.offset)
+
+	defer offsetTimer.Stop()
+
+	inactivityTicker := &time.Ticker{}
+
+	if start.primed && period > maxIdle {
+		inactivityTicker = time.NewTicker(maxIdle)
+		defer inactivityTicker.Stop()
+	}
+
+	for {
+		select {
+		case <-ctx.Done():
+			return time.Time{}, false
+
+		case <-stop:
+			if start.primed {
+				// a 'primed' tick is one where the scraper state was rehydrated
+				// from cache and the previous payload was republished; receiving
+				// a Stop() means we must run cleanup to stale-mark the timeseries.
+				cleanup(ctx, lastPublish)
+			}
+
+			return time.Time{}, false
+
+		case t := <-inactivityTicker.C:
+			if firstWorkAt.Sub(t) >= minGap {
+				lastPublish = t
+				idle(ctx, t)
+			}
+
+		case t := <-offsetTimer.C:
+			return t, true
+		}
+	}
+}
+
+// nextOnPhase returns the first instant on anchor's phase (anchor + k·period)
+// strictly after t. anchor may lie in the past. On-phase instants at or before
+// t are skipped, never fired late: executions run on cadence or not at all.
+func nextOnPhase(anchor, t time.Time, period time.Duration) time.Time {
+	// How far past the anchor t lies; negative means the anchor itself is
+	// still ahead.
+	gap := t.Sub(anchor)
+	if gap < 0 {
+		return anchor
+	}
+
+	// Integer division: gap/period + 1 is the smallest k with k·period > gap.
+	k := int64(gap/period) + 1
+
+	return anchor.Add(time.Duration(k) * period)
+}
+
+// waitForTick waits until next, servicing idle runs and stops like the regular
+// loop, and returns the tick's time, or false if the wait was cancelled or
+// stopped. It takes over the inactivity ticker so the idle cadence is the same
+// one the regular loop continues with.
+func waitForTick(
+	ctx context.Context,
+	stop <-chan struct{},
+	idle, cleanup func(context.Context, time.Time),
+	inactivityTicker *time.Ticker,
+	next, lastTick time.Time,
+	minGap time.Duration,
+) (time.Time, bool) {
+	anchorTimer := time.NewTimer(time.Until(next))
+
+	// See the regular loop for why stale markers follow the last publish.
+	lastPublish := lastTick
+
+	for {
+		select {
+		case <-ctx.Done():
+			anchorTimer.Stop()
+			inactivityTicker.Stop()
+
+			return time.Time{}, false
+
+		case <-stop:
+			anchorTimer.Stop()
+			inactivityTicker.Stop()
+			cleanup(ctx, lastPublish)
+
+			return time.Time{}, false
+
+		case t := <-inactivityTicker.C:
+			if t.Sub(lastTick) >= minGap && next.Sub(t) >= minGap {
+				lastPublish = t
+				idle(ctx, t)
+			}
+
+		case t := <-anchorTimer.C:
+			return t, true
 		}
 	}
 }

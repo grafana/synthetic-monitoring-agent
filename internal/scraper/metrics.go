@@ -2,20 +2,28 @@ package scraper
 
 import "github.com/prometheus/client_golang/prometheus"
 
-func NewMetrics(scrapeCounter Incrementer, errorCounter IncrementerVec) Metrics {
+func NewMetrics(scrapeCounter Incrementer, errorCounter, startCounter IncrementerVec) Metrics {
 	return metrics{
 		scrapeCounter: scrapeCounter,
 		errorCounter:  errorCounter,
+		startCounter:  startCounter,
 	}
 }
 
 type metrics struct {
 	scrapeCounter Incrementer
 	errorCounter  IncrementerVec
+	startCounter  IncrementerVec
 }
 
 func (m metrics) AddScrape() {
 	m.scrapeCounter.Inc()
+}
+
+// AddStart counts a scraper start by how it began: "cold", or "resume" or
+// "catch_up" from a predecessor's record in the state cache.
+func (m metrics) AddStart(mode string) {
+	m.startCounter.WithLabelValues(mode).Inc()
 }
 
 func (m metrics) AddCheckError() {

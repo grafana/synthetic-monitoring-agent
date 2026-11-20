@@ -86,7 +86,7 @@ func New(ctx context.Context, check sm.Check, probe sm.Probe, supplied Probe, co
 		Telemeter:             noopTelemeter{},
 		CostAttributionLabels: noopTenantCals{},
 		LabellingMode:         staticLabellingMode{mode: opts.labelMode},
-		StateWriter:           scraper.NoopStateWriter{},
+		StateCache:            scraper.NoopStateCache{},
 	})
 	if err != nil {
 		cancel()
@@ -144,6 +144,7 @@ type noopMetrics struct{}
 func (noopMetrics) AddScrape()         {}
 func (noopMetrics) AddCheckError()     {}
 func (noopMetrics) AddCollectorError() {}
+func (noopMetrics) AddStart(string)    {}
 
 type noopLabelsLimiter struct{}
 
