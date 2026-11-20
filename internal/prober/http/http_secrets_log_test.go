@@ -141,6 +141,29 @@ func TestSecretFailureReachesTheCheckLogs(t *testing.T) {
 			wantCheckLog: []string{`field="client key"`, "secret=does-not-exist"},
 		},
 
+		"unknown secret in a custom header": {
+			settings: sm.HttpSettings{
+				Headers: []string{"X-Api-Key: " + missingRef},
+			},
+			wantCheckLog: []string{`field="header X-Api-Key"`, "secret=does-not-exist"},
+		},
+
+		"a resolved header value is not in the logs when another header fails": {
+			settings: sm.HttpSettings{
+				Headers: []string{"X-Api-Key: " + tokenRef, "X-Other: " + missingRef},
+			},
+			wantCheckLog: []string{`field="header X-Other"`, "secret=does-not-exist"},
+		},
+
+		"invalid secret name in a custom header": {
+			settings: sm.HttpSettings{
+				Headers: []string{"X-Api-Key: ${secrets.My_Token}"},
+			},
+			wantCheckLog:       []string{`field="header X-Api-Key"`, "invalid secret name"},
+			wantAgentLog:       []string{"My_Token"},
+			wantCheckLogAbsent: []string{"My_Token"},
+		},
+
 		// Validation by the `interpolation.isValidSecretName`
 		"invalid secret name": {
 			settings:           sm.HttpSettings{BearerToken: "${secrets.My_Token}"},

@@ -17,11 +17,14 @@ var (
 	ErrCheckTimedOut           = errors.New("the check timed out before the secret could be fetched")
 	ErrCheckCanceled           = errors.New("the check was cancelled before the secret could be fetched")
 	ErrSecretFetchFailed       = errors.New("the secret could not be fetched")
+	// ErrSecretValueInvalidInHeader is for a value that resolved, but holds a character that an
+	// HTTP header cannot carry.
+	ErrSecretValueInvalidInHeader = errors.New("the secret value has a line break or another control character, which an HTTP header cannot carry")
 )
 
-// Error is a failure to fetch a secret or the secret store configuration. Field, Secret and
-// Reason are safe for the check logs. Err is for the agent log only, because it can carry the
-// secret store URL or the SM API transport detail.
+// Error is a failure to fetch or send a secret, or to fetch the secret store configuration.
+// Field, Secret and Reason are safe for the check logs. Err is for the agent log only, because it
+// can carry the secret store URL or the SM API transport detail.
 type Error struct {
 	// Field is the check setting that holds the reference.
 	Field string
@@ -37,7 +40,12 @@ func (e *Error) Error() string {
 	var b strings.Builder
 
 	if e.Field != "" {
-		b.WriteString("failed to resolve " + e.Field + ": ")
+		verb := "resolve"
+		if errors.Is(e.reason(), ErrSecretValueInvalidInHeader) {
+			verb = "send"
+		}
+
+		b.WriteString("failed to " + verb + " " + e.Field + ": ")
 	}
 
 	if e.Secret != "" {
