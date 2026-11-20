@@ -102,6 +102,13 @@ type Scraper struct {
 	histograms    map[uint64]prometheus.Histogram
 	telemeter     Telemeter
 	cals          TenantCals
+	// stateWriter receives the state of every eligible execution; whether it
+	// keeps it is decided where the agent's cache is configured.
+	stateWriter StateWriter
+	// persistState is true for checks that run less often than the republish
+	// interval: a check that republishes anyway has nothing a successor could
+	// not reconstruct within the same window.
+	persistState bool
 }
 
 type Factory func(
@@ -115,6 +122,7 @@ type Factory func(
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
 	labellingMode TenantLabelMode,
+	stateWriter StateWriter,
 ) (*Scraper, error)
 
 type (
@@ -151,6 +159,7 @@ func New(
 	secretStore secrets.SecretProvider,
 	cals TenantCals,
 	labellingMode TenantLabelMode,
+	stateWriter StateWriter,
 ) (*Scraper, error) {
 	return NewWithOpts(ctx, check, ScraperOpts{
 		Probe:                 probe,
@@ -162,6 +171,7 @@ func New(
 		Telemeter:             telemeter,
 		CostAttributionLabels: cals,
 		LabellingMode:         labellingMode,
+		StateWriter:           stateWriter,
 	})
 }
 
@@ -177,9 +187,15 @@ type ScraperOpts struct {
 	LabellingMode         TenantLabelMode
 	Telemeter             Telemeter
 	CostAttributionLabels TenantCals
+	// StateWriter is required; pass NoopStateWriter when state is not cached.
+	StateWriter StateWriter
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
+	if opts.StateWriter == nil {
+		return nil, errStateWriterRequired
+	}
+
 	checkName := check.Type().String()
 
 	logger := opts.Logger.With().
@@ -217,13 +233,16 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 		histograms:    make(map[uint64]prometheus.Histogram),
 		telemeter:     opts.Telemeter,
 		cals:          opts.CostAttributionLabels,
+		stateWriter:   opts.StateWriter,
+		persistState:  ms(check.Frequency) > maxPublishInterval,
 	}, nil
 }
 
 var (
-	errCheckFailed       = errors.New("probe failed")
-	errUnsupportedMetric = errors.New("unsupported metric type")
-	errTooManyLabels     = errors.New("invalid configuration, too many labels")
+	errCheckFailed         = errors.New("probe failed")
+	errUnsupportedMetric   = errors.New("unsupported metric type")
+	errTooManyLabels       = errors.New("invalid configuration, too many labels")
+	errStateWriterRequired = errors.New("state writer is required")
 )
 
 type checkStateMachine struct {
@@ -352,6 +371,11 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 
 	if h.payload != nil {
 		h.scraper.publisher.Publish(h.payload)
+
+		if h.scraper.persistState {
+			nextFire := t.Add(ms(h.scraper.check.Frequency))
+			h.scraper.stateWriter.Store(ctx, h.scraper.check, nextFire, h.payload.ts)
+		}
 	}
 }
 
