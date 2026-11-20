@@ -825,6 +825,40 @@ func TestBuildVars(t *testing.T) {
 	}
 }
 
+// TestSettingsToScriptEscapesURL checks that a URL holding characters that are
+// legal in a URL but special in a JavaScript string literal does not break the
+// generated script.
+func TestSettingsToScriptEscapesURL(t *testing.T) {
+	testcases := map[string]struct {
+		url      string
+		expected string
+	}{
+		"single quote": {url: "http://example.org/o'reilly", expected: `http://example.org/o\'reilly`},
+		"double quote": {url: `http://example.org/a"b`, expected: `http://example.org/a\"b`},
+		"backslash":    {url: `http://example.org/a\b`, expected: `http://example.org/a\\b`},
+		"variable":     {url: "http://example.org/it's/${id}", expected: `http://example.org/it\'s/${id}`},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			settings := &sm.MultiHttpSettings{
+				Entries: []*sm.MultiHttpEntry{
+					{Request: &sm.MultiHttpEntryRequest{Method: sm.HttpMethod_GET, Url: tc.url}},
+				},
+			}
+
+			script, err := settingsToScript(settings)
+			require.NoError(t, err)
+
+			s := string(script)
+			require.Contains(t, s, `console.log("Starting request to `+tc.expected+`...");`)
+			require.Contains(t, s, `console.error("Invalid URL: `+tc.expected+`");`)
+			require.Contains(t, s, `__raw_url__: '`+tc.expected+`',`)
+			require.Contains(t, s, `console.log("Response received from `+tc.expected+`, status", response.status);`)
+		})
+	}
+}
+
 // TestSettingsToScript tests the conversion of a MultiHttpSettings to a
 // Javascript script.
 func TestSettingsToScript(t *testing.T) {

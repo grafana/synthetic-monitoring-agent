@@ -75,11 +75,11 @@ export default function() {
 	const vars = {};
 
  {{ range $idx, $entry := .Entries }}
-	console.log("Starting request to {{.Request.Url}}...");
+	console.log("Starting request to {{ js .Request.Url }}...");
 	try {
 		url = new URL({{ buildUrl .Request.Url }});
 	} catch(e) {
-		console.error("Invalid URL: {{ .Request.Url }}");
+		console.error("Invalid URL: {{ js .Request.Url }}");
 		fail()
 	}
 	{{- $queries := buildQueryParams "url" .Request }}
@@ -97,15 +97,15 @@ export default function() {
 		// TODO(mem): build params out of options for the check
 		tags: {
 		  name: '{{ $idx }}', // TODO(mem): give the user some control over this?
-		  __raw_url__: '{{ .Request.Url }}',
+		  __raw_url__: '{{ js .Request.Url }}',
 		},
 		redirects: 0{{ if gt (len $headers) 0 }},
 		headers: {{ $headers }}{{ end }}
 	});
-	console.log("Response received from {{ .Request.Url }}, status", response.status);
+	console.log("Response received from {{ js .Request.Url }}, status", response.status);
 	if(logResponse) {
 		const body = response.body || ''
-		console.log("Response body received from {{ .Request.Url }}:", body.slice(0, 1000));
+		console.log("Response body received from {{ js .Request.Url }}:", body.slice(0, 1000));
 	}
 	if(response.error) {
 		console.error("Request error:" + url.toString() + ": " + response.error)
