@@ -53,6 +53,16 @@ const (
 	checkNameLabelName     = "check_name"
 )
 
+// migratedOmitMetricLabels contains label names which will be omitted from
+// agent-emitted metrics upon migration of a tenant's labelling mode off of UNPREFIXED.
+// Custom labels with these names will still appear on check telemetry.
+var migratedOmitMetricLabels = map[string]struct{}{
+	"from_cache":          {},
+	"from_prefetch_cache": {},
+	"from_service_worker": {},
+	"resource_type":       {},
+}
+
 // mimirMaxLabelsIngest protects us and Mimir from hitting an error due to
 // ingest limit; is short of the true ingest limit to retain room for growth.
 const mimirMaxLabelsIngest = 40
@@ -661,7 +671,7 @@ func (s Scraper) collectDataWith(ctx context.Context, t time.Time, clock scrapeC
 	// user-defined label values are retained over system-defined values.
 	executionMetricLabels := appendUniqueLabels(customMetricLabels(s.probe.Labels, s.check.Labels, labelMode), sysMetricLabels)
 
-	ts := s.extractTimeseries(t, mfs, executionMetricLabels)
+	ts := s.extractTimeseries(t, mfs, executionMetricLabels, labelMode)
 
 	successValue := "1"
 
@@ -1016,15 +1026,17 @@ RECORD:
 	}
 }
 
-func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair) TimeSeries {
-	return extractTimeseries(t, metrics, executionLabels, s.summaries, s.histograms, s.logger)
+func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair, mode sm.LabelMode) TimeSeries {
+	return extractTimeseries(t, metrics, executionLabels, mode, s.summaries, s.histograms, s.logger)
 }
 
 // extractTimeseries converts gathered Prometheus metrics into remote-write time series.
 //
 //	executionLabels: system labels + un-prefixed user labels; applied to all check execution
 //		metrics (probe_success, etc.).
-func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
+//	mode: in DUAL_WRITE and UNPREFIXED modes, [migratedOmittedMetricLabels] are
+//		stripped from each metric's own labels.
+func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair, mode sm.LabelMode, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
 	toPrompb := func(pairs []labelPair) []prompb.Label {
 		out := make([]prompb.Label, 0, len(pairs))
 		for _, label := range pairs {
@@ -1036,21 +1048,26 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels
 
 	executionPrompb := toPrompb(executionLabels)
 
+	var omit map[string]struct{}
+	if mode != sm.LabelMode_LABEL_MODE_PREFIXED {
+		omit = migratedOmitMetricLabels
+	}
+
 	var ts []prompb.TimeSeries
 
 	for _, mf := range metrics {
 		mName := mf.GetName()
 		mType := mf.GetType()
 
-		shared := executionPrompb
+		shared, familyOmit := executionPrompb, omit
 		if mName == CheckInfoMetricName {
 			// sm_check_info is already constructed with the user labels
-			// added to it under the correct LabeLMode paradigm.
-			shared = nil
+			// added to it under the correct LabelMode paradigm.
+			shared, familyOmit = nil, nil
 		}
 
 		for _, m := range mf.GetMetric() {
-			ts = appendDtoToTimeseries(ts, t, mName, shared, mType, m)
+			ts = appendDtoToTimeseries(ts, t, mName, shared, mType, m, familyOmit)
 		}
 	}
 
@@ -1292,14 +1309,21 @@ func appendUniqueLabels(slice1, slice2 []labelPair) []labelPair {
 	return slices.Clip(result)
 }
 
-func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sharedLabels []prompb.Label, mType dto.MetricType, metric *dto.Metric) []prompb.TimeSeries {
+// appendDtoToTimeseries converts metric into remote-write series. Metric-owned
+// labels whose name is in omit are skipped; sharedLabels are never filtered.
+func appendDtoToTimeseries(ts []prompb.TimeSeries, t time.Time, mName string, sharedLabels []prompb.Label, mType dto.MetricType, metric *dto.Metric, omit map[string]struct{}) []prompb.TimeSeries {
 	ml := metric.GetLabel()
 
 	labels := make([]prompb.Label, 0, 1+len(sharedLabels)+len(ml))
 	labels = append(labels, prompb.Label{Name: prom.MetricNameLabel, Value: mName})
 
 	labels = append(labels, sharedLabels...)
+
 	for _, l := range ml {
+		if _, skip := omit[l.GetName()]; skip {
+			continue
+		}
+
 		labels = append(labels, prompb.Label{Name: *(l.Name), Value: truncateLabelValue(*(l.Value))})
 	}
 
