@@ -554,6 +554,12 @@ func (c AdHocCheck) Validate() error {
 		return err
 	}
 
+	// Job and labels are optional for ad-hoc checks, but labels must be
+	// valid if present.
+	if err := validateLabels(c.Labels); err != nil {
+		return err
+	}
+
 	if err := c.Settings.Validate(); err != nil {
 		return err
 	}

@@ -2134,3 +2134,55 @@ func BenchmarkIsSystemLabel(b *testing.B) {
 
 	_ = found
 }
+
+func TestAdHocCheckValidateMetadata(t *testing.T) {
+	t.Parallel()
+
+	newCheck := func(job string, labels []Label) AdHocCheck {
+		return AdHocCheck{
+			Id:       "test",
+			TenantId: 1,
+			Timeout:  1000,
+			Probes:   []int64{1},
+			Target:   "example.org",
+			Settings: CheckSettings{Ping: &PingSettings{}},
+			Job:      job,
+			Labels:   labels,
+		}
+	}
+
+	testcases := map[string]struct {
+		input       AdHocCheck
+		expectedErr error
+	}{
+		"no job, no labels": {
+			input: newCheck("", nil),
+		},
+		"job and valid labels": {
+			input: newCheck("my-job", []Label{{Name: "env", Value: "prod"}}),
+		},
+		"duplicate label names": {
+			input:       newCheck("my-job", []Label{{Name: "env", Value: "a"}, {Name: "env", Value: "b"}}),
+			expectedErr: ErrDuplicateLabelName,
+		},
+		"invalid label name": {
+			input:       newCheck("my-job", []Label{{Name: "not valid!", Value: "a"}}),
+			expectedErr: ErrInvalidLabelName,
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tc.input.Validate()
+			if tc.expectedErr == nil {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.ErrorIs(t, err, tc.expectedErr)
+		})
+	}
+}
