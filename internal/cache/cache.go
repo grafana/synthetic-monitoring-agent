@@ -6,14 +6,21 @@
 //
 // Available implementations:
 //   - Memcached: Distributed cache using memcached servers
+//   - Redis: Distributed cache using a Redis server or a Redis Sentinel deployment
+//   - Local: In-process cache backed by Otter
 //   - Noop: No-op cache for testing and fallback (always returns ErrCacheMiss)
 //
-// The cache supports multiple memcached servers, custom expiration times,
-// and automatic serialization/deserialization of Go values using encoding/gob.
+// Any implementation can be wrapped with NewInstrumented to export operation
+// counts and latencies as Prometheus metrics.
+//
+// The cache supports custom expiration times and automatic
+// serialization/deserialization of Go values using encoding/gob.
 //
 // Example usage with memcached:
 //
-//	cc, err := cache.New(cache.Config{
+//	var cc cache.Cache
+//
+//	cc, err := cache.NewMemcachedClient(ctx, cache.MemcachedConfig{
 //	    Servers: []string{"localhost:11211", "cache1:11211"},
 //	    Logger:  logger,
 //	})
@@ -34,6 +41,15 @@
 //	    // Other error (network, deserialization, etc.)
 //	    log.Warn("cache error: %v", err)
 //	}
+//
+// Example usage with redis (sentinel when MasterName is set), with metrics:
+//
+//	rc, err := cache.NewRedisClient(ctx, cache.RedisConfig{
+//	    Addrs:      []string{"sentinel-1:26379", "sentinel-2:26379"},
+//	    MasterName: "mymaster",
+//	    Logger:     logger,
+//	})
+//	cc = cache.NewInstrumented(rc, string(cache.KindRedis), cache.NewMetrics(registerer))
 //
 // Example usage with noop cache (for testing):
 //
@@ -91,7 +107,7 @@ const ErrUnsupportedCacheKind = error_types.BasicError("unsupported cache type")
 
 func (val *Kind) Set(s string) error {
 	switch s {
-	case string(KindAuto), string(KindLocal), string(KindMemcached), string(KindNoop):
+	case string(KindAuto), string(KindLocal), string(KindMemcached), string(KindNoop), string(KindRedis):
 		*val = Kind(s)
 
 		return nil
