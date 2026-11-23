@@ -1627,11 +1627,131 @@ func TestAppendDtoToTimeseries(t *testing.T) {
 				tc.sharedLabels,
 				tc.mType,
 				tc.metric,
+				nil,
 			)
 
 			require.Equal(t, tc.expected, actual)
 		})
 	}
+}
+
+func TestExtractTimeseriesOmitsBrowserCacheLabels(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+	value := 1.5
+	testTime := time.Now()
+
+	browserMetric := func() []*dto.MetricFamily {
+		return []*dto.MetricFamily{{
+			Name: strPtr("probe_browser_http_req_duration"),
+			Type: dto.MetricType_GAUGE.Enum(),
+			Metric: []*dto.Metric{{
+				Label: []*dto.LabelPair{
+					{Name: strPtr("from_cache"), Value: strPtr("false")},
+					{Name: strPtr("from_prefetch_cache"), Value: strPtr("false")},
+					{Name: strPtr("from_service_worker"), Value: strPtr("false")},
+					{Name: strPtr("method"), Value: strPtr("GET")},
+					{Name: strPtr("resource_type"), Value: strPtr("document")},
+					{Name: strPtr("url"), Value: strPtr("https://example.com/")},
+				},
+				Gauge: &dto.Gauge{Value: &value},
+			}},
+		}}
+	}
+
+	sysLabels := []labelPair{{name: "job", value: "j"}, {name: "instance", value: "i"}}
+
+	labelsOf := func(t *testing.T, ts TimeSeries) map[string][]string {
+		require.Len(t, ts, 1)
+
+		out := make(map[string][]string)
+		for _, l := range ts[0].Labels {
+			out[l.Name] = append(out[l.Name], l.Value)
+		}
+
+		return out
+	}
+
+	testcases := map[string]struct {
+		mode        sm.LabelMode
+		shared      []labelPair
+		wantPresent map[string]string
+		wantAbsent  []string
+	}{
+		"prefixed keeps k6 labels": {
+			mode:   sm.LabelMode_LABEL_MODE_PREFIXED,
+			shared: sysLabels,
+			wantPresent: map[string]string{
+				"from_cache": "false", "from_prefetch_cache": "false", "from_service_worker": "false",
+				"resource_type": "document", "method": "GET", "url": "https://example.com/",
+			},
+		},
+		"dual write omits k6 labels": {
+			mode:        sm.LabelMode_LABEL_MODE_DUAL_WRITE,
+			shared:      sysLabels,
+			wantPresent: map[string]string{"method": "GET", "url": "https://example.com/", "job": "j"},
+			wantAbsent:  []string{"from_cache", "from_prefetch_cache", "from_service_worker", "resource_type"},
+		},
+		"unprefixed omits k6 labels": {
+			mode:        sm.LabelMode_LABEL_MODE_UNPREFIXED,
+			shared:      sysLabels,
+			wantPresent: map[string]string{"method": "GET", "url": "https://example.com/", "job": "j"},
+			wantAbsent:  []string{"from_cache", "from_prefetch_cache", "from_service_worker", "resource_type"},
+		},
+		"unprefixed keeps same-named tenant label": {
+			mode:        sm.LabelMode_LABEL_MODE_UNPREFIXED,
+			shared:      append([]labelPair{{name: "resource_type", value: "team-a"}}, sysLabels...),
+			wantPresent: map[string]string{"resource_type": "team-a", "url": "https://example.com/"},
+			wantAbsent:  []string{"from_cache", "from_prefetch_cache", "from_service_worker"},
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			ts := extractTimeseries(testTime, browserMetric(), tc.shared, tc.mode, nil, nil, zerolog.Nop())
+			got := labelsOf(t, ts)
+
+			for k, v := range tc.wantPresent {
+				require.Equal(t, []string{v}, got[k], "label %q", k)
+			}
+
+			for _, k := range tc.wantAbsent {
+				require.NotContains(t, got, k)
+			}
+		})
+	}
+}
+
+func TestAppendDtoToTimeseriesOmitHistogram(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+	count := uint64(1)
+	bound := 0.5
+	sum := 0.2
+
+	metric := &dto.Metric{
+		Label: []*dto.LabelPair{
+			{Name: strPtr("from_cache"), Value: strPtr("true")},
+			{Name: strPtr("url"), Value: strPtr("https://example.com/")},
+		},
+		Histogram: &dto.Histogram{
+			SampleCount: &count,
+			SampleSum:   &sum,
+			Bucket:      []*dto.Bucket{{CumulativeCount: &count, UpperBound: &bound}},
+		},
+	}
+
+	ts := appendDtoToTimeseries(nil, time.Now(), "probe_browser_req", nil, dto.MetricType_HISTOGRAM, metric, migratedOmitMetricLabels)
+	require.Len(t, ts, 4) // _sum, _count, le=0.5, le=+Inf
+
+	for _, s := range ts {
+		for _, l := range s.Labels {
+			require.NotEqual(t, "from_cache", l.Name)
+		}
+
+		require.Equal(t, "https://example.com/", findPromPbLabel(t, s.Labels, "url"))
+	}
+
+	require.Equal(t, "0.5", findPromPbLabel(t, ts[2].Labels, "le"))
+	require.Equal(t, "+Inf", findPromPbLabel(t, ts[3].Labels, "le"))
 }
 
 type testProber struct{}
@@ -2453,6 +2573,118 @@ func TestScraperCollectDataReservedLabelCollision(t *testing.T) {
 		map[string]int{"0.1": 1, "0.5": 1, "1": 1, "+Inf": 1},
 		bucketLEs,
 		"histogram bucket `le` labels were overwritten/collapsed by the user label")
+}
+
+// browserCacheProber emits a k6-browser-shaped gauge carrying the per-request
+// labels that migratedOmittedMetricLabels strips.
+type browserCacheProber struct{}
+
+func (browserCacheProber) Name() string { return "browser cache prober" }
+
+func (browserCacheProber) Probe(_ context.Context, _ string, registry *prometheus.Registry, _ logger.Logger, _ string) (bool, float64) {
+	g := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "probe_browser_http_req_duration",
+	}, []string{"from_cache", "from_prefetch_cache", "from_service_worker", "resource_type", "url"})
+	registry.MustRegister(g)
+	g.WithLabelValues("false", "false", "false", "document", "https://example.com/").Set(0.2)
+
+	return true, 1
+}
+
+// TestScraperCollectDataOmitsBrowserCacheLabels drives collectData with a
+// tenant label that shares a name with an omitted k6 label. The tenant's label
+// must survive on every series (including sm_check_info, whose user labels are
+// metric-own labels rather than shared ones), while k6's value is stripped in
+// migrated modes only.
+func TestScraperCollectDataOmitsBrowserCacheLabels(t *testing.T) {
+	testcases := map[string]struct {
+		mode          sm.LabelMode
+		wantCheckInfo map[string]string
+		wantBrowser   map[string]string
+		absentBrowser []string
+	}{
+		"prefixed": {
+			mode:          sm.LabelMode_LABEL_MODE_PREFIXED,
+			wantCheckInfo: map[string]string{"label_resource_type": "team-a"},
+			wantBrowser:   map[string]string{"resource_type": "document", "from_cache": "false", "url": "https://example.com/"},
+		},
+		"dual write": {
+			mode:          sm.LabelMode_LABEL_MODE_DUAL_WRITE,
+			wantCheckInfo: map[string]string{"label_resource_type": "team-a", "resource_type": "team-a"},
+			wantBrowser:   map[string]string{"resource_type": "team-a", "url": "https://example.com/"},
+			absentBrowser: []string{"from_cache", "from_prefetch_cache", "from_service_worker"},
+		},
+		"unprefixed": {
+			mode:          sm.LabelMode_LABEL_MODE_UNPREFIXED,
+			wantCheckInfo: map[string]string{"resource_type": "team-a"},
+			wantBrowser:   map[string]string{"resource_type": "team-a", "url": "https://example.com/"},
+			absentBrowser: []string{"from_cache", "from_prefetch_cache", "from_service_worker"},
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			s := Scraper{
+				checkName:     "check name",
+				target:        "test target",
+				logger:        testhelper.Logger(t),
+				prober:        browserCacheProber{},
+				labelsLimiter: testLabelsLimiter{maxMetricLabels: 22, maxLogLabels: 15},
+				labellingMode: testLabellingMode{mode: tc.mode},
+				summaries:     make(map[uint64]prometheus.Summary),
+				histograms:    make(map[uint64]prometheus.Histogram),
+				check: model.Check{
+					Check: sm.Check{
+						Id:        1,
+						TenantId:  2,
+						Frequency: 2000,
+						Timeout:   2000,
+						Enabled:   true,
+						Target:    "target name",
+						Job:       "job name",
+						Created:   42,
+						Modified:  42,
+						Labels:    []sm.Label{{Name: "resource_type", Value: "team-a"}},
+						Settings:  sm.CheckSettings{Http: &sm.HttpSettings{}},
+					},
+				},
+				probe: sm.Probe{Id: 100, TenantId: 200, Name: "probe name", Region: "REGION"},
+			}
+
+			data, _, err := s.collectData(context.Background(), time.Unix(3141, 0))
+			require.NoError(t, err)
+
+			byName := make(map[string][]map[string][]string)
+			for _, ts := range data.Metrics() {
+				ls := make(map[string][]string)
+				for _, l := range ts.GetLabels() {
+					ls[l.Name] = append(ls[l.Name], l.Value)
+				}
+
+				name := ls[prom.MetricNameLabel][0]
+				byName[name] = append(byName[name], ls)
+			}
+
+			require.Len(t, byName[CheckInfoMetricName], 1)
+			require.Len(t, byName["probe_browser_http_req_duration"], 1)
+
+			checkInfo := byName[CheckInfoMetricName][0]
+
+			for k, v := range tc.wantCheckInfo {
+				require.Equal(t, []string{v}, checkInfo[k], "sm_check_info label %q", k)
+			}
+
+			browserTS := byName["probe_browser_http_req_duration"][0]
+
+			for k, v := range tc.wantBrowser {
+				require.Equal(t, []string{v}, browserTS[k], "browser label %q", k)
+			}
+
+			for _, k := range tc.absentBrowser {
+				require.NotContains(t, browserTS, k)
+			}
+		})
+	}
 }
 
 // phaseProber emits probe_http_duration_seconds as a gauge with a `phase`
