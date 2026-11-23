@@ -53,10 +53,10 @@ const (
 	checkNameLabelName     = "check_name"
 )
 
-// migratedOmitMetricLabels contains label names which will be omitted from
-// agent-emitted metrics upon migration of a tenant's labelling mode off of UNPREFIXED.
-// Custom labels with these names will still appear on check telemetry.
-var migratedOmitMetricLabels = map[string]struct{}{
+// omitMetricLabels contains label names which are omitted from agent-emitted
+// metrics' own labels in every label mode. Custom labels with these names will
+// still appear on check telemetry.
+var omitMetricLabels = map[string]struct{}{
 	"from_cache":          {},
 	"from_prefetch_cache": {},
 	"from_service_worker": {},
@@ -671,7 +671,7 @@ func (s Scraper) collectDataWith(ctx context.Context, t time.Time, clock scrapeC
 	// user-defined label values are retained over system-defined values.
 	executionMetricLabels := appendUniqueLabels(customMetricLabels(s.probe.Labels, s.check.Labels, labelMode), sysMetricLabels)
 
-	ts := s.extractTimeseries(t, mfs, executionMetricLabels, labelMode)
+	ts := s.extractTimeseries(t, mfs, executionMetricLabels)
 
 	successValue := "1"
 
@@ -1026,17 +1026,17 @@ RECORD:
 	}
 }
 
-func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair, mode sm.LabelMode) TimeSeries {
-	return extractTimeseries(t, metrics, executionLabels, mode, s.summaries, s.histograms, s.logger)
+func (s Scraper) extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair) TimeSeries {
+	return extractTimeseries(t, metrics, executionLabels, s.summaries, s.histograms, s.logger)
 }
 
 // extractTimeseries converts gathered Prometheus metrics into remote-write time series.
 //
 //	executionLabels: system labels + un-prefixed user labels; applied to all check execution
 //		metrics (probe_success, etc.).
-//	mode: in DUAL_WRITE and UNPREFIXED modes, [migratedOmittedMetricLabels] are
-//		stripped from each metric's own labels.
-func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair, mode sm.LabelMode, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
+//
+// [omitMetricLabels] are stripped from each metric's own labels.
+func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels []labelPair, summaries map[uint64]prometheus.Summary, histograms map[uint64]prometheus.Histogram, logger zerolog.Logger) TimeSeries {
 	toPrompb := func(pairs []labelPair) []prompb.Label {
 		out := make([]prompb.Label, 0, len(pairs))
 		for _, label := range pairs {
@@ -1048,18 +1048,13 @@ func extractTimeseries(t time.Time, metrics []*dto.MetricFamily, executionLabels
 
 	executionPrompb := toPrompb(executionLabels)
 
-	var omit map[string]struct{}
-	if mode != sm.LabelMode_LABEL_MODE_PREFIXED {
-		omit = migratedOmitMetricLabels
-	}
-
 	var ts []prompb.TimeSeries
 
 	for _, mf := range metrics {
 		mName := mf.GetName()
 		mType := mf.GetType()
 
-		shared, familyOmit := executionPrompb, omit
+		shared, familyOmit := executionPrompb, omitMetricLabels
 		if mName == CheckInfoMetricName {
 			// sm_check_info is already constructed with the user labels
 			// added to it under the correct LabelMode paradigm.

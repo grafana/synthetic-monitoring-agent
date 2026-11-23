@@ -151,9 +151,8 @@ const (
 // Intentionally excluded labels not useful in the SM context:
 //
 //   - from_cache, from_prefetch_cache, from_service_worker, resource_type: k6
-//     browser emits these per request; in DUAL_WRITE and UNPREFIXED modes the
-//     agent strips them from metrics (migratedOmittedMetricLabels in
-//     internal/scraper).
+//     browser emits these per request; the agent strips them from metrics in
+//     every label mode (omitMetricLabels in internal/scraper).
 //   - region: the agent renames this to sm_region (see sm_region in this map).
 //
 // Tenants are free to define any of these as user labels without collision
