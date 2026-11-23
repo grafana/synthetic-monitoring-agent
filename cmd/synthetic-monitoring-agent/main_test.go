@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bytes"
+	"io"
 	"testing"
 
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
 )
 
 func TestValidateCIDRs(t *testing.T) {
@@ -33,4 +38,17 @@ func TestValidateCIDRs(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// Deployments may still pass -features protocol-secrets after the flag
+// was removed; the agent must start and only log a hint.
+func TestRemovedProtocolSecretsFeature(t *testing.T) {
+	require.NoError(t, run([]string{"sm-agent", "-features", "protocol-secrets", "-version"}, io.Discard))
+
+	features := feature.NewCollection()
+	require.NoError(t, features.Set("protocol-secrets"))
+
+	var buf bytes.Buffer
+	notifyAboutDeprecatedFeatureFlags(features, zerolog.New(&buf))
+	require.Contains(t, buf.String(), "the `protocol-secrets` feature is now permanently enabled")
 }
