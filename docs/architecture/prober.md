@@ -169,6 +169,13 @@ break. The check logs name the header and, when the value holds one
 reference, the secret. A bad character typed into the check itself is
 left to the HTTP client.
 
+Blackbox exporter follows redirects unless the check turns them off.
+When a redirect goes to another host, the Go HTTP client drops
+`Authorization`, `Cookie` and `WWW-Authenticate`, and sends every other
+header again. A secret in a header such as `X-Api-Key` therefore
+reaches each host the target redirects to. The HTTP prober does not
+remove it.
+
 Blackbox exporter logs the `Host` header and each redirect it follows,
 and puts the `Host` value in TLS errors. The check logs keep every
 level, and a target can echo a value back. So the HTTP prober wraps the
