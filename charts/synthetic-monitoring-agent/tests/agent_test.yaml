@@ -85,7 +85,7 @@ tests:
       logging:
         verbose: true
         debug: true
-      features: [protocol-secrets, experimental-dns-prober]
+      features: [experimental-dns-prober, some-new-feature]
       k6:
         disabled: true
         blockedNets: ""
@@ -121,7 +121,7 @@ tests:
             - --api-insecure
             - --verbose
             - --debug
-            - --features=protocol-secrets,experimental-dns-prober
+            - --features=experimental-dns-prober,some-new-feature
             - --disable-k6
             - --blocked-nets=
             - --k6-uri=/usr/local/bin/k6
