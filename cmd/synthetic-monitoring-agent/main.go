@@ -614,7 +614,7 @@ func stringFromEnv(name string, override string) string {
 func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {
 	for _, ff := range []string{feature.K6, feature.Traceroute, feature.ProtocolSecrets} {
 		if features.IsSet(ff) {
-			zl.Info().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the -features flag without loss of functionality", ff)
+			zl.Warn().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the -features flag without loss of functionality", ff)
 		}
 	}
 }
