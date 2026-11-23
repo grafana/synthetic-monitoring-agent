@@ -90,7 +90,6 @@ func run(args []string, stdout io.Writer) error {
 			CacheLocalCapacity        int
 			CacheLocalTTL             time.Duration
 			MemcachedServers          StringList
-			EnableProtocolSecrets     bool
 			PushTelemetry             bool
 			MetricsInterval           time.Duration
 
@@ -216,10 +215,6 @@ func run(args []string, stdout io.Writer) error {
 	//
 	// Using API_TOKEN should be deprecated after March 1st, 2023.
 	config.ApiToken = Secret(stringFromEnv("API_TOKEN", stringFromEnv("SM_AGENT_API_TOKEN", string(config.ApiToken))))
-
-	// Enable protocol secrets support via the "protocol-secrets" feature flag.
-	// This allows testing before enabling by default.
-	config.EnableProtocolSecrets = features.IsSet(feature.ProtocolSecrets)
 
 	if config.ApiToken == "" {
 		return fmt.Errorf("invalid API token")
@@ -438,26 +433,25 @@ func run(args []string, stdout io.Writer) error {
 	}
 
 	checksUpdater, err := checks.NewUpdater(checks.UpdaterOptions{
-		Conn:                    conn,
-		Logger:                  zl.With().Str("subsystem", "updater").Logger(),
-		Backoff:                 newConnectionBackoff(),
-		Publisher:               publisher,
-		TenantCh:                tenantCh,
-		ProbeCh:                 probeCh,
-		IsConnected:             readynessHandler.Set,
-		PromRegisterer:          promRegisterer,
-		Features:                features,
-		K6Runner:                k6Runner,
-		ScraperFactory:          scraper.New,
-		TenantLimits:            limits,
-		SecretProvider:          secretProvider,
-		Telemeter:               telemetry,
-		UsageReporter:           usageReporter,
-		CostAttributionLabels:   cals,
-		LabellingMode:           labelmode.New(tm),
-		SupportsProtocolSecrets: config.EnableProtocolSecrets,
-		IsClusterEnabled:        config.Cluster.Enabled,
-		Node:                    clusterNode,
+		Conn:                  conn,
+		Logger:                zl.With().Str("subsystem", "updater").Logger(),
+		Backoff:               newConnectionBackoff(),
+		Publisher:             publisher,
+		TenantCh:              tenantCh,
+		ProbeCh:               probeCh,
+		IsConnected:           readynessHandler.Set,
+		PromRegisterer:        promRegisterer,
+		Features:              features,
+		K6Runner:              k6Runner,
+		ScraperFactory:        scraper.New,
+		TenantLimits:          limits,
+		SecretProvider:        secretProvider,
+		Telemeter:             telemetry,
+		UsageReporter:         usageReporter,
+		CostAttributionLabels: cals,
+		LabellingMode:         labelmode.New(tm),
+		IsClusterEnabled:      config.Cluster.Enabled,
+		Node:                  clusterNode,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
@@ -508,17 +502,16 @@ func run(args []string, stdout io.Writer) error {
 	})
 
 	adhocHandler, err := adhoc.NewHandler(adhoc.HandlerOpts{
-		Conn:                    conn,
-		Logger:                  zl.With().Str("subsystem", "adhoc").Logger(),
-		Backoff:                 newConnectionBackoff(),
-		Publisher:               publisher,
-		TenantCh:                tenantCh,
-		PromRegisterer:          promRegisterer,
-		Features:                features,
-		K6Runner:                k6Runner,
-		SecretProvider:          secretProvider,
-		SupportsProtocolSecrets: config.EnableProtocolSecrets,
-		IsClusterEnabled:        config.Cluster.Enabled,
+		Conn:             conn,
+		Logger:           zl.With().Str("subsystem", "adhoc").Logger(),
+		Backoff:          newConnectionBackoff(),
+		Publisher:        publisher,
+		TenantCh:         tenantCh,
+		PromRegisterer:   promRegisterer,
+		Features:         features,
+		K6Runner:         k6Runner,
+		SecretProvider:   secretProvider,
+		IsClusterEnabled: config.Cluster.Enabled,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create ad-hoc checks handler: %w", err)
@@ -619,9 +612,10 @@ func stringFromEnv(name string, override string) string {
 }
 
 func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {
-	for _, ff := range []string{feature.K6, feature.Traceroute} {
+	// k6 is not listed: run enables it by default, so a hint would fire even when the user did not pass it.
+	for _, ff := range []string{feature.Traceroute, feature.ProtocolSecrets} {
 		if features.IsSet(ff) {
-			zl.Info().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the -features flag without loss of functionality", ff)
+			zl.Warn().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the -features flag without loss of functionality", ff)
 		}
 	}
 }

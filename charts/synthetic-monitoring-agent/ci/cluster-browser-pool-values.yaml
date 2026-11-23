@@ -12,5 +12,3 @@ browserPool:
     replicas: null
     podDisruptionBudget:
       enabled: true
-features:
-  - protocol-secrets

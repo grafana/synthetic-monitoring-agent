@@ -74,32 +74,31 @@ type Backoffer interface {
 // running on that probe and it manages the configuration for
 // blackbox-exporter that corresponds to the collection of scrapers.
 type Updater struct {
-	api                     apiInfo
-	logger                  zerolog.Logger
-	features                feature.Collection
-	backoff                 Backoffer
-	publisher               pusher.Publisher
-	tenantCh                chan<- sm.Tenant
-	probeCh                 chan<- *sm.Probe
-	probeTenantOnce         sync.Once
-	IsConnected             func(bool)
-	probe                   *sm.Probe
-	scrapersMutex           sync.Mutex
-	scrapers                map[model.GlobalID]*scraper.Scraper
-	node                    cluster.Node
-	knownChecks             map[model.GlobalID]model.Check
-	reconcileCh             chan struct{}
-	metrics                 metrics
-	k6Runner                k6runner.Runner
-	scraperFactory          scraper.Factory
-	tenantLimits            *limits.TenantLimits
-	tenantSecrets           secrets.SecretProvider
-	telemeter               *telemetry.Telemeter
-	usageReporter           usage.Reporter
-	tenantCals              *cals.CostAttributionLabels
-	tenantLabellingMode     *labelmode.LabelMode
-	supportsProtocolSecrets bool
-	isClusterEnabled        bool
+	api                 apiInfo
+	logger              zerolog.Logger
+	features            feature.Collection
+	backoff             Backoffer
+	publisher           pusher.Publisher
+	tenantCh            chan<- sm.Tenant
+	probeCh             chan<- *sm.Probe
+	probeTenantOnce     sync.Once
+	IsConnected         func(bool)
+	probe               *sm.Probe
+	scrapersMutex       sync.Mutex
+	scrapers            map[model.GlobalID]*scraper.Scraper
+	node                cluster.Node
+	knownChecks         map[model.GlobalID]model.Check
+	reconcileCh         chan struct{}
+	metrics             metrics
+	k6Runner            k6runner.Runner
+	scraperFactory      scraper.Factory
+	tenantLimits        *limits.TenantLimits
+	tenantSecrets       secrets.SecretProvider
+	telemeter           *telemetry.Telemeter
+	usageReporter       usage.Reporter
+	tenantCals          *cals.CostAttributionLabels
+	tenantLabellingMode *labelmode.LabelMode
+	isClusterEnabled    bool
 }
 
 type apiInfo struct {
@@ -124,26 +123,25 @@ type (
 )
 
 type UpdaterOptions struct {
-	Conn                    *grpc.ClientConn
-	Logger                  zerolog.Logger
-	Backoff                 Backoffer
-	Publisher               pusher.Publisher
-	TenantCh                chan<- sm.Tenant
-	ProbeCh                 chan<- *sm.Probe
-	IsConnected             func(bool)
-	PromRegisterer          prometheus.Registerer
-	Features                feature.Collection
-	K6Runner                k6runner.Runner
-	ScraperFactory          scraper.Factory
-	Node                    cluster.Node
-	TenantLimits            *limits.TenantLimits
-	SecretProvider          secrets.SecretProvider
-	Telemeter               *telemetry.Telemeter
-	UsageReporter           usage.Reporter
-	CostAttributionLabels   *cals.CostAttributionLabels
-	LabellingMode           *labelmode.LabelMode
-	SupportsProtocolSecrets bool
-	IsClusterEnabled        bool
+	Conn                  *grpc.ClientConn
+	Logger                zerolog.Logger
+	Backoff               Backoffer
+	Publisher             pusher.Publisher
+	TenantCh              chan<- sm.Tenant
+	ProbeCh               chan<- *sm.Probe
+	IsConnected           func(bool)
+	PromRegisterer        prometheus.Registerer
+	Features              feature.Collection
+	K6Runner              k6runner.Runner
+	ScraperFactory        scraper.Factory
+	Node                  cluster.Node
+	TenantLimits          *limits.TenantLimits
+	SecretProvider        secrets.SecretProvider
+	Telemeter             *telemetry.Telemeter
+	UsageReporter         usage.Reporter
+	CostAttributionLabels *cals.CostAttributionLabels
+	LabellingMode         *labelmode.LabelMode
+	IsClusterEnabled      bool
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
@@ -156,27 +154,26 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		api: apiInfo{
 			conn: opts.Conn,
 		},
-		logger:                  opts.Logger,
-		features:                opts.Features,
-		backoff:                 opts.Backoff,
-		publisher:               opts.Publisher,
-		tenantCh:                opts.TenantCh,
-		probeCh:                 opts.ProbeCh,
-		IsConnected:             opts.IsConnected,
-		scrapers:                make(map[model.GlobalID]*scraper.Scraper),
-		node:                    opts.Node,
-		knownChecks:             make(map[model.GlobalID]model.Check),
-		reconcileCh:             make(chan struct{}, 1),
-		k6Runner:                opts.K6Runner,
-		scraperFactory:          scraperFactory,
-		tenantLimits:            opts.TenantLimits,
-		tenantSecrets:           opts.SecretProvider,
-		telemeter:               opts.Telemeter,
-		supportsProtocolSecrets: opts.SupportsProtocolSecrets,
-		isClusterEnabled:        opts.IsClusterEnabled,
-		usageReporter:           opts.UsageReporter,
-		tenantCals:              opts.CostAttributionLabels,
-		tenantLabellingMode:     opts.LabellingMode,
+		logger:              opts.Logger,
+		features:            opts.Features,
+		backoff:             opts.Backoff,
+		publisher:           opts.Publisher,
+		tenantCh:            opts.TenantCh,
+		probeCh:             opts.ProbeCh,
+		IsConnected:         opts.IsConnected,
+		scrapers:            make(map[model.GlobalID]*scraper.Scraper),
+		node:                opts.Node,
+		knownChecks:         make(map[model.GlobalID]model.Check),
+		reconcileCh:         make(chan struct{}, 1),
+		k6Runner:            opts.K6Runner,
+		scraperFactory:      scraperFactory,
+		tenantLimits:        opts.TenantLimits,
+		tenantSecrets:       opts.SecretProvider,
+		telemeter:           opts.Telemeter,
+		isClusterEnabled:    opts.IsClusterEnabled,
+		usageReporter:       opts.UsageReporter,
+		tenantCals:          opts.CostAttributionLabels,
+		tenantLabellingMode: opts.LabellingMode,
 	}
 
 	if err := c.registerMetrics(opts.PromRegisterer); err != nil {
@@ -305,11 +302,10 @@ func (c *Updater) loop(ctx context.Context) (bool, error) {
 	}
 
 	result, err := client.RegisterProbe(ctx, &sm.ProbeInfo{
-		Version:                 version.Short(),
-		Commit:                  version.Commit(),
-		Buildstamp:              version.Buildstamp(),
-		SupportsProtocolSecrets: c.supportsProtocolSecrets,
-		IsClusterEnabled:        c.isClusterEnabled,
+		Version:          version.Short(),
+		Commit:           version.Commit(),
+		Buildstamp:       version.Buildstamp(),
+		IsClusterEnabled: c.isClusterEnabled,
 	})
 	if err != nil {
 		return connected, grpcErrorHandler("registering probe with synthetic-monitoring-api", err)
