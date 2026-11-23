@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"net"
 	"os"
@@ -192,6 +193,9 @@ func run(args []string, stdout io.Writer) error {
 		}
 	}
 
+	// Only flags the user passed get a deprecation hint, not the k6 feature added below.
+	passedFeatures := maps.Clone(features)
+
 	if !config.DisableK6 {
 		if err := features.Set(feature.K6); err != nil {
 			return fmt.Errorf("cannot set k6 feature: %w", err)
@@ -258,7 +262,7 @@ func run(args []string, stdout io.Writer) error {
 		Interface("config", config).
 		Msg("starting")
 
-	notifyAboutDeprecatedFeatureFlags(features, zl)
+	notifyAboutDeprecatedFeatureFlags(passedFeatures, zl)
 
 	var usageReporter usage.Reporter
 
