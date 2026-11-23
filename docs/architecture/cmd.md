@@ -142,7 +142,7 @@ If you add a new top-level component, follow the same pattern: define an
 - **`Secret` for the API token.** `Secret.MarshalText` returns `"<redacted>"` so the config struct can be safely logged (`zl.Info().Interface("config", config)`).
 - **gRPC keep-alive.** Tuned via `HealthCheckInterval` / `HealthCheckTimeout` defined in the protobuf package. Required to detect network failures absent client writes — without it, the agent hangs when the server disappears mid-call.
 - **Cache fallbacks.** `setupCache` and `setupLocalCache` log and fall back rather than failing — the agent will boot with a noop cache if everything else fails. This is intentional: caching is a load-shedding optimisation, not a correctness requirement.
-- **The `k6`, `traceroute` and `protocol-secrets` feature flags are deprecated.** They are permanently enabled. `notifyAboutDeprecatedFeatureFlags` logs a hint if someone still passes them on the command line. The API decides which probes can resolve secrets from the agent version, so the agent no longer advertises `ProbeInfo.SupportsProtocolSecrets`.
+- **The `k6`, `traceroute` and `protocol-secrets` feature flags are deprecated.** `traceroute` and `protocol-secrets` are permanently enabled, and `notifyAboutDeprecatedFeatureFlags` logs a warning if someone still passes them on the command line. `k6` is enabled by default unless `-disable-k6` is set, so `run` adds it to the collection itself and the notifier skips it. The API decides which probes can resolve secrets from the agent version, so the agent no longer advertises `ProbeInfo.SupportsProtocolSecrets`.
 
 ## Testing strategy
 

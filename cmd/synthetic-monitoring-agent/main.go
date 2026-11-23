@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"maps"
 	"math"
 	"net"
 	"os"
@@ -193,9 +192,6 @@ func run(args []string, stdout io.Writer) error {
 		}
 	}
 
-	// Only flags the user passed get a deprecation hint, not the k6 feature added below.
-	passedFeatures := maps.Clone(features)
-
 	if !config.DisableK6 {
 		if err := features.Set(feature.K6); err != nil {
 			return fmt.Errorf("cannot set k6 feature: %w", err)
@@ -262,7 +258,7 @@ func run(args []string, stdout io.Writer) error {
 		Interface("config", config).
 		Msg("starting")
 
-	notifyAboutDeprecatedFeatureFlags(passedFeatures, zl)
+	notifyAboutDeprecatedFeatureFlags(features, zl)
 
 	var usageReporter usage.Reporter
 
@@ -616,7 +612,8 @@ func stringFromEnv(name string, override string) string {
 }
 
 func notifyAboutDeprecatedFeatureFlags(features feature.Collection, zl zerolog.Logger) {
-	for _, ff := range []string{feature.K6, feature.Traceroute, feature.ProtocolSecrets} {
+	// k6 is not listed: run enables it by default, so a hint would fire even when the user did not pass it.
+	for _, ff := range []string{feature.Traceroute, feature.ProtocolSecrets} {
 		if features.IsSet(ff) {
 			zl.Warn().Msgf("the `%s` feature is now permanently enabled in the agent, you can remove it from the -features flag without loss of functionality", ff)
 		}
