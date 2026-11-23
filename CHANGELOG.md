@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.71.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.71.0...v0.71.1) (2026-11-20)
+
+
+### Miscellaneous Chores
+
+* Update dependency helm to v3.22.1 ([#2139](https://github.com/grafana/synthetic-monitoring-agent/issues/2139)) ([686922e](https://github.com/grafana/synthetic-monitoring-agent/commit/686922edaa06671abb18f5cb1338c0ec29d81d48))
+* Update docker:dind Docker digest to 4bbc722 ([#2136](https://github.com/grafana/synthetic-monitoring-agent/issues/2136)) ([1222bea](https://github.com/grafana/synthetic-monitoring-agent/commit/1222bea07972f88dea5e2aa59ebcd174ae2a2eea))
+* Update ghcr.io/grafana/grafana-build-tools Docker tag to v2.0.1 ([#2132](https://github.com/grafana/synthetic-monitoring-agent/issues/2132)) ([93a2156](https://github.com/grafana/synthetic-monitoring-agent/commit/93a2156adae17530c7bec7bb5ecc26bc580bd850))
+* Update grafana/synthetic-monitoring-agent Docker tag to v0.71.0 ([#2140](https://github.com/grafana/synthetic-monitoring-agent/issues/2140)) ([0160ba5](https://github.com/grafana/synthetic-monitoring-agent/commit/0160ba54b92d3e9c439b9baae2abd4409b8be003))
+
 ## [0.71.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.70.0...v0.71.0) (2026-11-16)
 
 
