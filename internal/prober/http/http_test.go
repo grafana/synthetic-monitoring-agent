@@ -763,3 +763,31 @@ func TestBuildTLSConfig_WithSecrets(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildPrometheusHTTPClientConfig_ProxyConnectHeaders(t *testing.T) {
+	ctx, logger, tenantID := testhelper.CommonTestSetup()
+
+	settings := sm.HttpSettings{
+		ProxyURL: "http://proxy.example.com:3128",
+		ProxyConnectHeaders: []string{
+			"X-Test: one",
+			"X-Other: two",
+			"X-Test: three",
+		},
+	}
+
+	cfg, err := buildPrometheusHTTPClientConfig(ctx, &settings, logger, testhelper.NewMockSecretProvider(nil), tenantID)
+	require.NoError(t, err)
+
+	got := make(map[string][]string)
+	for name, values := range cfg.ProxyConnectHeader {
+		for _, v := range values {
+			got[name] = append(got[name], string(v))
+		}
+	}
+
+	require.Equal(t, map[string][]string{
+		"X-Test":  {"one", "three"},
+		"X-Other": {"two"},
+	}, got)
+}
