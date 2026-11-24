@@ -1672,33 +1672,16 @@ func TestExtractTimeseriesOmitsBrowserCacheLabels(t *testing.T) {
 	}
 
 	testcases := map[string]struct {
-		mode        sm.LabelMode
 		shared      []labelPair
 		wantPresent map[string]string
 		wantAbsent  []string
 	}{
-		"prefixed keeps k6 labels": {
-			mode:   sm.LabelMode_LABEL_MODE_PREFIXED,
-			shared: sysLabels,
-			wantPresent: map[string]string{
-				"from_cache": "false", "from_prefetch_cache": "false", "from_service_worker": "false",
-				"resource_type": "document", "method": "GET", "url": "https://example.com/",
-			},
-		},
-		"dual write omits k6 labels": {
-			mode:        sm.LabelMode_LABEL_MODE_DUAL_WRITE,
+		"omits k6 labels": {
 			shared:      sysLabels,
 			wantPresent: map[string]string{"method": "GET", "url": "https://example.com/", "job": "j"},
 			wantAbsent:  []string{"from_cache", "from_prefetch_cache", "from_service_worker", "resource_type"},
 		},
-		"unprefixed omits k6 labels": {
-			mode:        sm.LabelMode_LABEL_MODE_UNPREFIXED,
-			shared:      sysLabels,
-			wantPresent: map[string]string{"method": "GET", "url": "https://example.com/", "job": "j"},
-			wantAbsent:  []string{"from_cache", "from_prefetch_cache", "from_service_worker", "resource_type"},
-		},
-		"unprefixed keeps same-named tenant label": {
-			mode:        sm.LabelMode_LABEL_MODE_UNPREFIXED,
+		"keeps same-named shared label": {
 			shared:      append([]labelPair{{name: "resource_type", value: "team-a"}}, sysLabels...),
 			wantPresent: map[string]string{"resource_type": "team-a", "url": "https://example.com/"},
 			wantAbsent:  []string{"from_cache", "from_prefetch_cache", "from_service_worker"},
@@ -1707,7 +1690,7 @@ func TestExtractTimeseriesOmitsBrowserCacheLabels(t *testing.T) {
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			ts := extractTimeseries(testTime, browserMetric(), tc.shared, tc.mode, nil, nil, zerolog.Nop())
+			ts := extractTimeseries(testTime, browserMetric(), tc.shared, nil, nil, zerolog.Nop())
 			got := labelsOf(t, ts)
 
 			for k, v := range tc.wantPresent {
@@ -1739,7 +1722,7 @@ func TestAppendDtoToTimeseriesOmitHistogram(t *testing.T) {
 		},
 	}
 
-	ts := appendDtoToTimeseries(nil, time.Now(), "probe_browser_req", nil, dto.MetricType_HISTOGRAM, metric, migratedOmitMetricLabels)
+	ts := appendDtoToTimeseries(nil, time.Now(), "probe_browser_req", nil, dto.MetricType_HISTOGRAM, metric, omitMetricLabels)
 	require.Len(t, ts, 4) // _sum, _count, le=0.5, le=+Inf
 
 	for _, s := range ts {
@@ -2576,7 +2559,7 @@ func TestScraperCollectDataReservedLabelCollision(t *testing.T) {
 }
 
 // browserCacheProber emits a k6-browser-shaped gauge carrying the per-request
-// labels that migratedOmittedMetricLabels strips.
+// labels that omitMetricLabels strips.
 type browserCacheProber struct{}
 
 func (browserCacheProber) Name() string { return "browser cache prober" }
@@ -2595,7 +2578,7 @@ func (browserCacheProber) Probe(_ context.Context, _ string, registry *prometheu
 // tenant label that shares a name with an omitted k6 label. The tenant's label
 // must survive on every series (including sm_check_info, whose user labels are
 // metric-own labels rather than shared ones), while k6's value is stripped in
-// migrated modes only.
+// every mode.
 func TestScraperCollectDataOmitsBrowserCacheLabels(t *testing.T) {
 	testcases := map[string]struct {
 		mode          sm.LabelMode
@@ -2606,7 +2589,8 @@ func TestScraperCollectDataOmitsBrowserCacheLabels(t *testing.T) {
 		"prefixed": {
 			mode:          sm.LabelMode_LABEL_MODE_PREFIXED,
 			wantCheckInfo: map[string]string{"label_resource_type": "team-a"},
-			wantBrowser:   map[string]string{"resource_type": "document", "from_cache": "false", "url": "https://example.com/"},
+			wantBrowser:   map[string]string{"url": "https://example.com/"},
+			absentBrowser: []string{"from_cache", "from_prefetch_cache", "from_service_worker", "resource_type"},
 		},
 		"dual write": {
 			mode:          sm.LabelMode_LABEL_MODE_DUAL_WRITE,
