@@ -1,0 +1,21 @@
+{
+  "description": "One request checks the reply text against a regex.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/version"},
+        "checks": [{"type": 3, "subject": 3, "expression": "version [0-9]+[.][0-9]+"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /version": {"body": "version 2.4.1 stable"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 1, "fail": 0},
+    "requests": [
+      {"route": "GET /version"}
+    ]
+  }
+}

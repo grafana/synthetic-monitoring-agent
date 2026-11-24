@@ -1,0 +1,30 @@
+{
+  "description": "Several requests with no assertions pass even when one of them gets a server error.",
+  "settings": {
+    "entries": [
+      {"request": {"method": "GET", "url": "{{base}}/ping"}},
+      {"request": {"method": "OPTIONS", "url": "{{alt}}/items"}},
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/prefs",
+          "headers": [{"name": "Cookie", "value": "theme=dark"}]
+        }
+      }
+    ]
+  },
+  "routes": {
+    "GET /ping": {"body": "pong"},
+    "OPTIONS /items": {},
+    "GET /prefs": {"status": 500, "body": "oops"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "GET /ping"},
+      {"route": "OPTIONS /items", "headers": {"Host": "127.0.0.2"}},
+      {"route": "GET /prefs", "headers": {"Cookie": "theme=dark"}}
+    ]
+  }
+}

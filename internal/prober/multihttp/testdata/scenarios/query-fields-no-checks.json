@@ -1,0 +1,32 @@
+{
+  "description": "Requests with query fields, one added to a URL that already has a query, pass with no assertions.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/search?page=2",
+          "queryFields": [{"name": "sort", "value": "name"}]
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{alt}}/search",
+          "queryFields": [{"name": "q", "value": "alpha"}, {"name": "lang", "value": "en"}]
+        }
+      }
+    ]
+  },
+  "routes": {
+    "GET /search": {"body": "results"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "GET /search", "query": {"page": "2", "sort": "name"}},
+      {"route": "GET /search", "headers": {"Host": "127.0.0.2"}, "query": {"q": "alpha", "lang": "en"}}
+    ]
+  }
+}

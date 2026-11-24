@@ -1,0 +1,52 @@
+{
+  "description": "A JSON login sets a session cookie and returns a user id used in later URLs, and every step checks its status.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/login",
+          "body": {"contentType": "application/json", "payload": "eyJ1c2VybmFtZSI6ImRlbW8ifQ=="}
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}],
+        "variables": [{"type": 0, "name": "uid", "expression": "user.id"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/users/${uid}",
+          "headers": [{"name": "X-Example-User", "value": "${uid}"}]
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}]
+      },
+      {
+        "request": {
+          "method": "PUT",
+          "url": "{{base}}/users/${uid}/prefs",
+          "body": {"contentType": "application/json", "payload": "eyJ0aGVtZSI6ImRhcmsifQ=="}
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "202"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/dashboard"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /login": {"headers": {"Content-Type": "application/json", "Set-Cookie": "session=sid-def; Path=/"}, "body": "{\"user\":{\"id\":\"user-m\"}}"},
+    "GET /users/user-m": {"body": "ok"},
+    "PUT /users/user-m/prefs": {"status": 202},
+    "GET /dashboard": {"body": "ok"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 4, "fail": 0},
+    "requests": [
+      {"route": "POST /login"},
+      {"route": "GET /users/user-m", "headers": {"X-Example-User": "user-m"}},
+      {"route": "PUT /users/user-m/prefs", "body": "\"theme\":\"dark\""},
+      {"route": "GET /dashboard", "headers": {"Cookie": "session=sid-def"}}
+    ]
+  }
+}

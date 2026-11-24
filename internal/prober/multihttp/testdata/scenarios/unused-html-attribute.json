@@ -1,0 +1,21 @@
+{
+  "description": "A request to a URL with an escape and a fragment saves an HTML attribute that nothing uses.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/page%2Done#main"},
+        "variables": [{"type": 2, "name": "nextId", "expression": "a.next", "attribute": "data-id"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /page-one": {"headers": {"Content-Type": "text/html"}, "body": "<a class=\"next\" data-id=\"p-2\">next</a>"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "GET /page-one"}
+    ]
+  }
+}

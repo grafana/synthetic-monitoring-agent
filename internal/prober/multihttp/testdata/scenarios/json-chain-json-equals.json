@@ -1,0 +1,37 @@
+{
+  "description": "A created profile id goes into a PATCH URL and header, and each JSON reply value is checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/profiles",
+          "body": {"contentType": "application/json", "payload": "eyJuYW1lIjoiZGVtbyJ9"}
+        },
+        "checks": [{"type": 1, "condition": 2, "expression": "profile.name", "value": "demo"}],
+        "variables": [{"type": 0, "name": "pid", "expression": "profile.id"}]
+      },
+      {
+        "request": {
+          "method": "PATCH",
+          "url": "{{base}}/profiles/${pid}",
+          "headers": [{"name": "X-Example-Profile", "value": "${pid}"}],
+          "body": {"contentType": "application/json", "payload": "eyJwbGFuIjoiYmFzaWMifQ=="}
+        },
+        "checks": [{"type": 1, "condition": 2, "expression": "$.plan", "value": "basic"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /profiles": {"headers": {"Content-Type": "application/json"}, "body": "{\"profile\":{\"id\":\"prof-b\",\"name\":\"demo\"}}"},
+    "PATCH /profiles/prof-b": {"headers": {"Content-Type": "application/json"}, "body": "{\"plan\":\"basic\"}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "POST /profiles"},
+      {"route": "PATCH /profiles/prof-b", "headers": {"X-Example-Profile": "prof-b"}, "body": "\"plan\":\"basic\""}
+    ]
+  }
+}

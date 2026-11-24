@@ -1,0 +1,30 @@
+{
+  "description": "A redirect from a second host is checked by status and exact Location line, then a header prefix is checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{alt}}/old"},
+        "checks": [
+          {"type": 0, "subject": 2, "condition": 2, "value": "301"},
+          {"type": 0, "subject": 1, "condition": 2, "value": "location: {{base}}/new"}
+        ]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/home"},
+        "checks": [{"type": 0, "subject": 1, "condition": 3, "value": "x-example-mode: bl"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /old": {"status": 301, "headers": {"Location": "{{base}}/new"}},
+    "GET /home": {"headers": {"X-Example-Mode": "blue"}}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 3, "fail": 0},
+    "requests": [
+      {"route": "GET /old", "headers": {"Host": "127.0.0.2"}},
+      {"route": "GET /home"}
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "description": "A regex-captured order id goes into later URLs and an assertion, and each reply's text is checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/orders"},
+        "checks": [{"type": 0, "subject": 3, "value": "status=open"}],
+        "variables": [{"type": 1, "name": "orderId", "expression": "order=(ord-[0-9]+)"}]
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/orders/${orderId}/notes",
+          "body": {"contentType": "application/json", "payload": "eyJub3RlIjoiY2hlY2sifQ=="}
+        },
+        "checks": [{"type": 0, "subject": 3, "value": "${orderId}"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/orders/${orderId}"},
+        "checks": [{"type": 0, "subject": 3, "condition": 1, "value": "closed"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/health"},
+        "checks": [{"type": 0, "subject": 3, "value": "ok"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /orders": {"body": "order=ord-718 status=open"},
+    "POST /orders/ord-718/notes": {"body": "saved ord-718"},
+    "GET /orders/ord-718": {"body": "order ord-718 open"},
+    "GET /health": {"body": "ok"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 4, "fail": 0},
+    "requests": [
+      {"route": "GET /orders"},
+      {"route": "POST /orders/ord-718/notes", "body": "\"note\":\"check\""},
+      {"route": "GET /orders/ord-718"},
+      {"route": "GET /health"}
+    ]
+  }
+}

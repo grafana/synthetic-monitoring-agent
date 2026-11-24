@@ -1,0 +1,38 @@
+{
+  "description": "A login form's hidden field goes into a form POST, and the session cookie it sets is used by the next request.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/login-form"},
+        "checks": [{"type": 0, "subject": 3, "value": "<form"}],
+        "variables": [{"type": 2, "name": "nonce", "expression": "input[name=nonce]", "attribute": "value"}]
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/login",
+          "body": {"contentType": "application/x-www-form-urlencoded", "payload": "dXNlcm5hbWU9ZGVtbyZub25jZT0ke25vbmNlfQ=="}
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "302"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/account"},
+        "checks": [{"type": 0, "subject": 3, "value": "signed in"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /login-form": {"headers": {"Content-Type": "text/html"}, "body": "<form><input type=\"hidden\" name=\"nonce\" value=\"n-k8z\"></form>"},
+    "POST /login": {"status": 302, "headers": {"Location": "{{base}}/home", "Set-Cookie": "session=sid-xyz; Path=/"}},
+    "GET /account": {"body": "signed in"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 3, "fail": 0},
+    "requests": [
+      {"route": "GET /login-form"},
+      {"route": "POST /login", "body": "nonce=n-k8z"},
+      {"route": "GET /account", "headers": {"Cookie": "session=sid-xyz"}}
+    ]
+  }
+}

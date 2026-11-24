@@ -1,0 +1,26 @@
+{
+  "description": "A HEAD request that checks reply text sees an empty body, so the run fails there.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "HEAD", "url": "{{base}}/report"},
+        "checks": [{"type": 0, "subject": 3, "value": "report"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/report"},
+        "checks": [{"type": 0, "subject": 3, "value": "report"}]
+      }
+    ]
+  },
+  "routes": {
+    "HEAD /report": {"body": "report body"},
+    "GET /report": {"body": "report body"}
+  },
+  "expect": {
+    "success": false,
+    "checks": {"pass": 0, "fail": 1},
+    "requests": [
+      {"route": "HEAD /report"}
+    ]
+  }
+}

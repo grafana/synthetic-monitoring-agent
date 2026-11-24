@@ -1,0 +1,32 @@
+{
+  "description": "An account id is sent to a second host in a header, and both JSON replies are checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/account"},
+        "checks": [{"type": 1, "condition": 2, "expression": "$.account.id", "value": "acct-c"}],
+        "variables": [{"type": 0, "name": "acct", "expression": "account.id"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{alt}}/account/details",
+          "headers": [{"name": "X-Example-Account", "value": "${acct}"}]
+        },
+        "checks": [{"type": 1, "condition": 2, "expression": "$.plan", "value": "basic"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /account": {"headers": {"Content-Type": "application/json"}, "body": "{\"account\":{\"id\":\"acct-c\"}}"},
+    "GET /account/details": {"headers": {"Content-Type": "application/json"}, "body": "{\"owner\":\"acct-c\",\"plan\":\"basic\"}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /account"},
+      {"route": "GET /account/details", "headers": {"X-Example-Account": "acct-c", "Host": "127.0.0.2"}}
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "description": "A redirect is checked by its status and not followed, then another host's reply text is checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/start"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "302"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{alt}}/about"},
+        "checks": [{"type": 0, "subject": 3, "condition": 2, "value": "About page"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /start": {"status": 302, "headers": {"Location": "{{base}}/next"}},
+    "GET /about": {"body": "About page"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /start"},
+      {"route": "GET /about", "headers": {"Host": "127.0.0.2"}}
+    ]
+  }
+}

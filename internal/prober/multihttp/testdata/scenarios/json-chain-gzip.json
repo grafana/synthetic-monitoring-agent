@@ -1,0 +1,41 @@
+{
+  "description": "A form POST and a follow-up request ask for gzip, br and deflate, read gzip replies and pass a token on.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/login",
+          "headers": [{"name": "Accept-Encoding", "value": "gzip, deflate, br"}, {"name": "Connection", "value": "keep-alive"}],
+          "body": {"contentType": "application/x-www-form-urlencoded", "payload": "Y2xpZW50PWRlbW8mc2NvcGU9cmVhZA=="}
+        },
+        "checks": [{"type": 0, "subject": 3, "value": "token"}],
+        "variables": [{"type": 0, "name": "token", "expression": "$.token"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/feed",
+          "headers": [
+            {"name": "Authorization", "value": "Bearer ${token}"},
+            {"name": "Accept-Encoding", "value": "gzip, deflate, br"},
+            {"name": "Connection", "value": "keep-alive"}
+          ]
+        },
+        "checks": [{"type": 0, "subject": 3, "value": "feed ok"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /login": {"headers": {"Content-Type": "application/json"}, "body": "{\"token\":\"tok-feed\"}", "gzip": true},
+    "GET /feed": {"headers": {"Content-Type": "text/plain"}, "body": "feed ok", "gzip": true}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "POST /login", "headers": {"Accept-Encoding": "br"}, "body": "client=demo"},
+      {"route": "GET /feed", "headers": {"Authorization": "Bearer tok-feed", "Accept-Encoding": "gzip"}}
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "description": "A JSON sign-in sets a cookie and returns an account id used in later URLs, and every JSON reply is checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/signin",
+          "body": {"contentType": "application/json", "payload": "eyJsb2dpbiI6ImRlbW8ifQ=="}
+        },
+        "checks": [{"type": 1, "condition": 2, "expression": "account.id", "value": "acct-z"}],
+        "variables": [{"type": 0, "name": "aid", "expression": "account.id"}]
+      },
+      {
+        "request": {"method": "DELETE", "url": "{{base}}/accounts/${aid}/tokens"},
+        "checks": [{"type": 1, "condition": 2, "expression": "$.state", "value": "queued"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/accounts/${aid}"},
+        "checks": [{"type": 1, "condition": 2, "expression": "active", "value": "yes"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/home"},
+        "checks": [{"type": 1, "condition": 2, "expression": "$.page", "value": "home"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /signin": {"headers": {"Content-Type": "application/json", "Set-Cookie": "sid=sid-ghi; Path=/"}, "body": "{\"account\":{\"id\":\"acct-z\"}}"},
+    "DELETE /accounts/acct-z/tokens": {"status": 202, "headers": {"Content-Type": "application/json"}, "body": "{\"state\":\"queued\"}"},
+    "GET /accounts/acct-z": {"headers": {"Content-Type": "application/json"}, "body": "{\"id\":\"acct-z\",\"active\":\"yes\"}"},
+    "GET /home": {"headers": {"Content-Type": "application/json"}, "body": "{\"page\":\"home\"}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 4, "fail": 0},
+    "requests": [
+      {"route": "POST /signin"},
+      {"route": "DELETE /accounts/acct-z/tokens"},
+      {"route": "GET /accounts/acct-z"},
+      {"route": "GET /home", "headers": {"Cookie": "sid=sid-ghi"}}
+    ]
+  }
+}

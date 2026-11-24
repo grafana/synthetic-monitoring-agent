@@ -1,0 +1,24 @@
+{
+  "description": "One request checks a reply header line for an exact value and for a value it lacks.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/config"},
+        "checks": [
+          {"type": 0, "subject": 1, "condition": 2, "value": "x-example-mode: blue"},
+          {"type": 0, "subject": 1, "condition": 1, "value": "x-example-mode: red"}
+        ]
+      }
+    ]
+  },
+  "routes": {
+    "GET /config": {"headers": {"X-Example-Mode": "blue"}, "body": "ok"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /config"}
+    ]
+  }
+}

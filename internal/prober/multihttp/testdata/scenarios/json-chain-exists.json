@@ -1,0 +1,36 @@
+{
+  "description": "A created task id is sent back in a header, and each JSON reply is checked for a path.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/tasks",
+          "body": {"contentType": "application/json", "payload": "eyJ0aXRsZSI6ImRlbW8ifQ=="}
+        },
+        "checks": [{"type": 2, "expression": "$.task.id"}],
+        "variables": [{"type": 0, "name": "tid", "expression": "$.task.id"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/tasks/list",
+          "headers": [{"name": "X-Example-Task", "value": "${tid}"}]
+        },
+        "checks": [{"type": 2, "expression": "tasks[*].id"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /tasks": {"status": 201, "headers": {"Content-Type": "application/json"}, "body": "{\"task\":{\"id\":\"task-a7\"}}"},
+    "GET /tasks/list": {"headers": {"Content-Type": "application/json"}, "body": "{\"tasks\":[{\"id\":\"task-a7\"}]}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "POST /tasks", "body": "\"title\":\"demo\""},
+      {"route": "GET /tasks/list", "headers": {"X-Example-Task": "task-a7"}}
+    ]
+  }
+}

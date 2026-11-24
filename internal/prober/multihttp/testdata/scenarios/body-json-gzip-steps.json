@@ -1,0 +1,35 @@
+{
+  "description": "Two requests that set their own Accept-Encoding check a gzip JSON value and gzip text.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/summary",
+          "headers": [{"name": "Accept-Encoding", "value": "gzip"}, {"name": "User-Agent", "value": "example-monitor/1.0"}]
+        },
+        "checks": [{"type": 1, "condition": 2, "expression": "$.state", "value": "ready"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/notes",
+          "headers": [{"name": "Accept-Encoding", "value": "gzip"}, {"name": "User-Agent", "value": "example-monitor/1.0"}]
+        },
+        "checks": [{"type": 0, "subject": 3, "value": "ready"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /summary": {"headers": {"Content-Type": "application/json"}, "body": "{\"state\":\"ready\",\"count\":2}", "gzip": true},
+    "GET /notes": {"headers": {"Content-Type": "text/plain"}, "body": "notes: ready", "gzip": true}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /summary", "headers": {"Accept-Encoding": "gzip"}},
+      {"route": "GET /notes", "headers": {"Accept-Encoding": "gzip"}}
+    ]
+  }
+}

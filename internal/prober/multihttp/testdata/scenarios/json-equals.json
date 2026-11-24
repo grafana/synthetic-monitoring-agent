@@ -1,0 +1,24 @@
+{
+  "description": "One request checks that JSON values equal the expected text, where one path returns several results.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/item"},
+        "checks": [
+          {"type": 1, "condition": 2, "expression": "$.name", "value": "alpha"},
+          {"type": 1, "condition": 2, "expression": "tags[*]", "value": "y"}
+        ]
+      }
+    ]
+  },
+  "routes": {
+    "GET /item": {"headers": {"Content-Type": "application/json"}, "body": "{\"name\":\"alpha\",\"tags\":[\"x\",\"y\"]}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /item"}
+    ]
+  }
+}

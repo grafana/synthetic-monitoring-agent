@@ -1,0 +1,46 @@
+{
+  "description": "A created cart id is sent back in a header and in a JSON body, and each reply's text is checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/carts",
+          "body": {"contentType": "application/json", "payload": "eyJpdGVtIjoicGVuIn0="}
+        },
+        "checks": [{"type": 0, "subject": 3, "value": "cart"}],
+        "variables": [{"type": 0, "name": "cart", "expression": "$.cart"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/carts/view",
+          "headers": [{"name": "X-Example-Cart", "value": "${cart}"}]
+        },
+        "checks": [{"type": 0, "subject": 3, "value": "1 item"}]
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/orders",
+          "body": {"contentType": "application/json", "payload": "eyJjYXJ0IjoiJHtjYXJ0fSJ9"}
+        },
+        "checks": [{"type": 0, "subject": 3, "condition": 3, "value": "order"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /carts": {"status": 201, "headers": {"Content-Type": "application/json"}, "body": "{\"cart\":\"cart-pen\"}"},
+    "GET /carts/view": {"body": "cart cart-pen has 1 item"},
+    "POST /orders": {"body": "order placed"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 3, "fail": 0},
+    "requests": [
+      {"route": "POST /carts", "body": "\"item\":\"pen\""},
+      {"route": "GET /carts/view", "headers": {"X-Example-Cart": "cart-pen"}},
+      {"route": "POST /orders", "body": "\"cart\":\"cart-pen\""}
+    ]
+  }
+}

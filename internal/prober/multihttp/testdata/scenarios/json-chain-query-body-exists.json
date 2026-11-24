@@ -1,0 +1,43 @@
+{
+  "description": "A new order id goes to a second host in a query field, a header and a JSON body, and both replies are checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/orders",
+          "body": {"contentType": "application/json", "payload": "eyJpdGVtIjoicGVuIn0="}
+        },
+        "checks": [{"type": 2, "expression": "order.id"}],
+        "variables": [{"type": 0, "name": "oid", "expression": "order.id"}]
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{alt}}/orders/confirm",
+          "headers": [{"name": "X-Example-Order", "value": "${oid}"}],
+          "queryFields": [{"name": "order", "value": "${oid}"}],
+          "body": {"contentType": "application/json", "payload": "eyJvcmRlciI6IiR7b2lkfSJ9"}
+        },
+        "checks": [{"type": 1, "condition": 2, "expression": "state", "value": "confirmed"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /orders": {"headers": {"Content-Type": "application/json"}, "body": "{\"order\":{\"id\":\"ord-pen\"}}"},
+    "POST /orders/confirm": {"headers": {"Content-Type": "application/json"}, "body": "{\"state\":\"confirmed\"}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "POST /orders", "body": "\"item\":\"pen\""},
+      {
+        "route": "POST /orders/confirm",
+        "headers": {"X-Example-Order": "ord-pen", "Host": "127.0.0.2"},
+        "query": {"order": "ord-pen"},
+        "body": "\"order\":\"ord-pen\""
+      }
+    ]
+  }
+}

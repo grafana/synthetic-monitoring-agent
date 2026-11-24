@@ -1,0 +1,35 @@
+{
+  "description": "A looked-up id is sent back as a query field and a header, with no assertions.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/lookup",
+          "queryFields": [{"name": "name", "value": "alpha"}]
+        },
+        "variables": [{"type": 0, "name": "lid", "expression": "$.id"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/details",
+          "headers": [{"name": "X-Example-Id", "value": "${lid}"}],
+          "queryFields": [{"name": "id", "value": "${lid}"}]
+        }
+      }
+    ]
+  },
+  "routes": {
+    "GET /lookup": {"headers": {"Content-Type": "application/json"}, "body": "{\"id\":\"lk-alpha\"}"},
+    "GET /details": {"body": "ok"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "GET /lookup", "query": {"name": "alpha"}},
+      {"route": "GET /details", "headers": {"X-Example-Id": "lk-alpha"}, "query": {"id": "lk-alpha"}}
+    ]
+  }
+}

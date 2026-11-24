@@ -1,0 +1,32 @@
+{
+  "description": "A regex-captured SKU from an XML reply goes into an XML request body, and both replies are checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/catalog"},
+        "checks": [{"type": 0, "subject": 3, "value": "<sku>"}],
+        "variables": [{"type": 1, "name": "sku", "expression": "sku-[0-9]+"}]
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/cart",
+          "body": {"contentType": "application/xml", "payload": "PGFkZD48c2t1PiR7c2t1fTwvc2t1PjwvYWRkPg=="}
+        },
+        "checks": [{"type": 0, "subject": 3, "condition": 2, "value": "added sku-904"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /catalog": {"headers": {"Content-Type": "application/xml"}, "body": "<catalog><sku>sku-904</sku></catalog>"},
+    "POST /cart": {"body": "added sku-904"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /catalog"},
+      {"route": "POST /cart", "headers": {"Content-Type": "xml"}, "body": "<sku>sku-904</sku>"}
+    ]
+  }
+}

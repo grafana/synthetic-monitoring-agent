@@ -1,0 +1,22 @@
+{
+  "description": "A status check also saves inner HTML with a CSS selector that nothing uses.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/page"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}],
+        "variables": [{"type": 2, "name": "heading", "expression": "h1.title"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /page": {"headers": {"Content-Type": "text/html"}, "body": "<html><body><h1 class=\"title\">Welcome</h1></body></html>"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 1, "fail": 0},
+    "requests": [
+      {"route": "GET /page"}
+    ]
+  }
+}

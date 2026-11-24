@@ -1,0 +1,28 @@
+{
+  "description": "A JSON reply hands out the absolute URL that the next step requests.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/links"},
+        "checks": [{"type": 1, "condition": 2, "expression": "$.kind", "value": "link"}],
+        "variables": [{"type": 0, "name": "next", "expression": "next"}]
+      },
+      {
+        "request": {"method": "GET", "url": "${next}"},
+        "checks": [{"type": 1, "condition": 2, "expression": "$.id", "value": "seven"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /links": {"headers": {"Content-Type": "application/json"}, "body": "{\"kind\":\"link\",\"next\":\"{{base}}/items/seven\"}"},
+    "GET /items/seven": {"headers": {"Content-Type": "application/json"}, "body": "{\"id\":\"seven\"}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /links"},
+      {"route": "GET /items/seven"}
+    ]
+  }
+}

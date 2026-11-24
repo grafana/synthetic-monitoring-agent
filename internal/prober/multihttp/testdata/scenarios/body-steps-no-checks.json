@@ -1,0 +1,33 @@
+{
+  "description": "A PUT with JSON and a GET that carries an XML body pass with no assertions.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "PUT",
+          "url": "{{base}}/items/seven",
+          "body": {"contentType": "application/json", "payload": "eyJuYW1lIjoic2V2ZW4ifQ=="}
+        }
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{alt}}/items/seven",
+          "body": {"contentType": "application/xml", "payload": "PHByb2JlLz4="}
+        }
+      }
+    ]
+  },
+  "routes": {
+    "PUT /items/seven": {"body": "saved"},
+    "GET /items/seven": {"body": "seven"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "PUT /items/seven", "body": "\"name\":\"seven\""},
+      {"route": "GET /items/seven", "headers": {"Content-Type": "xml", "Host": "127.0.0.2"}, "body": "<probe/>"}
+    ]
+  }
+}

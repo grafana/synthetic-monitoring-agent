@@ -1,0 +1,21 @@
+{
+  "description": "A request with no assertions saves JSON values that nothing uses.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/items"},
+        "variables": [{"type": 0, "name": "first", "expression": "$..id"}, {"type": 0, "name": "second", "expression": "items[1].id"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /items": {"headers": {"Content-Type": "application/json"}, "body": "{\"items\":[{\"id\":\"a1\"},{\"id\":\"b2\"}]}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "GET /items"}
+    ]
+  }
+}
