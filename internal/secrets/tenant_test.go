@@ -310,6 +310,12 @@ func TestError(t *testing.T) {
 			wantFields: []any{"field", "bearer token", "secret", "x", "reason", ErrSecretNotFound.Error()},
 			wantIs:     []error{ErrSecretNotFound},
 		},
+		"a value that resolved but cannot be sent": {
+			err:        &Error{Field: "header X-Api-Key", Secret: "x", Reason: ErrSecretValueInvalidInHeader},
+			wantText:   `failed to send header X-Api-Key: secret 'x': ` + ErrSecretValueInvalidInHeader.Error(),
+			wantFields: []any{"field", "header X-Api-Key", "secret", "x", "reason", ErrSecretValueInvalidInHeader.Error()},
+			wantIs:     []error{ErrSecretValueInvalidInHeader},
+		},
 		"reason only": {
 			err:        &Error{Reason: ErrNoSecretStore},
 			wantText:   ErrNoSecretStore.Error(),

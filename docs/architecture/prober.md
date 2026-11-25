@@ -133,12 +133,10 @@ per-type file translates the SM `Check` configuration into a
 blackbox-exporter `config.Module` and calls the upstream
 `ProbeHTTP` / `ProbeDNS` / `ProbeTCP` / `ProbeGRPC` function.
 
-HTTP also resolves `${secrets.<name>}` references while building the
-client config: in the bearer token, the basic auth password, and the TLS
-CA cert, client cert and client key. This happens for every check. The
-`secretManagerEnabled` field in the check settings is ignored. A value
-with no `${secrets.` in it is passed through as is and never hits the
-secret store, so checks without secrets only pay for a substring check.
+HTTP resolves `${secrets.<name>}` references on every run: in the bearer
+token, the basic auth password, the TLS CA cert, client cert and client
+key, and custom header values (never names). `secretManagerEnabled` is
+ignored. A value without `${secrets.` never hits the secret store.
 
 A reference that does not resolve fails the run before any request is
 sent. Every layer reports the failure as a `secrets.Error` and fills in
@@ -163,6 +161,29 @@ context when it has ended, so a timeout is not reported as an
 unavailable store. Other errors while building the client config, such
 as a bad proxy URL, go to the agent log only. Proxy URL errors leave out
 the URL, because it can carry `user:password@`.
+
+A resolved header value with a line break or another control character
+also fails the run before any request is sent. HTTP does not allow these
+characters in a header, and a stored secret often ends with a line
+break. The check logs name the header and, when the value holds one
+reference, the secret. A bad character typed into the check itself is
+left to the HTTP client.
+
+Blackbox exporter follows redirects unless the check turns them off.
+When a redirect goes to another host, the Go HTTP client drops
+`Authorization`, `Cookie` and `WWW-Authenticate`, and sends every other
+header again. A secret in a header such as `X-Api-Key` therefore
+reaches each host the target redirects to. The HTTP prober does not
+remove it.
+
+Blackbox exporter logs the `Host` header and each redirect it follows,
+and puts the `Host` value in TLS errors. The check logs keep every
+level, and a target can echo a value back. So the HTTP prober wraps the
+check logger and replaces each value it resolved in that run with its
+`${secrets.<name>}` text. Log keys, the level and the timestamps stay as
+they are, because the scraper drops a line whose timestamp does not
+parse. A very short value is replaced in other unrelated text too, and
+a transformed value, such as base64, is not replaced.
 
 DNS is special: the project keeps an in-tree fork at
 `prober/dns/internal/bbe` because the upstream DNS prober is missing a

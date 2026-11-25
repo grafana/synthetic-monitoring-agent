@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"maps"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +27,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	promconfig "github.com/prometheus/common/config"
 	"github.com/rs/zerolog"
+	"golang.org/x/net/http/httpguts"
 )
 
 var errUnsupportedCheck = errors.New("unsupported check")
@@ -37,7 +40,7 @@ type Prober struct {
 	tenantID                   model.GlobalID
 	logger                     zerolog.Logger
 	cacheBustingQueryParamName string
-	// Static config that doesn't need secret resolution
+	// Built once; header values still hold ${secrets.name}, resolved on each run.
 	staticConfig config.Module
 }
 
@@ -50,7 +53,6 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, re
 		augmentHttpHeaders(&check.Check, reservedHeaders)
 	}
 
-	// Build static configuration (everything except authentication secrets)
 	staticCfg, err := buildStaticConfig(check.Settings.Http)
 	if err != nil {
 		return Prober{}, err
@@ -74,48 +76,55 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger, _ string) (bool, float64) {
-	slogger := logger.ToSlog(l)
-
 	if p.cacheBustingQueryParamName != "" {
 		// FIXME(mem): the second target argument should be the probe's name
 		target = addCacheBustParam(target, p.cacheBustingQueryParamName, target)
 	}
 
+	resolver := interpolation.NewResolver(p.secretStore, p.tenantID, p.logger)
+
 	// Resolve secrets and build complete config at probe time
-	probeConfig, err := p.buildProbeConfig(ctx)
+	probeConfig, err := p.buildProbeConfig(ctx, resolver)
+
+	// Blackbox exporter logs the Host header and the redirects it follows, and a target can echo
+	// a value back, so the check logs get each resolved value as its reference.
+	l = logger.Redacting(l, resolver.Redactor())
+
 	if err != nil {
 		p.logger.Error().Err(err).Msg("failed to build config for HTTP probe")
 
 		// Only a secret failure reaches the check logs.
 		if secretErr, ok := errors.AsType[*secrets.Error](err); ok {
-			fields := append([]any{"msg", "Could not resolve a secret referenced by this check"}, secretErr.LogFields()...)
-			_ = level.Error(l).Log(fields...)
+			msg := "Could not resolve a secret referenced by this check"
+			if errors.Is(secretErr, secrets.ErrSecretValueInvalidInHeader) {
+				msg = "Could not send a secret referenced by this check"
+			}
+
+			_ = level.Error(l).Log(append([]any{"msg", msg}, secretErr.LogFields()...)...)
 		}
 
 		return false, 0
 	}
 
-	return bbeprober.ProbeHTTP(ctx, target, probeConfig, registry, slogger), 0
+	return bbeprober.ProbeHTTP(ctx, target, probeConfig, registry, logger.ToSlog(l)), 0
 }
 
 // buildProbeConfig creates the complete configuration with resolved secrets
-func (p Prober) buildProbeConfig(ctx context.Context) (config.Module, error) {
+func (p Prober) buildProbeConfig(ctx context.Context, resolver *interpolation.Resolver) (config.Module, error) {
 	// Start with static config
 	cfg := p.staticConfig
 
-	// Resolve authentication secrets at probe time
-	httpClientConfig, err := buildPrometheusHTTPClientConfig(
-		ctx,
-		p.settings,
-		p.logger,
-		p.secretStore,
-		p.tenantID,
-	)
+	httpClientConfig, err := buildPrometheusHTTPClientConfig(ctx, p.settings, p.logger, resolver)
 	if err != nil {
 		return cfg, fmt.Errorf("failed to build HTTP client config: %w", err)
 	}
 
 	cfg.HTTP.HTTPClientConfig = httpClientConfig
+
+	cfg.HTTP.Headers, err = resolveHeaders(ctx, p.staticConfig.HTTP.Headers, resolver)
+	if err != nil {
+		return cfg, err
+	}
 
 	// Set BBE's SkipResolvePhaseWithProxy when a proxy is configured
 	if cfg.HTTP.HTTPClientConfig.ProxyURL.URL != nil {
@@ -135,7 +144,8 @@ func (p Prober) buildProbeConfig(ctx context.Context) (config.Module, error) {
 	return cfg, nil
 }
 
-// buildStaticConfig creates the parts of the config that don't require secret resolution
+// buildStaticConfig builds the parts of the config that NewProber can build once. Header values
+// can still hold secret references, which buildProbeConfig resolves on each run.
 func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 	var m config.Module
 
@@ -216,15 +226,9 @@ func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 	return m, nil
 }
 
-// resolveSecretValue resolves a secret value using string interpolation with ${secrets.secret_name} syntax.
-// A value holding no reference is returned unchanged. field names the setting in errors.
-func resolveSecretValue(ctx context.Context, field, value string, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) (string, error) {
-	if value == "" {
-		return "", nil
-	}
-
-	resolver := interpolation.NewResolver(secretStore, tenantID, logger)
-
+// resolveSecretValue resolves the secret references in value. field names the setting in the
+// check logs when a reference does not resolve.
+func resolveSecretValue(ctx context.Context, field, value string, resolver *interpolation.Resolver) (string, error) {
 	resolved, err := resolver.Resolve(ctx, value)
 	if err != nil {
 		secretErr := secrets.AsError(err)
@@ -238,12 +242,12 @@ func resolveSecretValue(ctx context.Context, field, value string, secretStore se
 
 // resolveSecretBytes is resolveSecretValue for []byte. A value with no reference is returned as
 // is, without converting it to a string and back.
-func resolveSecretBytes(ctx context.Context, field string, value []byte, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) ([]byte, error) {
+func resolveSecretBytes(ctx context.Context, field string, value []byte, resolver *interpolation.Resolver) ([]byte, error) {
 	if !bytes.Contains(value, []byte(interpolation.SecretRefPrefix)) {
 		return value, nil
 	}
 
-	resolved, err := resolveSecretValue(ctx, field, string(value), secretStore, tenantID, logger)
+	resolved, err := resolveSecretValue(ctx, field, string(value), resolver)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +255,63 @@ func resolveSecretBytes(ctx context.Context, field string, value []byte, secretS
 	return []byte(resolved), nil
 }
 
-func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, secretStore secrets.SecretProvider, tenantID model.GlobalID) (promconfig.HTTPClientConfig, error) {
+// resolveHeaders returns the headers with each secret reference in a value resolved. Names are never resolved.
+func resolveHeaders(ctx context.Context, headers map[string]string, resolver *interpolation.Resolver) (map[string]string, error) {
+	if !anyValueHasSecretRef(headers) {
+		return headers, nil
+	}
+
+	resolved := make(map[string]string, len(headers))
+
+	// Sorted, so that when several headers fail the check logs always report the same one.
+	for _, name := range slices.Sorted(maps.Keys(headers)) {
+		field := "header " + name
+
+		v, err := resolveSecretValue(ctx, field, headers[name], resolver)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := checkResolvedHeaderValue(field, headers[name], v); err != nil {
+			return nil, err
+		}
+
+		resolved[name] = v
+	}
+
+	return resolved, nil
+}
+
+// checkResolvedHeaderValue fails when resolving put a character into a header value that HTTP does
+// not allow, such as the line break a stored secret often ends with. The HTTP client rejects such a
+// request too, but its error does not tell the check owner that a secret is the cause. A bad
+// character typed into the check itself is left to the HTTP client.
+func checkResolvedHeaderValue(field, raw, resolved string) error {
+	if httpguts.ValidHeaderFieldValue(resolved) || !httpguts.ValidHeaderFieldValue(raw) {
+		return nil
+	}
+
+	err := &secrets.Error{Field: field, Reason: secrets.ErrSecretValueInvalidInHeader}
+
+	// With more than one reference, the value does not tell which secret is the cause.
+	if refs := interpolation.SecretRegex.FindAllStringSubmatch(raw, -1); len(refs) == 1 {
+		err.Secret = refs[0][1]
+	}
+
+	return err
+}
+
+func anyValueHasSecretRef(headers map[string]string) bool {
+	for _, value := range headers {
+		if interpolation.HasSecretRef(value) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSettings, logger zerolog.Logger, resolver *interpolation.Resolver) (promconfig.HTTPClientConfig, error) {
 	var cfg promconfig.HTTPClientConfig
 
 	// Enable HTTP2 for all checks.
@@ -279,14 +339,14 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 	if settings.TlsConfig != nil {
 		var err error
 
-		cfg.TLSConfig, err = buildTLSConfig(ctx, settings.TlsConfig, secretStore, tenantID, logger)
+		cfg.TLSConfig, err = buildTLSConfig(ctx, settings.TlsConfig, logger, resolver)
 		if err != nil {
 			return cfg, err
 		}
 	}
 
 	// Resolve bearer token (may be a secret)
-	bearerToken, err := resolveSecretValue(ctx, "bearer token", settings.BearerToken, secretStore, tenantID, logger)
+	bearerToken, err := resolveSecretValue(ctx, "bearer token", settings.BearerToken, resolver)
 	if err != nil {
 		return cfg, err
 	}
@@ -295,7 +355,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 
 	if settings.BasicAuth != nil {
 		// Resolve password (may be a secret)
-		password, err := resolveSecretValue(ctx, "basic auth password", settings.BasicAuth.Password, secretStore, tenantID, logger)
+		password, err := resolveSecretValue(ctx, "basic auth password", settings.BasicAuth.Password, resolver)
 		if err != nil {
 			return cfg, err
 		}
@@ -318,7 +378,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 			headers := make(promconfig.ProxyHeader)
 
 			for _, h := range settings.ProxyConnectHeaders {
-				name, value := strToHeaderNameValue(h)
+				name, value := sm.SplitHeader(h)
 				headers[name] = []promconfig.Secret{promconfig.Secret(value)}
 			}
 
@@ -330,7 +390,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 }
 
 // buildTLSConfig builds a Prometheus TLS config from SM TLS config with secret resolution support
-func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore secrets.SecretProvider, tenantID model.GlobalID, logger zerolog.Logger) (promconfig.TLSConfig, error) {
+func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, logger zerolog.Logger, resolver *interpolation.Resolver) (promconfig.TLSConfig, error) {
 	// Create a copy of the TLS config with resolved secrets
 	resolvedTLSConfig := &sm.TLSConfig{
 		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
@@ -339,17 +399,17 @@ func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, secretStore se
 
 	var err error
 
-	resolvedTLSConfig.CACert, err = resolveSecretBytes(ctx, "CA cert", tlsConfig.CACert, secretStore, tenantID, logger)
+	resolvedTLSConfig.CACert, err = resolveSecretBytes(ctx, "CA cert", tlsConfig.CACert, resolver)
 	if err != nil {
 		return promconfig.TLSConfig{}, err
 	}
 
-	resolvedTLSConfig.ClientCert, err = resolveSecretBytes(ctx, "client cert", tlsConfig.ClientCert, secretStore, tenantID, logger)
+	resolvedTLSConfig.ClientCert, err = resolveSecretBytes(ctx, "client cert", tlsConfig.ClientCert, resolver)
 	if err != nil {
 		return promconfig.TLSConfig{}, err
 	}
 
-	resolvedTLSConfig.ClientKey, err = resolveSecretBytes(ctx, "client key", tlsConfig.ClientKey, secretStore, tenantID, logger)
+	resolvedTLSConfig.ClientKey, err = resolveSecretBytes(ctx, "client key", tlsConfig.ClientKey, resolver)
 	if err != nil {
 		return promconfig.TLSConfig{}, err
 	}
@@ -410,7 +470,7 @@ func augmentHttpHeaders(check *sm.Check, reservedHeaders http.Header) {
 	headers := []string{}
 
 	for _, header := range check.Settings.Http.Headers {
-		name, _ := strToHeaderNameValue(header)
+		name, _ := sm.SplitHeader(header)
 
 		_, present := reservedHeaders[http.CanonicalHeaderKey(name)]
 		if present {
@@ -442,7 +502,7 @@ func buildHttpHeaders(headers []string) map[string]string {
 	}
 
 	for _, header := range headers {
-		name, value := strToHeaderNameValue(header)
+		name, value := sm.SplitHeader(header)
 
 		if strings.ToLower(name) == userAgentHeader {
 			// Remove the default user-agent header and
@@ -457,17 +517,6 @@ func buildHttpHeaders(headers []string) map[string]string {
 	}
 
 	return h
-}
-
-func strToHeaderNameValue(s string) (string, string) {
-	parts := strings.SplitN(s, ":", 2)
-
-	var value string
-	if len(parts) == 2 {
-		value = strings.TrimLeft(parts[1], " ")
-	}
-
-	return parts[0], value
 }
 
 func addCacheBustParam(target, paramName, salt string) string {

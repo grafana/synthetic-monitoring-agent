@@ -869,6 +869,13 @@ func (e *MultiHttpEntry) Validate() error {
 	return nil
 }
 
+// SplitHeader splits a "Name: value" header at the first colon and drops the spaces before the value.
+func SplitHeader(header string) (name, value string) {
+	name, value, _ = strings.Cut(header, ":")
+
+	return name, strings.TrimLeft(value, " ")
+}
+
 func (h HttpHeader) Validate() error {
 	if !httpguts.ValidHeaderFieldName(h.Name) {
 		return ErrInvalidHttpHeaders
