@@ -1,0 +1,29 @@
+{
+  "description": "A JSONPath variable on a reply that is not JSON stops the run before the next step.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/status"},
+        "variables": [{"type": 0, "name": "state", "expression": "$.state"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/items",
+          "headers": [{"name": "X-Example-State", "value": "${state}"}]
+        }
+      }
+    ]
+  },
+  "routes": {
+    "GET /status": {"headers": {"Content-Type": "text/plain"}, "body": "maintenance"},
+    "GET /items": {"body": "items"}
+  },
+  "expect": {
+    "success": false,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "GET /status"}
+    ]
+  }
+}

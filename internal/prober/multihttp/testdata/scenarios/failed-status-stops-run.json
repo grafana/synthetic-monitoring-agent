@@ -1,0 +1,29 @@
+{
+  "description": "A status assertion that fails in the middle step stops the run, so the last step is never sent.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/health"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/items"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}]
+      },
+      {"request": {"method": "GET", "url": "{{base}}/items/latest"}}
+    ]
+  },
+  "routes": {
+    "GET /health": {"body": "ok"},
+    "GET /items": {"status": 500, "body": "error"},
+    "GET /items/latest": {"body": "latest"}
+  },
+  "expect": {
+    "success": false,
+    "checks": {"pass": 1, "fail": 1},
+    "requests": [
+      {"route": "GET /health"},
+      {"route": "GET /items"}
+    ]
+  }
+}

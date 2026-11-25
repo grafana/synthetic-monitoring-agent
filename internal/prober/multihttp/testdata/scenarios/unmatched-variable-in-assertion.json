@@ -1,0 +1,27 @@
+{
+  "description": "A JSONPath variable that matches nothing fails the assertion that uses it, even when the reply holds the text undefined.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/profile"},
+        "variables": [{"type": 0, "name": "nickname", "expression": "$.nickname"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/greeting"},
+        "checks": [{"type": 0, "subject": 3, "condition": 6, "value": "${nickname}"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /profile": {"headers": {"Content-Type": "application/json"}, "body": "{\"id\":\"u-1\"}"},
+    "GET /greeting": {"body": "hello undefined"}
+  },
+  "expect": {
+    "success": false,
+    "checks": {"pass": 0, "fail": 1},
+    "requests": [
+      {"route": "GET /profile"},
+      {"route": "GET /greeting"}
+    ]
+  }
+}

@@ -13,7 +13,9 @@ rather than by what it monitors:
 - which variable kinds it saves;
 - where a saved value is used again: URL, header, query field, body, assertion
   value, or the whole URL;
-- whether a step asks for a compressed reply.
+- whether a step asks for a compressed reply;
+- where a run stops: a failed assertion, a saved value that matched nothing, or
+  a reply that a variable cannot read.
 
 Shapes that differ only in method, host, step count or values share a file. Each
 file was written by hand and adds the request details that matter to its shape,
