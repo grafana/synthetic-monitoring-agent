@@ -1,0 +1,55 @@
+{
+  "description": "Several requests to two hosts check the status code with each condition and a regex, including error codes and a reply with no content.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/ok"},
+        "checks": [
+          {"type": 0, "subject": 2, "condition": 2, "value": "200"},
+          {"type": 0, "subject": 2, "condition": 6, "value": "20"},
+          {"type": 0, "subject": 2, "condition": 1, "value": "5"}
+        ]
+      },
+      {
+        "request": {"method": "HEAD", "url": "{{alt}}/ok"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}]
+      },
+      {
+        "request": {"method": "DELETE", "url": "{{base}}/items/one"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "204"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/missing"},
+        "checks": [{"type": 0, "subject": 2, "condition": 3, "value": "4"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/unavailable"},
+        "checks": [{"type": 3, "subject": 2, "expression": "^5\\d\\d$"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/files/a%20b#top"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /ok": {"body": "ok"},
+    "HEAD /ok": {},
+    "DELETE /items/one": {"status": 204},
+    "GET /missing": {"status": 404, "body": "not found"},
+    "GET /unavailable": {"status": 503, "body": "busy"},
+    "GET /files/a b": {"body": "file a b"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 8, "fail": 0},
+    "requests": [
+      {"route": "GET /ok"},
+      {"route": "HEAD /ok", "headers": {"Host": "127.0.0.2"}},
+      {"route": "DELETE /items/one"},
+      {"route": "GET /missing"},
+      {"route": "GET /unavailable"},
+      {"route": "GET /files/a b"}
+    ]
+  }
+}

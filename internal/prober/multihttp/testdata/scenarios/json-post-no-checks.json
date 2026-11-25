@@ -1,0 +1,25 @@
+{
+  "description": "A JSON POST with a content encoding and its own Content-Type header passes with no assertions.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/events",
+          "headers": [{"name": "Content-Type", "value": "application/json; charset=utf-8"}],
+          "body": {"contentType": "application/json", "contentEncoding": "identity", "payload": "eyJuYW1lIjoicGluZyJ9"}
+        }
+      }
+    ]
+  },
+  "routes": {
+    "POST /events": {"status": 202, "body": "accepted"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "POST /events", "headers": {"Content-Type": "charset=utf-8", "Content-Encoding": "identity"}, "body": "\"name\":\"ping\""}
+    ]
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "description": "A token goes into a later URL and header next to literal dollar text, and every step checks its status.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/session"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}],
+        "variables": [{"type": 0, "name": "token", "expression": "token"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/items/${token}",
+          "headers": [
+            {"name": "X-Example-Token", "value": "${token}"},
+            {"name": "X-Example-Note", "value": "price-${1st}"}
+          ]
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/items/none"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "404"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /session": {"headers": {"Content-Type": "application/json"}, "body": "{\"token\":\"tok-pq\"}"},
+    "GET /items/tok-pq": {"body": "ok"},
+    "GET /items/none": {"status": 404, "body": "not found"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 3, "fail": 0},
+    "requests": [
+      {"route": "GET /session"},
+      {"route": "GET /items/tok-pq", "headers": {"X-Example-Token": "tok-pq", "X-Example-Note": "price-${1st}"}},
+      {"route": "GET /items/none"}
+    ]
+  }
+}

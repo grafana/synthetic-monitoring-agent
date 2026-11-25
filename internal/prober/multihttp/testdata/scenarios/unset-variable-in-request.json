@@ -1,0 +1,32 @@
+{
+  "description": "A request that uses a variable nothing sets sends the text undefined in its place.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/events/ref-${missing}",
+          "headers": [{"name": "X-Example-Ref", "value": "ref-${missing}"}],
+          "queryFields": [{"name": "ref", "value": "ref-${missing}"}],
+          "body": {"contentType": "application/json", "payload": "eyJyZWYiOiJyZWYtJHttaXNzaW5nfSJ9"}
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /events/ref-undefined": {"body": "ok"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 1, "fail": 0},
+    "requests": [
+      {
+        "route": "POST /events/ref-undefined",
+        "headers": {"X-Example-Ref": "ref-undefined", "Content-Type": "application/json"},
+        "query": {"ref": "ref-undefined"},
+        "body": "ref-undefined"
+      }
+    ]
+  }
+}

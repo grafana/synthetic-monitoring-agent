@@ -1,0 +1,39 @@
+{
+  "description": "A form POST returns an access value used in the next request, whose JSON and headers are checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/token",
+          "body": {"contentType": "application/x-www-form-urlencoded", "payload": "Z3JhbnQ9ZGVtbyZzY29wZT1yZWFk"}
+        },
+        "checks": [{"type": 1, "condition": 2, "expression": "$.type", "value": "bearer"}],
+        "variables": [{"type": 0, "name": "access", "expression": "$.access"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/profile",
+          "headers": [{"name": "Authorization", "value": "Bearer ${access}"}]
+        },
+        "checks": [
+          {"type": 3, "subject": 1, "expression": "x-example-version: v2[.][0-9]"},
+          {"type": 1, "condition": 2, "expression": "$.name", "value": "demo"}
+        ]
+      }
+    ]
+  },
+  "routes": {
+    "POST /token": {"headers": {"Content-Type": "application/json"}, "body": "{\"access\":\"acc-x9\",\"type\":\"bearer\"}"},
+    "GET /profile": {"headers": {"Content-Type": "application/json", "X-Example-Version": "v2.1"}, "body": "{\"name\":\"demo\"}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 3, "fail": 0},
+    "requests": [
+      {"route": "POST /token", "body": "grant=demo"},
+      {"route": "GET /profile", "headers": {"Authorization": "Bearer acc-x9"}}
+    ]
+  }
+}

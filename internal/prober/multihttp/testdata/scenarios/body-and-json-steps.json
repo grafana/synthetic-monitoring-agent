@@ -1,0 +1,27 @@
+{
+  "description": "Two hosts are checked, one by exact reply text and one by a JSON value.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/health"},
+        "checks": [{"type": 0, "subject": 3, "condition": 2, "value": "ok"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{alt}}/health/details"},
+        "checks": [{"type": 1, "condition": 2, "expression": "db.state", "value": "ok"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /health": {"body": "ok"},
+    "GET /health/details": {"headers": {"Content-Type": "application/json"}, "body": "{\"db\":{\"state\":\"ok\"}}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /health"},
+      {"route": "GET /health/details", "headers": {"Host": "127.0.0.2"}}
+    ]
+  }
+}

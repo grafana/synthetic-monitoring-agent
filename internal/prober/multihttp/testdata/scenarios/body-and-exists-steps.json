@@ -1,0 +1,46 @@
+{
+  "description": "A JSON POST and two reads across two hosts check exact reply text and a JSON path.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/notes",
+          "headers": [{"name": "User-Agent", "value": "example-monitor/1.0"}],
+          "body": {"contentType": "application/json", "payload": "eyJ0ZXh0IjoiaGVsbG8ifQ=="}
+        },
+        "checks": [{"type": 0, "subject": 3, "condition": 2, "value": "created"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{alt}}/notes",
+          "headers": [{"name": "User-Agent", "value": "example-monitor/1.0"}]
+        },
+        "checks": [{"type": 2, "expression": "notes[0].text"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/notes/count",
+          "headers": [{"name": "User-Agent", "value": "example-monitor/1.0"}]
+        },
+        "checks": [{"type": 0, "subject": 3, "condition": 2, "value": "1"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /notes": {"body": "created"},
+    "GET /notes": {"headers": {"Content-Type": "application/json"}, "body": "{\"notes\":[{\"text\":\"hello\"}]}"},
+    "GET /notes/count": {"body": "1"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 3, "fail": 0},
+    "requests": [
+      {"route": "POST /notes", "body": "\"text\":\"hello\""},
+      {"route": "GET /notes", "headers": {"Host": "127.0.0.2"}},
+      {"route": "GET /notes/count"}
+    ]
+  }
+}

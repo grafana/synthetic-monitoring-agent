@@ -1,0 +1,22 @@
+{
+  "description": "One request checks a value among several JSON results and saves a multi-result JSON value that nothing uses.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/items"},
+        "checks": [{"type": 1, "condition": 2, "expression": "$.items[*].id", "value": "b2"}],
+        "variables": [{"type": 0, "name": "firstId", "expression": "$..id"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /items": {"headers": {"Content-Type": "application/json"}, "body": "{\"items\":[{\"id\":\"a1\",\"state\":\"ok\"},{\"id\":\"b2\",\"state\":\"ok\"}]}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 1, "fail": 0},
+    "requests": [
+      {"route": "GET /items"}
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "description": "One request checks that JSON paths exist, with and without the leading root, including one whose value is null.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/items"},
+        "checks": [
+          {"type": 2, "expression": "items"},
+          {"type": 2, "expression": "$.items[*].id"},
+          {"type": 2, "expression": "$.next"}
+        ]
+      }
+    ]
+  },
+  "routes": {
+    "GET /items": {"headers": {"Content-Type": "application/json"}, "body": "{\"items\":[{\"id\":\"a1\"},{\"id\":\"b2\"}],\"total\":\"2\",\"next\":null}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 3, "fail": 0},
+    "requests": [
+      {"route": "GET /items"}
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "description": "One form POST checks the reply text.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/search",
+          "body": {"contentType": "application/x-www-form-urlencoded", "payload": "cT1hbHBoYSZwYWdlPTE="}
+        },
+        "checks": [{"type": 0, "subject": 3, "value": "results for alpha"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /search": {"body": "results for alpha"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 1, "fail": 0},
+    "requests": [
+      {"route": "POST /search", "headers": {"Content-Type": "application/x-www-form-urlencoded"}, "body": "q=alpha&page=1"}
+    ]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "description": "A POST with query fields on an existing query returns a job id that a PUT with an empty body sends back.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/jobs?source=demo",
+          "queryFields": [{"name": "priority", "value": "low"}],
+          "body": {"contentType": "application/json", "payload": "eyJraW5kIjoicmVwb3J0In0="}
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "201"}],
+        "variables": [{"type": 0, "name": "job", "expression": "job"}]
+      },
+      {
+        "request": {
+          "method": "PUT",
+          "url": "{{base}}/jobs/state",
+          "headers": [{"name": "X-Example-Job", "value": "${job}"}],
+          "body": {"contentType": "text/plain", "payload": ""}
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "202"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /jobs": {"status": 201, "headers": {"Content-Type": "application/json"}, "body": "{\"job\":\"job-rpt\"}"},
+    "PUT /jobs/state": {"status": 202}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "POST /jobs", "query": {"source": "demo", "priority": "low"}, "body": "\"kind\":\"report\""},
+      {"route": "PUT /jobs/state", "headers": {"X-Example-Job": "job-rpt", "Content-Type": "text/plain"}}
+    ]
+  }
+}

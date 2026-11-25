@@ -1,0 +1,39 @@
+{
+  "description": "Several requests check reply text with starts-with, equals and does-not-contain, including on error replies.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/welcome"},
+        "checks": [{"type": 0, "subject": 3, "condition": 3, "value": "Welcome"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{alt}}/missing"},
+        "checks": [{"type": 0, "subject": 3, "condition": 2, "value": "not found"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/files/a%20b#top"},
+        "checks": [{"type": 0, "subject": 3, "condition": 1, "value": "error"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{base}}/busy"},
+        "checks": [{"type": 0, "subject": 3, "condition": 6, "value": "busy"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /welcome": {"body": "Welcome home"},
+    "GET /missing": {"status": 404, "body": "not found"},
+    "GET /files/a b": {"body": "file a b"},
+    "GET /busy": {"status": 503, "body": "busy"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 4, "fail": 0},
+    "requests": [
+      {"route": "GET /welcome"},
+      {"route": "GET /missing", "headers": {"Host": "127.0.0.2"}},
+      {"route": "GET /files/a b"},
+      {"route": "GET /busy"}
+    ]
+  }
+}

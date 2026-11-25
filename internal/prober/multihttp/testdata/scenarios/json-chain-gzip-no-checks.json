@@ -1,0 +1,50 @@
+{
+  "description": "A form POST and a JSON POST, both asking for gzip and br, pass a token on with no assertions.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/auth",
+          "headers": [
+            {"name": "Accept-Encoding", "value": "gzip, br"},
+            {"name": "Connection", "value": "keep-alive"},
+            {"name": "User-Agent", "value": "example-monitor/1.0"}
+          ],
+          "body": {"contentType": "application/x-www-form-urlencoded", "payload": "Y2xpZW50PWRlbW8="}
+        },
+        "variables": [{"type": 0, "name": "token", "expression": "token"}]
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/data",
+          "headers": [
+            {"name": "Content-Type", "value": "application/json; charset=utf-8"},
+            {"name": "Content-Length", "value": "13"},
+            {"name": "Authorization", "value": "Bearer ${token}"},
+            {"name": "Accept-Encoding", "value": "gzip, br"},
+            {"name": "User-Agent", "value": "example-monitor/1.0"}
+          ],
+          "body": {"contentType": "application/json", "contentEncoding": "identity", "payload": "eyJ2YWx1ZSI6IjEifQ=="}
+        }
+      }
+    ]
+  },
+  "routes": {
+    "POST /auth": {"headers": {"Content-Type": "application/json"}, "body": "{\"token\":\"tok-data\"}", "gzip": true},
+    "POST /data": {"body": "accepted", "gzip": true}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "POST /auth", "headers": {"Accept-Encoding": "br"}, "body": "client=demo"},
+      {
+        "route": "POST /data",
+        "headers": {"Authorization": "Bearer tok-data", "Content-Type": "charset=utf-8", "Content-Encoding": "identity"},
+        "body": "\"value\":\"1\""
+      }
+    ]
+  }
+}

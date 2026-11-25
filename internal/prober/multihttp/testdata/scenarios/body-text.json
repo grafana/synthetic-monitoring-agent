@@ -1,0 +1,24 @@
+{
+  "description": "One request checks that the reply text equals a value and lacks another.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/hello"},
+        "checks": [
+          {"type": 0, "subject": 3, "condition": 2, "value": "hello world"},
+          {"type": 0, "subject": 3, "condition": 1, "value": "goodbye"}
+        ]
+      }
+    ]
+  },
+  "routes": {
+    "GET /hello": {"headers": {"Content-Type": "text/plain"}, "body": "hello world"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /hello"}
+    ]
+  }
+}

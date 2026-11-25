@@ -1,0 +1,39 @@
+{
+  "description": "A JSON POST returns an id that a text POST to a second host sends back in a header, with no assertions.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/sessions",
+          "body": {"contentType": "application/json", "payload": "eyJuYW1lIjoiZGVtbyJ9"}
+        },
+        "variables": [{"type": 0, "name": "sid", "expression": "id"}]
+      },
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{alt}}/sessions/refresh",
+          "headers": [{"name": "X-Example-Session", "value": "${sid}"}],
+          "body": {"contentType": "text/plain", "payload": "cmVmcmVzaA=="}
+        }
+      }
+    ]
+  },
+  "routes": {
+    "POST /sessions": {"headers": {"Content-Type": "application/json"}, "body": "{\"id\":\"sess-q7\"}"},
+    "POST /sessions/refresh": {"body": "ok"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "POST /sessions", "headers": {"Content-Type": "application/json"}, "body": "\"name\":\"demo\""},
+      {
+        "route": "POST /sessions/refresh",
+        "headers": {"X-Example-Session": "sess-q7", "Content-Type": "text/plain", "Host": "127.0.0.2"},
+        "body": "refresh"
+      }
+    ]
+  }
+}

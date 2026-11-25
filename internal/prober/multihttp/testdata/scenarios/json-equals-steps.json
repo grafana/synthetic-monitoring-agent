@@ -1,0 +1,27 @@
+{
+  "description": "Two requests to two hosts each check that a JSON value equals the expected text.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/status/api"},
+        "checks": [{"type": 1, "condition": 2, "expression": "$.status", "value": "up"}]
+      },
+      {
+        "request": {"method": "GET", "url": "{{alt}}/status/db"},
+        "checks": [{"type": 1, "condition": 2, "expression": "data.status", "value": "up"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /status/api": {"headers": {"Content-Type": "application/json"}, "body": "{\"status\":\"up\",\"version\":\"1.2\"}"},
+    "GET /status/db": {"headers": {"Content-Type": "application/json"}, "body": "{\"data\":{\"status\":\"up\"}}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /status/api"},
+      {"route": "GET /status/db", "headers": {"Host": "127.0.0.2"}}
+    ]
+  }
+}

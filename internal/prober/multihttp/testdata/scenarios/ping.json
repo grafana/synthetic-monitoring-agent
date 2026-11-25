@@ -1,0 +1,18 @@
+{
+  "description": "One request with no assertions passes as soon as the server answers.",
+  "settings": {
+    "entries": [
+      {"request": {"method": "GET", "url": "{{base}}/café"}}
+    ]
+  },
+  "routes": {
+    "GET /café": {"body": "pong"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 0, "fail": 0},
+    "requests": [
+      {"route": "GET /café"}
+    ]
+  }
+}

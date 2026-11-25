@@ -1,0 +1,32 @@
+{
+  "description": "A regex without a capture group saves a value that the next request sends in its path and a header.",
+  "settings": {
+    "entries": [
+      {
+        "request": {"method": "GET", "url": "{{base}}/banner"},
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}],
+        "variables": [{"type": 1, "name": "build", "expression": "ref-[0-9a-z]+"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{alt}}/builds/${build}",
+          "headers": [{"name": "X-Example-Build", "value": "${build}"}]
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /banner": {"headers": {"Content-Type": "text/plain"}, "body": "build ref-k3m deployed"},
+    "GET /builds/ref-k3m": {"body": "ok"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /banner"},
+      {"route": "GET /builds/ref-k3m", "headers": {"X-Example-Build": "ref-k3m", "Host": "127.0.0.2"}}
+    ]
+  }
+}

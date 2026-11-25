@@ -1,0 +1,36 @@
+{
+  "description": "A form POST returns a token that the next request, to a second host, sends back in a header.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/login",
+          "body": {"contentType": "application/x-www-form-urlencoded", "payload": "Y2xpZW50PWRlbW8mc2NvcGU9cmVhZA=="}
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}],
+        "variables": [{"type": 0, "name": "token", "expression": "token"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{alt}}/items",
+          "headers": [{"name": "Authorization", "value": "Bearer ${token}"}]
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "200"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /login": {"headers": {"Content-Type": "application/json"}, "body": "{\"token\":\"tok-a1b2\"}"},
+    "GET /items": {"headers": {"Content-Type": "application/json"}, "body": "{\"items\":[]}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "POST /login", "headers": {"Content-Type": "application/x-www-form-urlencoded"}, "body": "client=demo&scope=read"},
+      {"route": "GET /items", "headers": {"Authorization": "Bearer tok-a1b2", "Host": "127.0.0.2"}}
+    ]
+  }
+}

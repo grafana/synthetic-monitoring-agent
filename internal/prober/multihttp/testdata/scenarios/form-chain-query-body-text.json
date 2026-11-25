@@ -1,0 +1,37 @@
+{
+  "description": "A form POST returns a reference that the next request sends as a query field and a header.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "{{base}}/forms",
+          "body": {"contentType": "application/x-www-form-urlencoded", "payload": "ZmllbGQ9YWxwaGE="}
+        },
+        "checks": [{"type": 0, "subject": 3, "value": "ref"}],
+        "variables": [{"type": 0, "name": "ref", "expression": "ref"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/forms/status",
+          "headers": [{"name": "X-Example-Ref", "value": "${ref}"}],
+          "queryFields": [{"name": "ref", "value": "${ref}"}]
+        },
+        "checks": [{"type": 0, "subject": 3, "value": "accepted"}]
+      }
+    ]
+  },
+  "routes": {
+    "POST /forms": {"headers": {"Content-Type": "application/json"}, "body": "{\"ref\":\"ref-form\"}"},
+    "GET /forms/status": {"body": "status accepted"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "POST /forms", "body": "field=alpha"},
+      {"route": "GET /forms/status", "headers": {"X-Example-Ref": "ref-form"}, "query": {"ref": "ref-form"}}
+    ]
+  }
+}

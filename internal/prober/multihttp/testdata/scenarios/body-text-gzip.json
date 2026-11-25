@@ -1,0 +1,25 @@
+{
+  "description": "A request that sets its own Accept-Encoding reads a gzip reply and checks its text.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/news",
+          "headers": [{"name": "Accept-Encoding", "value": "gzip"}, {"name": "User-Agent", "value": "example-monitor/1.0"}]
+        },
+        "checks": [{"type": 0, "subject": 3, "value": "all systems normal"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /news": {"headers": {"Content-Type": "text/plain"}, "body": "latest news: all systems normal", "gzip": true}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 1, "fail": 0},
+    "requests": [
+      {"route": "GET /news", "headers": {"Accept-Encoding": "gzip"}}
+    ]
+  }
+}

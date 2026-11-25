@@ -1,0 +1,37 @@
+{
+  "description": "A search result id is sent back in a header next to query fields, and both JSON replies are checked.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/search",
+          "queryFields": [{"name": "q", "value": "alpha"}]
+        },
+        "checks": [{"type": 1, "condition": 2, "expression": "results[0].id", "value": "res-one"}],
+        "variables": [{"type": 0, "name": "rid", "expression": "results[0].id"}]
+      },
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/results",
+          "headers": [{"name": "X-Example-Result", "value": "${rid}"}],
+          "queryFields": [{"name": "page", "value": "1"}]
+        },
+        "checks": [{"type": 1, "condition": 2, "expression": "$.state", "value": "done"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /search": {"headers": {"Content-Type": "application/json"}, "body": "{\"results\":[{\"id\":\"res-one\"}]}"},
+    "GET /results": {"headers": {"Content-Type": "application/json"}, "body": "{\"id\":\"res-one\",\"state\":\"done\"}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 2, "fail": 0},
+    "requests": [
+      {"route": "GET /search", "query": {"q": "alpha"}},
+      {"route": "GET /results", "headers": {"X-Example-Result": "res-one"}, "query": {"page": "1"}}
+    ]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "description": "A request with its own Host header expects an error status.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/admin",
+          "headers": [{"name": "Host", "value": "localhost"}, {"name": "Cookie", "value": "lang=en"}]
+        },
+        "checks": [{"type": 0, "subject": 2, "condition": 2, "value": "403"}]
+      }
+    ]
+  },
+  "routes": {
+    "GET /admin": {"status": 403, "body": "forbidden"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 1, "fail": 0},
+    "requests": [
+      {"route": "GET /admin", "headers": {"Host": "localhost", "Cookie": "lang=en"}}
+    ]
+  }
+}

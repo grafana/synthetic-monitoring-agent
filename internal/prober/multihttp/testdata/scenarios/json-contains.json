@@ -1,0 +1,30 @@
+{
+  "description": "One request checks JSON text values with contains, starts-with, ends-with and does-not-contain.",
+  "settings": {
+    "entries": [
+      {
+        "request": {
+          "method": "GET",
+          "url": "{{base}}/user",
+          "headers": [{"name": "Cookie", "value": "theme=dark"}]
+        },
+        "checks": [
+          {"type": 1, "condition": 6, "expression": "$.name", "value": "demo"},
+          {"type": 1, "condition": 3, "expression": "$.name", "value": "demo-"},
+          {"type": 1, "condition": 4, "expression": "$.name", "value": "user"},
+          {"type": 1, "condition": 1, "expression": "role", "value": "admin"}
+        ]
+      }
+    ]
+  },
+  "routes": {
+    "GET /user": {"headers": {"Content-Type": "application/json"}, "body": "{\"name\":\"demo-user\",\"role\":\"viewer\"}"}
+  },
+  "expect": {
+    "success": true,
+    "checks": {"pass": 4, "fail": 0},
+    "requests": [
+      {"route": "GET /user", "headers": {"Cookie": "theme=dark"}}
+    ]
+  }
+}
