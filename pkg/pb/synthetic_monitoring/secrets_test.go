@@ -1,7 +1,11 @@
 package synthetic_monitoring
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -473,4 +477,48 @@ func TestCheckReferencesSecrets(t *testing.T) {
 
 	adhoc := AdHocCheck{Settings: CheckSettings{Http: &HttpSettings{BearerToken: "plain"}}}
 	require.False(t, adhoc.ReferencesSecrets())
+}
+
+// TestEverySecretFieldHasMinAgentVersion fails when someone adds a SecretField
+// without deciding which agent version resolves it. The package has no list of
+// all fields, so the test finds the constants in the source.
+func TestEverySecretFieldHasMinAgentVersion(t *testing.T) {
+	t.Parallel()
+
+	f, err := parser.ParseFile(token.NewFileSet(), "secrets.go", nil, 0)
+	require.NoError(t, err)
+
+	var seen int
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		spec, ok := n.(*ast.ValueSpec)
+		if !ok || len(spec.Values) == 0 {
+			return true
+		}
+
+		if typ, ok := spec.Type.(*ast.Ident); !ok || typ.Name != "SecretField" {
+			return true
+		}
+
+		lit, ok := spec.Values[0].(*ast.BasicLit)
+		require.Truef(t, ok, "%s is not a string literal", spec.Names[0].Name)
+
+		value, err := strconv.Unquote(lit.Value)
+		require.NoError(t, err)
+
+		field := SecretField(value)
+		_, found := SecretFieldMinAgentVersions[field]
+
+		if field == SecretFieldUnknown {
+			require.False(t, found, "SecretFieldUnknown must have no entry, so callers reject it")
+		} else {
+			require.Truef(t, found, "%s has no entry in SecretFieldMinAgentVersions", spec.Names[0].Name)
+		}
+
+		seen++
+
+		return true
+	})
+
+	require.NotZero(t, seen, "found no SecretField constants; did they move to another file?")
 }
