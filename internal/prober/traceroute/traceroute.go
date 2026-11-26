@@ -196,7 +196,7 @@ func settingsToModule(settings *sm.TracerouteSettings) Module {
 	}
 
 	if settings.MaxHops > 0 {
-		m.maxUnknownHops = int(settings.MaxHops)
+		m.maxHops = int(settings.MaxHops)
 	}
 
 	if settings.MaxUnknownHops > 1 {
