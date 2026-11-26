@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"slices"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/tdewolff/parse/v2"
 	"github.com/tdewolff/parse/v2/js"
 )
@@ -56,7 +57,8 @@ func (c AdHocCheck) SecretFields() iter.Seq[SecretField] {
 }
 
 // SecretField names a settings field that can hold a secret reference. The
-// values are stable: callers map them to the probe versions that resolve them.
+// values are stable. SecretFieldMinAgentVersions maps each one to the first
+// agent version that resolves it.
 type SecretField string
 
 // Values name fields in the schema and never carry a list index, because
@@ -75,6 +77,27 @@ const (
 	// yet. Callers should not match it to any probe.
 	SecretFieldUnknown SecretField = "unknown"
 )
+
+// SecretFieldMinAgentVersions maps each secret field to the first agent
+// version that resolves it. A nil version means any agent can run the check.
+// Callers must reject a field with no entry, including SecretFieldUnknown.
+//
+// The table is temporary. It goes away once agent v1.0 is the oldest supported
+// version.
+var SecretFieldMinAgentVersions = map[SecretField]*semver.Version{
+	SecretFieldHttpBearerToken:       httpSecretsMinAgentVersion,
+	SecretFieldHttpBasicAuthPassword: httpSecretsMinAgentVersion,
+	SecretFieldHttpTLSCACert:         httpSecretsMinAgentVersion,
+	SecretFieldHttpTLSClientCert:     httpSecretsMinAgentVersion,
+	SecretFieldHttpTLSClientKey:      httpSecretsMinAgentVersion,
+	SecretFieldHttpHeaders:           semver.MustParse("v0.72.0"),
+
+	// k6 resolves these while the script runs, so the agent version doesn't matter.
+	SecretFieldScriptedScript: nil,
+	SecretFieldBrowserScript:  nil,
+}
+
+var httpSecretsMinAgentVersion = semver.MustParse("v0.46.0")
 
 // ReferencesSecrets reports whether these settings point at a secret. See
 // Check.ReferencesSecrets.
