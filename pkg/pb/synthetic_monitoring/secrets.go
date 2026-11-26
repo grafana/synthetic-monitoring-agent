@@ -72,6 +72,10 @@ const (
 	SecretFieldHttpHeaders           SecretField = "http.headers"
 	SecretFieldScriptedScript        SecretField = "scripted.script"
 	SecretFieldBrowserScript         SecretField = "browser.script"
+	SecretFieldTcpQueryResponseSend  SecretField = "tcp.queryResponse.send"
+	SecretFieldTcpTLSCACert          SecretField = "tcp.tlsConfig.caCert"
+	SecretFieldTcpTLSClientCert      SecretField = "tcp.tlsConfig.clientCert"
+	SecretFieldTcpTLSClientKey       SecretField = "tcp.tlsConfig.clientKey"
 	SecretFieldGrpcTLSCACert         SecretField = "grpc.tlsConfig.caCert"
 	SecretFieldGrpcTLSClientCert     SecretField = "grpc.tlsConfig.clientCert"
 	SecretFieldGrpcTLSClientKey      SecretField = "grpc.tlsConfig.clientKey"
@@ -88,15 +92,19 @@ const (
 // The table is temporary. It goes away once agent v1.0 is the oldest supported
 // version.
 var SecretFieldMinAgentVersions = map[SecretField]*semver.Version{
-	SecretFieldHttpBearerToken:       httpSecretsMinAgentVersion,
-	SecretFieldHttpBasicAuthPassword: httpSecretsMinAgentVersion,
-	SecretFieldHttpTLSCACert:         httpSecretsMinAgentVersion,
-	SecretFieldHttpTLSClientCert:     httpSecretsMinAgentVersion,
-	SecretFieldHttpTLSClientKey:      httpSecretsMinAgentVersion,
-	SecretFieldHttpHeaders:           semver.MustParse("v0.72.0"),
-	SecretFieldGrpcTLSCACert:         protocolSecretsMinAgentVersion,
-	SecretFieldGrpcTLSClientCert:     protocolSecretsMinAgentVersion,
-	SecretFieldGrpcTLSClientKey:      protocolSecretsMinAgentVersion,
+	SecretFieldHttpBearerToken:       v046,
+	SecretFieldHttpBasicAuthPassword: v046,
+	SecretFieldHttpTLSCACert:         v046,
+	SecretFieldHttpTLSClientCert:     v046,
+	SecretFieldHttpTLSClientKey:      v046,
+	SecretFieldHttpHeaders:           v072,
+	SecretFieldTcpQueryResponseSend:  v072,
+	SecretFieldTcpTLSCACert:          v072,
+	SecretFieldTcpTLSClientCert:      v072,
+	SecretFieldTcpTLSClientKey:       v072,
+	SecretFieldGrpcTLSCACert:         v072,
+	SecretFieldGrpcTLSClientCert:     v072,
+	SecretFieldGrpcTLSClientKey:      v072,
 
 	// k6 resolves these while the script runs, so the agent version doesn't matter.
 	SecretFieldScriptedScript: nil,
@@ -104,10 +112,8 @@ var SecretFieldMinAgentVersions = map[SecretField]*semver.Version{
 }
 
 var (
-	httpSecretsMinAgentVersion = semver.MustParse("v0.46.0")
-
-	// protocolSecretsMinAgentVersion is the first agent that resolves secrets in TCP and gRPC checks.
-	protocolSecretsMinAgentVersion = semver.MustParse("v0.72.0")
+	v046 = semver.MustParse("v0.46.0")
+	v072 = semver.MustParse("v0.72.0")
 )
 
 // ReferencesSecrets reports whether these settings point at a secret. See
@@ -147,7 +153,10 @@ func (s CheckSettings) SecretFields() iter.Seq[SecretField] {
 		case CheckTypeGrpc:
 			s.Grpc.TlsConfig.secretFields(yield, SecretFieldGrpcTLSCACert, SecretFieldGrpcTLSClientCert, SecretFieldGrpcTLSClientKey)
 
-		case CheckTypeDns, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute:
+		case CheckTypeTcp:
+			s.Tcp.secretFields(yield)
+
+		case CheckTypeDns, CheckTypePing, CheckTypeTraceroute:
 			// None of these has a field that takes a secret.
 
 		case CheckTypeMultiHttp:
@@ -180,6 +189,26 @@ func (h *HttpSettings) secretFields(yield func(SecretField) bool) {
 	if slices.ContainsFunc(h.Headers, headerValueReferencesSecrets) {
 		yield(SecretFieldHttpHeaders)
 	}
+}
+
+// secretFields yields each secret field that holds a reference. The sent text of every step is
+// one field. The expected reply is matched against the server's reply and never resolved.
+func (t *TcpSettings) secretFields(yield func(SecretField) bool) {
+	sends := slices.ContainsFunc(t.QueryResponse, func(qr TCPQueryResponse) bool {
+		return secretRefRegex.Match(qr.Send)
+	})
+
+	if sends && !yield(SecretFieldTcpQueryResponseSend) {
+		return
+	}
+
+	t.TlsConfig.secretFields(yield, SecretFieldTcpTLSCACert, SecretFieldTcpTLSClientCert, SecretFieldTcpTLSClientKey)
+}
+
+// ReferencesSecrets reports whether the CA cert, client cert or client key points at a secret.
+func (t *TLSConfig) ReferencesSecrets() bool {
+	// secretFields reports false once yield stops it, and this yield stops at the first reference.
+	return !t.secretFields(func(SecretField) bool { return false }, SecretFieldUnknown, SecretFieldUnknown, SecretFieldUnknown)
 }
 
 // secretFields yields ca, cert and key, in that order, for each of the CA cert, client cert and

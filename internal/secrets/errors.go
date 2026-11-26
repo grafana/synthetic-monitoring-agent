@@ -20,6 +20,9 @@ var (
 	// ErrSecretValueInvalidInHeader is for a value that resolved, but holds a character that an
 	// HTTP header cannot carry.
 	ErrSecretValueInvalidInHeader = errors.New("the secret value has a line break or another control character, which an HTTP header cannot carry")
+	// ErrSecretValueInvalidInSentText is for a value that resolved, but holds a line break, which
+	// TCP sent text cannot carry.
+	ErrSecretValueInvalidInSentText = errors.New("the secret value has a line break, which would split the line sent to the server")
 )
 
 // Error is a failure to fetch or send a secret, or to fetch the secret store configuration.
@@ -40,12 +43,7 @@ func (e *Error) Error() string {
 	var b strings.Builder
 
 	if e.Field != "" {
-		verb := "resolve"
-		if errors.Is(e.reason(), ErrSecretValueInvalidInHeader) {
-			verb = "send"
-		}
-
-		b.WriteString("failed to " + verb + " " + e.Field + ": ")
+		b.WriteString("failed to " + e.Verb() + " " + e.Field + ": ")
 	}
 
 	if e.Secret != "" {
@@ -59,6 +57,16 @@ func (e *Error) Error() string {
 	}
 
 	return b.String()
+}
+
+// Verb returns "send" when the secret resolved but its value cannot go where the check puts it,
+// and "resolve" otherwise.
+func (e *Error) Verb() string {
+	if errors.Is(e.reason(), ErrSecretValueInvalidInHeader) || errors.Is(e.reason(), ErrSecretValueInvalidInSentText) {
+		return "send"
+	}
+
+	return "resolve"
 }
 
 // Unwrap returns the reason and the underlying error, so errors.Is matches either.

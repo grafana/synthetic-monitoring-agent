@@ -48,14 +48,10 @@ func SMtoProm(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfi
 	return c, nil
 }
 
-// ResolveSMtoProm is SMtoProm after resolving each secret reference in the CA cert, client cert
-// and client key. ctx should end with the run, so that the files holding the resolved material
-// are removed with it.
+// ResolveSMtoProm is SMtoProm after resolving the secrets in the CA cert, client cert and client
+// key. Pass the run's ctx: the files holding the secrets are removed when it ends.
 func ResolveSMtoProm(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfig, resolver *interpolation.Resolver) (promconfig.TLSConfig, error) {
-	resolved := &sm.TLSConfig{
-		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
-		ServerName:         tlsConfig.ServerName,
-	}
+	resolved := *tlsConfig
 
 	var err error
 
@@ -74,7 +70,7 @@ func ResolveSMtoProm(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.T
 		return promconfig.TLSConfig{}, err
 	}
 
-	return SMtoProm(ctx, logger, resolved)
+	return SMtoProm(ctx, logger, &resolved)
 }
 
 // resolveBytes is Resolver.ResolveField for []byte. A value with no reference is returned as is,

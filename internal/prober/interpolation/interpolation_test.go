@@ -1,13 +1,18 @@
 package interpolation
 
 import (
+	"context"
+	"errors"
+	"strings"
 	"testing"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	"github.com/stretchr/testify/require"
 )
 
-func TestResolver_Resolve(t *testing.T) {
+func TestResolverResolve(t *testing.T) {
 	ctx, logger, tenantID := testhelper.CommonTestSetup()
 
 	secretProvider := testhelper.NewMockSecretProvider(map[string]string{
@@ -98,7 +103,7 @@ func TestResolver_Resolve(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			resolver := NewResolver(secretProvider, tenantID, logger)
 
-			actual, err := resolver.Resolve(ctx, tc.input)
+			actual, err := resolver.resolve(ctx, tc.input, nil)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -106,6 +111,73 @@ func TestResolver_Resolve(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tc.expectedOutput, actual)
 			}
+		})
+	}
+}
+
+func TestResolverResolveFunc(t *testing.T) {
+	ctx, logger, tenantID := testhelper.CommonTestSetup()
+
+	secretProvider := testhelper.NewMockSecretProvider(map[string]string{"price": "$5"})
+	double := func(v string) (string, error) { return strings.ReplaceAll(v, "$", "$$"), nil }
+
+	// transform changes the secret value only, in a bare reference and among other text, and the
+	// redactor keeps the value as stored.
+	for input, want := range map[string]string{
+		"${secrets.price}":       "$$5",
+		"$1 ${secrets.price} $2": "$1 $$5 $2",
+	} {
+		resolver := NewResolver(secretProvider, tenantID, logger)
+
+		actual, err := resolver.ResolveFunc(ctx, "sent text", input, double)
+		require.NoError(t, err)
+		require.Equal(t, want, actual)
+		require.Equal(t, "${secrets.price}", resolver.Redactor()("$5"))
+	}
+}
+
+// TestResolverErrors checks that a failure comes back as one flat secrets.Error: resolveSecret adds
+// the secret, ResolveFunc adds the field, and the cause is kept once, not wrapped again.
+func TestResolverErrors(t *testing.T) {
+	ctx, logger, tenantID := testhelper.CommonTestSetup()
+
+	storeErr := errors.New("connection refused")
+	secretProvider := testhelper.NewMockSecretProviderWithFunc(func(_ context.Context, _ model.GlobalID, name string) (string, error) {
+		if name == "missing" {
+			return "", storeErr
+		}
+
+		return "value", nil
+	})
+
+	reject := func(string) (string, error) {
+		return "", &secrets.Error{Reason: secrets.ErrSecretValueInvalidInSentText}
+	}
+
+	testcases := map[string]struct {
+		value     string
+		transform func(string) (string, error)
+		want      *secrets.Error
+	}{
+		"store error": {
+			value: "${secrets.missing}",
+			want:  &secrets.Error{Field: "sent text", Secret: "missing", Reason: secrets.ErrSecretFetchFailed, Err: storeErr},
+		},
+		"invalid name": {
+			value: "${secrets.}",
+			want:  &secrets.Error{Field: "sent text", Reason: ErrInvalidSecretName, Err: errors.New(`name ""`)},
+		},
+		"transform error": {
+			value:     "AUTH ${secrets.ok}",
+			transform: reject,
+			want:      &secrets.Error{Field: "sent text", Secret: "ok", Reason: secrets.ErrSecretValueInvalidInSentText},
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			_, err := NewResolver(secretProvider, tenantID, logger).ResolveFunc(ctx, "sent text", tc.value, tc.transform)
+			require.Equal(t, tc.want, err)
 		})
 	}
 }
@@ -122,7 +194,7 @@ func TestResolverRedactor(t *testing.T) {
 	t.Run("nothing resolved", func(t *testing.T) {
 		resolver := NewResolver(secretProvider, tenantID, logger)
 
-		_, err := resolver.Resolve(ctx, "plain text")
+		_, err := resolver.resolve(ctx, "plain text", nil)
 		require.NoError(t, err)
 
 		require.Nil(t, resolver.Redactor())
@@ -131,7 +203,7 @@ func TestResolverRedactor(t *testing.T) {
 	t.Run("an empty value is never replaced", func(t *testing.T) {
 		resolver := NewResolver(secretProvider, tenantID, logger)
 
-		_, err := resolver.Resolve(ctx, "${secrets.empty-secret}")
+		_, err := resolver.resolve(ctx, "${secrets.empty-secret}", nil)
 		require.NoError(t, err)
 
 		require.Nil(t, resolver.Redactor())
@@ -141,7 +213,7 @@ func TestResolverRedactor(t *testing.T) {
 		resolver := NewResolver(secretProvider, tenantID, logger)
 
 		for _, value := range []string{"${secrets.short}", "a ${secrets.long} b"} {
-			_, err := resolver.Resolve(ctx, value)
+			_, err := resolver.resolve(ctx, value, nil)
 			require.NoError(t, err)
 		}
 
