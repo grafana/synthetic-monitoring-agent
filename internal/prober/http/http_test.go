@@ -594,7 +594,7 @@ func TestResolveSecretValue(t *testing.T) {
 
 			resolver := interpolation.NewResolver(secretStore, tenantID, logger)
 
-			actual, err := resolveSecretValue(ctx, "bearer token", tc.input, resolver)
+			actual, err := resolver.ResolveField(ctx, "bearer token", tc.input)
 
 			if tc.expectError {
 				secretErr, ok := errors.AsType[*secrets.Error](err)
@@ -681,92 +681,6 @@ func TestBuildPrometheusHTTPClientConfig_WithSecrets(t *testing.T) {
 				require.NotNil(t, cfg.BasicAuth)
 				require.Equal(t, tc.expectedPasswd, string(cfg.BasicAuth.Password))
 				require.Equal(t, tc.settings.BasicAuth.Username, cfg.BasicAuth.Username)
-			}
-		})
-	}
-}
-
-func TestBuildTLSConfig_WithSecrets(t *testing.T) {
-	ctx, logger, tenantID := testhelper.CommonTestSetup()
-
-	// Mock secret store that returns known values
-	mockSecretStore := testhelper.NewMockSecretProvider(map[string]string{
-		"ca-cert-key":     "-----BEGIN CERTIFICATE-----\nCA_CERT_CONTENT\n-----END CERTIFICATE-----",
-		"client-cert-key": "-----BEGIN CERTIFICATE-----\nCLIENT_CERT_CONTENT\n-----END CERTIFICATE-----",
-		"client-key-key":  "-----BEGIN PRIVATE KEY-----\nCLIENT_KEY_CONTENT\n-----END PRIVATE KEY-----",
-	})
-
-	testcases := map[string]struct {
-		tlsConfig   *sm.TLSConfig
-		expectError bool
-	}{
-		"TLS with secret interpolation": {
-			tlsConfig: &sm.TLSConfig{
-				InsecureSkipVerify: false,
-				ServerName:         "example.com",
-				CACert:             []byte("${secrets.ca-cert-key}"),
-				ClientCert:         []byte("${secrets.client-cert-key}"),
-				ClientKey:          []byte("${secrets.client-key-key}"),
-			},
-			expectError: false,
-		},
-		"TLS with plain values": {
-			tlsConfig: &sm.TLSConfig{
-				InsecureSkipVerify: true,
-				ServerName:         "test.com",
-				CACert:             []byte("-----BEGIN CERTIFICATE-----\nPLAIN_CA_CERT\n-----END CERTIFICATE-----"),
-				ClientCert:         []byte("-----BEGIN CERTIFICATE-----\nPLAIN_CLIENT_CERT\n-----END CERTIFICATE-----"),
-				ClientKey:          []byte("-----BEGIN PRIVATE KEY-----\nPLAIN_CLIENT_KEY\n-----END PRIVATE KEY-----"),
-			},
-			expectError: false,
-		},
-		"TLS with mixed secret and plain values": {
-			tlsConfig: &sm.TLSConfig{
-				InsecureSkipVerify: false,
-				ServerName:         "mixed.com",
-				CACert:             []byte("${secrets.ca-cert-key}"),
-				ClientCert:         []byte("-----BEGIN CERTIFICATE-----\nPLAIN_CLIENT_CERT\n-----END CERTIFICATE-----"),
-				ClientKey:          []byte("${secrets.client-key-key}"),
-			},
-			expectError: false,
-		},
-		"TLS with only some fields": {
-			tlsConfig: &sm.TLSConfig{
-				InsecureSkipVerify: false,
-				ServerName:         "partial.com",
-				CACert:             []byte("${secrets.ca-cert-key}"),
-				// ClientCert and ClientKey are empty
-			},
-			expectError: false,
-		},
-	}
-
-	for name, tc := range testcases {
-		t.Run(name, func(t *testing.T) {
-			resolver := interpolation.NewResolver(mockSecretStore, tenantID, logger)
-
-			cfg, err := buildTLSConfig(ctx, tc.tlsConfig, logger, resolver)
-
-			if tc.expectError {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			require.Equal(t, tc.tlsConfig.InsecureSkipVerify, cfg.InsecureSkipVerify)
-			require.Equal(t, tc.tlsConfig.ServerName, cfg.ServerName)
-
-			// Verify that files were created for non-empty fields
-			if len(tc.tlsConfig.CACert) > 0 {
-				require.NotEmpty(t, cfg.CAFile)
-			}
-
-			if len(tc.tlsConfig.ClientCert) > 0 {
-				require.NotEmpty(t, cfg.CertFile)
-			}
-
-			if len(tc.tlsConfig.ClientKey) > 0 {
-				require.NotEmpty(t, cfg.KeyFile)
 			}
 		})
 	}

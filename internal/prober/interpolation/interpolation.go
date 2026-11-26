@@ -10,7 +10,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/rs/zerolog"
 )
@@ -120,6 +122,37 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 	result.WriteString(value[lastPos:])
 
 	return result.String(), nil
+}
+
+// ResolveField is Resolve for the setting named field. The name tells the check owner which
+// setting failed when a reference does not resolve.
+func (r *Resolver) ResolveField(ctx context.Context, field, value string) (string, error) {
+	resolved, err := r.Resolve(ctx, value)
+	if err != nil {
+		secretErr := secrets.AsError(err)
+		secretErr.Field = field
+
+		return "", secretErr
+	}
+
+	return resolved, nil
+}
+
+// LogSecretError reports err to the check logs l when it is a secrets.Error, and does nothing
+// otherwise. Only LogFields go there: the underlying error comes from the secret store client and
+// carries its URL and transport detail.
+func LogSecretError(l logger.Logger, err error) {
+	secretErr, ok := errors.AsType[*secrets.Error](err)
+	if !ok {
+		return
+	}
+
+	msg := "Could not resolve a secret referenced by this check"
+	if errors.Is(secretErr, secrets.ErrSecretValueInvalidInHeader) {
+		msg = "Could not send a secret referenced by this check"
+	}
+
+	_ = level.Error(l).Log(append([]any{"msg", msg}, secretErr.LogFields()...)...)
 }
 
 func (r *Resolver) resolveSecret(ctx context.Context, name string) (string, error) {

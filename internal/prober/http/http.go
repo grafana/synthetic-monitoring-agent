@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -14,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
@@ -94,14 +92,7 @@ func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.R
 		p.logger.Error().Err(err).Msg("failed to build config for HTTP probe")
 
 		// Only a secret failure reaches the check logs.
-		if secretErr, ok := errors.AsType[*secrets.Error](err); ok {
-			msg := "Could not resolve a secret referenced by this check"
-			if errors.Is(secretErr, secrets.ErrSecretValueInvalidInHeader) {
-				msg = "Could not send a secret referenced by this check"
-			}
-
-			_ = level.Error(l).Log(append([]any{"msg", msg}, secretErr.LogFields()...)...)
-		}
+		interpolation.LogSecretError(l, err)
 
 		return false, 0
 	}
@@ -226,35 +217,6 @@ func buildStaticConfig(settings *sm.HttpSettings) (config.Module, error) {
 	return m, nil
 }
 
-// resolveSecretValue resolves the secret references in value. field names the setting in the
-// check logs when a reference does not resolve.
-func resolveSecretValue(ctx context.Context, field, value string, resolver *interpolation.Resolver) (string, error) {
-	resolved, err := resolver.Resolve(ctx, value)
-	if err != nil {
-		secretErr := secrets.AsError(err)
-		secretErr.Field = field
-
-		return "", secretErr
-	}
-
-	return resolved, nil
-}
-
-// resolveSecretBytes is resolveSecretValue for []byte. A value with no reference is returned as
-// is, without converting it to a string and back.
-func resolveSecretBytes(ctx context.Context, field string, value []byte, resolver *interpolation.Resolver) ([]byte, error) {
-	if !bytes.Contains(value, []byte(interpolation.SecretRefPrefix)) {
-		return value, nil
-	}
-
-	resolved, err := resolveSecretValue(ctx, field, string(value), resolver)
-	if err != nil {
-		return nil, err
-	}
-
-	return []byte(resolved), nil
-}
-
 // resolveHeaders returns the headers with each secret reference in a value resolved. Names are never resolved.
 func resolveHeaders(ctx context.Context, headers map[string]string, resolver *interpolation.Resolver) (map[string]string, error) {
 	if !anyValueHasSecretRef(headers) {
@@ -267,7 +229,7 @@ func resolveHeaders(ctx context.Context, headers map[string]string, resolver *in
 	for _, name := range slices.Sorted(maps.Keys(headers)) {
 		field := "header " + name
 
-		v, err := resolveSecretValue(ctx, field, headers[name], resolver)
+		v, err := resolver.ResolveField(ctx, field, headers[name])
 		if err != nil {
 			return nil, err
 		}
@@ -339,14 +301,14 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 	if settings.TlsConfig != nil {
 		var err error
 
-		cfg.TLSConfig, err = buildTLSConfig(ctx, settings.TlsConfig, logger, resolver)
+		cfg.TLSConfig, err = tls.ResolveSMtoProm(ctx, logger, settings.TlsConfig, resolver)
 		if err != nil {
 			return cfg, err
 		}
 	}
 
 	// Resolve bearer token (may be a secret)
-	bearerToken, err := resolveSecretValue(ctx, "bearer token", settings.BearerToken, resolver)
+	bearerToken, err := resolver.ResolveField(ctx, "bearer token", settings.BearerToken)
 	if err != nil {
 		return cfg, err
 	}
@@ -355,7 +317,7 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 
 	if settings.BasicAuth != nil {
 		// Resolve password (may be a secret)
-		password, err := resolveSecretValue(ctx, "basic auth password", settings.BasicAuth.Password, resolver)
+		password, err := resolver.ResolveField(ctx, "basic auth password", settings.BasicAuth.Password)
 		if err != nil {
 			return cfg, err
 		}
@@ -387,35 +349,6 @@ func buildPrometheusHTTPClientConfig(ctx context.Context, settings *sm.HttpSetti
 	}
 
 	return cfg, nil
-}
-
-// buildTLSConfig builds a Prometheus TLS config from SM TLS config with secret resolution support
-func buildTLSConfig(ctx context.Context, tlsConfig *sm.TLSConfig, logger zerolog.Logger, resolver *interpolation.Resolver) (promconfig.TLSConfig, error) {
-	// Create a copy of the TLS config with resolved secrets
-	resolvedTLSConfig := &sm.TLSConfig{
-		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
-		ServerName:         tlsConfig.ServerName,
-	}
-
-	var err error
-
-	resolvedTLSConfig.CACert, err = resolveSecretBytes(ctx, "CA cert", tlsConfig.CACert, resolver)
-	if err != nil {
-		return promconfig.TLSConfig{}, err
-	}
-
-	resolvedTLSConfig.ClientCert, err = resolveSecretBytes(ctx, "client cert", tlsConfig.ClientCert, resolver)
-	if err != nil {
-		return promconfig.TLSConfig{}, err
-	}
-
-	resolvedTLSConfig.ClientKey, err = resolveSecretBytes(ctx, "client key", tlsConfig.ClientKey, resolver)
-	if err != nil {
-		return promconfig.TLSConfig{}, err
-	}
-
-	// Use the existing TLS conversion function with resolved config
-	return tls.SMtoProm(ctx, logger, resolvedTLSConfig)
 }
 
 func convertOAuth2Config(ctx context.Context, cfg *sm.OAuth2Config, logger zerolog.Logger) (*promconfig.OAuth2, error) {

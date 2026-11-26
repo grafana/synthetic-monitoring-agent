@@ -1,10 +1,12 @@
 package tls
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	promconfig "github.com/prometheus/common/config"
 	"github.com/rs/zerolog"
@@ -44,6 +46,50 @@ func SMtoProm(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfi
 	}
 
 	return c, nil
+}
+
+// ResolveSMtoProm is SMtoProm after resolving each secret reference in the CA cert, client cert
+// and client key. ctx should end with the run, so that the files holding the resolved material
+// are removed with it.
+func ResolveSMtoProm(ctx context.Context, logger zerolog.Logger, tlsConfig *sm.TLSConfig, resolver *interpolation.Resolver) (promconfig.TLSConfig, error) {
+	resolved := &sm.TLSConfig{
+		InsecureSkipVerify: tlsConfig.InsecureSkipVerify,
+		ServerName:         tlsConfig.ServerName,
+	}
+
+	var err error
+
+	resolved.CACert, err = resolveBytes(ctx, "CA cert", tlsConfig.CACert, resolver)
+	if err != nil {
+		return promconfig.TLSConfig{}, err
+	}
+
+	resolved.ClientCert, err = resolveBytes(ctx, "client cert", tlsConfig.ClientCert, resolver)
+	if err != nil {
+		return promconfig.TLSConfig{}, err
+	}
+
+	resolved.ClientKey, err = resolveBytes(ctx, "client key", tlsConfig.ClientKey, resolver)
+	if err != nil {
+		return promconfig.TLSConfig{}, err
+	}
+
+	return SMtoProm(ctx, logger, resolved)
+}
+
+// resolveBytes is Resolver.ResolveField for []byte. A value with no reference is returned as is,
+// without converting it to a string and back.
+func resolveBytes(ctx context.Context, field string, value []byte, resolver *interpolation.Resolver) ([]byte, error) {
+	if !bytes.Contains(value, []byte(interpolation.SecretRefPrefix)) {
+		return value, nil
+	}
+
+	resolved, err := resolver.ResolveField(ctx, field, string(value))
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(resolved), nil
 }
 
 // newDataProvider creates a filesystem object that provides the
