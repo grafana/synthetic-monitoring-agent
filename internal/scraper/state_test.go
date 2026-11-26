@@ -130,17 +130,18 @@ func TestStateKey(t *testing.T) {
 }
 
 func TestStatePayloadRoundTrip(t *testing.T) {
+	w := NewStateWriter(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
 	in := stateTestSeries()
 
-	encoded, err := encodeStatePayload(in)
+	encoded, err := w.encode(in)
 	require.NoError(t, err)
 	require.NotEmpty(t, encoded)
 
-	out, err := decodeStatePayload(encoded)
+	out, err := w.decode(encoded)
 	require.NoError(t, err)
 	require.Equal(t, in, out)
 
-	_, err = decodeStatePayload([]byte("not zstd"))
+	_, err = w.decode([]byte("not zstd"))
 	require.Error(t, err)
 }
 
@@ -185,7 +186,7 @@ func TestStateWriterStore(t *testing.T) {
 			store := &fakeStateStore{err: tc.storeErr}
 
 			reg := prometheus.NewPedanticRegistry()
-			w := newStateWriter(store, reg, zerolog.Nop())
+			w := NewStateWriter(store, reg, zerolog.Nop())
 
 			check := stateTestCheck(t, tc.frequency)
 			series := stateTestSeries()
@@ -204,7 +205,7 @@ func TestStateWriterStore(t *testing.T) {
 				require.True(t, ok, "value is %T, want StateRecord", store.calls[0].value)
 				require.Equal(t, firedAt.Add(tc.frequency), record.NextFire)
 
-				decoded, err := decodeStatePayload(record.Payload)
+				decoded, err := w.decode(record.Payload)
 				require.NoError(t, err)
 				require.Equal(t, series, decoded)
 
@@ -268,11 +269,13 @@ func benchStateSeries(b *testing.B, target int) (TimeSeries, int) {
 }
 
 func BenchmarkEncodeStatePayload(b *testing.B) {
+	w := NewStateWriter(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
+
 	for _, bc := range benchPayloadSizes {
 		b.Run(bc.name, func(b *testing.B) {
 			ts, size := benchStateSeries(b, bc.target)
 
-			encoded, err := encodeStatePayload(ts)
+			encoded, err := w.encode(ts)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -280,7 +283,7 @@ func BenchmarkEncodeStatePayload(b *testing.B) {
 			b.SetBytes(int64(size))
 
 			for b.Loop() {
-				if _, err := encodeStatePayload(ts); err != nil {
+				if _, err := w.encode(ts); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -290,7 +293,7 @@ func BenchmarkEncodeStatePayload(b *testing.B) {
 		})
 	}
 
-	// The package shares one encoder state between all scrapers, so concurrent
+	// The writer shares one encoder state between all scrapers, so concurrent
 	// encodes queue behind each other; this measures the throughput of that queue.
 	b.Run("p90_38KiB_parallel", func(b *testing.B) {
 		ts, size := benchStateSeries(b, benchPayloadSizes[1].target)
@@ -299,7 +302,7 @@ func BenchmarkEncodeStatePayload(b *testing.B) {
 
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				if _, err := encodeStatePayload(ts); err != nil {
+				if _, err := w.encode(ts); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -308,11 +311,13 @@ func BenchmarkEncodeStatePayload(b *testing.B) {
 }
 
 func BenchmarkDecodeStatePayload(b *testing.B) {
+	w := NewStateWriter(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
+
 	for _, bc := range benchPayloadSizes {
 		b.Run(bc.name, func(b *testing.B) {
 			ts, size := benchStateSeries(b, bc.target)
 
-			encoded, err := encodeStatePayload(ts)
+			encoded, err := w.encode(ts)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -320,7 +325,7 @@ func BenchmarkDecodeStatePayload(b *testing.B) {
 			b.SetBytes(int64(size))
 
 			for b.Loop() {
-				if _, err := decodeStatePayload(encoded); err != nil {
+				if _, err := w.decode(encoded); err != nil {
 					b.Fatal(err)
 				}
 			}
@@ -332,7 +337,7 @@ func BenchmarkDecodeStatePayload(b *testing.B) {
 	b.Run("p90_38KiB_parallel", func(b *testing.B) {
 		ts, size := benchStateSeries(b, benchPayloadSizes[1].target)
 
-		encoded, err := encodeStatePayload(ts)
+		encoded, err := w.encode(ts)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -341,7 +346,7 @@ func BenchmarkDecodeStatePayload(b *testing.B) {
 
 		b.RunParallel(func(pb *testing.PB) {
 			for pb.Next() {
-				if _, err := decodeStatePayload(encoded); err != nil {
+				if _, err := w.decode(encoded); err != nil {
 					b.Fatal(err)
 				}
 			}

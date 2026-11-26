@@ -3451,7 +3451,7 @@ func (p *recordingPublisher) Publish(payload pusher.Payload) {
 // TestScrapeHandlerStoresState checks that a scraper's state is written once
 // per successful scrape, and never for republications or failed collections.
 func TestScrapeHandlerStoresState(t *testing.T) {
-	newScraper := func(t *testing.T, store StateStore, maxMetricLabels int) (*Scraper, *recordingPublisher) {
+	newScraper := func(t *testing.T, writer StateWriter, maxMetricLabels int) (*Scraper, *recordingPublisher) {
 		t.Helper()
 
 		var check model.Check
@@ -3480,7 +3480,7 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 			LabellingMode:         testLabellingMode{},
 			Telemeter:             &testTelemeter{},
 			CostAttributionLabels: testCalTenants{},
-			StateWriter:           NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop()),
+			StateWriter:           writer,
 		})
 		require.NoError(t, err)
 
@@ -3489,7 +3489,8 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 
 	t.Run("scrape stores the published payload, republish does not", func(t *testing.T) {
 		store := &fakeStateStore{}
-		s, publisher := newScraper(t, store, 20)
+		writer := NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
+		s, publisher := newScraper(t, writer, 20)
 
 		h := scrapeHandler{scraper: s}
 		firedAt := time.Now()
@@ -3504,7 +3505,7 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, firedAt.Add(5*time.Minute), record.NextFire)
 
-		decoded, err := decodeStatePayload(record.Payload)
+		decoded, err := writer.decode(record.Payload)
 		require.NoError(t, err)
 		require.Equal(t, publisher.payloads[0].Metrics(), decoded)
 
@@ -3521,7 +3522,8 @@ func TestScrapeHandlerStoresState(t *testing.T) {
 
 	t.Run("failed collection stores nothing", func(t *testing.T) {
 		store := &fakeStateStore{}
-		s, publisher := newScraper(t, store, 1) // too many labels: collectData fails
+		writer := NewStateWriter(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
+		s, publisher := newScraper(t, writer, 1) // too many labels: collectData fails
 
 		h := scrapeHandler{scraper: s}
 

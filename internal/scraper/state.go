@@ -36,22 +36,9 @@ const (
 	stateResultSkippedExpired = "skipped_expired"
 )
 
-var stateResults = []string{stateResultOK, stateResultError, stateResultSkippedExpired}
-
 func stateKey(check model.Check) string {
 	return stateKeyPrefix + strconv.FormatInt(int64(check.GlobalID()), 10) + ":" + check.ConfigVersion()
 }
-
-// A single encoder and decoder serve all the scrapers. EncodeAll and DecodeAll are
-// safe for concurrent use; with WithEncoderConcurrency(1) concurrent encodes
-// from different scrapers are serialized through the single encoder state.
-// That is accepted: a level-1 encode of a payload up to a few hundred KB takes
-// well under a millisecond, and it keeps the codec's memory independent of the
-// number of scrapers.
-var (
-	stateEncoder = newStateEncoder()
-	stateDecoder = newStateDecoder()
-)
 
 func newStateEncoder() *zstd.Encoder {
 	enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedFastest), zstd.WithEncoderConcurrency(1))
@@ -72,30 +59,6 @@ func newStateDecoder() *zstd.Decoder {
 	}
 
 	return dec
-}
-
-func encodeStatePayload(ts TimeSeries) ([]byte, error) {
-	data, err := (&prompb.WriteRequest{Timeseries: ts}).Marshal()
-	if err != nil {
-		return nil, fmt.Errorf("marshaling write request: %w", err)
-	}
-
-	return stateEncoder.EncodeAll(data, nil), nil
-}
-
-func decodeStatePayload(b []byte) (TimeSeries, error) {
-	data, err := stateDecoder.DecodeAll(b, nil)
-	if err != nil {
-		return nil, fmt.Errorf("decompressing write request: %w", err)
-	}
-
-	var req prompb.WriteRequest
-
-	if err := req.Unmarshal(data); err != nil {
-		return nil, fmt.Errorf("unmarshaling write request: %w", err)
-	}
-
-	return req.Timeseries, nil
 }
 
 // StateWriter persists a scraper's state for its successor. A scraper calls
@@ -126,7 +89,15 @@ func (NoopStateWriter) Store(context.Context, model.Check, time.Time, TimeSeries
 // Every scraper is already a goroutine, so this costs no new ones; concurrency is
 // naturally bounded by the number of scrapers finishing in the same window.
 type stateWriter struct {
-	store   StateStore
+	store StateStore
+	// A single encoder and decoder serve all the scrapers. EncodeAll and DecodeAll are
+	// safe for concurrent use; with WithEncoderConcurrency(1) concurrent encodes
+	// from different scrapers are serialized through the single encoder state.
+	// That is accepted: a level-1 encode of a payload up to a few hundred KB takes
+	// well under a millisecond, and it keeps the codec's memory independent of the
+	// number of scrapers.
+	encoder *zstd.Encoder
+	decoder *zstd.Decoder
 	metrics stateWriterMetrics
 	logger  zerolog.Logger
 }
@@ -138,16 +109,38 @@ type stateWriterMetrics struct {
 
 // NewStateWriter returns a writer backed by store, which must not be nil, and
 // registers its metrics with reg.
-func NewStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) StateWriter {
-	return newStateWriter(store, reg, logger)
-}
-
-func newStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) *stateWriter {
+func NewStateWriter(store StateStore, reg prometheus.Registerer, logger zerolog.Logger) *stateWriter {
 	return &stateWriter{
 		store:   store,
+		encoder: newStateEncoder(),
+		decoder: newStateDecoder(),
 		metrics: newStateWriterMetrics(reg),
 		logger:  logger,
 	}
+}
+
+func (w *stateWriter) encode(ts TimeSeries) ([]byte, error) {
+	data, err := (&prompb.WriteRequest{Timeseries: ts}).Marshal()
+	if err != nil {
+		return nil, fmt.Errorf("marshaling write request: %w", err)
+	}
+
+	return w.encoder.EncodeAll(data, nil), nil
+}
+
+func (w *stateWriter) decode(b []byte) (TimeSeries, error) {
+	data, err := w.decoder.DecodeAll(b, nil)
+	if err != nil {
+		return nil, fmt.Errorf("decompressing write request: %w", err)
+	}
+
+	var req prompb.WriteRequest
+
+	if err := req.Unmarshal(data); err != nil {
+		return nil, fmt.Errorf("unmarshaling write request: %w", err)
+	}
+
+	return req.Timeseries, nil
 }
 
 func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
@@ -169,7 +162,7 @@ func newStateWriterMetrics(reg prometheus.Registerer) stateWriterMetrics {
 
 	reg.MustRegister(m.writes, m.recordBytes)
 
-	for _, result := range stateResults {
+	for _, result := range []string{stateResultOK, stateResultError, stateResultSkippedExpired} {
 		m.writes.WithLabelValues(result)
 	}
 
@@ -193,7 +186,7 @@ func (w *stateWriter) Store(ctx context.Context, check model.Check, nextFire tim
 
 	key := stateKey(check)
 
-	payload, err := encodeStatePayload(ts)
+	payload, err := w.encode(ts)
 	if err != nil {
 		w.metrics.writes.WithLabelValues(stateResultError).Inc()
 		w.logger.Warn().Err(err).Str("key", key).Msg("encoding scraper state")
