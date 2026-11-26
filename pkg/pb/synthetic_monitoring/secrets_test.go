@@ -350,6 +350,21 @@ func TestCheckSettingsSecretFields(t *testing.T) {
 		require.Equal(t, []SecretField{SecretFieldBrowserScript}, slices.Collect(settings.SecretFields()))
 	})
 
+	t.Run("every grpc field, in order", func(t *testing.T) {
+		t.Parallel()
+
+		settings := CheckSettings{Grpc: &GrpcSettings{TlsConfig: &TLSConfig{
+			CACert:     []byte(ref),
+			ClientCert: []byte(ref),
+			ClientKey:  []byte(ref),
+		}}}
+		require.Equal(t, []SecretField{
+			SecretFieldGrpcTLSCACert,
+			SecretFieldGrpcTLSClientCert,
+			SecretFieldGrpcTLSClientKey,
+		}, slices.Collect(settings.SecretFields()))
+	})
+
 	t.Run("plaintext only", func(t *testing.T) {
 		t.Parallel()
 
@@ -401,13 +416,18 @@ func TestCheckSettingsReferencesSecrets(t *testing.T) {
 			want:     false,
 		},
 
+		"grpc with a reference": {
+			settings: CheckSettings{Grpc: &GrpcSettings{TlsConfig: &TLSConfig{ClientKey: []byte(`${secrets.key}`)}}},
+			want:     true,
+		},
+		"grpc without one": {
+			settings: CheckSettings{Grpc: &GrpcSettings{TlsConfig: &TLSConfig{ClientKey: []byte("plain")}}},
+			want:     false,
+		},
+
 		// None of these has a field that takes a secret.
 		"dns": {
 			settings: CheckSettings{Dns: &DnsSettings{}},
-			want:     false,
-		},
-		"grpc": {
-			settings: CheckSettings{Grpc: &GrpcSettings{}},
 			want:     false,
 		},
 		"ping": {

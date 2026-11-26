@@ -796,7 +796,8 @@ func setupGRPCProbe(ctx context.Context, t *testing.T) (prober.Prober, model.Che
 	prober, err := grpcProber.NewProber(
 		ctx,
 		check,
-		zerolog.New(io.Discard))
+		zerolog.New(io.Discard),
+		testhelper.NoopSecretStore{})
 	if err != nil {
 		clean()
 		t.Fatalf("cannot create gRPC prober: %s", err)
@@ -826,7 +827,8 @@ func setupGRPCSSLProbe(ctx context.Context, t *testing.T) (prober.Prober, model.
 	prober, err := grpcProber.NewProber(
 		ctx,
 		check,
-		zerolog.New(io.Discard))
+		zerolog.New(io.Discard),
+		testhelper.NoopSecretStore{})
 	if err != nil {
 		clean()
 		t.Fatalf("cannot create gRPC prober: %s", err)

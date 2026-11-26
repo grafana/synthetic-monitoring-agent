@@ -72,6 +72,9 @@ const (
 	SecretFieldHttpHeaders           SecretField = "http.headers"
 	SecretFieldScriptedScript        SecretField = "scripted.script"
 	SecretFieldBrowserScript         SecretField = "browser.script"
+	SecretFieldGrpcTLSCACert         SecretField = "grpc.tlsConfig.caCert"
+	SecretFieldGrpcTLSClientCert     SecretField = "grpc.tlsConfig.clientCert"
+	SecretFieldGrpcTLSClientKey      SecretField = "grpc.tlsConfig.clientKey"
 
 	// SecretFieldUnknown is reported for a check type nobody has classified
 	// yet. Callers should not match it to any probe.
@@ -91,13 +94,21 @@ var SecretFieldMinAgentVersions = map[SecretField]*semver.Version{
 	SecretFieldHttpTLSClientCert:     httpSecretsMinAgentVersion,
 	SecretFieldHttpTLSClientKey:      httpSecretsMinAgentVersion,
 	SecretFieldHttpHeaders:           semver.MustParse("v0.72.0"),
+	SecretFieldGrpcTLSCACert:         protocolSecretsMinAgentVersion,
+	SecretFieldGrpcTLSClientCert:     protocolSecretsMinAgentVersion,
+	SecretFieldGrpcTLSClientKey:      protocolSecretsMinAgentVersion,
 
 	// k6 resolves these while the script runs, so the agent version doesn't matter.
 	SecretFieldScriptedScript: nil,
 	SecretFieldBrowserScript:  nil,
 }
 
-var httpSecretsMinAgentVersion = semver.MustParse("v0.46.0")
+var (
+	httpSecretsMinAgentVersion = semver.MustParse("v0.46.0")
+
+	// protocolSecretsMinAgentVersion is the first agent that resolves secrets in TCP and gRPC checks.
+	protocolSecretsMinAgentVersion = semver.MustParse("v0.72.0")
+)
 
 // ReferencesSecrets reports whether these settings point at a secret. See
 // Check.ReferencesSecrets.
@@ -133,7 +144,10 @@ func (s CheckSettings) SecretFields() iter.Seq[SecretField] {
 				yield(SecretFieldBrowserScript)
 			}
 
-		case CheckTypeDns, CheckTypeGrpc, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute:
+		case CheckTypeGrpc:
+			s.Grpc.TlsConfig.secretFields(yield, SecretFieldGrpcTLSCACert, SecretFieldGrpcTLSClientCert, SecretFieldGrpcTLSClientKey)
+
+		case CheckTypeDns, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute:
 			// None of these has a field that takes a secret.
 
 		case CheckTypeMultiHttp:
@@ -159,26 +173,38 @@ func (h *HttpSettings) secretFields(yield func(SecretField) bool) {
 		return
 	}
 
-	if h.TlsConfig != nil {
-		tlsFields := [...]struct {
-			field SecretField
-			value []byte
-		}{
-			{SecretFieldHttpTLSCACert, h.TlsConfig.CACert},
-			{SecretFieldHttpTLSClientCert, h.TlsConfig.ClientCert},
-			{SecretFieldHttpTLSClientKey, h.TlsConfig.ClientKey},
-		}
-
-		for _, f := range tlsFields {
-			if secretRefRegex.Match(f.value) && !yield(f.field) {
-				return
-			}
-		}
+	if !h.TlsConfig.secretFields(yield, SecretFieldHttpTLSCACert, SecretFieldHttpTLSClientCert, SecretFieldHttpTLSClientKey) {
+		return
 	}
 
 	if slices.ContainsFunc(h.Headers, headerValueReferencesSecrets) {
 		yield(SecretFieldHttpHeaders)
 	}
+}
+
+// secretFields yields ca, cert and key, in that order, for each of the CA cert, client cert and
+// client key that holds a reference. It reports false when yield asked to stop.
+func (t *TLSConfig) secretFields(yield func(SecretField) bool, ca, cert, key SecretField) bool {
+	if t == nil {
+		return true
+	}
+
+	tlsFields := [...]struct {
+		field SecretField
+		value []byte
+	}{
+		{ca, t.CACert},
+		{cert, t.ClientCert},
+		{key, t.ClientKey},
+	}
+
+	for _, f := range tlsFields {
+		if secretRefRegex.Match(f.value) && !yield(f.field) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // headerValueReferencesSecrets reports whether the value of a "Name: value"
