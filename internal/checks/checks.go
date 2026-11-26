@@ -24,7 +24,6 @@ import (
 
 	logproto "github.com/grafana/loki/pkg/push"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cals"
 	"github.com/grafana/synthetic-monitoring-agent/internal/cluster"
 	"github.com/grafana/synthetic-monitoring-agent/internal/error_types"
@@ -146,13 +145,10 @@ type UpdaterOptions struct {
 	CostAttributionLabels *cals.CostAttributionLabels
 	LabellingMode         *labelmode.LabelMode
 	IsClusterEnabled      bool
-	// CacheScrapers makes scrapers persist their state across restarts and
-	// migrations, in ScraperCache, which must then be set.
-	CacheScrapers bool
-	ScraperCache  cache.Cache
+	// StateWriter is what scrapers persist their state with, across restarts
+	// and migrations. Left unset, they persist nothing.
+	StateWriter scraper.StateWriter
 }
-
-var errScraperCacheRequired = errors.New("caching scraper state requires a scraper cache")
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	scraperFactory := scraper.New
@@ -161,15 +157,8 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	}
 
 	var stateWriter scraper.StateWriter = scraper.NoopStateWriter{}
-
-	if opts.CacheScrapers {
-		if opts.ScraperCache == nil {
-			return nil, errScraperCacheRequired
-		}
-
-		stateWriter = scraper.NewStateWriter(
-			opts.ScraperCache, opts.PromRegisterer, opts.Logger.With().Str("subsystem", "scraper_cache").Logger(),
-		)
+	if opts.StateWriter != nil {
+		stateWriter = opts.StateWriter
 	}
 
 	c := &Updater{

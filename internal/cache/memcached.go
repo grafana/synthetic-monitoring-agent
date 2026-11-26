@@ -284,6 +284,11 @@ func (c *MemcachedClient) Flush(ctx context.Context) error {
 	return nil
 }
 
+// Durable returns true: memcached runs outside the agent process.
+func (c *MemcachedClient) Durable() bool {
+	return true
+}
+
 // Close stops the background server address refresh goroutine by cancelling its context.
 //
 // This method is optional if the parent context passed to NewMemcachedClient is already

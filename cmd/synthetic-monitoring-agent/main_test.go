@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"io"
 	"testing"
-	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
+	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 )
 
 func TestValidateCIDRs(t *testing.T) {
@@ -58,41 +59,46 @@ func TestDeprecatedFeatureHints(t *testing.T) {
 	require.NotContains(t, out.String(), "the `k6` feature")
 }
 
-func TestSetupCacheKind(t *testing.T) {
-	logger := zerolog.Nop()
+// durableCache claims to outlive the agent without a server behind it.
+type durableCache struct{ cache.Cache }
+
+func (durableCache) Durable() bool { return true }
+
+func TestNewScraperStateWriter(t *testing.T) {
+	inProcess := cache.NewNoop(zerolog.Nop())
 
 	testcases := map[string]struct {
-		kind     cache.Kind
-		servers  []string
-		capacity int
-		want     cache.Kind
-		wantErr  bool
+		enabled  bool
+		cache    cache.Cache
+		wantNoop bool
+		wantWarn bool
 	}{
-		"auto without servers is local":       {kind: cache.KindAuto, capacity: 10, want: cache.KindLocal},
-		"auto with servers is memcached":      {kind: cache.KindAuto, servers: []string{"127.0.0.1:11211"}, capacity: 10, want: cache.KindMemcached},
-		"local":                               {kind: cache.KindLocal, capacity: 10, want: cache.KindLocal},
-		"noop":                                {kind: cache.KindNoop, capacity: 10, want: cache.KindNoop},
-		"memcached without servers is local":  {kind: cache.KindMemcached, capacity: 10, want: cache.KindLocal},
-		"memcached with a bad address errors": {kind: cache.KindMemcached, servers: []string{"no-port"}, capacity: 10, wantErr: true},
-		"unknown kind is local":               {kind: cache.Kind("bogus"), capacity: 10, want: cache.KindLocal},
-		"local that cannot be built is noop":  {kind: cache.KindLocal, capacity: 0, want: cache.KindNoop},
+		"disabled":                         {cache: durableCache{inProcess}, wantNoop: true},
+		"enabled with a durable cache":     {enabled: true, cache: durableCache{inProcess}},
+		"enabled with an in-process cache": {enabled: true, cache: inProcess, wantNoop: true, wantWarn: true},
 	}
 
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
-			// The memcached client resolves IP literals without dialing, so no
-			// server is needed to observe the kind.
-			_, kind, err := setupCache(t.Context(), tc.kind, tc.servers, tc.capacity, time.Minute, &logger)
+			var logs bytes.Buffer
 
-			if tc.wantErr {
-				require.Error(t, err)
-				require.Equal(t, cache.Kind(""), kind)
+			reg := prometheus.NewPedanticRegistry()
 
-				return
-			}
+			writer := newScraperStateWriter(tc.enabled, tc.cache, reg, zerolog.New(&logs))
 
+			_, isNoop := writer.(scraper.NoopStateWriter)
+			require.Equal(t, tc.wantNoop, isNoop)
+
+			// Only a real writer registers metrics.
+			metrics, err := reg.Gather()
 			require.NoError(t, err)
-			require.Equal(t, tc.want, kind)
+			require.Equal(t, tc.wantNoop, len(metrics) == 0)
+
+			if tc.wantWarn {
+				require.Contains(t, logs.String(), `"level":"warn"`)
+			} else {
+				require.NotContains(t, logs.String(), `"level":"warn"`)
+			}
 		})
 	}
 }

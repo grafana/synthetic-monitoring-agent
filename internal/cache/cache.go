@@ -79,6 +79,10 @@ type Cache interface {
 	// Flush removes all items from the cache.
 	// Use this operation cautiously as it affects all cache users.
 	Flush(ctx context.Context) error
+
+	// Durable reports whether what the cache holds outlives the agent
+	// process: another agent can read it, and a restart does not lose it.
+	Durable() bool
 }
 
 type Kind string

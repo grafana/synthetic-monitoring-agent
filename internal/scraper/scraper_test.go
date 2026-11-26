@@ -3448,34 +3448,6 @@ func (p *recordingPublisher) Publish(payload pusher.Payload) {
 	p.payloads = append(p.payloads, payload)
 }
 
-func TestNewWithOptsRequiresStateWriter(t *testing.T) {
-	var check model.Check
-
-	err := check.FromSM(sm.Check{
-		Id:        1,
-		TenantId:  1000,
-		Frequency: 300000,
-		Timeout:   1000,
-		Enabled:   true,
-		Target:    "127.0.0.1",
-		Job:       "test",
-		Settings:  sm.CheckSettings{Ping: &sm.PingSettings{}},
-	})
-	require.NoError(t, err)
-
-	_, err = NewWithOpts(t.Context(), check, ScraperOpts{
-		Metrics:               NewMetrics(&testCounter{}, &testCounterVec{counters: make(map[string]Incrementer), t: t}),
-		ProbeFactory:          testProbeFactory{builder: func() prober.Prober { return &testProberB{} }},
-		Logger:                zerolog.New(zerolog.NewTestWriter(t)),
-		Publisher:             &testPublisher{},
-		LabelsLimiter:         testLabelsLimiter{maxMetricLabels: 20, maxLogLabels: 15},
-		LabellingMode:         testLabellingMode{},
-		Telemeter:             &testTelemeter{},
-		CostAttributionLabels: testCalTenants{},
-	})
-	require.ErrorIs(t, err, errStateWriterRequired)
-}
-
 // TestScrapeHandlerStoresState checks that a scraper's state is written once
 // per successful scrape, and never for republications or failed collections.
 func TestScrapeHandlerStoresState(t *testing.T) {

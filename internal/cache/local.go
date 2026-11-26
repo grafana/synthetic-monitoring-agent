@@ -150,6 +150,11 @@ func (l *Local) Flush(ctx context.Context) error {
 	return nil
 }
 
+// Durable returns false: the local cache lives in the agent's memory.
+func (l *Local) Durable() bool {
+	return false
+}
+
 // Close cleanly shuts down the cache.
 //
 // Otter performs cleanup operations to release resources.

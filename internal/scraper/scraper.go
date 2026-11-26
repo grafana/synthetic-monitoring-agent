@@ -202,10 +202,6 @@ type ScraperOpts struct {
 }
 
 func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scraper, error) {
-	if opts.StateWriter == nil {
-		return nil, errStateWriterRequired
-	}
-
 	checkName := check.Type().String()
 
 	logger := opts.Logger.With().
@@ -249,10 +245,9 @@ func NewWithOpts(ctx context.Context, check model.Check, opts ScraperOpts) (*Scr
 }
 
 var (
-	errCheckFailed         = errors.New("probe failed")
-	errUnsupportedMetric   = errors.New("unsupported metric type")
-	errTooManyLabels       = errors.New("invalid configuration, too many labels")
-	errStateWriterRequired = errors.New("state writer is required")
+	errCheckFailed       = errors.New("probe failed")
+	errUnsupportedMetric = errors.New("unsupported metric type")
+	errTooManyLabels     = errors.New("invalid configuration, too many labels")
 )
 
 type checkStateMachine struct {
@@ -382,6 +377,7 @@ func (h *scrapeHandler) scrape(ctx context.Context, t time.Time) {
 	if h.payload != nil {
 		h.scraper.publisher.Publish(h.payload)
 
+		// cache the execution result + nextFire cadence
 		if h.scraper.persistState {
 			nextFire := t.Add(ms(h.scraper.check.Frequency))
 			h.scraper.stateWriter.Store(ctx, h.scraper.check, nextFire, h.payload.ts)

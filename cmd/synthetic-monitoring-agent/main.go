@@ -279,7 +279,7 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	cacheClient, cacheKind, err := setupCache(
+	cacheClient, err := setupCache(
 		ctx,
 		config.CacheType,
 		config.MemcachedServers,
@@ -291,10 +291,7 @@ func run(args []string, stdout io.Writer) error {
 		return err
 	}
 
-	cacheScrapers := config.CacheScrapers && cacheKind == cache.KindMemcached
-	if config.CacheScrapers && !cacheScrapers {
-		zl.Warn().Stringer("backend", cacheKind).Msg("-cache-scrapers needs the memcached cache, the only one that outlives a restart; scraper state caching disabled")
-	}
+	stateWriter := newScraperStateWriter(config.CacheScrapers, cacheClient, promRegisterer, zl)
 
 	// to know if probe is connected to API
 	readynessHandler := NewReadynessHandler()
@@ -459,8 +456,7 @@ func run(args []string, stdout io.Writer) error {
 		LabellingMode:         labelmode.New(tm),
 		IsClusterEnabled:      config.Cluster.Enabled,
 		Node:                  clusterNode,
-		CacheScrapers:         cacheScrapers,
-		ScraperCache:          cacheClient,
+		StateWriter:           stateWriter,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
@@ -646,11 +642,26 @@ func setupGoMemLimit(ratio float64) error {
 	return nil
 }
 
-// setupCache builds the agent cache and reports the backend it resolved to,
-// which can differ from cacheType through auto mode and fallbacks.
-func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) (cache.Cache, cache.Kind, error) {
+// newScraperStateWriter returns what scrapers persist their state with: a
+// writer backed by the agent cache when -cache-scrapers is set and that cache
+// outlives the agent, a no-op otherwise.
+func newScraperStateWriter(enabled bool, agentCache cache.Cache, reg prometheus.Registerer, logger zerolog.Logger) scraper.StateWriter {
+	if !enabled {
+		return scraper.NoopStateWriter{}
+	}
+
+	if !agentCache.Durable() {
+		logger.Warn().Msg("-cache-scrapers needs a cache that outlives the agent (memcached); scraper state caching disabled")
+
+		return scraper.NoopStateWriter{}
+	}
+
+	return scraper.NewStateWriter(agentCache, reg, logger.With().Str("subsystem", "scraper_cache").Logger())
+}
+
+func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) (cache.Cache, error) {
 	// Determine effective cache type with auto mode logic:
-	// auto + servers provided -> memcached (a client that cannot be built is fatal)
+	// auto + servers provided -> memcached -> local -> noop
 	// auto + no servers -> local -> noop
 	effectiveType := cacheType
 	if cacheType == cache.KindAuto {
@@ -665,10 +676,7 @@ func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []st
 	case cache.KindMemcached:
 		if len(memcachedServers) == 0 {
 			logger.Warn().Msg("memcached type selected but no servers configured, falling back to local cache")
-
-			local, kind := setupLocalCache(localCapacity, localTTL, logger)
-
-			return local, kind, nil
+			return setupLocalCache(localCapacity, localTTL, logger), nil
 		}
 
 		cacheConfig := cache.MemcachedConfig{
@@ -684,36 +692,32 @@ func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []st
 				Strs("servers", memcachedServers).
 				Msg("failed to initialize memcached cache")
 
-			return nil, "", fmt.Errorf("failed to initialize memcached client: %w", err)
+			return nil, fmt.Errorf("failed to initialize memcached client: %w", err)
 		}
 
 		logger.Info().
 			Strs("servers", memcachedServers).
 			Msg("memcached cache initialized")
 
-		return cacheClient, cache.KindMemcached, nil
+		return cacheClient, nil
 
 	case cache.KindLocal:
-		local, kind := setupLocalCache(localCapacity, localTTL, logger)
-
-		return local, kind, nil
+		return setupLocalCache(localCapacity, localTTL, logger), nil
 
 	case cache.KindNoop:
 		logger.Debug().Msg("noop cache selected")
-		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger()), cache.KindNoop, nil
+		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger()), nil
 
 	default:
 		logger.Warn().
 			Stringer("type", effectiveType).
 			Msg("unknown cache type, falling back to local cache")
 
-		local, kind := setupLocalCache(localCapacity, localTTL, logger)
-
-		return local, kind, nil
+		return setupLocalCache(localCapacity, localTTL, logger), nil
 	}
 }
 
-func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) (cache.Cache, cache.Kind) {
+func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) cache.Cache {
 	localConfig := cache.LocalConfig{
 		MaxCapacity:     capacity,
 		InitialCapacity: capacity / 10, // 10% of max as initial capacity
@@ -729,7 +733,7 @@ func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) (c
 			Dur("ttl", ttl).
 			Msg("failed to initialize local cache, using noop cache")
 
-		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger()), cache.KindNoop
+		return cache.NewNoop(logger.With().Str("subsystem", "cache").Logger())
 	}
 
 	logger.Info().
@@ -737,5 +741,5 @@ func setupLocalCache(capacity int, ttl time.Duration, logger *zerolog.Logger) (c
 		Dur("ttl", ttl).
 		Msg("local cache initialized")
 
-	return localCache, cache.KindLocal
+	return localCache
 }

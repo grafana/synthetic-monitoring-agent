@@ -1,24 +1,27 @@
 package checks
 
 import (
-	"strings"
+	"context"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
-	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	"github.com/grafana/synthetic-monitoring-agent/internal/pusher"
 	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
 
-func TestNewUpdaterScraperCache(t *testing.T) {
-	const metricPrefix = "sm_agent_scraper_cache_"
+type testStateWriter struct{}
 
+func (*testStateWriter) Store(context.Context, model.Check, time.Time, scraper.TimeSeries) {}
+
+func TestNewUpdaterStateWriter(t *testing.T) {
 	base := func(t *testing.T) UpdaterOptions {
 		t.Helper()
 
@@ -32,53 +35,20 @@ func TestNewUpdaterScraperCache(t *testing.T) {
 		}
 	}
 
-	cacheMetricNames := func(t *testing.T, reg prometheus.Gatherer) []string {
-		t.Helper()
-
-		mfs, err := reg.Gather()
-		require.NoError(t, err)
-
-		var names []string
-
-		for _, mf := range mfs {
-			if strings.HasPrefix(mf.GetName(), metricPrefix) {
-				names = append(names, mf.GetName())
-			}
-		}
-
-		return names
-	}
-
-	t.Run("caching off hands scrapers a noop writer", func(t *testing.T) {
-		opts := base(t)
-		opts.ScraperCache = cache.NewNoop(opts.Logger) // present but unused: the flag decides
-
-		u, err := NewUpdater(opts)
+	t.Run("unset hands scrapers a noop writer", func(t *testing.T) {
+		u, err := NewUpdater(base(t))
 		require.NoError(t, err)
 		require.IsType(t, scraper.NoopStateWriter{}, u.stateWriter)
-		require.Empty(t, cacheMetricNames(t, opts.PromRegisterer.(prometheus.Gatherer)))
 	})
 
-	t.Run("caching on builds the writer and registers its metrics", func(t *testing.T) {
+	t.Run("set hands scrapers the caller's writer", func(t *testing.T) {
+		writer := &testStateWriter{}
+
 		opts := base(t)
-		opts.CacheScrapers = true
-		opts.ScraperCache = cache.NewNoop(opts.Logger)
+		opts.StateWriter = writer
 
 		u, err := NewUpdater(opts)
 		require.NoError(t, err)
-		require.NotNil(t, u.stateWriter)
-		require.IsType(t, scraper.NewStateWriter(opts.ScraperCache, prometheus.NewPedanticRegistry(), opts.Logger), u.stateWriter)
-		require.ElementsMatch(t,
-			[]string{metricPrefix + "record_bytes", metricPrefix + "writes_total"},
-			cacheMetricNames(t, opts.PromRegisterer.(prometheus.Gatherer)),
-		)
-	})
-
-	t.Run("caching on without a cache is a wiring error", func(t *testing.T) {
-		opts := base(t)
-		opts.CacheScrapers = true
-
-		_, err := NewUpdater(opts)
-		require.ErrorIs(t, err, errScraperCacheRequired)
+		require.Same(t, writer, u.stateWriter)
 	})
 }
