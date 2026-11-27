@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.72.0](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.71.1...v0.72.0) (2026-11-27)
+
+
+### Features
+
+* Export min agent version of secret fields ([#2157](https://github.com/grafana/synthetic-monitoring-agent/issues/2157)) ([19d54f4](https://github.com/grafana/synthetic-monitoring-agent/commit/19d54f4da4a23494d1c374a23f92ee45773ba5cb))
+* Remove the protocol-secrets feature flag ([#2153](https://github.com/grafana/synthetic-monitoring-agent/issues/2153)) ([1f0a037](https://github.com/grafana/synthetic-monitoring-agent/commit/1f0a0372eecd6e511a0208eba12b828fde7e316b))
+* Resolve secrets in HTTP custom headers ([#2124](https://github.com/grafana/synthetic-monitoring-agent/issues/2124)) ([50d056e](https://github.com/grafana/synthetic-monitoring-agent/commit/50d056eaf8670c08a0666d1290a1c71936842f7a))
+
+
+### Fixes
+
+* Omit select k6 labels in all labelling modes ([#2155](https://github.com/grafana/synthetic-monitoring-agent/issues/2155)) ([86b2731](https://github.com/grafana/synthetic-monitoring-agent/commit/86b27310fb4b7d3033ed2ad9c1072180b1a4e929))
+* Omit unused k6 labels for migrated tenants ([#2146](https://github.com/grafana/synthetic-monitoring-agent/issues/2146)) ([f463ac2](https://github.com/grafana/synthetic-monitoring-agent/commit/f463ac21cff8f1b8b5b074bb3caec3f7a93fa9be))
+
+
+### Miscellaneous Chores
+
+* **test:** Add multihttp check scenarios ([#2156](https://github.com/grafana/synthetic-monitoring-agent/issues/2156)) ([8050527](https://github.com/grafana/synthetic-monitoring-agent/commit/80505272cb6fd905cb74b5a3fd5306eba5efdb14))
+* unify CODEOWNERS to @grafana/synthetic-monitoring-dev ([#2161](https://github.com/grafana/synthetic-monitoring-agent/issues/2161)) ([eb4733b](https://github.com/grafana/synthetic-monitoring-agent/commit/eb4733b5e54a4122d61f6f7aede07de025ab86b7))
+* Update actions/setup-go action to v7.1.0 ([#2148](https://github.com/grafana/synthetic-monitoring-agent/issues/2148)) ([25b95d4](https://github.com/grafana/synthetic-monitoring-agent/commit/25b95d4d9f721b59d0ef9082cee22c8e93eb85c1))
+* Update azure/setup-helm action to v5.1.0 ([#2138](https://github.com/grafana/synthetic-monitoring-agent/issues/2138)) ([0f93eb7](https://github.com/grafana/synthetic-monitoring-agent/commit/0f93eb7e99e8811407ff487b3215284f0c676382))
+* Update module github.com/tdewolff/parse/v2 to v2.25.0 ([#2147](https://github.com/grafana/synthetic-monitoring-agent/issues/2147)) ([446dcaf](https://github.com/grafana/synthetic-monitoring-agent/commit/446dcaf57395f1c4d5b5b44626d791477f57dc5d))
+
 ## [0.71.1](https://github.com/grafana/synthetic-monitoring-agent/compare/v0.71.0...v0.71.1) (2026-11-20)
 
 
