@@ -929,17 +929,20 @@ func TestScriptImports(t *testing.T) {
 
 	testcases["all"] = &sm.MultiHttpSettings{Entries: all}
 
+	// The usage patterns match the calls the generator emits, not just the
+	// module name, so that the same text in a comment, URL or string literal
+	// does not count as a use.
 	modules := map[string]struct {
 		importLine string
 		usage      *regexp.Regexp
 	}{
 		"encoding": {
 			importLine: "import encoding from 'k6/encoding';",
-			usage:      regexp.MustCompile(`\bencoding\.`),
+			usage:      regexp.MustCompile(`\bencoding\.b64decode\(`),
 		},
 		"jsonpath": {
 			importLine: "import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js';",
-			usage:      regexp.MustCompile(`\bjsonpath\.`),
+			usage:      regexp.MustCompile(`\bjsonpath\.query\(`),
 		},
 	}
 
