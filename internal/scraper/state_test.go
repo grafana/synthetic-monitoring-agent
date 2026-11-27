@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
 
+	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 )
@@ -25,17 +28,51 @@ type stateSetCall struct {
 	err   error
 }
 
-// fakeStateStore records Set calls and returns err from each. Like the
+// stateGetCall is one Get observed by fakeStateStore, with the error it returned.
+type stateGetCall struct {
+	key string
+	err error
+}
+
+// fakeStateStore records Set and Get calls. Set keeps the record under its key
+// so a later Get finds it; records can also be seeded directly. Like the
 // memcached client, it does not watch the context.
 type fakeStateStore struct {
-	calls []stateSetCall
-	err   error
+	calls   []stateSetCall
+	gets    []stateGetCall
+	records map[string]StateRecord
+	err     error
+	getErr  error
 }
 
 func (s *fakeStateStore) Set(_ context.Context, key string, value any, ttl time.Duration) error {
 	s.calls = append(s.calls, stateSetCall{key: key, value: value, ttl: ttl, err: s.err})
 
+	if rec, ok := value.(StateRecord); ok && s.err == nil {
+		if s.records == nil {
+			s.records = make(map[string]StateRecord)
+		}
+
+		s.records[key] = rec
+	}
+
 	return s.err
+}
+
+func (s *fakeStateStore) Get(_ context.Context, key string, dest any) error {
+	err := s.getErr
+	if err == nil {
+		rec, found := s.records[key]
+		if !found {
+			err = cache.ErrCacheMiss
+		} else {
+			*dest.(*StateRecord) = rec
+		}
+	}
+
+	s.gets = append(s.gets, stateGetCall{key: key, err: err})
+
+	return err
 }
 
 func stateTestCheck(t *testing.T, frequency time.Duration) model.Check {
@@ -80,29 +117,43 @@ func stateTestSeries() TimeSeries {
 	}
 }
 
-func writesFor(w *stateWriter, result string) float64 {
-	return testutil.ToFloat64(w.metrics.writes.WithLabelValues(result))
+func writesFor(c *stateCache, result string) float64 {
+	return testutil.ToFloat64(c.metrics.writes.WithLabelValues(result))
 }
 
-// recordBytesCount returns the number of observations in the record_bytes
-// histogram, read through the registry the way a scrape would see it.
-func recordBytesCount(t *testing.T, reg prometheus.Gatherer) uint64 {
+func readsFor(c *stateCache, result string) float64 {
+	return testutil.ToFloat64(c.metrics.reads.WithLabelValues(result))
+}
+
+// histogramSamples returns the observation count and sum of the named histogram,
+// read through the registry the way a scrape would see it.
+func histogramSamples(t *testing.T, reg prometheus.Gatherer, name string) (uint64, float64) {
 	t.Helper()
 
 	mfs, err := reg.Gather()
 	require.NoError(t, err)
 
 	for _, mf := range mfs {
-		if mf.GetName() == "sm_agent_scraper_cache_record_bytes" {
+		if mf.GetName() == name {
 			require.Len(t, mf.GetMetric(), 1)
 
-			return mf.GetMetric()[0].GetHistogram().GetSampleCount()
+			h := mf.GetMetric()[0].GetHistogram()
+
+			return h.GetSampleCount(), h.GetSampleSum()
 		}
 	}
 
-	t.Fatal("sm_agent_scraper_cache_record_bytes not registered")
+	t.Fatalf("%s not registered", name)
 
-	return 0
+	return 0, 0
+}
+
+func recordBytesCount(t *testing.T, reg prometheus.Gatherer) uint64 {
+	t.Helper()
+
+	count, _ := histogramSamples(t, reg, "sm_agent_scraper_cache_record_bytes")
+
+	return count
 }
 
 func TestStateKey(t *testing.T) {
@@ -130,7 +181,7 @@ func TestStateKey(t *testing.T) {
 }
 
 func TestStatePayloadRoundTrip(t *testing.T) {
-	w := NewStateWriter(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	w := NewStateCache(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
 	in := stateTestSeries()
 
 	encoded, err := w.encode(in)
@@ -145,15 +196,21 @@ func TestStatePayloadRoundTrip(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestNoopStateWriter(t *testing.T) {
-	var w StateWriter = NoopStateWriter{}
+func TestNoopStateCache(t *testing.T) {
+	var c StateCache = NoopStateCache{}
 
-	// Nothing to assert beyond "returns": the noop has no store, no metrics
-	// and no registry to register them with.
-	w.Store(context.Background(), stateTestCheck(t, 5*time.Minute), time.Now().Add(5*time.Minute), stateTestSeries())
+	check := stateTestCheck(t, 5*time.Minute)
+
+	// The noop has no store and no registry: Store returns, Load never
+	// finds anything.
+	c.Store(context.Background(), check, time.Now().Add(5*time.Minute), stateTestSeries())
+
+	_, ts, ok := c.Load(context.Background(), check)
+	require.False(t, ok)
+	require.Nil(t, ts)
 }
 
-func TestStateWriterStore(t *testing.T) {
+func TestStateCacheStore(t *testing.T) {
 	type testcase struct {
 		frequency   time.Duration
 		firedAtAgo  time.Duration
@@ -186,7 +243,7 @@ func TestStateWriterStore(t *testing.T) {
 			store := &fakeStateStore{err: tc.storeErr}
 
 			reg := prometheus.NewPedanticRegistry()
-			w := NewStateWriter(store, reg, zerolog.Nop())
+			w := NewStateCache(store, reg, zerolog.Nop())
 
 			check := stateTestCheck(t, tc.frequency)
 			series := stateTestSeries()
@@ -269,7 +326,7 @@ func benchStateSeries(b *testing.B, target int) (TimeSeries, int) {
 }
 
 func BenchmarkEncodeStatePayload(b *testing.B) {
-	w := NewStateWriter(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	w := NewStateCache(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
 
 	for _, bc := range benchPayloadSizes {
 		b.Run(bc.name, func(b *testing.B) {
@@ -311,7 +368,7 @@ func BenchmarkEncodeStatePayload(b *testing.B) {
 }
 
 func BenchmarkDecodeStatePayload(b *testing.B) {
-	w := NewStateWriter(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	w := NewStateCache(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop())
 
 	for _, bc := range benchPayloadSizes {
 		b.Run(bc.name, func(b *testing.B) {
@@ -352,4 +409,199 @@ func BenchmarkDecodeStatePayload(b *testing.B) {
 			}
 		})
 	})
+}
+
+func TestStateCacheLoad(t *testing.T) {
+	check := stateTestCheck(t, 5*time.Minute)
+	nextFire := time.Now().Add(4 * time.Minute)
+
+	validPayload, err := NewStateCache(&fakeStateStore{}, prometheus.NewPedanticRegistry(), zerolog.Nop()).encode(stateTestSeries())
+	require.NoError(t, err)
+
+	type testcase struct {
+		records     map[string]StateRecord
+		getErr      error
+		wantOK      bool
+		wantResults map[string]float64
+	}
+
+	testcases := map[string]testcase{
+		"record present": {
+			records:     map[string]StateRecord{stateKey(check): {NextFire: nextFire, Payload: validPayload}},
+			wantOK:      true,
+			wantResults: map[string]float64{"hit": 1},
+		},
+		"record absent is a miss": {
+			wantResults: map[string]float64{"miss": 1},
+		},
+		"store error is counted": {
+			getErr:      errors.New("boom"),
+			wantResults: map[string]float64{"error": 1},
+		},
+		"garbage payload is a decode error": {
+			records:     map[string]StateRecord{stateKey(check): {NextFire: nextFire, Payload: []byte("not zstd")}},
+			wantResults: map[string]float64{"decode_error": 1},
+		},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			store := &fakeStateStore{records: tc.records, getErr: tc.getErr}
+
+			reg := prometheus.NewPedanticRegistry()
+			c := NewStateCache(store, reg, zerolog.Nop())
+
+			rec, ts, ok := c.Load(context.Background(), check)
+
+			require.Len(t, store.gets, 1)
+			require.Equal(t, stateKey(check), store.gets[0].key)
+			require.Equal(t, tc.wantOK, ok)
+
+			if tc.wantOK {
+				require.True(t, nextFire.Equal(rec.NextFire))
+				require.Equal(t, validPayload, rec.Payload)
+				require.Equal(t, stateTestSeries(), ts)
+			} else {
+				require.Nil(t, ts)
+			}
+
+			for _, result := range stateReadResults {
+				require.Equal(t, tc.wantResults[result], readsFor(c, result), "result %q", result)
+			}
+
+			problems, err := testutil.GatherAndLint(reg)
+			require.NoError(t, err)
+			require.Empty(t, problems)
+		})
+	}
+}
+
+// TestStateRecordRoundTripThroughLocalCache pins that a StateRecord survives the
+// gob encoding the real caches apply, which is what the fake store skips.
+func TestStateRecordRoundTripThroughLocalCache(t *testing.T) {
+	local, err := cache.NewLocal(cache.LocalConfig{MaxCapacity: 10, Logger: zerolog.Nop()})
+	require.NoError(t, err)
+
+	check := stateTestCheck(t, 5*time.Minute)
+	c := NewStateCache(local, prometheus.NewPedanticRegistry(), zerolog.Nop())
+
+	firedAt := time.Now()
+	c.Store(context.Background(), check, firedAt.Add(5*time.Minute), stateTestSeries())
+	require.Equal(t, 1.0, writesFor(c, "ok"))
+
+	rec, ts, ok := c.Load(context.Background(), check)
+	require.True(t, ok)
+	require.True(t, firedAt.Add(5*time.Minute).Equal(rec.NextFire), "got %s", rec.NextFire)
+	require.Equal(t, stateTestSeries(), ts)
+
+	var missing StateRecord
+
+	require.ErrorIs(t, local.Get(context.Background(), stateKeyPrefix+"missing", &missing), cache.ErrCacheMiss)
+}
+
+// gatedStateStore holds every Get until the gate opens and records how many
+// were in flight at once, which is what the reader semaphore is supposed to
+// bound. It is safe for concurrent use, unlike fakeStateStore.
+type gatedStateStore struct {
+	gate     chan struct{}
+	inflight atomic.Int32
+	peak     atomic.Int32
+	calls    atomic.Int32
+}
+
+func newGatedStateStore() *gatedStateStore {
+	return &gatedStateStore{gate: make(chan struct{})}
+}
+
+func (s *gatedStateStore) Set(context.Context, string, any, time.Duration) error { return nil }
+
+func (s *gatedStateStore) Get(ctx context.Context, _ string, _ any) error {
+	s.calls.Add(1)
+
+	n := s.inflight.Add(1)
+	defer s.inflight.Add(-1)
+
+	for {
+		p := s.peak.Load()
+		if n <= p || s.peak.CompareAndSwap(p, n) {
+			break
+		}
+	}
+
+	select {
+	case <-s.gate:
+		return cache.ErrCacheMiss
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestStateCacheLoadBoundsConcurrency(t *testing.T) {
+	const callers = 4 * maxConcurrentReaders
+
+	store := newGatedStateStore()
+	c := NewStateCache(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	check := stateTestCheck(t, 5*time.Minute)
+
+	var wg sync.WaitGroup
+
+	for range callers {
+		wg.Go(func() {
+			_, _, ok := c.Load(context.Background(), check)
+			require.False(t, ok)
+		})
+	}
+
+	// Let the first wave reach the store, then confirm nobody beyond the
+	// permit count has.
+	require.Eventually(t, func() bool { return store.inflight.Load() == maxConcurrentReaders }, time.Second, time.Millisecond)
+	require.Equal(t, int32(maxConcurrentReaders), store.calls.Load(), "callers without a permit must not reach the store")
+
+	close(store.gate)
+	wg.Wait()
+
+	require.Equal(t, int32(maxConcurrentReaders), store.peak.Load())
+	require.Equal(t, int32(callers), store.calls.Load(), "every caller gets its turn once the gate opens")
+	require.Equal(t, float64(callers), readsFor(c, "miss"))
+}
+
+func TestStateCacheLoadCancelledWhileWaiting(t *testing.T) {
+	store := newGatedStateStore()
+	c := NewStateCache(store, prometheus.NewPedanticRegistry(), zerolog.Nop())
+	check := stateTestCheck(t, 5*time.Minute)
+
+	// Fill every permit with callers parked on the gate.
+	var holders sync.WaitGroup
+
+	for range maxConcurrentReaders {
+		holders.Go(func() { c.Load(context.Background(), check) })
+	}
+
+	require.Eventually(t, func() bool { return store.inflight.Load() == maxConcurrentReaders }, time.Second, time.Millisecond)
+
+	// A caller that gives up in the queue never reaches the store and is
+	// counted, so the read does not disappear from the metrics.
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, _, ok := c.Load(ctx, check)
+
+	require.False(t, ok)
+	require.Less(t, time.Since(start), time.Second)
+	require.Equal(t, int32(maxConcurrentReaders), store.calls.Load())
+	require.Equal(t, 1.0, readsFor(c, "error"))
+
+	// And one whose context is already over fails in the queue like any other cancelled caller.
+	done, cancelDone := context.WithCancel(context.Background())
+	cancelDone()
+
+	_, _, ok = c.Load(done, check)
+
+	require.False(t, ok)
+	require.Equal(t, int32(maxConcurrentReaders), store.calls.Load())
+	require.Equal(t, 2.0, readsFor(c, "error"))
+
+	close(store.gate)
+	holders.Wait()
 }

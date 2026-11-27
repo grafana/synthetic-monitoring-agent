@@ -64,7 +64,7 @@ type durableCache struct{ cache.Cache }
 
 func (durableCache) Durable() bool { return true }
 
-func TestNewScraperStateWriter(t *testing.T) {
+func TestNewScraperStateCache(t *testing.T) {
 	inProcess := cache.NewNoop(zerolog.Nop())
 
 	testcases := map[string]struct {
@@ -84,9 +84,9 @@ func TestNewScraperStateWriter(t *testing.T) {
 
 			reg := prometheus.NewPedanticRegistry()
 
-			writer := newScraperStateWriter(tc.enabled, tc.cache, reg, zerolog.New(&logs))
+			writer := newScraperStateCache(tc.enabled, tc.cache, reg, zerolog.New(&logs))
 
-			_, isNoop := writer.(scraper.NoopStateWriter)
+			_, isNoop := writer.(scraper.NoopStateCache)
 			require.Equal(t, tc.wantNoop, isNoop)
 
 			// Only a real writer registers metrics.
