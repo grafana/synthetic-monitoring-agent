@@ -214,6 +214,12 @@ func (c assertionCondition) Render(w *strings.Builder, subject, value string) {
 //
 // This function is a mess because a single assertion represents multiple types
 // of checks.
+//
+// The generated code must only use the encoding and jsonpath modules in the
+// cases that needsJSONPath and needsEncoding report, because the script
+// template imports them only then. If you make this function emit a
+// jsonpath.query call for another assertion type, update assertionUsesJSONPath
+// to match; TestScriptImports fails if the two disagree.
 func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertion) string {
 	var (
 		b                   strings.Builder
@@ -347,6 +353,12 @@ func buildChecks(urlVarName, method string, assertion *sm.MultiHttpEntryAssertio
 	return b.String()
 }
 
+// buildVars takes a single variable and produces the corresponding JavaScript
+// code.
+//
+// If you make this function emit a jsonpath.query call for another variable
+// type, update variableUsesJSONPath to match; TestScriptImports fails if the
+// two disagree.
 func buildVars(variable *sm.MultiHttpEntryVariable) string {
 	var b strings.Builder
 
