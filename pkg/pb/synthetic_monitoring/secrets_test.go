@@ -350,6 +350,44 @@ func TestCheckSettingsSecretFields(t *testing.T) {
 		require.Equal(t, []SecretField{SecretFieldBrowserScript}, slices.Collect(settings.SecretFields()))
 	})
 
+	t.Run("every tcp field, in order", func(t *testing.T) {
+		t.Parallel()
+
+		settings := CheckSettings{Tcp: &TcpSettings{
+			QueryResponse: []TCPQueryResponse{
+				{Send: []byte("EHLO probe"), Expect: []byte(ref)},
+				{Send: []byte("AUTH " + ref)},
+				{Send: []byte(ref)},
+			},
+			TlsConfig: &TLSConfig{
+				CACert:     []byte(ref),
+				ClientCert: []byte(ref),
+				ClientKey:  []byte(ref),
+			},
+		}}
+		require.Equal(t, []SecretField{
+			SecretFieldTcpQueryResponseSend,
+			SecretFieldTcpTLSCACert,
+			SecretFieldTcpTLSClientCert,
+			SecretFieldTcpTLSClientKey,
+		}, slices.Collect(settings.SecretFields()))
+	})
+
+	t.Run("every grpc field, in order", func(t *testing.T) {
+		t.Parallel()
+
+		settings := CheckSettings{Grpc: &GrpcSettings{TlsConfig: &TLSConfig{
+			CACert:     []byte(ref),
+			ClientCert: []byte(ref),
+			ClientKey:  []byte(ref),
+		}}}
+		require.Equal(t, []SecretField{
+			SecretFieldGrpcTLSCACert,
+			SecretFieldGrpcTLSClientCert,
+			SecretFieldGrpcTLSClientKey,
+		}, slices.Collect(settings.SecretFields()))
+	})
+
 	t.Run("plaintext only", func(t *testing.T) {
 		t.Parallel()
 
@@ -401,21 +439,31 @@ func TestCheckSettingsReferencesSecrets(t *testing.T) {
 			want:     false,
 		},
 
+		"grpc with a reference": {
+			settings: CheckSettings{Grpc: &GrpcSettings{TlsConfig: &TLSConfig{ClientKey: []byte(`${secrets.key}`)}}},
+			want:     true,
+		},
+		"grpc without one": {
+			settings: CheckSettings{Grpc: &GrpcSettings{TlsConfig: &TLSConfig{ClientKey: []byte("plain")}}},
+			want:     false,
+		},
+
+		"tcp with a reference": {
+			settings: CheckSettings{Tcp: &TcpSettings{QueryResponse: []TCPQueryResponse{{Send: []byte(`AUTH ${secrets.pass}`)}}}},
+			want:     true,
+		},
+		"tcp with a reference only in the expected reply": {
+			settings: CheckSettings{Tcp: &TcpSettings{QueryResponse: []TCPQueryResponse{{Expect: []byte(`${secrets.pass}`)}}}},
+			want:     false,
+		},
+
 		// None of these has a field that takes a secret.
 		"dns": {
 			settings: CheckSettings{Dns: &DnsSettings{}},
 			want:     false,
 		},
-		"grpc": {
-			settings: CheckSettings{Grpc: &GrpcSettings{}},
-			want:     false,
-		},
 		"ping": {
 			settings: CheckSettings{Ping: &PingSettings{}},
-			want:     false,
-		},
-		"tcp": {
-			settings: CheckSettings{Tcp: &TcpSettings{}},
 			want:     false,
 		},
 		"traceroute": {

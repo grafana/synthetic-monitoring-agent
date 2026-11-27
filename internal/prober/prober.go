@@ -84,7 +84,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		target = check.Settings.Dns.Server
 
 	case sm.CheckTypeTcp:
-		p, err = tcp.NewProber(ctx, check, logger)
+		p, err = tcp.NewProber(ctx, check, logger, f.secretStore)
 		target = check.Target
 
 	case sm.CheckTypeTraceroute:
@@ -120,7 +120,7 @@ func (f proberFactory) New(ctx context.Context, logger zerolog.Logger, check mod
 		}
 
 	case sm.CheckTypeGrpc:
-		p, err = grpc.NewProber(ctx, check, logger)
+		p, err = grpc.NewProber(ctx, check, logger, f.secretStore)
 		target = check.Target
 
 	default:

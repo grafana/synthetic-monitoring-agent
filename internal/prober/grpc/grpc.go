@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/interpolation"
 	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
+	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/grafana/synthetic-monitoring-agent/internal/tls"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
@@ -19,9 +21,14 @@ var errUnsupportedCheck = errors.New("unsupported check")
 
 type Prober struct {
 	config config.Module
+	// tlsConfig is set only when it references a secret, which then resolves on every run.
+	tlsConfig   *sm.TLSConfig
+	secretStore secrets.SecretProvider
+	tenantID    model.GlobalID
+	logger      zerolog.Logger
 }
 
-func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger) (Prober, error) {
+func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger, secretStore secrets.SecretProvider) (Prober, error) {
 	if check.Settings.Grpc == nil {
 		return Prober{}, errUnsupportedCheck
 	}
@@ -33,9 +40,16 @@ func NewProber(ctx context.Context, check model.Check, logger zerolog.Logger) (P
 
 	cfg.Timeout = time.Duration(check.Timeout) * time.Millisecond
 
-	return Prober{
-		config: cfg,
-	}, nil
+	p := Prober{config: cfg}
+
+	if check.ReferencesSecrets() {
+		p.tlsConfig = check.Settings.Grpc.TlsConfig
+		p.secretStore = secretStore
+		p.tenantID = check.GlobalTenantID()
+		p.logger = logger.With().Str("prober", p.Name()).Logger()
+	}
+
+	return p, nil
 }
 
 func (p Prober) Name() string {
@@ -43,8 +57,26 @@ func (p Prober) Name() string {
 }
 
 func (p Prober) Probe(ctx context.Context, target string, registry *prometheus.Registry, l logger.Logger, _ string) (bool, float64) {
-	slogger := logger.ToSlog(l)
-	return bbeprober.ProbeGRPC(ctx, target, p.config, registry, slogger), 0
+	cfg := p.config
+
+	if p.tlsConfig != nil {
+		resolver := interpolation.NewResolver(p.secretStore, p.tenantID, p.logger)
+
+		var err error
+
+		cfg.GRPC.TLSConfig, err = tls.ResolveSMtoProm(ctx, p.logger, p.tlsConfig, resolver)
+
+		l = logger.Redacting(l, resolver.Redactor())
+
+		if err != nil {
+			p.logger.Error().Err(err).Msg("failed to resolve secrets for gRPC probe")
+			interpolation.LogSecretError(l, err)
+
+			return false, 0
+		}
+	}
+
+	return bbeprober.ProbeGRPC(ctx, target, cfg, registry, logger.ToSlog(l)), 0
 }
 
 func settingsToModule(ctx context.Context, settings *sm.GrpcSettings, logger zerolog.Logger) (config.Module, error) {

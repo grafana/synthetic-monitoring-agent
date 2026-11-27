@@ -72,6 +72,13 @@ const (
 	SecretFieldHttpHeaders           SecretField = "http.headers"
 	SecretFieldScriptedScript        SecretField = "scripted.script"
 	SecretFieldBrowserScript         SecretField = "browser.script"
+	SecretFieldTcpQueryResponseSend  SecretField = "tcp.queryResponse.send"
+	SecretFieldTcpTLSCACert          SecretField = "tcp.tlsConfig.caCert"
+	SecretFieldTcpTLSClientCert      SecretField = "tcp.tlsConfig.clientCert"
+	SecretFieldTcpTLSClientKey       SecretField = "tcp.tlsConfig.clientKey"
+	SecretFieldGrpcTLSCACert         SecretField = "grpc.tlsConfig.caCert"
+	SecretFieldGrpcTLSClientCert     SecretField = "grpc.tlsConfig.clientCert"
+	SecretFieldGrpcTLSClientKey      SecretField = "grpc.tlsConfig.clientKey"
 
 	// SecretFieldUnknown is reported for a check type nobody has classified
 	// yet. Callers should not match it to any probe.
@@ -85,19 +92,29 @@ const (
 // The table is temporary. It goes away once agent v1.0 is the oldest supported
 // version.
 var SecretFieldMinAgentVersions = map[SecretField]*semver.Version{
-	SecretFieldHttpBearerToken:       httpSecretsMinAgentVersion,
-	SecretFieldHttpBasicAuthPassword: httpSecretsMinAgentVersion,
-	SecretFieldHttpTLSCACert:         httpSecretsMinAgentVersion,
-	SecretFieldHttpTLSClientCert:     httpSecretsMinAgentVersion,
-	SecretFieldHttpTLSClientKey:      httpSecretsMinAgentVersion,
-	SecretFieldHttpHeaders:           semver.MustParse("v0.72.0"),
+	SecretFieldHttpBearerToken:       v046,
+	SecretFieldHttpBasicAuthPassword: v046,
+	SecretFieldHttpTLSCACert:         v046,
+	SecretFieldHttpTLSClientCert:     v046,
+	SecretFieldHttpTLSClientKey:      v046,
+	SecretFieldHttpHeaders:           v072,
+	SecretFieldTcpQueryResponseSend:  v072,
+	SecretFieldTcpTLSCACert:          v072,
+	SecretFieldTcpTLSClientCert:      v072,
+	SecretFieldTcpTLSClientKey:       v072,
+	SecretFieldGrpcTLSCACert:         v072,
+	SecretFieldGrpcTLSClientCert:     v072,
+	SecretFieldGrpcTLSClientKey:      v072,
 
 	// k6 resolves these while the script runs, so the agent version doesn't matter.
 	SecretFieldScriptedScript: nil,
 	SecretFieldBrowserScript:  nil,
 }
 
-var httpSecretsMinAgentVersion = semver.MustParse("v0.46.0")
+var (
+	v046 = semver.MustParse("v0.46.0")
+	v072 = semver.MustParse("v0.72.0")
+)
 
 // ReferencesSecrets reports whether these settings point at a secret. See
 // Check.ReferencesSecrets.
@@ -133,7 +150,13 @@ func (s CheckSettings) SecretFields() iter.Seq[SecretField] {
 				yield(SecretFieldBrowserScript)
 			}
 
-		case CheckTypeDns, CheckTypeGrpc, CheckTypePing, CheckTypeTcp, CheckTypeTraceroute:
+		case CheckTypeGrpc:
+			s.Grpc.TlsConfig.secretFields(yield, SecretFieldGrpcTLSCACert, SecretFieldGrpcTLSClientCert, SecretFieldGrpcTLSClientKey)
+
+		case CheckTypeTcp:
+			s.Tcp.secretFields(yield)
+
+		case CheckTypeDns, CheckTypePing, CheckTypeTraceroute:
 			// None of these has a field that takes a secret.
 
 		case CheckTypeMultiHttp:
@@ -159,26 +182,58 @@ func (h *HttpSettings) secretFields(yield func(SecretField) bool) {
 		return
 	}
 
-	if h.TlsConfig != nil {
-		tlsFields := [...]struct {
-			field SecretField
-			value []byte
-		}{
-			{SecretFieldHttpTLSCACert, h.TlsConfig.CACert},
-			{SecretFieldHttpTLSClientCert, h.TlsConfig.ClientCert},
-			{SecretFieldHttpTLSClientKey, h.TlsConfig.ClientKey},
-		}
-
-		for _, f := range tlsFields {
-			if secretRefRegex.Match(f.value) && !yield(f.field) {
-				return
-			}
-		}
+	if !h.TlsConfig.secretFields(yield, SecretFieldHttpTLSCACert, SecretFieldHttpTLSClientCert, SecretFieldHttpTLSClientKey) {
+		return
 	}
 
 	if slices.ContainsFunc(h.Headers, headerValueReferencesSecrets) {
 		yield(SecretFieldHttpHeaders)
 	}
+}
+
+// secretFields yields each secret field that holds a reference. The sent text of every step is
+// one field. The expected reply is matched against the server's reply and never resolved.
+func (t *TcpSettings) secretFields(yield func(SecretField) bool) {
+	sends := slices.ContainsFunc(t.QueryResponse, func(qr TCPQueryResponse) bool {
+		return secretRefRegex.Match(qr.Send)
+	})
+
+	if sends && !yield(SecretFieldTcpQueryResponseSend) {
+		return
+	}
+
+	t.TlsConfig.secretFields(yield, SecretFieldTcpTLSCACert, SecretFieldTcpTLSClientCert, SecretFieldTcpTLSClientKey)
+}
+
+// ReferencesSecrets reports whether the CA cert, client cert or client key points at a secret.
+func (t *TLSConfig) ReferencesSecrets() bool {
+	// secretFields reports false once yield stops it, and this yield stops at the first reference.
+	return !t.secretFields(func(SecretField) bool { return false }, SecretFieldUnknown, SecretFieldUnknown, SecretFieldUnknown)
+}
+
+// secretFields yields ca, cert and key, in that order, for each of the CA cert, client cert and
+// client key that holds a reference. It reports false when yield asked to stop.
+func (t *TLSConfig) secretFields(yield func(SecretField) bool, ca, cert, key SecretField) bool {
+	if t == nil {
+		return true
+	}
+
+	tlsFields := [...]struct {
+		field SecretField
+		value []byte
+	}{
+		{ca, t.CACert},
+		{cert, t.ClientCert},
+		{key, t.ClientKey},
+	}
+
+	for _, f := range tlsFields {
+		if secretRefRegex.Match(f.value) && !yield(f.field) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // headerValueReferencesSecrets reports whether the value of a "Name: value"

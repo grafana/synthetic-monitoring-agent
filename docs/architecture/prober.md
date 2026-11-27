@@ -33,7 +33,7 @@ scripted/browser/multihttp checks.
 | `scripted/`                         | k6-backed scripted check.                                    |
 | `browser/`                          | k6-backed browser check.                                     |
 | `multihttp/`                        | k6-backed MultiHTTP; generates a k6 script from assertions (`script.go`, `script.tmpl`). |
-| `interpolation/`                    | `${secrets.<name>}` resolution for HTTP checks (`Resolver`), and variable expansion into generated k6 scripts for MultiHTTP. |
+| `interpolation/`                    | `${secrets.<name>}` resolution for HTTP, TCP and gRPC checks (`Resolver`), and variable expansion into generated k6 scripts for MultiHTTP. |
 | `logger/`                           | The `logger.Logger` interface the prober contract uses to emit log lines. |
 
 ## How it fits in
@@ -103,12 +103,12 @@ Defined in `proberFactory.New` (`prober.go`):
 | `CheckTypePing`      | `icmp.NewProber(check)`                                       |
 | `CheckTypeHttp`      | `httpProber.NewProber(ctx, check, logger, reservedHeaders, secretStore)` |
 | `CheckTypeDns`       | `dns.NewProber(check)` (or `dns.NewExperimentalProber` if `feature.ExperimentalDnsProber` is set) |
-| `CheckTypeTcp`       | `tcp.NewProber(ctx, check, logger)`                           |
+| `CheckTypeTcp`       | `tcp.NewProber(ctx, check, logger, secretStore)`              |
 | `CheckTypeTraceroute`| `traceroute.NewProber(check, logger)`                         |
 | `CheckTypeScripted`  | `scripted.NewProber(ctx, check, logger, runner, secretStore)` — requires k6 runner. |
 | `CheckTypeBrowser`   | `browser.NewProber(ctx, check, logger, runner, secretStore)` — requires k6 runner. |
 | `CheckTypeMultiHttp` | `multihttp.NewProber(ctx, check, logger, runner, reservedHeaders, secretStore)` — requires k6 runner. |
-| `CheckTypeGrpc`      | `grpc.NewProber(ctx, check, logger)`                          |
+| `CheckTypeGrpc`      | `grpc.NewProber(ctx, check, logger, secretStore)`             |
 | (anything else)      | `errUnsupportedCheckType`                                     |
 
 If you add a new check type, this is the *only* place the agent learns
@@ -184,6 +184,31 @@ check logger and replaces each value it resolved in that run with its
 they are, because the scraper drops a line whose timestamp does not
 parse. A very short value is replaced in other unrelated text too, and
 a transformed value, such as base64, is not replaced.
+
+TCP resolves references the same way, in the sent text of every
+query-response step and in the TLS CA cert, client cert and client key.
+When a step has an expected reply, blackbox exporter expands `$` in the
+sent text against the matched reply: `$$` becomes `$` and `$1` becomes
+the first capture group. TCP doubles each `$` in a resolved value for
+those steps, so the secret goes out exactly as stored and the check
+owner's own `$1` still works. Checks whose secrets contain `$` depend on
+this. Right before a reference, TCP also writes the owner's `$1` as
+`${1}` and a lone `$` as `$$`, so that a value starting with a letter,
+digit or `_` is not read as part of the group name. Blackbox exporter
+also logs every line it sends and reads at debug level, and the check
+logs keep every level. The TCP prober wraps the check logger and
+replaces each resolved value with its `${secrets.<name>}` text, which
+also hides a secret the server echoes back. A very short value gets
+replaced in unrelated text too. A resolved value with a line break fails
+the run before the agent connects. It would split the sent line, and
+blackbox exporter logs each line it reads without its line break, so an
+echoed secret would not match the stored value and would not be
+replaced.
+
+gRPC resolves references the same way in the TLS CA cert, client cert
+and client key. TCP and gRPC both share `tls.ResolveSMtoProm` with HTTP.
+A TCP or gRPC check with no reference keeps the config built when the
+prober was created and never calls the secret store.
 
 DNS is special: the project keeps an in-tree fork at
 `prober/dns/internal/bbe` because the upstream DNS prober is missing a

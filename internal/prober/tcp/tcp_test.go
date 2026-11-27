@@ -3,6 +3,7 @@ package tcp
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/testhelper"
 	sm "github.com/grafana/synthetic-monitoring-agent/pkg/pb/synthetic_monitoring"
 	"github.com/prometheus/blackbox_exporter/config"
 	bbeprober "github.com/prometheus/blackbox_exporter/prober"
@@ -72,7 +74,7 @@ func TestNewProber(t *testing.T) {
 		logger := zerolog.New(io.Discard)
 
 		t.Run(name, func(t *testing.T) {
-			actual, err := NewProber(ctx, testcase.input, logger)
+			actual, err := NewProber(ctx, testcase.input, logger, testhelper.NoopSecretStore{})
 			require.Equal(t, &testcase.expected, &actual)
 
 			if testcase.ExpectError {
@@ -220,7 +222,7 @@ func TestProbeQueryResponse(t *testing.T) {
 			module, err := settingsToModule(ctx, &testcase.settings, zerolog.New(io.Discard))
 			require.NoError(t, err)
 
-			addr, got := runEchoServer(t, testcase.banner)
+			addr, got := runEchoServer(t, testcase.banner, nil)
 
 			registry := prometheus.NewRegistry()
 			success := bbeprober.ProbeTCP(ctx, addr, module, registry, slog.New(slog.NewTextHandler(io.Discard, nil)))
@@ -230,16 +232,20 @@ func TestProbeQueryResponse(t *testing.T) {
 	}
 }
 
-// runEchoServer accepts a single connection, optionally greets the client with
-// banner, and answers every line it reads with "PONG". It returns the address to
-// dial and a function that waits for the connection to close before reporting
-// what the client sent.
-func runEchoServer(t *testing.T, banner string) (string, func() []string) {
+// runEchoServer accepts a single connection, over TLS when serverTLS is set,
+// optionally greets the client with banner, and answers every line it reads with
+// "PONG <line>". It returns the address to dial and a function that stops
+// accepting, waits for the connection to close and reports what the client sent.
+func runEchoServer(t *testing.T, banner string, serverTLS *tls.Config) (string, func() []string) {
 	t.Helper()
 
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
+
+	if serverTLS != nil {
+		listener = tls.NewListener(listener, serverTLS)
+	}
 
 	var (
 		sent []string
@@ -263,7 +269,7 @@ func runEchoServer(t *testing.T, banner string) (string, func() []string) {
 		for scanner.Scan() {
 			sent = append(sent, scanner.Text())
 
-			if _, err := fmt.Fprintf(conn, "PONG\n"); err != nil {
+			if _, err := fmt.Fprintf(conn, "PONG %s\n", scanner.Text()); err != nil {
 				return
 			}
 		}
@@ -271,6 +277,9 @@ func runEchoServer(t *testing.T, banner string) (string, func() []string) {
 
 	return listener.Addr().String(), func() []string {
 		t.Helper()
+
+		// A probe that never connected leaves Accept waiting.
+		_ = listener.Close()
 
 		select {
 		case <-done:

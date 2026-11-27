@@ -10,7 +10,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/go-kit/log/level"
 	"github.com/grafana/synthetic-monitoring-agent/internal/model"
+	"github.com/grafana/synthetic-monitoring-agent/internal/prober/logger"
 	"github.com/grafana/synthetic-monitoring-agent/internal/secrets"
 	"github.com/rs/zerolog"
 )
@@ -30,7 +32,7 @@ func HasSecretRef(value string) bool {
 	return strings.Contains(value, SecretRefPrefix)
 }
 
-// ErrInvalidSecretName is the reason Resolve gives for a reference whose name is not a valid
+// ErrInvalidSecretName is the reason Resolver gives for a reference whose name is not a valid
 // secret name.
 var ErrInvalidSecretName = errors.New("invalid secret name: use up to 253 lowercase letters, digits, '-' and '.', starting and ending with a letter or digit")
 
@@ -44,7 +46,7 @@ type Resolver struct {
 	secretProvider SecretProvider
 	tenantID       model.GlobalID
 	logger         zerolog.Logger
-	// refs maps each secret value Resolve returned to its reference, for Redactor.
+	// refs maps each secret value r has resolved to its reference, for Redactor.
 	refs map[string]string
 }
 
@@ -58,9 +60,27 @@ func NewResolver(secretProvider SecretProvider, tenantID model.GlobalID, logger 
 	}
 }
 
-// Resolve replaces every ${secrets.name} reference in value with that secret's value. Everything
-// else is copied through byte for byte.
-func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
+// ResolveField replaces each ${secrets.name} in value with that secret's value, and leaves the
+// rest as is. An error names field, the setting that value comes from.
+func (r *Resolver) ResolveField(ctx context.Context, field, value string) (string, error) {
+	return r.ResolveFunc(ctx, field, value, nil)
+}
+
+// ResolveFunc is ResolveField with transform applied to each secret value, not to the text around
+// it. Redactor still matches the value as stored.
+func (r *Resolver) ResolveFunc(ctx context.Context, field, value string, transform func(string) (string, error)) (string, error) {
+	resolved, err := r.resolve(ctx, value, transform)
+	if err != nil {
+		secretErr := secrets.AsError(err)
+		secretErr.Field = field
+
+		return "", secretErr
+	}
+
+	return resolved, nil
+}
+
+func (r *Resolver) resolve(ctx context.Context, value string, transform func(string) (string, error)) (string, error) {
 	// No "${secrets." in the value, so skip all the secret work.
 	if !HasSecretRef(value) {
 		return value, nil
@@ -96,7 +116,7 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 
 	// The value is just "${secrets.x}" with nothing around it, so skip the builder.
 	if len(secretMatches) == 1 && secretMatches[0].start == 0 && secretMatches[0].end == len(value) {
-		return r.resolveSecret(ctx, secretMatches[0].name)
+		return r.resolveSecret(ctx, secretMatches[0].name, transform)
 	}
 
 	// Step 2: Write out the gaps between the secrets verbatim, resolving each secret in turn
@@ -107,7 +127,7 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 	for _, secretMatch := range secretMatches {
 		result.WriteString(value[lastPos:secretMatch.start])
 
-		secretValue, err := r.resolveSecret(ctx, secretMatch.name)
+		secretValue, err := r.resolveSecret(ctx, secretMatch.name, transform)
 		if err != nil {
 			return "", err
 		}
@@ -122,7 +142,20 @@ func (r *Resolver) Resolve(ctx context.Context, value string) (string, error) {
 	return result.String(), nil
 }
 
-func (r *Resolver) resolveSecret(ctx context.Context, name string) (string, error) {
+// LogSecretError logs err to the check logs l if it is a secrets.Error. Only LogFields are logged,
+// because the wrapped error can hold the secret store URL.
+func LogSecretError(l logger.Logger, err error) {
+	secretErr, ok := errors.AsType[*secrets.Error](err)
+	if !ok {
+		return
+	}
+
+	msg := "Could not " + secretErr.Verb() + " a secret referenced by this check"
+
+	_ = level.Error(l).Log(append([]any{"msg", msg}, secretErr.LogFields()...)...)
+}
+
+func (r *Resolver) resolveSecret(ctx context.Context, name string, transform func(string) (string, error)) (string, error) {
 	r.logger.Debug().Str("secretName", name).Int64("tenantId", int64(r.tenantID)).Msg("resolving secret from GSM")
 
 	secretValue, err := r.secretProvider.GetSecretValue(ctx, r.tenantID, name)
@@ -136,6 +169,18 @@ func (r *Resolver) resolveSecret(ctx context.Context, name string) (string, erro
 	// An empty value is left out, because a strings.Replacer matches "" at every position.
 	if secretValue != "" {
 		r.refs[secretValue] = SecretRefPrefix + name + "}"
+	}
+
+	if transform == nil {
+		return secretValue, nil
+	}
+
+	secretValue, err = transform(secretValue)
+	if err != nil {
+		secretErr := secrets.AsError(err)
+		secretErr.Secret = name
+
+		return "", secretErr
 	}
 
 	return secretValue, nil

@@ -316,6 +316,12 @@ func TestError(t *testing.T) {
 			wantFields: []any{"field", "header X-Api-Key", "secret", "x", "reason", ErrSecretValueInvalidInHeader.Error()},
 			wantIs:     []error{ErrSecretValueInvalidInHeader},
 		},
+		"a TCP value that resolved but cannot be sent": {
+			err:        &Error{Field: "sent text", Secret: "x", Reason: ErrSecretValueInvalidInSentText},
+			wantText:   `failed to send sent text: secret 'x': ` + ErrSecretValueInvalidInSentText.Error(),
+			wantFields: []any{"field", "sent text", "secret", "x", "reason", ErrSecretValueInvalidInSentText.Error()},
+			wantIs:     []error{ErrSecretValueInvalidInSentText},
+		},
 		"reason only": {
 			err:        &Error{Reason: ErrNoSecretStore},
 			wantText:   ErrNoSecretStore.Error(),
