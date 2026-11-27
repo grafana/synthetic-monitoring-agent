@@ -631,6 +631,7 @@ func setupMultiHTTPProbe(ctx context.Context, t *testing.T) (prober.Prober, mode
 		runner,
 		http.Header{},
 		testhelper.NoopSecretStore{},
+		false,
 	)
 	if err != nil {
 		t.Fatalf("cannot create MultiHTTP prober: %s", err)
