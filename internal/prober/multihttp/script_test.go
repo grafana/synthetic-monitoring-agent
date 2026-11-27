@@ -3,6 +3,7 @@ package multihttp
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -825,34 +826,39 @@ func TestSettingsToScript(t *testing.T) {
 		},
 	}
 
-	// Run tests for each supported k6 version.
-	for _, k6path := range testhelper.K6Paths(t) {
-		t.Run(filepath.Base(k6path), func(t *testing.T) {
-			ctx, cancel := testhelper.Context(context.Background(), t)
-			t.Cleanup(cancel)
+	// Run tests for the legacy and the lean imports, each with every supported
+	// k6 version, since the legacy imports are the default.
+	for _, leanImports := range []bool{false, true} {
+		t.Run(fmt.Sprintf("leanImports=%t", leanImports), func(t *testing.T) {
+			for _, k6path := range testhelper.K6Paths(t) {
+				t.Run(filepath.Base(k6path), func(t *testing.T) {
+					ctx, cancel := testhelper.Context(context.Background(), t)
+					t.Cleanup(cancel)
 
-			store := testhelper.NoopSecretStore{}
-			runner, err := k6runner.New(k6runner.RunnerOpts{Uri: k6path})
-			require.NoError(t, err)
+					store := testhelper.NoopSecretStore{}
+					runner, err := k6runner.New(k6runner.RunnerOpts{Uri: k6path})
+					require.NoError(t, err)
 
-			logger := testhelper.Logger(t)
-			prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store, true)
-			require.NoError(t, err)
+					logger := testhelper.Logger(t)
+					prober, err := NewProber(ctx, check, logger, runner, http.Header{}, &store, leanImports)
+					require.NoError(t, err)
 
-			reg := prometheus.NewPedanticRegistry()
-			require.NotNil(t, reg)
+					reg := prometheus.NewPedanticRegistry()
+					require.NotNil(t, reg)
 
-			var buf bytes.Buffer
+					var buf bytes.Buffer
 
-			userLogger := level.NewFilter(kitlog.NewLogfmtLogger(&buf), level.AllowInfo(), level.SquelchNoLevel(false))
-			require.NotNil(t, userLogger)
+					userLogger := level.NewFilter(kitlog.NewLogfmtLogger(&buf), level.AllowInfo(), level.SquelchNoLevel(false))
+					require.NotNil(t, userLogger)
 
-			success, duration := prober.Probe(ctx, check.Target, reg, userLogger, "test-execution-id")
+					success, duration := prober.Probe(ctx, check.Target, reg, userLogger, "test-execution-id")
 
-			t.Log("Log entries:\n" + buf.String())
+					t.Log("Log entries:\n" + buf.String())
 
-			require.True(t, success)
-			require.NotEqual(t, 0, duration)
+					require.True(t, success)
+					require.NotEqual(t, 0, duration)
+				})
+			}
 		})
 	}
 }
