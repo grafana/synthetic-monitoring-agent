@@ -2,11 +2,16 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"testing"
 
 	"github.com/grafana/synthetic-monitoring-agent/internal/feature"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/require"
+
+	"github.com/grafana/synthetic-monitoring-agent/internal/cache"
+	"github.com/grafana/synthetic-monitoring-agent/internal/scraper"
 )
 
 func TestValidateCIDRs(t *testing.T) {
@@ -52,4 +57,52 @@ func TestDeprecatedFeatureHints(t *testing.T) {
 	require.Contains(t, out.String(), `"level":"warn"`)
 	require.Contains(t, out.String(), "the `protocol-secrets` feature is now permanently enabled")
 	require.NotContains(t, out.String(), "the `k6` feature")
+}
+
+// durableCache claims to outlive the agent without a server behind it.
+type durableCache struct{ cache.Cache }
+
+func (durableCache) Durable() bool { return true }
+
+func TestNewScraperStateWriter(t *testing.T) {
+	inProcess := cache.NewNoop(zerolog.Nop())
+
+	testcases := map[string]struct {
+		enabled  bool
+		cache    cache.Cache
+		wantNoop bool
+		wantWarn bool
+	}{
+		"disabled":                         {cache: durableCache{inProcess}, wantNoop: true},
+		"enabled with a durable cache":     {enabled: true, cache: durableCache{inProcess}},
+		"enabled with an in-process cache": {enabled: true, cache: inProcess, wantNoop: true, wantWarn: true},
+	}
+
+	for name, tc := range testcases {
+		t.Run(name, func(t *testing.T) {
+			var logs bytes.Buffer
+
+			reg := prometheus.NewPedanticRegistry()
+
+			writer := newScraperStateWriter(tc.enabled, tc.cache, reg, zerolog.New(&logs))
+
+			_, isNoop := writer.(scraper.NoopStateWriter)
+			require.Equal(t, tc.wantNoop, isNoop)
+
+			// Only a real writer registers metrics.
+			metrics, err := reg.Gather()
+			require.NoError(t, err)
+			require.Equal(t, tc.wantNoop, len(metrics) == 0)
+
+			if tc.wantWarn {
+				require.Contains(t, logs.String(), `"level":"warn"`)
+			} else {
+				require.NotContains(t, logs.String(), `"level":"warn"`)
+			}
+		})
+	}
+}
+
+func TestCacheScrapersFlagRegistered(t *testing.T) {
+	require.NoError(t, run([]string{"agent", "-cache-scrapers", "-version"}, io.Discard))
 }

@@ -61,3 +61,8 @@ func (n *Noop) Flush(ctx context.Context) error {
 	n.logger.Debug().Msg("noop cache flush (discarded)")
 	return nil
 }
+
+// Durable returns false: the noop cache keeps nothing.
+func (n *Noop) Durable() bool {
+	return false
+}

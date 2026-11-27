@@ -90,6 +90,7 @@ func run(args []string, stdout io.Writer) error {
 			CacheLocalCapacity        int
 			CacheLocalTTL             time.Duration
 			MemcachedServers          StringList
+			CacheScrapers             bool
 			PushTelemetry             bool
 			MetricsInterval           time.Duration
 
@@ -146,6 +147,7 @@ func run(args []string, stdout io.Writer) error {
 	flags.IntVar(&config.CacheLocalCapacity, "cache-local-capacity", config.CacheLocalCapacity, "maximum number of items in local cache")
 	flags.DurationVar(&config.CacheLocalTTL, "cache-local-ttl", config.CacheLocalTTL, "default TTL for local cache items")
 	flags.Var(&config.MemcachedServers, "memcached-servers", "memcached servers")
+	flags.BoolVar(&config.CacheScrapers, "cache-scrapers", config.CacheScrapers, "[experimental] persist scraper state in the agent cache (see -cache-type) so scrapers resume their cadence after a restart or migration; needs the memcached cache, the only one that outlives a restart")
 	flags.DurationVar(&config.MetricsInterval, "metrics-push-interval", config.MetricsInterval, "interval between internal metrics push cycles")
 	flags.BoolVar(&config.PushTelemetry, "experimental-push-telemetry", config.PushTelemetry, "enable pushing telemetry to the probe's tenant databases")
 	flags.BoolVar(&config.BrowserPool.Enabled, "browser-pool-enabled", config.BrowserPool.Enabled, "[experimental] use remote browser sessions from an external browser (crocochrome) pool for browser checks instead of a local Chromium; requires -browser-pool-addresses")
@@ -288,6 +290,8 @@ func run(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+
+	stateWriter := newScraperStateWriter(config.CacheScrapers, cacheClient, promRegisterer, zl)
 
 	// to know if probe is connected to API
 	readynessHandler := NewReadynessHandler()
@@ -452,6 +456,7 @@ func run(args []string, stdout io.Writer) error {
 		LabellingMode:         labelmode.New(tm),
 		IsClusterEnabled:      config.Cluster.Enabled,
 		Node:                  clusterNode,
+		StateWriter:           stateWriter,
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create checks updater: %w", err)
@@ -635,6 +640,23 @@ func setupGoMemLimit(ratio float64) error {
 	}
 
 	return nil
+}
+
+// newScraperStateWriter returns what scrapers persist their state with: a
+// writer backed by the agent cache when -cache-scrapers is set and that cache
+// outlives the agent, a no-op otherwise.
+func newScraperStateWriter(enabled bool, agentCache cache.Cache, reg prometheus.Registerer, logger zerolog.Logger) scraper.StateWriter {
+	if !enabled {
+		return scraper.NoopStateWriter{}
+	}
+
+	if !agentCache.Durable() {
+		logger.Warn().Msg("-cache-scrapers needs a cache that outlives the agent (memcached); scraper state caching disabled")
+
+		return scraper.NoopStateWriter{}
+	}
+
+	return scraper.NewStateWriter(agentCache, reg, logger.With().Str("subsystem", "scraper_cache").Logger())
 }
 
 func setupCache(ctx context.Context, cacheType cache.Kind, memcachedServers []string, localCapacity int, localTTL time.Duration, logger *zerolog.Logger) (cache.Cache, error) {

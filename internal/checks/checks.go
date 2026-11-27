@@ -55,8 +55,10 @@ const (
 	errTransportClosing    = TransientError("transport closing")
 )
 
-const metricNamespace = "sm_agent"
-const metricSubsystem = "updater"
+const (
+	metricNamespace = "sm_agent"
+	metricSubsystem = "updater"
+)
 
 // Backoffer defines an interface to provide backoff durations.
 //
@@ -99,6 +101,7 @@ type Updater struct {
 	tenantCals          *cals.CostAttributionLabels
 	tenantLabellingMode *labelmode.LabelMode
 	isClusterEnabled    bool
+	stateWriter         scraper.StateWriter
 }
 
 type apiInfo struct {
@@ -142,12 +145,20 @@ type UpdaterOptions struct {
 	CostAttributionLabels *cals.CostAttributionLabels
 	LabellingMode         *labelmode.LabelMode
 	IsClusterEnabled      bool
+	// StateWriter is what scrapers persist their state with, across restarts
+	// and migrations. Left unset, they persist nothing.
+	StateWriter scraper.StateWriter
 }
 
 func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 	scraperFactory := scraper.New
 	if opts.ScraperFactory != nil {
 		scraperFactory = opts.ScraperFactory
+	}
+
+	var stateWriter scraper.StateWriter = scraper.NoopStateWriter{}
+	if opts.StateWriter != nil {
+		stateWriter = opts.StateWriter
 	}
 
 	c := &Updater{
@@ -174,6 +185,7 @@ func NewUpdater(opts UpdaterOptions) (*Updater, error) {
 		usageReporter:       opts.UsageReporter,
 		tenantCals:          opts.CostAttributionLabels,
 		tenantLabellingMode: opts.LabellingMode,
+		stateWriter:         stateWriter,
 	}
 
 	if err := c.registerMetrics(opts.PromRegisterer); err != nil {
@@ -839,6 +851,7 @@ func (c *Updater) addAndStartScraperWithLock(ctx context.Context, check model.Ch
 		metrics,
 		c.k6Runner,
 		c.tenantLimits, c.telemeter, c.tenantSecrets, c.tenantCals, c.tenantLabellingMode,
+		c.stateWriter,
 	)
 	if err != nil {
 		return fmt.Errorf("cannot create new scraper: %w", err)
