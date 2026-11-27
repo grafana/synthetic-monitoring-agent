@@ -8,6 +8,7 @@ import encoding from 'k6/encoding';
 import jsonpath from 'https://jslib.k6.io/jsonpath/1.0.2/index.js';
 {{- end }}
 {{- else }}
+{{- /* Legacy imports, used while the multihttp-lean-imports feature flag is off. TODO: remove this branch, the leanImports function and the stale TODO below once the flag is the default. */}}
 import { test } from 'k6/execution';
 // TODO(mem): conditionally import these modules
 // - import encoding if base64 decoding is required

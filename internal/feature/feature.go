@@ -14,7 +14,13 @@ const (
 	K6                    = "k6"
 	ExperimentalDnsProber = "experimental-dns-prober"
 	ProtocolSecrets       = "protocol-secrets"
-	MultiHTTPLeanImports  = "multihttp-lean-imports"
+
+	// MultiHTTPLeanImports makes MultiHTTP check scripts import k6/encoding
+	// and jsonpath only when they use them, and omit k6/execution, which
+	// they never use. It is opt-in for now. Once it is the default, remove
+	// the flag and the legacy import block in
+	// internal/prober/multihttp/script.tmpl.
+	MultiHTTPLeanImports = "multihttp-lean-imports"
 )
 
 // ErrInvalidCollection is returned when you try to set a flag in an
