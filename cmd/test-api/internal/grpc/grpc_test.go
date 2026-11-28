@@ -86,6 +86,10 @@ func (s *testAdHocChecksServer) GetAdHocChecks(*sm.Void, sm.AdHocChecks_GetAdHoc
 	return nil
 }
 
+func (s *testAdHocChecksServer) ReportAdHocResult(context.Context, *sm.AdHocResult) (*sm.Void, error) {
+	return &sm.Void{}, nil
+}
+
 type testDb struct{}
 
 func (db *testDb) FindProbeIDByToken(ctx context.Context, token []byte) (int64, error) {
